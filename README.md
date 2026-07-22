@@ -24,7 +24,7 @@ Frontend /
 │   └── utils/               # Utilities: constants.js, validators.js, formatters.js, localStorage.js, errorHandler.js, helpers.js
 ├── node_modules/
 ├── .env                     # Environment variables
-├── .env.example             # Environment variables templ ate
+├── .env.example             # Environment variables template
 ├── .gitignore               # Git ignore rules
 ├── .oxlintrc.json           # Linter configuration
 ├── .qodo                    # Qodo configuration
