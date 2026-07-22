@@ -5,7 +5,7 @@ A frontend architecture for a service booking application, built with React and 
 ## 📁 Project Architecture
 
 ```text
-service-booking/
+Frontend/
 ├── src/
 │   ├── assets/              # Static assets (images, icons, etc.)
 │   ├── components/          # Reusable UI components grouped by feature
