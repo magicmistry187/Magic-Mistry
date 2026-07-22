@@ -2,16 +2,20 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FcGoogle } from 'react-icons/fc';
 import { FiEye, FiEyeOff, FiArrowRight, FiX } from 'react-icons/fi';
+// import { Link } from 'react-router-dom'; // You can remove this if no longer used elsewhere in this file
+import OTPVerificationModal from './OTPVerificationModal';
 
 export default function CreateAccountModal({ isOpen = true, onClose }) {
   const [showPassword, setShowPassword] = useState(false);
+  const [isOTPVisible, setIsOTPVisible] = useState(false); // 1. Added OTP visibility state
+  
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
     phone: '',
     password: '',
   });
-  
+
   const [errors, setErrors] = useState({});
 
   const handleChange = (e) => {
@@ -59,21 +63,27 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (validateForm()) {
-      console.log('Form Submitted Successfully:', formData);
+      // 2. Trigger the OTP modal upon successful validation
+      setIsOTPVisible(true); 
     }
   };
 
   if (!isOpen) return null;
 
+  // 3. Conditionally render the OTP Verification Modal instead of the form
+  if (isOTPVisible) {
+    return (
+      <OTPVerificationModal 
+        phoneNumber={formData.phone} 
+        onClose={onClose} 
+      />
+    );
+  }
+
   return (
     <AnimatePresence>
-      {/* Outer wrapper handles the background and the natural page scroll */}
       <div className=" ">
-        
-        {/* Inner wrapper ensures minimum height and applies the responsive padding */}
         <div className="flex min-h-full items-center justify-center p-4 sm:p-6 md:p-8">
-          
-          {/* Modal Container - No internal scrolling, expands naturally */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -123,7 +133,7 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5" noValidate>
-              
+
               {/* Full Name */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5 ml-1">
@@ -135,11 +145,10 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
                   value={formData.fullName}
                   onChange={handleChange}
                   placeholder="John Doe"
-                  className={`w-full px-4 py-2.5 sm:py-3 bg-slate-50/80 border rounded-xl text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 transition-all ${
-                    errors.fullName
+                  className={`w-full px-4 py-2.5 sm:py-3 bg-slate-50/80 border rounded-xl text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 transition-all ${errors.fullName
                       ? 'border-red-400 focus:ring-red-400/20'
                       : 'border-slate-200 focus:ring-orange-500/20 focus:border-orange-500'
-                  }`}
+                    }`}
                 />
                 {errors.fullName && (
                   <p className="mt-1.5 text-xs text-red-500 ml-1">{errors.fullName}</p>
@@ -157,11 +166,10 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
                   value={formData.email}
                   onChange={handleChange}
                   placeholder="name@company.com"
-                  className={`w-full px-4 py-2.5 sm:py-3 bg-slate-50/80 border rounded-xl text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 transition-all ${
-                    errors.email
+                  className={`w-full px-4 py-2.5 sm:py-3 bg-slate-50/80 border rounded-xl text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 transition-all ${errors.email
                       ? 'border-red-400 focus:ring-red-400/20'
                       : 'border-slate-200 focus:ring-orange-500/20 focus:border-orange-500'
-                  }`}
+                    }`}
                 />
                 {errors.email && (
                   <p className="mt-1.5 text-xs text-red-500 ml-1">{errors.email}</p>
@@ -179,11 +187,10 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
                   value={formData.phone}
                   onChange={handleChange}
                   placeholder="+1 (555) 000-0000"
-                  className={`w-full px-4 py-2.5 sm:py-3 bg-slate-50/80 border rounded-xl text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 transition-all ${
-                    errors.phone
+                  className={`w-full px-4 py-2.5 sm:py-3 bg-slate-50/80 border rounded-xl text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 transition-all ${errors.phone
                       ? 'border-red-400 focus:ring-red-400/20'
                       : 'border-slate-200 focus:ring-orange-500/20 focus:border-orange-500'
-                  }`}
+                    }`}
                 />
                 {errors.phone && (
                   <p className="mt-1.5 text-xs text-red-500 ml-1">{errors.phone}</p>
@@ -202,11 +209,10 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
                     value={formData.password}
                     onChange={handleChange}
                     placeholder="••••••••"
-                    className={`w-full px-4 py-2.5 sm:py-3 pr-11 bg-slate-50/80 border rounded-xl text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 transition-all ${
-                      errors.password
+                    className={`w-full px-4 py-2.5 sm:py-3 pr-11 bg-slate-50/80 border rounded-xl text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 transition-all ${errors.password
                         ? 'border-red-400 focus:ring-red-400/20'
                         : 'border-slate-200 focus:ring-orange-500/20 focus:border-orange-500'
-                    }`}
+                      }`}
                   />
                   <button
                     type="button"
@@ -237,6 +243,8 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
                 >
                   Cancel
                 </motion.button>
+                
+                {/* 4. Removed the Link tag so this acts as a proper form submit button */}
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
@@ -254,7 +262,7 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
               <p className="text-sm text-slate-600">
                 Already have an account?{' '}
                 <a
-                  href="#login"
+                  href="/frontend/src/pages/auth/LoginPage.jsx"
                   className="font-bold text-[#0B1A30] hover:underline"
                 >
                   Login
