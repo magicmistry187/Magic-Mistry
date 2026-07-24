@@ -2,6 +2,8 @@ const userModel = require('../models/user.model');
 const otpModel = require('../models/otp.model');
 const otpGenerator = require('otp-generator');
 const bcrypt = require('bcrypt');
+const userVerification = require('../templates/userVerifcationTemplate');
+const sendEmail = require('../utils/sendEmail');
 // const jwt = require('jsonwebtoken');
 
 //send otp
@@ -37,6 +39,10 @@ async function sendOtp(req, res) {
       otp,
     });
 
+    //sending verificaiton email
+    const emailBody = userVerification(otp);
+    await sendEmail(email, 'Magic Mistry OTP Verification', emailBody);
+
     res.status(200).json({
       success: true,
       message: 'OTP Send Sucessfully',
@@ -57,8 +63,6 @@ async function sendOtp(req, res) {
 async function signup(req, res) {
   try {
     const { fullName, email, password, phoneNumber, otp } = req.body;
-
-    
 
     if (!fullName || !email || !password || !phoneNumber || !otp) {
       console.log('Missing required fields:');
@@ -100,18 +104,17 @@ async function signup(req, res) {
     const user = await userModel.create({
       fullName,
       email,
-      password:hashedPassword,
+      password: hashedPassword,
       phoneNumber,
     });
 
-     return res.status(200).json({
-            success: true,
-            message: "User is Signed Up",
-            user
-        })
-
+    return res.status(200).json({
+      success: true,
+      message: 'User is Signed Up',
+      user,
+    });
   } catch (err) {
-    console.log("error while siginin up",err)
+    console.log('error while siginin up', err);
     res.status(500).json({ message: 'Error occurred while signing up' });
   }
 }
