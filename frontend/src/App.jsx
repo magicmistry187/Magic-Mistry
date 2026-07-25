@@ -1,30 +1,47 @@
-import { Routes, Route, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import React, { lazy, Suspense } from 'react';
+import { Routes, Route } from 'react-router-dom';
+import PageLoader from './components/common/PageLoader';
+import ScrollToTop from './components/common/ScrollToTop';
+import TermsAndConditions from './pages/term & policy/TermsAndConditions';
 
+// Lazy loading route components
+const HomePage = lazy(() => import('./pages/home/HomePage'));
+const BookingPage = lazy(() => import('./pages/BookingPage/BookingPage'));
+const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
+const CreateAccountModal = lazy(() => import('./pages/auth/CreateAccountModal'));
+const AboutPage = lazy(() => import('./pages/aboutus/AboutPage'));
+const ContactPage = lazy(() => import('./pages/contactus/ContactPage'));
+const PrivacyPolicy = lazy(() => import('./pages/term & policy/PrivacyPolicy'));
 
-import Navbar from './components/common/Navbar';
-import Footer from './components/common/Footer';
-import DispatchDataPassing from './example data passing/DispatchDataPassing';
-import UserDataTablePassing from './example data passing/UserDataTablePassing';
-import ApplicationsDashboard from './example data passing/ApplicationsDashboard';
-import InventoryTableContainer from './example data passing/InventoryTableContainer';
-import HeroSection from './pages/home/HeroSection';
-import HowItWorks from './pages/home/HowItWorks';
-
-
-function App() {
+export default function App() {
   return (
-    <div className=" ">
-      <Navbar/>
-      <HeroSection/>
-      <HowItWorks/>
-      <InventoryTableContainer/>
-      <ApplicationsDashboard/>
-      <UserDataTablePassing/>
-      <DispatchDataPassing/>
-     <Footer/>
-    </div>
+    <>
+      <ScrollToTop />
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          {/* Landing Page */}
+          <Route path="/" element={<HomePage />} />
+          
+          {/* Unified Booking Page */}
+          <Route path="/booking" element={<BookingPage />} />
+
+          {/* Authentication Pages */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<CreateAccountModal isOpen={true} onClose={() => window.history.back()} />} />
+          <Route path="/create-account" element={<CreateAccountModal isOpen={true} onClose={() => window.history.back()} />} />
+
+          {/* Information & Company Pages */}
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/terms" element={<TermsAndConditions />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/how-it-works" element={<HomePage />} />
+          <Route path="/find-service" element={<HomePage />} />
+
+          {/* Fallback Route */}
+          <Route path="*" element={<HomePage />} />
+        </Routes>
+      </Suspense>
+    </>
   );
 }
-
-export default App;

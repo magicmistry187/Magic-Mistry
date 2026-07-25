@@ -2,12 +2,15 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FcGoogle } from 'react-icons/fc';
 import { FiEye, FiEyeOff, FiArrowRight, FiX } from 'react-icons/fi';
-// import { Link } from 'react-router-dom'; // You can remove this if no longer used elsewhere in this file
+import { Link } from 'react-router-dom';
 import OTPVerificationModal from './OTPVerificationModal';
+import { sendOtp } from '../../services/api';
 
 export default function CreateAccountModal({ isOpen = true, onClose }) {
   const [showPassword, setShowPassword] = useState(false);
-  const [isOTPVisible, setIsOTPVisible] = useState(false); // 1. Added OTP visibility state
+  const [isOTPVisible, setIsOTPVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState('');
   
   const [formData, setFormData] = useState({
     fullName: '',
@@ -22,6 +25,9 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
     setFormData({ ...formData, [e.target.name]: e.target.value });
     if (errors[e.target.name]) {
       setErrors({ ...errors, [e.target.name]: '' });
+    }
+    if (apiError) {
+      setApiError('');
     }
   };
 
@@ -60,21 +66,28 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setApiError('');
     if (validateForm()) {
-      // 2. Trigger the OTP modal upon successful validation
-      setIsOTPVisible(true); 
+      setIsLoading(true);
+      const res = await sendOtp(formData.email);
+      setIsLoading(false);
+      if (res.success) {
+        setIsOTPVisible(true);
+      } else {
+        setApiError(res.message);
+      }
     }
   };
 
   if (!isOpen) return null;
 
-  // 3. Conditionally render the OTP Verification Modal instead of the form
   if (isOTPVisible) {
     return (
       <OTPVerificationModal 
-        phoneNumber={formData.phone} 
+        formData={formData}
+        phoneNumber={formData.phone}
         onClose={onClose} 
       />
     );
@@ -133,6 +146,12 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5" noValidate>
+
+              {apiError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs font-medium">
+                  {apiError}
+                </div>
+              )}
 
               {/* Full Name */}
               <div>
@@ -249,10 +268,21 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   type="submit"
-                  className="w-full sm:col-span-3 py-3 px-4 bg-[#FF6A00] hover:bg-[#e55f00] text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-orange-500/20 flex items-center justify-center gap-2"
+                  disabled={isLoading}
+                  className="w-full sm:col-span-3 py-3 px-4 bg-[#FF6A00] hover:bg-[#e55f00] text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 disabled:opacity-60"
                 >
-                  <span>Create Account</span>
-                  <FiArrowRight className="w-4 h-4" />
+                  {isLoading ? (
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                      className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
+                    />
+                  ) : (
+                    <>
+                      <span>Create Account</span>
+                      <FiArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </motion.button>
               </div>
             </form>
@@ -261,12 +291,12 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
             <div className="mt-6 sm:mt-8 text-center space-y-3 sm:space-y-4">
               <p className="text-sm text-slate-600">
                 Already have an account?{' '}
-                <a
-                  href="/frontend/src/pages/auth/LoginPage.jsx"
+                <Link
+                  to="/login"
                   className="font-bold text-[#0B1A30] hover:underline"
                 >
                   Login
-                </a>
+                </Link>
               </p>
 
               <p className="text-[11px] sm:text-xs text-slate-400 leading-relaxed max-w-xs mx-auto">

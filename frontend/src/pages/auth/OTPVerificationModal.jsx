@@ -1,16 +1,23 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiX, FiRefreshCcw, FiArrowRight } from "react-icons/fi";
 import { HiShieldCheck, HiCheckCircle } from "react-icons/hi2";
+import { signUp, sendOtp } from "../../services/api";
 
-export default function OTPVerificationModal() {
+export default function OTPVerificationModal({ phoneNumber, email, onClose, formData }) {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(true);
   const [otp, setOtp] = useState(new Array(6).fill(""));
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [apiError, setApiError] = useState("");
+  const [resendMsg, setResendMsg] = useState("");
+  const [isResending, setIsResending] = useState(false);
   
   const inputRefs = useRef([]);
+
 
   // Auto-focus the first input on mount
   useEffect(() => {
@@ -28,6 +35,7 @@ export default function OTPVerificationModal() {
     newOtp[index] = value.substring(value.length - 1);
     setOtp(newOtp);
     setHasError(false);
+    setApiError("");
 
     // Auto-focus next input
     if (value && index < 5 && inputRefs.current[index + 1]) {
@@ -58,21 +66,47 @@ export default function OTPVerificationModal() {
     inputRefs.current[nextIndex].focus();
   };
 
-  const verifyOtp = () => {
-    // Check if fully entered
-    if (otp.join("").length !== 6) {
+  const verifyOtp = async () => {
+    const otpString = otp.join("");
+    if (otpString.length !== 6) {
       setHasError(true);
+      setApiError("Please enter all 6 digits of the OTP.");
       return;
     }
 
     setIsVerifying(true);
     setHasError(false);
+    setApiError("");
 
-    // Simulate API verification call (1.5 seconds)
-    setTimeout(() => {
-      setIsVerifying(false);
+    const res = await signUp({
+      fullName: formData?.fullName || "",
+      email: formData?.email || "",
+      password: formData?.password || "",
+      phoneNumber: formData?.phone || phoneNumber || "",
+      otp: otpString,
+    });
+
+    setIsVerifying(false);
+    if (res.success) {
       setIsVerified(true);
-    }, 1500);
+    } else {
+      setHasError(true);
+      setApiError(res.message);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (!formData?.email) return;
+    setIsResending(true);
+    setResendMsg("");
+    setApiError("");
+    const res = await sendOtp(formData.email);
+    setIsResending(false);
+    if (res.success) {
+      setResendMsg("OTP re-sent! Check your Gmail inbox.");
+    } else {
+      setApiError(res.message);
+    }
   };
 
   // If the modal is closed, render nothing
@@ -89,7 +123,10 @@ export default function OTPVerificationModal() {
       >
         {/* Close Button */}
         <button
-          onClick={() => setIsOpen(false)}
+          onClick={() => {
+            setIsOpen(false);
+            if (onClose) onClose();
+          }}
           className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 transition-colors"
         >
           <FiX size={24} />
@@ -117,14 +154,28 @@ export default function OTPVerificationModal() {
 
               {/* Text Content */}
               <h2 className="text-2xl font-bold text-slate-900 mb-2">
-                Verify Your Number
+                Verify Your Email
               </h2>
               <p className="text-slate-500 mb-1">
                 We've sent a 6-digit code to
               </p>
-              <p className="font-medium text-slate-800 mb-8">
-                +1 (555) 000-0000
+              <p className="font-medium text-slate-800 mb-4">
+                {formData?.email || email || "your email address"}
               </p>
+
+
+
+              {apiError && (
+                <div className="w-full p-3 mb-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs font-medium">
+                  {apiError}
+                </div>
+              )}
+
+              {resendMsg && (
+                <div className="w-full p-3 mb-4 bg-green-50 border border-green-200 rounded-xl text-green-700 text-xs font-medium">
+                  {resendMsg}
+                </div>
+              )}
 
               {/* OTP Inputs */}
               <motion.div 
@@ -155,7 +206,7 @@ export default function OTPVerificationModal() {
                 whileTap={{ scale: 0.98 }}
                 onClick={verifyOtp}
                 disabled={isVerifying}
-                className="w-full py-3.5 bg-[#f97316] hover:bg-orange-600 text-white font-semibold rounded-xl shadow-lg shadow-orange-500/25 transition-all flex items-center justify-center h-14"
+                className="w-full py-3.5 bg-[#f97316] hover:bg-orange-600 text-white font-semibold rounded-xl shadow-lg shadow-orange-500/25 transition-all flex items-center justify-center h-14 disabled:opacity-60"
               >
                 {isVerifying ? (
                   <motion.div
@@ -170,12 +221,21 @@ export default function OTPVerificationModal() {
 
               {/* Footer Links */}
               <div className="mt-6 flex flex-col items-center gap-3">
-                <button className="flex items-center gap-2 text-slate-800 font-semibold text-sm hover:text-slate-600 transition-colors">
-                  <FiRefreshCcw size={16} />
-                  Resend Code
+                <button 
+                  onClick={handleResendOtp}
+                  disabled={isResending}
+                  className="flex items-center gap-2 text-slate-800 font-semibold text-sm hover:text-slate-600 transition-colors disabled:opacity-50"
+                >
+                  <FiRefreshCcw size={16} className={isResending ? "animate-spin" : ""} />
+                  {isResending ? "Resending..." : "Resend Code"}
                 </button>
-                <button className="text-slate-500 font-medium text-sm hover:text-slate-700 transition-colors">
-                  Change Phone Number
+                <button 
+                  onClick={() => {
+                    if (onClose) onClose();
+                  }}
+                  className="text-slate-500 font-medium text-sm hover:text-slate-700 transition-colors"
+                >
+                  Change Email Address
                 </button>
               </div>
             </motion.div>
@@ -210,7 +270,11 @@ export default function OTPVerificationModal() {
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => setIsOpen(false)}
+                onClick={() => {
+                  setIsOpen(false);
+                  if (onClose) onClose();
+                  navigate('/login');
+                }}
                 className="w-full py-3.5 bg-[#f97316] hover:bg-orange-600 text-white font-semibold rounded-xl shadow-lg shadow-orange-500/25 transition-all flex items-center justify-center gap-2 h-14"
               >
                 Go to login page

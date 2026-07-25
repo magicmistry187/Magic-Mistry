@@ -1,12 +1,16 @@
 import React, { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { FcGoogle } from "react-icons/fc";
 import { IoClose } from "react-icons/io5";
+import { loginUser } from "../../services/api";
 
 const WelcomeModal = () => {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState({});
+  const [isLoading, setIsLoading] = useState(false);
 
   const validate = () => {
     const newErrors = {};
@@ -28,29 +32,25 @@ const WelcomeModal = () => {
     return newErrors;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setErrors({}); // Clear previous errors
+    setErrors({});
 
-    // Run client-side validation
     const validationErrors = validate();
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
 
-    // Mock Authentication Check
-    // (Replace this with your actual API/Backend call)
-    const MOCK_CORRECT_PASSWORD = "Password123!";
-    
-    if (password !== MOCK_CORRECT_PASSWORD) {
-      setErrors({ password: "Password does not match our records." });
-      return;
-    }
+    setIsLoading(true);
+    const res = await loginUser(email, password);
+    setIsLoading(false);
 
-    // Success state
-    console.log("Authentication Successful!", { email });
-    alert("Login successful!");
+    if (res.success) {
+      navigate("/");
+    } else {
+      setErrors({ password: res.message || "Invalid email or password." });
+    }
   };
 
   return (
@@ -66,7 +66,8 @@ const WelcomeModal = () => {
 
         {/* Close Button */}
         <button 
-          className="absolute top-5 right-5 text-gray-500 hover:text-gray-800 transition-colors"
+          onClick={() => navigate('/')}
+          className="absolute top-5 right-5 text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
           aria-label="Close modal"
         >
           <IoClose size={24} />
@@ -179,9 +180,18 @@ const WelcomeModal = () => {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
                 type="submit"
-                className="flex-1 bg-[#0a192f] text-white font-semibold text-sm py-2.5 rounded-lg hover:bg-[#122849] transition-colors shadow-sm"
+                disabled={isLoading}
+                className="flex-1 bg-[#0a192f] text-white font-semibold text-sm py-2.5 rounded-lg hover:bg-[#122849] transition-colors shadow-sm flex items-center justify-center disabled:opacity-60"
               >
-                Login
+                {isLoading ? (
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                    className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
+                  />
+                ) : (
+                  "Login"
+                )}
               </motion.button>
               <motion.button
                 whileHover={{ scale: 1.02 }}
@@ -202,9 +212,9 @@ const WelcomeModal = () => {
           {/* Footer Section */}
           <div className="text-center mt-8 text-[14.5px] text-gray-600">
             Don't have an account?{" "}
-            <a href="#" className="text-[#b86118] font-semibold hover:underline transition-all">
+            <Link to="/signup" className="text-[#b86118] font-semibold hover:underline transition-all">
               Sign Up
-            </a>
+            </Link>
           </div>
         </div>
       </motion.div>

@@ -1,8 +1,10 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ShieldCheck, Award, Users, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 const HeroSection = () => {
+  const navigate = useNavigate();
   // Framer Motion Animation Variants
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -83,13 +85,26 @@ const HeroSection = () => {
               certified technician in minutes and track your service in real-time.
             </motion.p>
 
-            {/* Extra Design Component: Primary CTA Button */}
+            {/* Primary CTA Buttons */}
             <motion.div variants={itemVariants} className="mb-10 flex flex-wrap gap-4">
-              <button className="flex items-center gap-2 bg-[#0B1E40] hover:bg-blue-900 text-white px-8 py-4 rounded-full font-semibold transition-all shadow-lg hover:shadow-xl hover:-translate-y-1">
+              <button 
+                onClick={() => navigate('/booking')}
+                className="flex items-center gap-2 bg-[#0B1E40] hover:bg-blue-900 text-white px-8 py-4 rounded-full font-semibold transition-all shadow-lg hover:shadow-xl hover:-translate-y-1 cursor-pointer"
+              >
                 Book Service Now
                 <ArrowRight className="w-5 h-5" />
               </button>
-              <button className="flex items-center gap-2 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-[#0B1E40] px-8 py-4 rounded-full font-semibold transition-all">
+              <button 
+                onClick={() => {
+                  const servicesElem = document.getElementById('services');
+                  if (servicesElem) {
+                    servicesElem.scrollIntoView({ behavior: 'smooth' });
+                  } else {
+                    navigate('/booking');
+                  }
+                }}
+                className="flex items-center gap-2 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-[#0B1E40] px-8 py-4 rounded-full font-semibold transition-all cursor-pointer"
+              >
                 View Pricing
               </button>
             </motion.div>

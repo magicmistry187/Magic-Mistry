@@ -3,10 +3,11 @@ require('dotenv').config();
 
 async function connectDB() {
   try {
-    await mongoose.connect(process.env.MongoDB_URI);
-    console.log('Connected to MongoDB');
+    const dbURI = process.env.MongoDB_URI || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/magic_mistry';
+    await mongoose.connect(dbURI);
+    console.log('Connected to MongoDB at', dbURI);
   } catch (err) {
-    console.error('Error connecting to MongoDB:', err);
+    console.error('Error connecting to MongoDB:', err.message);
   }
 }
 

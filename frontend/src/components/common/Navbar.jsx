@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Search, Bell, ShoppingCart, MapPin, Menu, X, LogOut } from 'lucide-react';
 import logo2 from '../../../public/logo2.png'; // Adjust the path as necessary
 
 const Navbar = () => {
+  const navigate = useNavigate();
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -208,8 +209,8 @@ const Navbar = () => {
                   </div>
                 ) : (
                   <button
-                    onClick={handleLogin}
-                    className="hidden sm:flex items-center justify-center px-[20px] py-[10px] bg-[#007ACC] outline outline-[3px] outline-[#007ACC] outline-offset-[-3px] rounded-[45px] text-white transition-all duration-[400ms] hover:bg-transparent hover:text-[#007ACC]"
+                    onClick={() => navigate('/login')}
+                    className="hidden sm:flex items-center justify-center px-[20px] py-[10px] bg-[#007ACC] outline outline-[3px] outline-[#007ACC] outline-offset-[-3px] rounded-[45px] text-white transition-all duration-[400ms] hover:bg-transparent hover:text-[#007ACC] cursor-pointer"
                   >
                     <span className="font-bold text-[1em] transition-colors duration-[400ms]">Login</span>
                   </button>
@@ -303,8 +304,11 @@ const Navbar = () => {
                   </div>
                 ) : (
                   <button
-                    onClick={handleLogin}
-                    className="w-full sm:hidden flex items-center justify-center px-[15px] py-[10px] mt-2 bg-[#007ACC] outline outline-[3px] outline-[#007ACC] outline-offset-[-3px] rounded-[5px] text-white font-bold text-[1em] transition-all duration-[400ms] hover:bg-transparent hover:text-[#007ACC]"
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      navigate('/login');
+                    }}
+                    className="w-full sm:hidden flex items-center justify-center px-[15px] py-[10px] mt-2 bg-[#007ACC] outline outline-[3px] outline-[#007ACC] outline-offset-[-3px] rounded-[5px] text-white font-bold text-[1em] transition-all duration-[400ms] hover:bg-transparent hover:text-[#007ACC] cursor-pointer"
                   >
                     Login
                   </button>
