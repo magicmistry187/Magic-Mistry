@@ -8,12 +8,16 @@ import DispatchDataPassing from './example data passing/DispatchDataPassing';
 import UserDataTablePassing from './example data passing/UserDataTablePassing';
 import ApplicationsDashboard from './example data passing/ApplicationsDashboard';
 import InventoryTableContainer from './example data passing/InventoryTableContainer';
+import HeroSection from './pages/home/HeroSection';
+import HowItWorks from './pages/home/HowItWorks';
 
 
 function App() {
   return (
     <div className=" ">
       <Navbar/>
+      <HeroSection/>
+      <HowItWorks/>
       <InventoryTableContainer/>
       <ApplicationsDashboard/>
       <UserDataTablePassing/>
