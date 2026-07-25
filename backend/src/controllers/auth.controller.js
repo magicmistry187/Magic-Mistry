@@ -4,7 +4,7 @@ const otpGenerator = require('otp-generator');
 const bcrypt = require('bcrypt');
 const userVerification = require('../templates/userVerifcationTemplate');
 const sendEmail = require('../utils/sendEmail');
-// const jwt = require('jsonwebtoken');
+const jwt = require('jsonwebtoken');
 
 //send otp
 async function sendOtp(req, res) {
@@ -119,7 +119,111 @@ async function signup(req, res) {
   }
 }
 
+
+// login   auth middlewar banana h abhi
+async function login(req,res){
+
+  try {
+    // Get data
+    const { email, password } = req.body;
+
+    // Validation
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required.",
+      });
+    }
+
+    // Find user
+    const user = await userModel.findOne({
+      email: email.toLowerCase().trim(),
+    }).select("+password");
+
+    // User not found
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password.",
+      });
+    }
+
+    // Blocked user
+    if (user.status === "blocked") {
+      return res.status(403).json({
+        success: false,
+        message: "Your account has been blocked. Please contact the administrator.",
+      });
+    }
+
+    // Vendor approval check
+    if (user.role === "vendor" && !user.isApproved) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account is waiting for admin approval.",
+      });
+    }
+
+    // Compare password
+    const isPasswordCorrect = await bcrypt.compare(
+      password,
+      user.password
+    );
+
+    if (!isPasswordCorrect) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password.",
+      });
+    }
+
+    // JWT Payload
+    const payload = {
+      id: user._id,
+      email: user.email,
+      role: user.role,
+    };
+
+    // Generate Token
+    const token = jwt.sign(payload, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
+
+    // Remove password before sending response
+    const userData = user.toObject();
+    delete userData.password;
+
+    // Cookie Options
+    const options = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    };
+
+    return res
+      .cookie("token", token, options)
+      .status(200)
+      .json({
+        success: true,
+        message: "Login successful.",
+        token,
+        user: userData,
+      });
+
+  } catch (error) {
+    console.error("Login Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error.",
+    });
+  }
+}
+
+
 module.exports = {
   signup,
   sendOtp,
+  login
 };
