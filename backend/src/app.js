@@ -12,6 +12,10 @@ app.use(cors({
   credentials: true,              
 }));
 
+app.get("/", (req, res) => {
+  res.send("Backend is working");
+});
+
 // importing routes
 const authRoutes = require('./routes/auth.routes');
 
