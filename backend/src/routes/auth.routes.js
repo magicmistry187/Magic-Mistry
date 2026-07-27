@@ -4,12 +4,13 @@ const router = express.Router();
 
 
 // const { auth, isCustomer, isVendor, isAdmin, authorizeRoles } = require("../middleware/auth");
-const { signup,sendOtp,login } = require('../controllers/auth.controller');
+const { signup,sendOtp,login,googleLogin } = require('../controllers/auth.controller');
 
 
 /////////// api routes
 router.post('/signup', signup);
 router.post('/sendOtp',sendOtp)
 router.post('/login',login)
+router.post('/googleLogin',googleLogin)
 
 module.exports = router;

@@ -18,22 +18,23 @@ const userSchema = new mongoose.Schema(
 
     password: {
       type: String,
-      required: true,
+      
       select: false,
     },
     phoneNumber: {
       type: String,
       unique: true,
-      required: true,
+      sparse:true,
+      
       trim: true,
     },
+
     role: {
       type: String,
       enum: ['customer', 'admin', 'vendor'],
       default: 'customer',
     },
 
-    
     // Admin approval for vendors
     isApproved: {
       type: Boolean,
@@ -46,9 +47,24 @@ const userSchema = new mongoose.Schema(
       enum: ['active', 'blocked'],
       default: 'active',
     },
-  }, // it automatically add createdAt and updatedAt
+
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+
+    authProviders: {
+      type: [
+        {
+          type: String,
+          enum: ['email', 'google'],
+        },
+      ],
+      default: [],
+    },
+  },
   { timestamps: true },
 );
 
-
-module.exports = mongoose.model('User',userSchema)
+module.exports = mongoose.model('User', userSchema);

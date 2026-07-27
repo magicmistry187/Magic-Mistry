@@ -4,7 +4,8 @@ import { FcGoogle } from 'react-icons/fc';
 import { FiEye, FiEyeOff, FiArrowRight, FiX } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
 import OTPVerificationModal from './OTPVerificationModal';
-import { sendOtp } from '../../services/api';
+import { sendOtp,googleLogin } from '../../services/api';
+import { useGoogleLogin } from '@react-oauth/google';
 
 export default function CreateAccountModal({ isOpen = true, onClose }) {
   const [showPassword, setShowPassword] = useState(false);
@@ -81,6 +82,22 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
     }
   };
 
+    const handleGoogleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        const response = await googleLogin(tokenResponse.access_token);
+
+        console.log(response);
+      } catch (err) {
+        console.log(err);
+      }
+    },
+
+    onError: () => {
+      console.log('Google Login Failed');
+    },
+  });
+
   if (!isOpen) return null;
 
   if (isOTPVisible) {
@@ -128,9 +145,10 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
               type="button"
+               onClick={handleGoogleLogin}
               className="w-full py-2.5 sm:py-3 px-4 flex items-center justify-center gap-3 border border-slate-200 rounded-xl bg-white text-slate-700 font-medium text-sm hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm"
             >
-              <FcGoogle className="w-5 h-5" />
+              <FcGoogle className="w-5 h-5"  />
               <span>Sign up with Google</span>
             </motion.button>
 

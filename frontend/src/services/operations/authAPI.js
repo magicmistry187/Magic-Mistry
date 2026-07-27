@@ -1,7 +1,7 @@
 import { apiConnector } from '../apiConnector';
 import { authEndpoints } from '../apis';
 
-const { SENDOTP_API, SIGNUP_API, LOGIN_API } = authEndpoints;
+const { SENDOTP_API, SIGNUP_API, LOGIN_API, GOOGLE_LOGIN_API } = authEndpoints;
 
 // Send OTP for account creation
 export async function sendOtp(email) {
@@ -27,7 +27,6 @@ export async function sendOtp(email) {
     };
   }
 }
-
 
 // Sign up / Create Account
 export async function signUp({ fullName, email, password, phoneNumber, otp }) {
@@ -89,4 +88,15 @@ export async function loginUser(email, password) {
       message: errorMessage,
     };
   }
+}
+
+
+
+
+export async function googleLogin(accessToken) {
+  const res = await apiConnector("POST", GOOGLE_LOGIN_API, {
+    accessToken,
+  });
+
+  return res.data;
 }

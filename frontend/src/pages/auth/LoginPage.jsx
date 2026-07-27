@@ -1,32 +1,35 @@
-import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import { FcGoogle } from "react-icons/fc";
-import { IoClose } from "react-icons/io5";
-import { loginUser } from "../../services/api";
+import React, { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { FcGoogle } from 'react-icons/fc';
+import { IoClose } from 'react-icons/io5';
+import { useGoogleLogin } from '@react-oauth/google';
+import { loginUser, googleLogin } from '../../services/api';
+// import { loginUser } from '../../services/api';
 
 const WelcomeModal = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const validate = () => {
     const newErrors = {};
-    
+
     // Email Validation
     if (!email) {
-      newErrors.email = "Email address is required.";
+      newErrors.email = 'Email address is required.';
     } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = "Please enter a valid email address.";
+      newErrors.email = 'Please enter a valid email address.';
     }
 
     // Password Validation
     if (!password) {
-      newErrors.password = "Password is required.";
+      newErrors.password = 'Password is required.';
     } else if (password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters.";
+      newErrors.password = 'Password must be at least 6 characters.';
     }
 
     return newErrors;
@@ -47,25 +50,41 @@ const WelcomeModal = () => {
     setIsLoading(false);
 
     if (res.success) {
-      navigate("/");
+      navigate('/');
     } else {
-      setErrors({ password: res.message || "Invalid email or password." });
+      setErrors({ password: res.message || 'Invalid email or password.' });
     }
   };
+
+  const handleGoogleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        const response = await googleLogin(tokenResponse.access_token);
+
+        console.log(response);
+      } catch (err) {
+        console.log(err);
+      }
+    },
+
+    onError: () => {
+      console.log('Google Login Failed');
+    },
+  });
 
   return (
     <div className="min-h-screen w-full bg-[#f4f7f9] flex items-center justify-center p-4 sm:p-6 font-sans text-slate-800 ">
       <motion.div
         initial={{ opacity: 0, y: 20, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.4, ease: "easeOut" }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
         className="w-full max-w-[420px] bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] relative overflow-hidden flex flex-col"
       >
         {/* Decorative Bottom Gradient Bar */}
         <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-[#0a192f] via-orange-400 to-[#b86118]" />
 
         {/* Close Button */}
-        <button 
+        <button
           onClick={() => navigate('/')}
           className="absolute top-5 right-5 text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
           aria-label="Close modal"
@@ -84,15 +103,28 @@ const WelcomeModal = () => {
             </p>
           </div>
 
-          {/* Google Single Sign-On Button */}
+         
+
           <motion.button
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
             type="button"
-            className="w-full flex items-center justify-center gap-3 border border-gray-300 rounded-lg py-2.5 text-[15px] font-semibold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
+            onClick={handleGoogleLogin}
+            disabled={isGoogleLoading}
+            className="w-full flex items-center justify-center gap-3 border border-gray-300 rounded-lg py-2.5 text-[15px] font-semibold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-60"
           >
-            <FcGoogle size={20} />
-            Continue with Google
+            {isGoogleLoading ? (
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-5 h-5 border-2 border-gray-300 border-t-gray-700 rounded-full"
+              />
+            ) : (
+              <>
+                <FcGoogle size={20} />
+                Continue with Google
+              </>
+            )}
           </motion.button>
 
           {/* Or Divider */}
@@ -106,10 +138,12 @@ const WelcomeModal = () => {
 
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-            
             {/* Email Input */}
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="email" className="text-sm font-semibold text-gray-700">
+              <label
+                htmlFor="email"
+                className="text-sm font-semibold text-gray-700"
+              >
                 Email Address
               </label>
               <input
@@ -119,16 +153,16 @@ const WelcomeModal = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@company.com"
                 className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none transition-all placeholder:text-gray-400 ${
-                  errors.email 
-                    ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-200" 
-                    : "border-gray-300 focus:border-gray-400 focus:ring-1 focus:ring-gray-200"
+                  errors.email
+                    ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-200'
+                    : 'border-gray-300 focus:border-gray-400 focus:ring-1 focus:ring-gray-200'
                 }`}
               />
               <AnimatePresence>
                 {errors.email && (
                   <motion.span
                     initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                    animate={{ opacity: 1, height: "auto", marginTop: 4 }}
+                    animate={{ opacity: 1, height: 'auto', marginTop: 4 }}
                     exit={{ opacity: 0, height: 0, marginTop: 0 }}
                     className="text-xs font-medium text-red-500"
                   >
@@ -141,10 +175,16 @@ const WelcomeModal = () => {
             {/* Password Input */}
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
-                <label htmlFor="password" className="text-sm font-semibold text-gray-700">
+                <label
+                  htmlFor="password"
+                  className="text-sm font-semibold text-gray-700"
+                >
                   Password
                 </label>
-                <a href="#" className="text-[13px] font-bold text-[#b86118] hover:text-[#914b10] transition-colors">
+                <a
+                  href="#"
+                  className="text-[13px] font-bold text-[#b86118] hover:text-[#914b10] transition-colors"
+                >
                   Forgot Password?
                 </a>
               </div>
@@ -155,16 +195,16 @@ const WelcomeModal = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none transition-all placeholder:text-gray-300 tracking-[0.2em] font-mono ${
-                  errors.password 
-                    ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-200" 
-                    : "border-gray-300 focus:border-gray-400 focus:ring-1 focus:ring-gray-200"
+                  errors.password
+                    ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-200'
+                    : 'border-gray-300 focus:border-gray-400 focus:ring-1 focus:ring-gray-200'
                 }`}
               />
               <AnimatePresence>
                 {errors.password && (
                   <motion.span
                     initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                    animate={{ opacity: 1, height: "auto", marginTop: 4 }}
+                    animate={{ opacity: 1, height: 'auto', marginTop: 4 }}
                     exit={{ opacity: 0, height: 0, marginTop: 0 }}
                     className="text-xs font-medium text-red-500"
                   >
@@ -186,11 +226,15 @@ const WelcomeModal = () => {
                 {isLoading ? (
                   <motion.div
                     animate={{ rotate: 360 }}
-                    transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                    transition={{
+                      repeat: Infinity,
+                      duration: 1,
+                      ease: 'linear',
+                    }}
                     className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
                   />
                 ) : (
-                  "Login"
+                  'Login'
                 )}
               </motion.button>
               <motion.button
@@ -198,8 +242,8 @@ const WelcomeModal = () => {
                 whileTap={{ scale: 0.97 }}
                 type="button"
                 onClick={() => {
-                  setEmail("");
-                  setPassword("");
+                  setEmail('');
+                  setPassword('');
                   setErrors({});
                 }}
                 className="flex-1 bg-white border border-gray-300 text-[#0a192f] font-semibold text-sm py-2.5 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
@@ -211,8 +255,11 @@ const WelcomeModal = () => {
 
           {/* Footer Section */}
           <div className="text-center mt-8 text-[14.5px] text-gray-600">
-            Don't have an account?{" "}
-            <Link to="/signup" className="text-[#b86118] font-semibold hover:underline transition-all">
+            Don't have an account?{' '}
+            <Link
+              to="/signup"
+              className="text-[#b86118] font-semibold hover:underline transition-all"
+            >
               Sign Up
             </Link>
           </div>
