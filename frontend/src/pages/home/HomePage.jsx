@@ -1,8 +1,8 @@
 import React from 'react';
 import Navbar from '../../components/common/Navbar';
-import HeroSection from './HeroSection';
-import ServiceCategories from './ServiceCategories';
-import HowItWorks from './HowItWorks';
+import HeroSection from '../../components/home/HeroSection';
+import ServiceCategories from '../../components/home/ServiceCategories';
+import HowItWorks from '../../components/home/HowItWorks';
 import Footer from '../../components/common/Footer';
 import { Shield, Clock, ThumbsUp, Wrench } from 'lucide-react';
 

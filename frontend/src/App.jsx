@@ -8,11 +8,12 @@ import TermsAndConditions from './pages/term & policy/TermsAndConditions';
 const HomePage = lazy(() => import('./pages/home/HomePage'));
 const BookingPage = lazy(() => import('./pages/BookingPage/BookingPage'));
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
-const CreateAccountModal = lazy(() => import('./pages/auth/CreateAccountModal'));
+const CreateAccountModal = lazy(() => import('./components/auth/CreateAccountModal'));
 const AboutPage = lazy(() => import('./pages/aboutus/AboutPage'));
 const ContactPage = lazy(() => import('./pages/contactus/ContactPage'));
 const PrivacyPolicy = lazy(() => import('./pages/term & policy/PrivacyPolicy'));
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
+const BookingConfirmation = lazy(() => import('./pages/BookingPage/BookingConfirmation'));
 
 export default function App() {
   return (
@@ -23,8 +24,8 @@ export default function App() {
           {/* Landing Page */}
           <Route path="/" element={<HomePage />} />
           
-          {/* Unified Booking Page */}
           <Route path="/booking" element={<BookingPage />} />
+          <Route path="/booking/confirmation" element={<BookingConfirmation />} />
 
           {/* Authentication Pages */}
           <Route path="/login" element={<LoginPage />} />

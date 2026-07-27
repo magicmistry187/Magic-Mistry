@@ -139,7 +139,7 @@ const HeroSection = () => {
               />
             </div>
 
-            {/* Floating Component (From Original Design) */}
+            {/* Floating Component */}
             <motion.div
               variants={floatVariants}
               initial="initial"
@@ -159,12 +159,12 @@ const HeroSection = () => {
               </div>
             </motion.div>
 
-            {/* Extra Design Component: Secondary Floating Stat Card */}
+            {/* Secondary Floating Stat Card */}
             <motion.div
               variants={floatVariants}
               initial="initial"
               animate="animate"
-              style={{ animationDelay: "2s" }} // Offset the float animation
+              style={{ animationDelay: "2s" }}
               className="absolute top-8 -right-6 sm:-right-8 bg-white/90 backdrop-blur-md rounded-2xl shadow-xl p-4 flex items-center gap-3 border border-white z-20"
             >
               <div className="bg-green-100 text-green-600 p-2.5 rounded-full flex-shrink-0">

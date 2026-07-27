@@ -101,7 +101,7 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
       } catch (err) {
         console.error('Google Login Error:', err);
         setApiError('Google login failed. Please try again.');
-      } finally {
+      } font-medium {
         setIsGoogleLoading(false);
       }
     },
@@ -304,7 +304,6 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
                   Cancel
                 </motion.button>
                 
-                {/* 4. Removed the Link tag so this acts as a proper form submit button */}
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}

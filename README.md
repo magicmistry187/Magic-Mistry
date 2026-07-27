@@ -82,21 +82,22 @@ Magic-Mistry/
 ├── frontend/                 # React + Vite Client Application
 │   ├── src/
 │   │   ├── assets/           # Static assets, images, and brand icons
-│   │   ├── components/       # UI Components grouped by domain
-│   │   │   ├── admin/        # Admin management dashboards
-│   │   │   ├── auth/         # Auth components & login modals
-│   │   │   ├── booking/      # Service selection & slot picker
-│   │   │   ├── common/       # Global Navbar, Footer, Buttons, Cards, Modals
-│   │   │   ├── layout/       # Main container & page wrapper layouts
-│   │   │   ├── payment/      # Payment gateway integration components
-│   │   │   └── user/         # User profile and account management
-│   │   ├── context/          # Global Contexts (AuthContext, BookingContext, CartContext, NotificationContext)
-│   │   ├── hooks/            # Custom Hooks (useAuth, useFetch, useForm, useBooking, useNotification)
-│   │   ├── pages/            # Page Views (Home, Services, Booking, MyBookings, Profile, Cart, Auth)
-│   │   ├── services/         # API Service modules (authService, bookingService, paymentService)
-│   │   ├── styles/           # Global design tokens, variables, animations
-│   │   ├── utils/            # Helper functions, validators, formatters, localStorage helpers
-│   │   ├── App.css           # Component styles
+│   │   ├── components/       # Reusable UI components grouped by feature
+│   │   │   ├── auth/         # Auth modals (CreateAccountModal, OTPVerificationModal)
+│   │   │   ├── Booking/      # Booking components (ApplianceSelector, AddressForm, ScheduleForm, PaymentMethod, etc.)
+│   │   │   ├── common/       # Shared UI (Navbar, Footer, PageLoader, ScrollToTop)
+│   │   │   └── home/         # Home page sections (HeroSection, ServiceCategories, HowItWorks)
+│   │   ├── context/          # Global Contexts (AuthContext, BookingContext)
+│   │   ├── pages/            # Page View routes
+│   │   │   ├── aboutus/      # AboutPage.jsx
+│   │   │   ├── auth/         # LoginPage.jsx
+│   │   │   ├── BookingPage/  # BookingPage.jsx, BookingConfirmation.jsx
+│   │   │   ├── contactus/    # ContactPage.jsx
+│   │   │   ├── dashboard/    # DashboardPage.jsx
+│   │   │   ├── home/         # HomePage.jsx
+│   │   │   └── term & policy/# TermsAndConditions.jsx, PrivacyPolicy.jsx
+│   │   ├── services/         # API Service modules
+│   │   ├── App.css           # Custom styles
 │   │   ├── App.jsx           # Root application component with routes
 │   │   ├── index.css         # Tailwind CSS directives & base styles
 │   │   └── main.jsx          # React DOM entry point

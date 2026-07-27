@@ -113,9 +113,9 @@ const Navbar = () => {
             <div className="flex items-center justify-between h-16 gap-4 lg:gap-8">
 
               {/* Logo */}
-              <span className="text-3xl font-bold text-blue-900 shrink-0">
+              <Link to="/" className="shrink-0">
                 <img src={logo2} alt="Magic Mistry Logo" className="h-10 w-auto" />
-              </span>
+              </Link>
 
               {/* Desktop Nav Links (Visible >= 930px) */}
               <div className="hidden min-[930px]:flex items-center space-x-4 lg:space-x-8 shrink-0">

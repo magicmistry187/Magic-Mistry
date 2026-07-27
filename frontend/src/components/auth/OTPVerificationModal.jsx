@@ -169,8 +169,6 @@ export default function OTPVerificationModal({ phoneNumber, email, onClose, form
                 {formData?.email || email || "your email address"}
               </p>
 
-
-
               {apiError && (
                 <div className="w-full p-3 mb-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs font-medium">
                   {apiError}
