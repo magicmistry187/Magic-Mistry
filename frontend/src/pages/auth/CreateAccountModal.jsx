@@ -2,15 +2,19 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FcGoogle } from 'react-icons/fc';
 import { FiEye, FiEyeOff, FiArrowRight, FiX } from 'react-icons/fi';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import OTPVerificationModal from './OTPVerificationModal';
-import { sendOtp,googleLogin } from '../../services/api';
+import { sendOtp, googleLogin } from '../../services/api';
 import { useGoogleLogin } from '@react-oauth/google';
+import { useAuth } from '../../context/AuthContext';
 
 export default function CreateAccountModal({ isOpen = true, onClose }) {
+  const navigate = useNavigate();
+  const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isOTPVisible, setIsOTPVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [apiError, setApiError] = useState('');
   
   const [formData, setFormData] = useState({
@@ -85,16 +89,24 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
     const handleGoogleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       try {
+        setIsGoogleLoading(true);
         const response = await googleLogin(tokenResponse.access_token);
 
-        console.log(response);
+        if (response.success) {
+          login(response.user, response.token);
+          navigate('/');
+        } else {
+          setApiError(response.message || 'Google login failed. Please try again.');
+        }
       } catch (err) {
-        console.log(err);
+        console.error('Google Login Error:', err);
+        setApiError('Google login failed. Please try again.');
+      } finally {
+        setIsGoogleLoading(false);
       }
     },
-
     onError: () => {
-      console.log('Google Login Failed');
+      setApiError('Google sign-up was cancelled or failed.');
     },
   });
 
@@ -146,10 +158,21 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
               whileTap={{ scale: 0.99 }}
               type="button"
                onClick={handleGoogleLogin}
-              className="w-full py-2.5 sm:py-3 px-4 flex items-center justify-center gap-3 border border-slate-200 rounded-xl bg-white text-slate-700 font-medium text-sm hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm"
+              disabled={isGoogleLoading}
+              className="w-full py-2.5 sm:py-3 px-4 flex items-center justify-center gap-3 border border-slate-200 rounded-xl bg-white text-slate-700 font-medium text-sm hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm disabled:opacity-60"
             >
-              <FcGoogle className="w-5 h-5"  />
-              <span>Sign up with Google</span>
+              {isGoogleLoading ? (
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                  className="w-5 h-5 border-2 border-gray-300 border-t-gray-700 rounded-full"
+                />
+              ) : (
+                <>
+                  <FcGoogle className="w-5 h-5" />
+                  <span>Sign up with Google</span>
+                </>
+              )}
             </motion.button>
 
             {/* Divider */}

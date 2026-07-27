@@ -4,9 +4,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { FiX, FiRefreshCcw, FiArrowRight } from "react-icons/fi";
 import { HiShieldCheck, HiCheckCircle } from "react-icons/hi2";
 import { signUp, sendOtp } from "../../services/api";
+import { useAuth } from "../../context/AuthContext";
 
 export default function OTPVerificationModal({ phoneNumber, email, onClose, formData }) {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [isOpen, setIsOpen] = useState(true);
   const [otp, setOtp] = useState(new Array(6).fill(""));
   const [isVerifying, setIsVerifying] = useState(false);
@@ -88,6 +90,10 @@ export default function OTPVerificationModal({ phoneNumber, email, onClose, form
 
     setIsVerifying(false);
     if (res.success) {
+      // Auto-login the user and redirect to dashboard
+      if (res.user && res.token) {
+        login(res.user, res.token);
+      }
       setIsVerified(true);
     } else {
       setHasError(true);
@@ -273,11 +279,11 @@ export default function OTPVerificationModal({ phoneNumber, email, onClose, form
                 onClick={() => {
                   setIsOpen(false);
                   if (onClose) onClose();
-                  navigate('/login');
+                  navigate('/dashboard');
                 }}
                 className="w-full py-3.5 bg-[#f97316] hover:bg-orange-600 text-white font-semibold rounded-xl shadow-lg shadow-orange-500/25 transition-all flex items-center justify-center gap-2 h-14"
               >
-                Go to login page
+                Go to my Dashboard
                 <motion.div
                    initial={{ x: 0 }}
                    animate={{ x: [0, 5, 0] }}

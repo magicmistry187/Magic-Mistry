@@ -94,9 +94,15 @@ export async function loginUser(email, password) {
 
 
 export async function googleLogin(accessToken) {
-  const res = await apiConnector("POST", GOOGLE_LOGIN_API, {
-    accessToken,
-  });
-
-  return res.data;
+  try {
+    const res = await apiConnector('POST', GOOGLE_LOGIN_API, { accessToken });
+    console.log('GOOGLE LOGIN API RESPONSE............', res.data);
+    return res.data;
+  } catch (error) {
+    console.error('GOOGLE LOGIN API ERROR............', error);
+    return {
+      success: false,
+      message: error.response?.data?.message || error.message || 'Google login failed',
+    };
+  }
 }

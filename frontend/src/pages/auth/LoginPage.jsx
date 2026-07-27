@@ -5,10 +5,11 @@ import { FcGoogle } from 'react-icons/fc';
 import { IoClose } from 'react-icons/io5';
 import { useGoogleLogin } from '@react-oauth/google';
 import { loginUser, googleLogin } from '../../services/api';
-// import { loginUser } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 
 const WelcomeModal = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
@@ -50,6 +51,7 @@ const WelcomeModal = () => {
     setIsLoading(false);
 
     if (res.success) {
+      login(res.user, res.token);
       navigate('/');
     } else {
       setErrors({ password: res.message || 'Invalid email or password.' });
@@ -59,16 +61,24 @@ const WelcomeModal = () => {
   const handleGoogleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       try {
+        setIsGoogleLoading(true);
         const response = await googleLogin(tokenResponse.access_token);
 
-        console.log(response);
+        if (response.success) {
+          login(response.user, response.token);
+          navigate('/');
+        } else {
+          setErrors({ password: response.message || 'Google login failed. Please try again.' });
+        }
       } catch (err) {
-        console.log(err);
+        console.error('Google Login Error:', err);
+        setErrors({ password: 'Google login failed. Please try again.' });
+      } finally {
+        setIsGoogleLoading(false);
       }
     },
-
     onError: () => {
-      console.log('Google Login Failed');
+      setErrors({ password: 'Google login was cancelled or failed.' });
     },
   });
 

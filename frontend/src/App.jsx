@@ -12,6 +12,7 @@ const CreateAccountModal = lazy(() => import('./pages/auth/CreateAccountModal'))
 const AboutPage = lazy(() => import('./pages/aboutus/AboutPage'));
 const ContactPage = lazy(() => import('./pages/contactus/ContactPage'));
 const PrivacyPolicy = lazy(() => import('./pages/term & policy/PrivacyPolicy'));
+const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
 
 export default function App() {
   return (
@@ -37,6 +38,9 @@ export default function App() {
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/how-it-works" element={<HomePage />} />
           <Route path="/find-service" element={<HomePage />} />
+
+          {/* User Dashboard */}
+          <Route path="/dashboard" element={<DashboardPage />} />
 
           {/* Fallback Route */}
           <Route path="*" element={<HomePage />} />
