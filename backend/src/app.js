@@ -18,8 +18,10 @@ app.get("/", (req, res) => {
 
 // importing routes
 const authRoutes = require('./routes/auth.routes');
+const bookingRoutes = require('./routes/booking.routes')
 
 //mounting routes
 app.use('/api/auth', authRoutes);
+app.use('/api/booking',bookingRoutes)
 
 module.exports = app;
