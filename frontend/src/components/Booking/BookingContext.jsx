@@ -21,6 +21,8 @@ const DEFAULT_BASE_PRICE = 299;
 export const BookingProvider = ({ children, initialAppliance }) => {
   const getBasePrice = (id) => APPLIANCE_PRICING[id]?.basePrice ?? DEFAULT_BASE_PRICE;
 
+  const savedLocation = typeof window !== 'undefined' ? localStorage.getItem('mm_location') || '' : '';
+
   const [bookingState, setBookingState] = useState({
     serviceId: initialAppliance?.id || null,
     serviceName: initialAppliance?.name || '',
@@ -28,7 +30,7 @@ export const BookingProvider = ({ children, initialAppliance }) => {
     problemDescription: '',
     date: '',
     timeSlot: '',
-    address: '',
+    address: savedLocation,
     paymentMethod: '',
     images: [],
     priceInfo: {

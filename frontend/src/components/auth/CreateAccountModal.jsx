@@ -101,7 +101,7 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
       } catch (err) {
         console.error('Google Login Error:', err);
         setApiError('Google login failed. Please try again.');
-      } font-medium {
+      } finally {
         setIsGoogleLoading(false);
       }
     },

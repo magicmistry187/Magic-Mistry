@@ -7,16 +7,29 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true); // prevent flash before rehydrate
+  const [location, setLocation] = useState(() => {
+    return localStorage.getItem('mm_location') || 'Bangalore, IN';
+  });
 
   // Rehydrate session from localStorage on app startup
   useEffect(() => {
     try {
       const storedToken = localStorage.getItem('mm_token');
       const storedUser = localStorage.getItem('mm_user');
+      const storedLocation = localStorage.getItem('mm_location');
+
       if (storedToken && storedUser) {
         setToken(storedToken);
-        setUser(JSON.parse(storedUser));
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
         setIsLoggedIn(true);
+        if (parsedUser.location) {
+          setLocation(parsedUser.location);
+        } else if (storedLocation) {
+          setLocation(storedLocation);
+        }
+      } else if (storedLocation) {
+        setLocation(storedLocation);
       }
     } catch {
       localStorage.removeItem('mm_token');
@@ -27,11 +40,15 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = (userData, authToken) => {
-    setUser(userData);
+    const updatedUser = {
+      ...userData,
+      location: userData.location || location,
+    };
+    setUser(updatedUser);
     setToken(authToken);
     setIsLoggedIn(true);
     localStorage.setItem('mm_token', authToken);
-    localStorage.setItem('mm_user', JSON.stringify(userData));
+    localStorage.setItem('mm_user', JSON.stringify(updatedUser));
   };
 
   const logout = () => {
@@ -42,8 +59,30 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('mm_user');
   };
 
+  const updateLocation = (newLocation) => {
+    setLocation(newLocation);
+    localStorage.setItem('mm_location', newLocation);
+
+    if (user) {
+      const updatedUser = { ...user, location: newLocation };
+      setUser(updatedUser);
+      localStorage.setItem('mm_user', JSON.stringify(updatedUser));
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoggedIn, loading, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        isLoggedIn,
+        loading,
+        location,
+        updateLocation,
+        login,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

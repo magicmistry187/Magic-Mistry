@@ -6,6 +6,8 @@ import {
   MapPinOff, Clock3,
 } from 'lucide-react';
 
+import { useAuth } from '../../context/AuthContext';
+
 /* ── Location states ─────────────────────────────── */
 const LOC = { IDLE: 'idle', LOADING: 'loading', SUCCESS: 'success', ERROR: 'error' };
 
@@ -93,6 +95,7 @@ function OutOfAreaModal({ city, state, onClose }) {
 
 export default function AddressForm() {
   const { bookingState, updateBooking } = useBooking();
+  const { location, updateLocation } = useAuth();
   const fileInputRef = useRef(null);
   const [previews, setPreviews]     = useState([]);
   const [dragOver, setDragOver]     = useState(false);
@@ -100,6 +103,13 @@ export default function AddressForm() {
   const [locError, setLocError]     = useState('');
   const [outOfArea, setOutOfArea]   = useState(null);
   const [addrError, setAddrError]   = useState('');
+
+  // Sync saved global location into booking address if empty
+  React.useEffect(() => {
+    if (!bookingState.address && location) {
+      updateBooking('address', location);
+    }
+  }, [location]);
 
   /* ── Image helpers ──────────────────────────────── */
   const processFiles = (files) => {
@@ -177,6 +187,7 @@ export default function AddressForm() {
 
           const fullAddress = parts.length ? parts.join(', ') : data.display_name;
           updateBooking('address', fullAddress);
+          updateLocation(fullAddress);
           setAddrError('');
           setLocState(LOC.SUCCESS);
         } catch {

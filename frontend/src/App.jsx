@@ -40,8 +40,12 @@ export default function App() {
           <Route path="/how-it-works" element={<HomePage />} />
           <Route path="/find-service" element={<HomePage />} />
 
-          {/* User Dashboard */}
+          {/* User Dashboard & Sub-routes */}
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/my-bookings" element={<DashboardPage />} />
+          <Route path="/bookings" element={<DashboardPage />} />
+          <Route path="/history" element={<DashboardPage />} />
+          <Route path="/settings" element={<DashboardPage />} />
 
           {/* Fallback Route */}
           <Route path="*" element={<HomePage />} />

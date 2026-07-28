@@ -5,12 +5,12 @@ const {auth, isCustomer} = require('../middleware/auth')
 
 const{createBooking,getMyBookings,getBookingDetails,cancelBooking} = require('../controllers/booking.controller')
 
-router.post("/", auth, iscustomer, createBooking);
+router.post("/", auth, isCustomer, createBooking);
 
-router.get("/my-bookings", auth, iscustomer, getMyBookings);
+router.get("/my-bookings", auth, isCustomer, getMyBookings);
 
-router.get("/:bookingId", auth, iscustomer, getBookingDetails);
+router.get("/:bookingId", auth, isCustomer, getBookingDetails);
 
-router.put("/:bookingId/cancel", auth, iscustomer, cancelBooking);
+router.put("/:bookingId/cancel", auth, isCustomer, cancelBooking);
 
 module.exports = router;
