@@ -2,6 +2,7 @@ import React, { lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import PageLoader from './components/common/PageLoader';
 import ScrollToTop from './components/common/ScrollToTop';
+import RouteLoaderListener from './components/common/RouteLoaderListener';
 import TermsAndConditions from './pages/term & policy/TermsAndConditions';
 
 // Lazy loading route components
@@ -17,9 +18,9 @@ const BookingConfirmation = lazy(() => import('./pages/BookingPage/BookingConfir
 
 export default function App() {
   return (
-    <>
+    <RouteLoaderListener>
       <ScrollToTop />
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={<PageLoader label="Loading page..." />}>
         <Routes>
           {/* Landing Page */}
           <Route path="/" element={<HomePage />} />
@@ -51,6 +52,6 @@ export default function App() {
           <Route path="*" element={<HomePage />} />
         </Routes>
       </Suspense>
-    </>
+    </RouteLoaderListener>
   );
 }
