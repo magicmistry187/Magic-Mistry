@@ -42,6 +42,13 @@ exports.createBooking = async (req, res) => {
 
     const userId = req.user?.id || req.user?._id;
 
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'A user cannot make a booking until they log in.',
+      });
+    }
+
     if (isDbConnected()) {
       const booking = await Booking.create({
         customer: userId,

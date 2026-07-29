@@ -3,8 +3,6 @@ import { Routes, Route } from 'react-router-dom';
 import PageLoader from './components/common/PageLoader';
 import ScrollToTop from './components/common/ScrollToTop';
 import RouteLoaderListener from './components/common/RouteLoaderListener';
-import TermsAndConditions from './pages/term & policy/TermsAndConditions';
-
 // Lazy loading route components
 const HomePage = lazy(() => import('./pages/home/HomePage'));
 const BookingPage = lazy(() => import('./pages/BookingPage/BookingPage'));
@@ -13,6 +11,7 @@ const CreateAccountModal = lazy(() => import('./components/auth/CreateAccountMod
 const AboutPage = lazy(() => import('./pages/aboutus/AboutPage'));
 const ContactPage = lazy(() => import('./pages/contactus/ContactPage'));
 const PrivacyPolicy = lazy(() => import('./pages/term & policy/PrivacyPolicy'));
+const TermsAndConditions = lazy(() => import('./pages/term & policy/TermsAndConditions'));
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
 const BookingConfirmation = lazy(() => import('./pages/BookingPage/BookingConfirmation'));
 

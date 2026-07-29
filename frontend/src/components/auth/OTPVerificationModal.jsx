@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiX, FiRefreshCcw, FiArrowRight } from "react-icons/fi";
 import { HiShieldCheck, HiCheckCircle } from "react-icons/hi2";
@@ -8,7 +8,9 @@ import { useAuth } from "../../context/AuthContext";
 
 export default function OTPVerificationModal({ phoneNumber, email, onClose, formData }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
+  const targetPath = location.state?.from || '/dashboard';
   const [isOpen, setIsOpen] = useState(true);
   const [otp, setOtp] = useState(new Array(6).fill(""));
   const [isVerifying, setIsVerifying] = useState(false);
@@ -277,11 +279,11 @@ export default function OTPVerificationModal({ phoneNumber, email, onClose, form
                 onClick={() => {
                   setIsOpen(false);
                   if (onClose) onClose();
-                  navigate('/dashboard');
+                  navigate(targetPath, { state: location.state });
                 }}
                 className="w-full py-3.5 bg-[#f97316] hover:bg-orange-600 text-white font-semibold rounded-xl shadow-lg shadow-orange-500/25 transition-all flex items-center justify-center gap-2 h-14"
               >
-                Go to my Dashboard
+                {targetPath === '/booking' ? 'Continue Booking Service' : 'Go to my Dashboard'}
                 <motion.div
                    initial={{ x: 0 }}
                    animate={{ x: [0, 5, 0] }}

@@ -149,27 +149,32 @@ async function signup(req, res) {
       const hashedPassword = await bcrypt.hash(password, 10);
       const user = await userModel.create({
         fullName,
-        email,
+        email: email.toLowerCase().trim(),
         password: hashedPassword,
         phoneNumber,
-         authProviders: ["email"]
+        authProviders: ["email"]
       });
+
+      const token = generateToken(user);
+      const userData = user.toObject();
+      delete userData.password;
 
       return res.status(200).json({
         success: true,
         message: 'User is Signed Up',
-        user,
+        token,
+        user: userData,
       });
     } else {
       console.log(`[DEV FALLBACK - DB Offline] Processing signup for ${email}`);
-      const existingUser = inMemoryUsers.find((u) => u.email === email);
+      const existingUser = inMemoryUsers.find((u) => u.email === email.toLowerCase().trim());
       if (existingUser) {
         return res
           .status(400)
           .json({ success: false, message: 'User already exists' });
       }
 
-      const userOtps = inMemoryOtps.filter((o) => o.email === email);
+      const userOtps = inMemoryOtps.filter((o) => o.email === email.toLowerCase().trim());
       const recentOtp = userOtps[userOtps.length - 1];
 
       if (!recentOtp) {
@@ -185,19 +190,22 @@ async function signup(req, res) {
       const user = {
         _id: 'mem_' + Date.now(),
         fullName,
-        email,
+        email: email.toLowerCase().trim(),
         password: hashedPassword,
         phoneNumber,
+        role: 'customer',
         createdAt: new Date(),
       };
       inMemoryUsers.push(user);
 
+      const token = generateToken(user);
       const userData = { ...user };
       delete userData.password;
 
       return res.status(200).json({
         success: true,
         message: 'User is Signed Up',
+        token,
         user: userData,
       });
     }

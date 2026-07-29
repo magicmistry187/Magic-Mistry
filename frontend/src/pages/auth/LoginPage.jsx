@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FcGoogle } from 'react-icons/fc';
 import { IoClose } from 'react-icons/io5';
@@ -9,12 +9,16 @@ import { useAuth } from '../../context/AuthContext';
 
 const WelcomeModal = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  const from = location.state?.from || '/';
+  const reason = location.state?.reason || (from === '/booking' ? 'A user cannot make a booking until they log in.' : null);
 
   const validate = () => {
     const newErrors = {};
@@ -52,7 +56,7 @@ const WelcomeModal = () => {
 
     if (res.success) {
       login(res.user, res.token);
-      navigate('/');
+      navigate(from, { replace: true });
     } else {
       setErrors({ password: res.message || 'Invalid email or password.' });
     }
@@ -66,7 +70,7 @@ const WelcomeModal = () => {
 
         if (response.success) {
           login(response.user, response.token);
-          navigate('/');
+          navigate(from, { replace: true });
         } else {
           setErrors({ password: response.message || 'Google login failed. Please try again.' });
         }
@@ -104,7 +108,7 @@ const WelcomeModal = () => {
 
         <div className="p-8 pb-10">
           {/* Header Section */}
-          <div className="text-center mb-8 mt-2">
+          <div className="text-center mb-6 mt-2">
             <h1 className="text-[28px] font-bold text-[#0a192f] tracking-tight mb-2">
               Welcome Back
             </h1>
@@ -112,6 +116,14 @@ const WelcomeModal = () => {
               Sign in to manage your repairs and service history.
             </p>
           </div>
+
+          {/* Reason Notice Banner */}
+          {reason && (
+            <div className="mb-6 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs font-semibold flex items-center gap-2.5 shadow-sm">
+              <span className="text-base shrink-0">🔒</span>
+              <span>{reason}</span>
+            </div>
+          )}
 
          
 

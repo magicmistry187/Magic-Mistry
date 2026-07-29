@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FcGoogle } from 'react-icons/fc';
 import { FiEye, FiEyeOff, FiArrowRight, FiX } from 'react-icons/fi';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import OTPVerificationModal from './OTPVerificationModal';
 import { sendOtp, googleLogin } from '../../services/api';
 import { useGoogleLogin } from '@react-oauth/google';
@@ -10,7 +10,9 @@ import { useAuth } from '../../context/AuthContext';
 
 export default function CreateAccountModal({ isOpen = true, onClose }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
+  const targetPath = location.state?.from || '/';
   const [showPassword, setShowPassword] = useState(false);
   const [isOTPVisible, setIsOTPVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -94,7 +96,7 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
 
         if (response.success) {
           login(response.user, response.token);
-          navigate('/');
+          navigate(targetPath, { state: location.state, replace: true });
         } else {
           setApiError(response.message || 'Google login failed. Please try again.');
         }

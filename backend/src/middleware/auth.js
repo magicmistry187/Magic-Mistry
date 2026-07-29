@@ -14,7 +14,7 @@ exports.auth = async (req, res, next) => {
     if (!token) {
       return res.status(401).json({
         success: false,
-        message: "Token is missing. Please log in.",
+        message: "A user cannot make a booking until they log in.",
       });
     }
 
@@ -26,8 +26,8 @@ exports.auth = async (req, res, next) => {
 
       const message =
         err.name === "TokenExpiredError"
-          ? "Session expired. Please log in again."
-          : "Invalid token. Please log in again.";
+          ? "Session expired. A user cannot make a booking until they log in."
+          : "Invalid session. A user cannot make a booking until they log in.";
 
       return res.status(401).json({
         success: false,

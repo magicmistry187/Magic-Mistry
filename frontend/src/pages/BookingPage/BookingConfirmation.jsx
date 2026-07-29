@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
+import LazyImage from '../../components/common/LazyImage';
 import {
   CheckCircle2, Calendar, Clock, MapPin, Wrench,
   CreditCard, Phone, Download, Home, ArrowRight,
@@ -165,10 +166,10 @@ export default function BookingConfirmation() {
                 {/* Uploaded Image if available */}
                 {booking.image && (
                   <div className="flex items-center gap-4 px-6 py-4">
-                    <img
+                    <LazyImage
                       src={booking.image}
                       alt="Uploaded problem issue"
-                      className="w-14 h-14 object-cover rounded-xl border border-slate-200"
+                      className="w-14 h-14 rounded-xl border border-slate-200"
                     />
                     <div className="flex-1">
                       <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide">Attached Photo</p>
