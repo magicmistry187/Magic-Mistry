@@ -2,17 +2,43 @@ import { useBooking } from '../../components/Booking/BookingContext';
 import { useNavigate } from 'react-router-dom';
 import { Info, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
+import { createBooking } from '../../services/operations/bookingAPI';
 
 /* West Bengal keywords — same list as AddressForm */
 const WB_KEYWORDS = [
-  'west bengal', 'wb',
-  'kolkata', 'calcutta', 'howrah', 'hooghly', 'durgapur',
-  'asansol', 'siliguri', 'bardhaman', 'burdwan', 'malda',
-  'kharagpur', 'haldia', 'raiganj', 'jalpaiguri', 'cooch behar',
-  'bankura', 'purulia', 'midnapore', 'medinipur', 'barasat',
-  'krishnanagar', 'nabadwip', 'santiniketan', 'bolpur',
-  'barrackpore', 'north 24 parganas', 'south 24 parganas',
-  'murshidabad', 'nadia', 'birbhum', 'berhampore',
+  'west bengal',
+  'wb',
+  'kolkata',
+  'calcutta',
+  'howrah',
+  'hooghly',
+  'durgapur',
+  'asansol',
+  'siliguri',
+  'bardhaman',
+  'burdwan',
+  'malda',
+  'kharagpur',
+  'haldia',
+  'raiganj',
+  'jalpaiguri',
+  'cooch behar',
+  'bankura',
+  'purulia',
+  'midnapore',
+  'medinipur',
+  'barasat',
+  'krishnanagar',
+  'nabadwip',
+  'santiniketan',
+  'bolpur',
+  'barrackpore',
+  'north 24 parganas',
+  'south 24 parganas',
+  'murshidabad',
+  'nadia',
+  'birbhum',
+  'berhampore',
 ];
 const isWestBengalAddress = (addr) => {
   const lower = addr.toLowerCase();
@@ -21,7 +47,8 @@ const isWestBengalAddress = (addr) => {
 
 /* Generate a simple booking ID */
 const genBookingId = () =>
-  'MM' + Date.now().toString(36).toUpperCase().slice(-6) +
+  'MM' +
+  Date.now().toString(36).toUpperCase().slice(-6) +
   Math.random().toString(36).toUpperCase().slice(2, 5);
 
 export default function BookingSummary() {
@@ -32,49 +59,115 @@ export default function BookingSummary() {
 
   const { basePrice, total } = bookingState.priceInfo;
 
+  // const handleBookingSubmit = async () => {
+  //   const errs = [];
+
+  //   if (!bookingState.serviceId)   errs.push('Please select an appliance.');
+  //   if (!bookingState.date)        errs.push('Please pick a booking date.');
+  //   if (!bookingState.timeSlot)    errs.push('Please choose a time slot.');
+  //   if (!bookingState.address.trim()) errs.push('Please enter your service address.');
+  //   else if (!isWestBengalAddress(bookingState.address)) {
+  //     errs.push('We only serve West Bengal. Please enter a valid West Bengal address.');
+  //   }
+
+  //   if (errs.length) {
+  //     setErrors(errs);
+  //     // Scroll errors into view
+  //     document.getElementById('summary-errors')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  //     return;
+  //   }
+
+  //   setErrors([]);
+  //   setLoading(true);
+
+  //   // Simulate brief API call (replace with real axios call later)
+  //   await new Promise((r) => setTimeout(r, 900));
+
+  //   const bookingPayload = {
+  //     bookingId:     genBookingId(),
+  //     serviceId:     bookingState.serviceId,
+  //     serviceName:   bookingState.serviceName,
+  //     date:          bookingState.date,
+  //     timeSlot:      bookingState.timeSlot,
+  //     address:       bookingState.address,
+  //     paymentMethod: bookingState.paymentMethod,
+  //     basePrice,
+  //     total,
+  //     problemDescription: bookingState.problemDescription,
+  //   };
+
+  //   console.log('Booking payload:', bookingPayload);
+
+  //   setLoading(false);
+  //   navigate('/booking/confirmation', { state: { booking: bookingPayload } });
+  // };
+
   const handleBookingSubmit = async () => {
     const errs = [];
 
-    if (!bookingState.serviceId)   errs.push('Please select an appliance.');
-    if (!bookingState.date)        errs.push('Please pick a booking date.');
-    if (!bookingState.timeSlot)    errs.push('Please choose a time slot.');
-    if (!bookingState.address.trim()) errs.push('Please enter your service address.');
-    else if (!isWestBengalAddress(bookingState.address)) {
-      errs.push('We only serve West Bengal. Please enter a valid West Bengal address.');
-    }
+    if (!bookingState.serviceId) errs.push('Please select an appliance.');
+
+    if (!bookingState.date) errs.push('Please pick a booking date.');
+
+    if (!bookingState.timeSlot) errs.push('Please choose a time slot.');
+
+    if (!bookingState.address.trim())
+      errs.push('Please enter your service address.');
+    else if (!isWestBengalAddress(bookingState.address))
+      errs.push(
+        'We only serve West Bengal. Please enter a valid West Bengal address.',
+      );
 
     if (errs.length) {
       setErrors(errs);
-      // Scroll errors into view
-      document.getElementById('summary-errors')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document
+        .getElementById('summary-errors')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
 
-    setErrors([]);
-    setLoading(true);
+    try {
+      setErrors([]);
+      setLoading(true);
 
-    // Simulate brief API call (replace with real axios call later)
-    await new Promise((r) => setTimeout(r, 900));
+      // Create FormData
+      const formData = new FormData();
 
-    const bookingPayload = {
-      bookingId:     genBookingId(),
-      serviceId:     bookingState.serviceId,
-      serviceName:   bookingState.serviceName,
-      date:          bookingState.date,
-      timeSlot:      bookingState.timeSlot,
-      address:       bookingState.address,
-      paymentMethod: bookingState.paymentMethod,
-      basePrice,
-      total,
-      problemDescription: bookingState.problemDescription,
-    };
+      formData.append('appliance', bookingState.serviceName);
+      formData.append('issue', bookingState.problemDescription);
+      formData.append('address', bookingState.address);
+      formData.append('serviceDate', bookingState.date);
+      formData.append('timeSlot', bookingState.timeSlot);
 
-    console.log('Booking payload:', bookingPayload);
+      // Temporary until service category UI is built
+      formData.append('serviceCategory', 'Repair');
+      formData.append('serviceCategoryCharge', basePrice);
+      formData.append('serviceCharge', total);
 
-    setLoading(false);
-    navigate('/booking/confirmation', { state: { booking: bookingPayload } });
+      if (bookingState.image) {
+        formData.append('image', bookingState.image);
+      }
+
+      const response = await createBooking(formData);
+
+      // if (!response.success) {
+      //   throw new Error(response.message);
+      // }
+
+      console.log('Booking Created:', response.booking);
+
+      navigate('/booking/confirmation', {
+        state: {
+          booking: response.booking,
+        },
+      });
+    } catch (error) {
+      // console.error(error);
+      setErrors([error.message || 'Booking failed']);
+    } finally {
+      setLoading(false);
+    }
   };
-
   return (
     <div className="bg-slate-800 text-white p-6 rounded-xl shadow-lg sticky top-6">
       <h2 className="text-xl font-semibold mb-6">Booking Summary</h2>
@@ -84,36 +177,49 @@ export default function BookingSummary() {
         <div className="flex justify-between">
           <span className="text-slate-300">Service</span>
           <span className="font-medium text-right max-w-[55%]">
-            {bookingState.serviceName || <span className="text-slate-500 italic">Not selected</span>}
+            {bookingState.serviceName || (
+              <span className="text-slate-500 italic">Not selected</span>
+            )}
           </span>
         </div>
         <div className="flex justify-between">
           <span className="text-slate-300">Date</span>
           <span className="font-medium text-right">
-            {bookingState.date
-              ? new Date(bookingState.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-              : <span className="text-slate-500 italic">Not selected</span>}
+            {bookingState.date ? (
+              new Date(bookingState.date + 'T00:00:00').toLocaleDateString(
+                'en-IN',
+                { day: 'numeric', month: 'short', year: 'numeric' },
+              )
+            ) : (
+              <span className="text-slate-500 italic">Not selected</span>
+            )}
           </span>
         </div>
         <div className="flex justify-between">
           <span className="text-slate-300">Time</span>
           <span className="font-medium text-right text-xs">
-            {bookingState.timeSlot || <span className="text-slate-500 italic">Not selected</span>}
+            {bookingState.timeSlot || (
+              <span className="text-slate-500 italic">Not selected</span>
+            )}
           </span>
         </div>
         <div className="flex justify-between">
           <span className="text-slate-300">Payment</span>
           <span className="font-medium capitalize text-xs">
-            {bookingState.paymentMethod === 'upi' ? 'UPI After Service'
-              : bookingState.paymentMethod === 'cash' ? 'Cash After Service'
-              : '—'}
+            {bookingState.paymentMethod === 'upi'
+              ? 'UPI After Service'
+              : bookingState.paymentMethod === 'cash'
+                ? 'Cash After Service'
+                : '—'}
           </span>
         </div>
       </div>
 
       {/* Price breakdown */}
       <div className="space-y-3 mb-5 text-sm border-b border-slate-600 pb-5">
-        <p className="text-slate-400 text-xs font-bold uppercase tracking-wide mb-2">Price Breakdown</p>
+        <p className="text-slate-400 text-xs font-bold uppercase tracking-wide mb-2">
+          Price Breakdown
+        </p>
         <div className="flex justify-between items-center">
           <span className="text-slate-300">Service / Labour Charge</span>
           <span className="font-semibold text-white">
@@ -123,9 +229,13 @@ export default function BookingSummary() {
         <div className="flex items-start gap-2 bg-slate-700/60 rounded-lg p-3 mt-2">
           <Info className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-slate-300 leading-relaxed">
-            <span className="text-amber-300 font-semibold">Part charges extra</span> — technician
-            informs you first.{' '}
-            <span className="text-white font-medium">You decide before any part is replaced.</span>
+            <span className="text-amber-300 font-semibold">
+              Part charges extra
+            </span>{' '}
+            — technician informs you first.{' '}
+            <span className="text-white font-medium">
+              You decide before any part is replaced.
+            </span>
           </p>
         </div>
       </div>
@@ -143,9 +253,15 @@ export default function BookingSummary() {
 
       {/* Validation errors */}
       {errors.length > 0 && (
-        <div id="summary-errors" className="mb-4 bg-red-500/20 border border-red-400/40 rounded-lg px-4 py-3 space-y-1.5">
+        <div
+          id="summary-errors"
+          className="mb-4 bg-red-500/20 border border-red-400/40 rounded-lg px-4 py-3 space-y-1.5"
+        >
           {errors.map((e, i) => (
-            <div key={i} className="flex items-start gap-2 text-xs text-red-300">
+            <div
+              key={i}
+              className="flex items-start gap-2 text-xs text-red-300"
+            >
               <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-red-400" />
               {e}
             </div>
@@ -161,9 +277,24 @@ export default function BookingSummary() {
       >
         {loading ? (
           <>
-            <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            <svg
+              className="animate-spin w-4 h-4"
+              viewBox="0 0 24 24"
+              fill="none"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v8H4z"
+              />
             </svg>
             Confirming…
           </>

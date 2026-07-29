@@ -35,12 +35,13 @@ const  uploadImageToImageKit = require ('../config/imagekit')
 
 // create booking
 exports.createBooking = async (req,res) =>{
+  console.log("in the create booking")
  
   try {
-    const { appliance, issue, address, serviceDate, timeSlot,serviceCategory,serviceCategoryCharge } = req.body;
+    const { appliance, issue, address, serviceDate, timeSlot,serviceCategory,serviceCategoryCharge,serviceCharge } = req.body;
   
 
-    if (!appliance || !issue || !address || !serviceDate || !timeSlot) {
+    if (!appliance  || !address || !serviceDate || !timeSlot) {
       return res.status(400).json({
         success: false,
         message: 'All required fields must be provided.',
@@ -48,7 +49,7 @@ exports.createBooking = async (req,res) =>{
     }
 
     //image uploading
-    // console.log("req file",req.file)
+    console.log("req file",req.file)
     let image ="";
 
     if (req.file) {
@@ -65,6 +66,7 @@ exports.createBooking = async (req,res) =>{
       address,
       serviceDate,
       timeSlot,
+      serviceCharge,
       serviceCategory,
       serviceCategoryCharge
     });
@@ -81,6 +83,16 @@ exports.createBooking = async (req,res) =>{
       success: false,
       message: 'Internal Server Error.',
     });
+  }
+}
+
+
+// get user booking
+exports.getMyBookings = async (req,res)=>{
+  try{
+
+  }catch(error){
+    
   }
 }
 
@@ -150,39 +162,39 @@ exports.createBooking = async (req,res) =>{
 // };
 
 // Get current user's bookings
-exports.getMyBookings = async (req, res) => {
-  try {
-    const userId = req.user?.id || req.user?._id;
+// exports.getMyBookings = async (req, res) => {
+//   try {
+//     const userId = req.user?.id || req.user?._id;
 
-    if (isDbConnected()) {
-      const bookings = await Booking.find({ customer: userId })
-        .populate('vendor', 'fullName email phoneNumber')
-        .sort({ createdAt: -1 });
+//     if (isDbConnected()) {
+//       const bookings = await Booking.find({ customer: userId })
+//         .populate('vendor', 'fullName email phoneNumber')
+//         .sort({ createdAt: -1 });
 
-      return res.status(200).json({
-        success: true,
-        count: bookings.length,
-        bookings,
-      });
-    } else {
-      const userBookings = inMemoryBookings.filter(
-        (b) => b.customer.toString() === userId?.toString() || true
-      );
-      return res.status(200).json({
-        success: true,
-        count: userBookings.length,
-        bookings: userBookings,
-      });
-    }
-  } catch (error) {
-    console.error('Error fetching my bookings:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to fetch bookings',
-      error: error.message,
-    });
-  }
-};
+//       return res.status(200).json({
+//         success: true,
+//         count: bookings.length,
+//         bookings,
+//       });
+//     } else {
+//       const userBookings = inMemoryBookings.filter(
+//         (b) => b.customer.toString() === userId?.toString() || true
+//       );
+//       return res.status(200).json({
+//         success: true,
+//         count: userBookings.length,
+//         bookings: userBookings,
+//       });
+//     }
+//   } catch (error) {
+//     console.error('Error fetching my bookings:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch bookings',
+//       error: error.message,
+//     });
+//   }
+// };
 
 // Get single booking details
 exports.getBookingDetails = async (req, res) => {

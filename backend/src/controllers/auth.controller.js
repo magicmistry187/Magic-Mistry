@@ -14,6 +14,8 @@ const inMemoryOtps = [];
 
 const isDbConnected = () => mongoose.connection.readyState === 1;
 
+// chnage password and logout
+
 function generateToken(user) {
   const payload = {
     id: user._id,

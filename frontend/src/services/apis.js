@@ -6,4 +6,8 @@ export const authEndpoints = {
   SIGNUP_API: BASE_URL + '/auth/signup',
   LOGIN_API: BASE_URL + '/auth/login',
   GOOGLE_LOGIN_API: BASE_URL + '/auth/googleLogin',
-};
+}
+
+export const bookingEndpoints = {
+  CREATE_BOOKING_API : BASE_URL + '/booking'
+}
