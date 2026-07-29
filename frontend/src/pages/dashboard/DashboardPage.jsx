@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { getMyBookingsApi, cancelBookingApi } from '../../services/api';
 import Navbar from '../../components/common/Navbar';
 import {
   LayoutDashboard, Wrench, Heart, Settings, LogOut, Bell,
@@ -19,121 +20,10 @@ import AddressModal from '../../components/dashboard/AddressModal';
 import RatingModal from '../../components/dashboard/RatingModal';
 import LocationSelectorModal from '../../components/common/LocationSelectorModal';
 
-// ─── Initial Mock Data ───────────────────────────────────────────────────────
-const initialBookings = [
-  {
-    id: '#FX-84920',
-    service: 'Split AC Deep Cleaning',
-    applianceIcon: '❄️',
-    technician: 'Suresh Kumar',
-    techRating: '4.9',
-    techJobs: '120+',
-    techAvatar: 'SK',
-    date: 'Jul 28, 2026',
-    time: '10:00 AM - 12:00 PM',
-    status: 'In Progress', // In Progress, Completed, Cancelled
-    price: '₹1,499',
-    customerName: 'Rahul Sharma',
-    address: 'Flat 402, Green Valley Apartments, Indiranagar, Bangalore',
-    step: 2, // 1: Assigned, 2: Under Diagnosis, 3: Repaired
-  },
-  {
-    id: '#FXT-8924',
-    service: 'Split AC Repair',
-    applianceIcon: '❄️',
-    technician: 'Alex M.',
-    techRating: '4.8',
-    techJobs: '95+',
-    techAvatar: 'AM',
-    date: 'Oct 24, 2024',
-    time: '02:00 PM - 04:00 PM',
-    status: 'In Progress',
-    price: '$120.00',
-    customerName: 'Rahul Sharma',
-    address: 'Flat 402, Green Valley Apartments, Indiranagar, Bangalore',
-    step: 1,
-  },
-  {
-    id: '#FXT-7512',
-    service: 'Refrigerator Servicing',
-    applianceIcon: '🧊',
-    technician: 'Sarah J.',
-    techRating: '4.9',
-    techJobs: '150+',
-    techAvatar: 'SJ',
-    date: 'Sep 12, 2024',
-    time: '11:00 AM - 01:00 PM',
-    status: 'Completed',
-    price: '$85.00',
-    customerName: 'Rahul Sharma',
-    address: 'Flat 402, Green Valley Apartments, Indiranagar, Bangalore',
-    ratingSubmitted: 5,
-  },
-  {
-    id: '#FXT-6104',
-    service: 'Smart TV Mounting',
-    applianceIcon: '📺',
-    technician: 'Unassigned',
-    techRating: null,
-    techJobs: null,
-    date: 'Aug 05, 2024',
-    time: '04:00 PM - 06:00 PM',
-    status: 'Cancelled',
-    price: '$150.00',
-    customerName: 'Rahul Sharma',
-    address: 'Flat 402, Green Valley Apartments, Indiranagar, Bangalore',
-  },
-  {
-    id: '#FX-72102',
-    service: 'AC Gas Top-up',
-    applianceIcon: '❄️',
-    technician: 'Ramesh Kumar',
-    date: 'Aug 05, 2023',
-    time: '09:00 AM - 11:00 AM',
-    status: 'Completed',
-    price: '₹1,499',
-    customerName: 'Rahul Sharma',
-    address: 'Flat 402, Green Valley Apartments, Indiranagar, Bangalore',
-    ratingSubmitted: 5,
-  },
-  {
-    id: '#FX-65492',
-    service: 'Microwave Magnetron Replacement',
-    applianceIcon: '📡',
-    technician: 'Ajay Singh',
-    date: 'Mar 22, 2023',
-    time: '02:00 PM - 04:00 PM',
-    status: 'Completed',
-    price: '₹2,250',
-    customerName: 'Rahul Sharma',
-    address: 'Flat 402, Green Valley Apartments, Indiranagar, Bangalore',
-    ratingSubmitted: 4,
-  },
-  {
-    id: '#FX-58911',
-    service: 'Fridge PCB Repair',
-    applianceIcon: '🧊',
-    technician: 'Vikram Sethi',
-    date: 'Nov 10, 2022',
-    time: '11:00 AM - 01:00 PM',
-    status: 'Completed',
-    price: '₹3,100',
-    customerName: 'Rahul Sharma',
-    address: 'Flat 402, Green Valley Apartments, Indiranagar, Bangalore',
-    ratingSubmitted: 5,
-  },
-];
-
-const savedAppliances = [
-  { id: 1, name: 'LG Double Door Fridge', icon: '🧊', lastServiced: 'Oct 12, 2023' },
-  { id: 2, name: 'Bosch Front Load', icon: '🧺', lastServiced: 'Never serviced via MagicMistry' },
-  { id: 3, name: 'Daikin Inverter AC 1.5 Ton', icon: '❄️', lastServiced: 'Jul 20, 2024' },
-];
-
-const initialAddresses = [
-  { id: 1, type: 'Home', flat: 'Flat 402, Green Valley Apts', street: '10th Main Road, Indiranagar', landmark: 'Near Metro Station', pincode: '560038' },
-  { id: 2, type: 'Office', flat: 'Suite 301, Tech Park Phase 2', street: 'Outer Ring Road, Marathahalli', landmark: 'Opposite Shell Station', pincode: '560103' },
-];
+// ─── Initial User Data (No Mock/Dummy Data) ─────────────────────────
+const initialBookings = [];
+const savedAppliances = [];
+const initialAddresses = [];
 
 // ─── Status Badge ────────────────────────────────────────────────────────────
 const StatusBadge = ({ status }) => {
@@ -145,17 +35,33 @@ const StatusBadge = ({ status }) => {
       </span>
     );
   }
+  if (status === 'Pending') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+        <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+        Pending
+      </span>
+    );
+  }
+  if (status === 'Accepted') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">
+        <span className="w-2 h-2 rounded-full bg-blue-600" />
+        Accepted
+      </span>
+    );
+  }
   if (status === 'Completed') {
     return (
-      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
         Completed
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
-      <AlertCircle className="w-3.5 h-3.5 text-slate-400" />
+    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-700 border border-rose-200">
+      <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
       Cancelled
     </span>
   );
@@ -173,8 +79,40 @@ const itemVariants = {
 };
 
 export default function DashboardPage() {
-  const { user, logout, location, updateLocation } = useAuth();
+  const { user, token, logout, location, updateLocation } = useAuth();
   const navigate = useNavigate();
+
+  // Bookings list state
+  const [bookingsList, setBookingsList] = useState(initialBookings);
+
+  // Fetch real backend bookings on mount
+  React.useEffect(() => {
+    async function loadBackendBookings() {
+      if (!token) return;
+      const res = await getMyBookingsApi(token);
+      if (res.success && Array.isArray(res.bookings) && res.bookings.length > 0) {
+        const formatted = res.bookings.map((b) => ({
+          id: b._id || 'BK-' + Date.now().toString().slice(-6),
+          service: b.serviceCategory || b.appliance || 'Appliance Service',
+          applianceIcon: '🔧',
+          technician: b.vendor?.fullName || 'Verification Pending',
+          techRating: '4.9',
+          techJobs: '100+',
+          techAvatar: 'MM',
+          date: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—',
+          time: b.timeSlot || 'Scheduled Slot',
+          status: b.bookingStatus || 'Pending',
+          price: `₹${b.serviceCategoryCharge ?? 299}`,
+          customerName: user?.fullName || 'Customer',
+          address: b.address,
+          image: b.image,
+          rawBooking: b,
+        }));
+        setBookingsList(formatted);
+      }
+    }
+    loadBackendBookings();
+  }, [token, user]);
 
   // Navigation tabs: 'overview', 'bookings', 'history', 'payments', 'addresses', 'support', 'settings'
   const [activeTab, setActiveTab] = useState('overview');
@@ -219,9 +157,6 @@ export default function DashboardPage() {
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
   const [selectedBookingForRating, setSelectedBookingForRating] = useState(null);
 
-  // Bookings list state
-  const [bookingsList, setBookingsList] = useState(initialBookings);
-
   // My Bookings Filter state ('All', 'In Progress', 'Completed', 'Cancelled')
   const [bookingsFilter, setBookingsFilter] = useState('All');
 
@@ -243,6 +178,15 @@ export default function DashboardPage() {
   const handleLogout = () => {
     logout();
     navigate('/');
+  };
+
+  const handleStatusChange = async (bookingId, newStatus) => {
+    setBookingsList((prev) =>
+      prev.map((b) => (b.id === bookingId ? { ...b, status: newStatus } : b))
+    );
+    if (newStatus === 'Cancelled' && token) {
+      await cancelBookingApi(bookingId, token);
+    }
   };
 
   const handleOpenMap = (booking) => {
@@ -382,122 +326,250 @@ export default function DashboardPage() {
                     </p>
                   </div>
 
-                  {/* ─ ACTIVE BOOKING CARD (Progress Tracker & Technician Box) ─ */}
-                  <motion.div
-                    variants={itemVariants}
-                    initial="hidden"
-                    animate="visible"
-                    className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 space-y-6"
-                  >
-                    <div className="flex items-center justify-between">
-                      <h2 className="font-extrabold text-slate-900 text-lg flex items-center gap-2">
-                        Active Bookings
-                      </h2>
-                      <button
-                        onClick={() => setActiveTab('bookings')}
-                        className="text-xs font-bold text-orange-600 hover:text-orange-700 flex items-center gap-1 hover:underline"
-                      >
-                        View all <ChevronRight className="w-4 h-4" />
-                      </button>
-                    </div>
+                  {/* ─ ACTIVE BOOKINGS TRACKING SECTION ─ */}
+                  {(() => {
+                    const activeBookings = bookingsList.filter((b) =>
+                      ['Pending', 'Accepted', 'In Progress', 'On The Way'].includes(b.status)
+                    );
+                    const activeCount = activeBookings.length;
 
-                    {/* Active Service Card Wrapper */}
-                    <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 space-y-6">
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-
-                        {/* Service Title & Booking ID */}
-                        <div className="flex items-start gap-4">
-                          <div className="w-14 h-14 rounded-2xl bg-orange-100 flex items-center justify-center text-2xl shrink-0">
-                            ❄️
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-3 flex-wrap">
-                              <h3 className="text-xl font-extrabold text-slate-900">
-                                Split AC Deep Cleaning
-                              </h3>
-                              <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700 flex items-center gap-1">
-                                <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
-                                In Progress
+                    if (activeCount === 0) {
+                      return (
+                        <motion.div
+                          variants={itemVariants}
+                          initial="hidden"
+                          animate="visible"
+                          className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 space-y-6"
+                        >
+                          <div className="flex items-center justify-between flex-wrap gap-4">
+                            <div className="flex items-center gap-3">
+                              <h2 className="font-extrabold text-slate-900 text-lg">
+                                Active Service Tracking
+                              </h2>
+                              <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                0 Active Bookings
                               </span>
                             </div>
-                            <p className="text-xs font-medium text-slate-400 mt-1">
-                              Booking ID: <span className="font-bold text-slate-600">#FX-84920</span>
-                            </p>
+                            <button
+                              onClick={() => navigate('/booking')}
+                              className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <Plus className="w-4 h-4" /> Book New Service
+                            </button>
                           </div>
-                        </div>
 
-                        {/* Technician Card Box */}
-                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between gap-4 shrink-0">
-                          <div>
-                            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2">
-                              Your Technician
-                            </p>
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-sm">
-                                SK
+                          <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 space-y-6">
+                            <div className="text-center py-4">
+                              <div className="w-14 h-14 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center text-2xl mx-auto mb-3 shadow-xs">
+                                🛠️
                               </div>
-                              <div>
-                                <div className="flex items-center gap-1">
-                                  <span className="font-bold text-slate-900 text-sm">Suresh K.</span>
-                                  <Shield className="w-3.5 h-3.5 text-blue-600 fill-blue-100" />
+                              <h3 className="text-base font-extrabold text-slate-900">No Active Repair Orders</h3>
+                              <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
+                                Submit a new service request to track technician assignment, arrival time, and repair diagnostic progress live.
+                              </p>
+                            </div>
+
+                            {/* Service Progress Stepper Placeholder */}
+                            <div className="pt-4 border-t border-slate-200/60 max-w-xl mx-auto">
+                              <div className="relative flex items-center justify-between px-4">
+                                <div className="absolute top-1/2 left-8 right-8 -translate-y-1/2 h-1 bg-slate-200 z-0" />
+
+                                {/* Step 1: Received */}
+                                <div className="relative z-10 flex flex-col items-center">
+                                  <div className="w-7 h-7 rounded-full bg-slate-300 text-white flex items-center justify-center text-xs font-bold shadow-xs">
+                                    1
+                                  </div>
+                                  <span className="text-xs font-semibold text-slate-400 mt-2">Received</span>
                                 </div>
-                                <p className="text-xs text-slate-500 font-medium flex items-center gap-1 mt-0.5">
-                                  <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
-                                  <span className="font-bold text-slate-800">4.9</span> (120+ jobs)
-                                </p>
+
+                                {/* Step 2: Technician Assigned */}
+                                <div className="relative z-10 flex flex-col items-center">
+                                  <div className="w-7 h-7 rounded-full bg-slate-200 text-slate-400 flex items-center justify-center text-xs font-bold">
+                                    2
+                                  </div>
+                                  <span className="text-xs font-semibold text-slate-400 mt-2">Assigned</span>
+                                </div>
+
+                                {/* Step 3: Under Diagnosis */}
+                                <div className="relative z-10 flex flex-col items-center">
+                                  <div className="w-7 h-7 rounded-full bg-slate-200 text-slate-400 flex items-center justify-center text-xs font-bold">
+                                    3
+                                  </div>
+                                  <span className="text-xs font-semibold text-slate-400 mt-2">Under Diagnosis</span>
+                                </div>
+
+                                {/* Step 4: Repaired */}
+                                <div className="relative z-10 flex flex-col items-center">
+                                  <div className="w-7 h-7 rounded-full bg-slate-200 text-slate-400 flex items-center justify-center text-xs font-bold">
+                                    4
+                                  </div>
+                                  <span className="text-xs font-semibold text-slate-400 mt-2">Repaired</span>
+                                </div>
                               </div>
                             </div>
                           </div>
+                        </motion.div>
+                      );
+                    }
+
+                    return (
+                      <motion.div
+                        variants={itemVariants}
+                        initial="hidden"
+                        animate="visible"
+                        className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 space-y-6"
+                      >
+                        <div className="flex items-center justify-between flex-wrap gap-4">
+                          <div className="flex items-center gap-3">
+                            <h2 className="font-extrabold text-slate-900 text-lg">
+                              Active Bookings
+                            </h2>
+                            <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-orange-100 text-orange-700 border border-orange-200">
+                              {activeCount} Active {activeCount === 1 ? 'Booking' : 'Bookings'}
+                            </span>
+                          </div>
+
                           <button
-                            onClick={() => handleOpenMap(bookingsList[0])}
-                            className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs"
+                            onClick={() => setActiveTab('bookings')}
+                            className="text-xs font-bold text-orange-600 hover:text-orange-700 flex items-center gap-1 hover:underline"
                           >
-                            <Navigation className="w-4 h-4 text-orange-500" />
-                            Track on Map
+                            View all ({bookingsList.length}) <ChevronRight className="w-4 h-4" />
                           </button>
                         </div>
-                      </div>
+                        {/* List all active booking tracking cards */}
+                        <div className="space-y-6">
+                          {activeBookings.map((activeBooking) => (
+                            <div key={activeBooking.id} className="bg-slate-50 rounded-2xl p-6 border border-slate-100 space-y-6">
+                              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
 
-                      {/* ─ Animated Progress Stepper Bar ─ */}
-                      <div className="pt-4 border-t border-slate-200/60">
-                        <div className="relative flex items-center justify-between max-w-xl mx-auto px-4">
-                          {/* Background Line */}
-                          <div className="absolute top-1/2 left-8 right-8 -translate-y-1/2 h-1 bg-slate-200 z-0" />
-                          {/* Active Orange Progress Fill Line */}
-                          <motion.div
-                            initial={{ width: '0%' }}
-                            animate={{ width: '50%' }}
-                            transition={{ duration: 1, ease: 'easeOut' }}
-                            className="absolute top-1/2 left-8 -translate-y-1/2 h-1 bg-orange-500 z-0"
-                          />
+                                {/* Service Title & Booking ID */}
+                                <div className="flex items-start gap-4">
+                                  <div className="w-14 h-14 rounded-2xl bg-orange-100 flex items-center justify-center text-2xl shrink-0 shadow-xs">
+                                    {activeBooking.applianceIcon || '🔧'}
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                      <h3 className="text-xl font-extrabold text-slate-900">
+                                        {activeBooking.service}
+                                      </h3>
+                                      <StatusBadge status={activeBooking.status} />
+                                    </div>
+                                    <p className="text-xs font-medium text-slate-400 mt-1">
+                                      Booking ID: <span className="font-bold text-slate-600">{activeBooking.id}</span>
+                                    </p>
+                                    <p className="text-xs text-slate-500 mt-0.5 font-semibold">
+                                      📅 {activeBooking.date} • ⏰ {activeBooking.time}
+                                    </p>
+                                  </div>
+                                </div>
 
-                          {/* Step 1: Assigned */}
-                          <div className="relative z-10 flex flex-col items-center">
-                            <div className="w-7 h-7 rounded-full bg-orange-500 text-white flex items-center justify-center text-xs shadow-md shadow-orange-200">
-                              <Check className="w-4 h-4 stroke-[3]" />
+                                {/* Technician Card Box */}
+                                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between gap-4 shrink-0">
+                                  <div>
+                                    <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2">
+                                      Assigned Technician
+                                    </p>
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-sm">
+                                        {activeBooking.techAvatar || 'MM'}
+                                      </div>
+                                      <div>
+                                        <div className="flex items-center gap-1">
+                                          <span className="font-bold text-slate-900 text-sm">{activeBooking.technician || 'Verification Pending'}</span>
+                                          <Shield className="w-3.5 h-3.5 text-blue-600 fill-blue-100" />
+                                        </div>
+                                        <p className="text-xs text-slate-500 font-medium flex items-center gap-1 mt-0.5">
+                                          <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
+                                          <span className="font-bold text-slate-800">{activeBooking.techRating || '4.9'}</span> ({activeBooking.techJobs || '100+'} jobs)
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={() => handleOpenMap(activeBooking)}
+                                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                                  >
+                                    <Navigation className="w-4 h-4 text-orange-500" />
+                                    Track on Map
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* ─ Animated Progress Stepper Bar ─ */}
+                              <div className="pt-4 border-t border-slate-200/60">
+                                <div className="relative flex items-center justify-between max-w-xl mx-auto px-4">
+                                  {/* Background Line */}
+                                  <div className="absolute top-1/2 left-8 right-8 -translate-y-1/2 h-1 bg-slate-200 z-0" />
+                                  {/* Active Orange Progress Fill Line */}
+                                  <motion.div
+                                    initial={{ width: '0%' }}
+                                    animate={{
+                                      width:
+                                        activeBooking.status === 'Completed'
+                                          ? '100%'
+                                          : activeBooking.status === 'In Progress'
+                                          ? '50%'
+                                          : activeBooking.status === 'Accepted'
+                                          ? '25%'
+                                          : '0%',
+                                    }}
+                                    transition={{ duration: 0.5, ease: 'easeOut' }}
+                                    className="absolute top-1/2 left-8 -translate-y-1/2 h-1 bg-orange-500 z-0"
+                                  />
+
+                                  {/* Step 1: Requested/Assigned */}
+                                  <div className="relative z-10 flex flex-col items-center">
+                                    <div className={`w-7 h-7 rounded-full text-white flex items-center justify-center text-xs shadow-md ${
+                                      ['Accepted', 'In Progress', 'Completed'].includes(activeBooking.status)
+                                        ? 'bg-orange-500 shadow-orange-200'
+                                        : activeBooking.status === 'Pending'
+                                        ? 'bg-amber-500 ring-4 ring-amber-200'
+                                        : 'bg-slate-300 text-slate-600'
+                                    }`}>
+                                      <Check className="w-4 h-4 stroke-[3]" />
+                                    </div>
+                                    <span className="text-xs font-bold text-slate-900 mt-2">
+                                      {activeBooking.status === 'Pending' ? 'Received' : 'Assigned'}
+                                    </span>
+                                  </div>
+
+                                  {/* Step 2: Under Diagnosis */}
+                                  <div className="relative z-10 flex flex-col items-center">
+                                    <div className={`w-7 h-7 rounded-full text-white flex items-center justify-center text-xs shadow-md ${
+                                      activeBooking.status === 'In Progress'
+                                        ? 'bg-orange-500 ring-4 ring-orange-200'
+                                        : activeBooking.status === 'Completed'
+                                        ? 'bg-orange-500'
+                                        : 'bg-slate-200 text-slate-400'
+                                    }`}>
+                                      {activeBooking.status === 'In Progress' ? (
+                                        <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+                                      ) : activeBooking.status === 'Completed' ? (
+                                        <Check className="w-4 h-4 stroke-[3]" />
+                                      ) : (
+                                        2
+                                      )}
+                                    </div>
+                                    <span className={`text-xs font-extrabold mt-2 ${activeBooking.status === 'In Progress' ? 'text-orange-600' : 'text-slate-500'}`}>Under Diagnosis</span>
+                                  </div>
+
+                                  {/* Step 3: Repaired */}
+                                  <div className="relative z-10 flex flex-col items-center">
+                                    <div className={`w-7 h-7 rounded-full text-white flex items-center justify-center text-xs shadow-md ${
+                                      activeBooking.status === 'Completed' ? 'bg-emerald-600 shadow-emerald-200' : 'bg-slate-200 text-slate-400'
+                                    }`}>
+                                      {activeBooking.status === 'Completed' ? <Check className="w-4 h-4 stroke-[3]" /> : 3}
+                                    </div>
+                                    <span className={`text-xs font-semibold mt-2 ${activeBooking.status === 'Completed' ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}>Repaired</span>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                            <span className="text-xs font-bold text-slate-900 mt-2">Assigned</span>
-                          </div>
-
-                          {/* Step 2: Under Diagnosis */}
-                          <div className="relative z-10 flex flex-col items-center">
-                            <div className="w-7 h-7 rounded-full bg-orange-500 text-white ring-4 ring-orange-200 flex items-center justify-center text-xs shadow-md">
-                              <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
-                            </div>
-                            <span className="text-xs font-extrabold text-orange-600 mt-2">Under Diagnosis</span>
-                          </div>
-
-                          {/* Step 3: Repaired */}
-                          <div className="relative z-10 flex flex-col items-center">
-                            <div className="w-7 h-7 rounded-full bg-slate-200 text-slate-400 flex items-center justify-center text-xs">
-                              3
-                            </div>
-                            <span className="text-xs font-semibold text-slate-400 mt-2">Repaired</span>
-                          </div>
+                          ))}
                         </div>
-                      </div>
-                    </div>
-                  </motion.div>
+                      </motion.div>
+                    );
+                  })()}
 
                   {/* ─ QUICK ACTIONS / SAVED APPLIANCES GRID ─ */}
                   <div className="space-y-4">
@@ -524,49 +596,51 @@ export default function DashboardPage() {
                         </div>
                       </motion.div>
 
-                      {/* Appliance Card 1 */}
+                      {/* Quick Action Category 1: AC Repair & Cleaning */}
                       <motion.div
                         variants={itemVariants}
                         whileHover={{ y: -4 }}
-                        className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between"
+                        onClick={() => navigate('/booking')}
+                        className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between cursor-pointer hover:border-orange-200 transition-colors"
                       >
                         <div className="flex items-start justify-between">
-                          <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-2xl">
-                            🧊
+                          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-2xl">
+                            ❄️
                           </div>
-                          <button className="text-slate-400 hover:text-slate-600">⋯</button>
+                          <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700">Popular</span>
                         </div>
                         <div className="mt-4">
-                          <h4 className="font-extrabold text-slate-900 text-base">LG Double Door Fridge</h4>
-                          <p className="text-xs text-slate-400 mt-0.5">Last serviced: Oct 12, 2023</p>
+                          <h4 className="font-extrabold text-slate-900 text-base">AC Repair & Deep Clean</h4>
+                          <p className="text-xs text-slate-400 mt-0.5">Instant booking & diagnostic check-up</p>
                         </div>
                         <button
                           onClick={() => navigate('/booking')}
-                          className="mt-6 w-full py-2.5 border border-slate-900 text-slate-900 hover:bg-slate-900 hover:text-white text-xs font-extrabold rounded-2xl transition-colors"
+                          className="mt-6 w-full py-2.5 border border-slate-900 text-slate-900 hover:bg-slate-900 hover:text-white text-xs font-extrabold rounded-2xl transition-colors cursor-pointer"
                         >
                           Book Service
                         </button>
                       </motion.div>
 
-                      {/* Appliance Card 2 */}
+                      {/* Quick Action Category 2: Appliance Diagnostics */}
                       <motion.div
                         variants={itemVariants}
                         whileHover={{ y: -4 }}
-                        className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between"
+                        onClick={() => navigate('/booking')}
+                        className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between cursor-pointer hover:border-orange-200 transition-colors"
                       >
                         <div className="flex items-start justify-between">
-                          <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-2xl">
-                            🧺
+                          <div className="w-12 h-12 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center text-2xl">
+                            ⚡
                           </div>
-                          <button className="text-slate-400 hover:text-slate-600">⋯</button>
+                          <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-orange-100 text-orange-700">Fast Repair</span>
                         </div>
                         <div className="mt-4">
-                          <h4 className="font-extrabold text-slate-900 text-base">Bosch Front Load</h4>
-                          <p className="text-xs text-slate-400 mt-0.5">Never serviced via MagicMistry</p>
+                          <h4 className="font-extrabold text-slate-900 text-base">Home Appliance Checkup</h4>
+                          <p className="text-xs text-slate-400 mt-0.5">Fridge, Fan, TV, Washing Machine</p>
                         </div>
                         <button
                           onClick={() => navigate('/booking')}
-                          className="mt-6 w-full py-2.5 border border-slate-900 text-slate-900 hover:bg-slate-900 hover:text-white text-xs font-extrabold rounded-2xl transition-colors"
+                          className="mt-6 w-full py-2.5 border border-slate-900 text-slate-900 hover:bg-slate-900 hover:text-white text-xs font-extrabold rounded-2xl transition-colors cursor-pointer"
                         >
                           Book Service
                         </button>
@@ -603,28 +677,36 @@ export default function DashboardPage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {bookingsList.filter(b => b.status === 'Completed').slice(0, 3).map((row) => (
-                            <tr key={row.id} className="hover:bg-slate-50/60 transition-colors">
-                              <td className="py-4 px-4 font-bold text-slate-600">{row.date}</td>
-                              <td className="py-4 px-4 font-bold text-slate-900 flex items-center gap-2">
-                                <span>{row.applianceIcon || '🔧'}</span>
-                                <span>{row.service}</span>
-                              </td>
-                              <td className="py-4 px-4">
-                                <StatusBadge status={row.status} />
-                              </td>
-                              <td className="py-4 px-4 font-extrabold text-slate-900">{row.price}</td>
-                              <td className="py-4 px-4 text-center">
-                                <button
-                                  onClick={() => handleOpenInvoice(row)}
-                                  className="p-2 text-slate-600 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-colors"
-                                  title="Download Invoice"
-                                >
-                                  <Download className="w-4 h-4" />
-                                </button>
+                          {bookingsList.length > 0 ? (
+                            bookingsList.slice(0, 5).map((row) => (
+                              <tr key={row.id} className="hover:bg-slate-50/60 transition-colors">
+                                <td className="py-4 px-4 font-bold text-slate-600">{row.date}</td>
+                                <td className="py-4 px-4 font-bold text-slate-900 flex items-center gap-2">
+                                  <span>{row.applianceIcon || '🔧'}</span>
+                                  <span>{row.service}</span>
+                                </td>
+                                <td className="py-4 px-4">
+                                  <StatusBadge status={row.status} />
+                                </td>
+                                <td className="py-4 px-4 font-extrabold text-slate-900">{row.price}</td>
+                                <td className="py-4 px-4 text-center">
+                                  <button
+                                    onClick={() => handleOpenInvoice(row)}
+                                    className="p-2 text-slate-600 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-colors"
+                                    title="Download Invoice"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan="5" className="py-8 text-center text-slate-400 font-medium">
+                                No recent bookings found. Click 'Book New Service' to create a booking request.
                               </td>
                             </tr>
-                          ))}
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -632,8 +714,9 @@ export default function DashboardPage() {
                 </motion.div>
               )}
 
+
               {/* ───────────────────────────────────────────────────────────────── */}
-              {/* 2. MY BOOKINGS / ACTIVE REPAIRS TAB (Matching Screenshot 2)      */}
+              {/* 2. MY BOOKINGS / ACTIVE REPAIRS TAB                              */}
               {/* ───────────────────────────────────────────────────────────────── */}
               {activeTab === 'bookings' && (
                 <motion.div
@@ -644,14 +727,22 @@ export default function DashboardPage() {
                   transition={{ duration: 0.3 }}
                   className="space-y-6"
                 >
-                  <div>
-                    <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">My Bookings</h1>
-                    <p className="text-slate-500 text-sm mt-1">View and manage your past and current repair requests.</p>
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                      <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">My Bookings</h1>
+                      <p className="text-slate-500 text-sm mt-1">Track status and details for all your repair requests.</p>
+                    </div>
+                    <button
+                      onClick={() => navigate('/booking')}
+                      className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs rounded-xl shadow transition-colors flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" /> Book New Service
+                    </button>
                   </div>
 
                   {/* Filter Pills */}
                   <div className="flex items-center gap-2 overflow-x-auto pb-2">
-                    {['All', 'In Progress', 'Completed', 'Cancelled'].map((tab) => (
+                    {['All', 'Pending', 'Accepted', 'In Progress', 'On The Way', 'Completed', 'Cancelled'].map((tab) => (
                       <button
                         key={tab}
                         onClick={() => setBookingsFilter(tab)}
@@ -666,71 +757,190 @@ export default function DashboardPage() {
                     ))}
                   </div>
 
-                  {/* Bookings Card List */}
-                  <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-4">
+                  {/* Bookings Card List — each with its own status stepper */}
+                  <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-5">
                     {bookingsList
                       .filter(b => bookingsFilter === 'All' || b.status === bookingsFilter)
-                      .map((item) => (
-                        <motion.div
-                          key={item.id}
-                          variants={itemVariants}
-                          whileHover={{ y: -2 }}
-                          className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6"
-                        >
-                          <div className="flex items-start gap-4">
-                            <div className="w-14 h-14 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-2xl shrink-0 shadow-md">
-                              {item.applianceIcon || '🔧'}
-                            </div>
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-3 flex-wrap">
-                                <h3 className="font-extrabold text-slate-900 text-lg">{item.service}</h3>
-                                <StatusBadge status={item.status} />
-                              </div>
-                              <p className="text-xs font-medium text-slate-400">
-                                Booking ID: <span className="font-bold text-slate-600">{item.id}</span>
-                              </p>
-                              <div className="flex items-center gap-4 text-xs text-slate-500 pt-1">
-                                <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-slate-400" /> {item.date}</span>
-                                <span className="flex items-center gap-1"><User className="w-3.5 h-3.5 text-slate-400" /> {item.technician || 'Unassigned'}</span>
-                              </div>
-                            </div>
-                          </div>
+                      .length === 0 ? (
+                        <div className="bg-white rounded-3xl p-10 text-center border border-slate-100 shadow-sm">
+                          <div className="text-4xl mb-3">📭</div>
+                          <h3 className="font-extrabold text-slate-900 text-base">No bookings found</h3>
+                          <p className="text-xs text-slate-400 mt-1">No bookings match the selected filter.</p>
+                        </div>
+                      ) : (
+                        bookingsList
+                          .filter(b => bookingsFilter === 'All' || b.status === bookingsFilter)
+                          .map((item) => {
+                            // Determine stepper progress
+                            const STEPS = [
+                              { label: 'Order Placed', key: 'placed' },
+                              { label: 'Technician Assigned', key: 'assigned' },
+                              { label: 'In Progress', key: 'progress' },
+                              { label: 'Completed', key: 'done' },
+                            ];
+                            const stepIndex =
+                              item.status === 'Cancelled'
+                                ? -1
+                                : item.status === 'Completed'
+                                ? 3
+                                : item.status === 'In Progress'
+                                ? 2
+                                : item.status === 'Accepted' || item.status === 'On The Way'
+                                ? 1
+                                : 0; // Pending
 
-                          <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto gap-3 pt-4 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                            <span className="text-2xl font-extrabold text-slate-900">{item.price}</span>
+                            const isCancelled = item.status === 'Cancelled';
 
-                            {item.status === 'In Progress' && (
-                              <button
-                                onClick={() => handleOpenMap(item)}
-                                className="px-5 py-2.5 border border-slate-900 text-slate-900 hover:bg-slate-900 hover:text-white font-extrabold text-xs rounded-2xl transition-colors"
+                            return (
+                              <motion.div
+                                key={item.id}
+                                variants={itemVariants}
+                                className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden"
                               >
-                                Track Order
-                              </button>
-                            )}
+                                {/* Card Header */}
+                                <div className="p-6 flex flex-col md:flex-row md:items-start justify-between gap-5">
+                                  {/* Left: Service info */}
+                                  <div className="flex items-start gap-4 flex-1 min-w-0">
+                                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 text-white flex items-center justify-center text-2xl shrink-0 shadow-md">
+                                      {item.applianceIcon || '🔧'}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-3 flex-wrap">
+                                        <h3 className="font-extrabold text-slate-900 text-lg">{item.service}</h3>
+                                        <StatusBadge status={item.status} />
+                                      </div>
+                                      <p className="text-xs font-medium text-slate-400 mt-0.5">
+                                        Booking ID: <span className="font-bold text-slate-700">{item.id}</span>
+                                      </p>
+                                      <div className="flex items-center gap-4 text-xs text-slate-500 mt-1 flex-wrap">
+                                        <span className="flex items-center gap-1">
+                                          <Calendar className="w-3.5 h-3.5 text-slate-400" /> {item.date}
+                                        </span>
+                                        <span className="flex items-center gap-1">
+                                          <Clock className="w-3.5 h-3.5 text-slate-400" /> {item.time}
+                                        </span>
+                                        <span className="flex items-center gap-1">
+                                          <User className="w-3.5 h-3.5 text-slate-400" /> {item.technician || 'Verification Pending'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
 
-                            {item.status === 'Completed' && (
-                              <button
-                                onClick={() => handleOpenInvoice(item)}
-                                className="px-5 py-2.5 border border-slate-300 text-slate-700 hover:bg-slate-100 font-extrabold text-xs rounded-2xl transition-colors"
-                              >
-                                View Invoice
-                              </button>
-                            )}
+                                  {/* Right: Price + Actions */}
+                                  <div className="flex flex-row md:flex-col items-center md:items-end justify-between md:justify-start gap-3 shrink-0">
+                                    <span className="text-2xl font-extrabold text-slate-900">{item.price}</span>
+                                    <div className="flex items-center gap-2">
+                                      {['Pending', 'Accepted', 'In Progress', 'On The Way'].includes(item.status) && (
+                                        <button
+                                          onClick={() => handleOpenMap(item)}
+                                          className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+                                        >
+                                          <Navigation className="w-3.5 h-3.5 text-orange-500" /> Track
+                                        </button>
+                                      )}
+                                      {item.status === 'Completed' && (
+                                        <button
+                                          onClick={() => handleOpenInvoice(item)}
+                                          className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors"
+                                        >
+                                          <Download className="w-3.5 h-3.5" /> Invoice
+                                        </button>
+                                      )}
+                                      {item.status === 'Cancelled' && (
+                                        <button
+                                          onClick={() => navigate('/booking')}
+                                          className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
+                                        >
+                                          Re-book
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
 
-                            {item.status === 'Cancelled' && (
-                              <button
-                                onClick={() => navigate('/booking')}
-                                className="px-5 py-2.5 border border-slate-300 text-slate-700 hover:bg-slate-100 font-extrabold text-xs rounded-2xl transition-colors"
-                              >
-                                Details / Re-book
-                              </button>
-                            )}
-                          </div>
-                        </motion.div>
-                      ))}
+                                {/* Status Tracking Stepper */}
+                                <div className={`px-6 pb-6 pt-2 border-t border-slate-100 ${isCancelled ? 'bg-rose-50/50' : 'bg-slate-50/50'}`}>
+                                  {isCancelled ? (
+                                    <div className="flex items-center gap-3 py-3">
+                                      <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center">
+                                        <AlertCircle className="w-4 h-4 text-rose-500" />
+                                      </div>
+                                      <div>
+                                        <p className="text-sm font-bold text-rose-700">Booking Cancelled</p>
+                                        <p className="text-xs text-rose-400 mt-0.5">This booking was cancelled. You can re-book anytime.</p>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="pt-4">
+                                      <div className="relative flex items-start justify-between">
+                                        {/* Background connector line */}
+                                        <div className="absolute top-3.5 left-3.5 right-3.5 h-1 bg-slate-200 z-0" />
+                                        {/* Orange progress fill */}
+                                        <motion.div
+                                          initial={{ width: '0%' }}
+                                          animate={{
+                                            width:
+                                              stepIndex >= 3 ? '100%'
+                                              : stepIndex === 2 ? '66%'
+                                              : stepIndex === 1 ? '33%'
+                                              : '0%',
+                                          }}
+                                          transition={{ duration: 0.6, ease: 'easeOut' }}
+                                          className="absolute top-3.5 left-3.5 h-1 bg-orange-500 z-0"
+                                        />
+
+                                        {STEPS.map((step, idx) => {
+                                          const isDone = stepIndex > idx;
+                                          const isActive = stepIndex === idx;
+                                          return (
+                                            <div key={step.key} className="relative z-10 flex flex-col items-center flex-1">
+                                              <div
+                                                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow transition-all ${
+                                                  isDone
+                                                    ? 'bg-orange-500 text-white shadow-orange-200'
+                                                    : isActive
+                                                    ? item.status === 'Completed'
+                                                      ? 'bg-emerald-500 text-white shadow-emerald-200'
+                                                      : 'bg-orange-500 text-white ring-4 ring-orange-200 shadow-orange-200'
+                                                    : 'bg-slate-200 text-slate-400'
+                                                }`}
+                                              >
+                                                {isDone || (isActive && item.status === 'Completed') ? (
+                                                  <Check className="w-4 h-4 stroke-[3]" />
+                                                ) : isActive ? (
+                                                  <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+                                                ) : (
+                                                  idx + 1
+                                                )}
+                                              </div>
+                                              <span
+                                                className={`text-[10px] font-bold mt-2 text-center leading-tight max-w-[60px] ${
+                                                  isDone
+                                                    ? 'text-orange-600'
+                                                    : isActive
+                                                    ? item.status === 'Completed'
+                                                      ? 'text-emerald-700'
+                                                      : 'text-orange-600'
+                                                    : 'text-slate-400'
+                                                }`}
+                                              >
+                                                {step.label}
+                                              </span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </motion.div>
+                            );
+                          })
+                      )}
                   </motion.div>
                 </motion.div>
               )}
+
 
               {/* ───────────────────────────────────────────────────────────────── */}
               {/* 3. BOOKING HISTORY TAB                                            */}
@@ -819,45 +1029,107 @@ export default function DashboardPage() {
                   className="space-y-6"
                 >
                   <div>
-                    <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Payments & Wallet</h1>
-                    <p className="text-slate-500 text-sm mt-1">Manage saved payment methods and view billing statements.</p>
+                    <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Payments</h1>
+                    <p className="text-slate-500 text-sm mt-1">Payment methods and billing information.</p>
                   </div>
 
-                  <div className="grid sm:grid-cols-2 gap-6">
-                    <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 shadow-xl flex flex-col justify-between space-y-6">
-                      <div className="flex justify-between items-center">
-                        <CreditCard className="w-8 h-8 text-orange-400" />
-                        <span className="text-xs font-bold text-slate-400">DEFAULT PAYMENT</span>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-400 font-mono">CARD NUMBER</p>
-                        <p className="text-xl font-mono tracking-widest mt-1">•••• •••• •••• 4242</p>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <div>
-                          <p className="text-slate-400 font-bold">CARD HOLDER</p>
-                          <p className="font-bold text-white mt-0.5">{fullName}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-400 font-bold">EXPIRES</p>
-                          <p className="font-bold text-white mt-0.5">12/28</p>
-                        </div>
-                      </div>
+                  {/* Feature In Progress Banner */}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.97 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.4 }}
+                    className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-3xl p-8 flex flex-col items-center text-center gap-4 shadow-sm"
+                  >
+                    <div className="w-16 h-16 rounded-2xl bg-amber-100 flex items-center justify-center text-3xl shadow-inner">
+                      🚧
                     </div>
+                    <div>
+                      <h2 className="text-xl font-extrabold text-slate-900">This Feature is In Progress</h2>
+                      <p className="text-sm text-slate-500 mt-1.5 max-w-md mx-auto">
+                        Online payment integration is currently under development. We're working hard to bring you a seamless payment experience soon!
+                      </p>
+                    </div>
+                    <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-100 border border-amber-300 text-amber-800 text-xs font-extrabold">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                      Coming Soon
+                    </span>
+                  </motion.div>
 
-                    <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-4 flex flex-col justify-center">
-                      <h3 className="font-bold text-slate-900 text-base">Add New Payment Method</h3>
-                      <p className="text-xs text-slate-500">We support UPI, Credit/Debit cards, Net Banking & COD.</p>
-                      <button
-                        onClick={() => alert('Add payment card gateway')}
-                        className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs rounded-2xl shadow-lg shadow-orange-200 transition-colors flex items-center justify-center gap-2"
+                  {/* Available Payment Methods */}
+                  <div className="space-y-3">
+                    <h3 className="font-extrabold text-slate-900 text-base">Currently Accepted Payment Methods</h3>
+                    <p className="text-xs text-slate-500">At this time, we accept the following payment options at the time of service:</p>
+
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      {/* UPI Card */}
+                      <motion.div
+                        whileHover={{ y: -3 }}
+                        className="bg-white rounded-3xl p-6 border-2 border-violet-200 shadow-sm flex items-start gap-4 cursor-default"
                       >
-                        <Plus className="w-4 h-4" /> Add Payment Method
-                      </button>
+                        <div className="w-14 h-14 rounded-2xl bg-violet-50 flex items-center justify-center text-3xl shrink-0 shadow-inner">
+                          📲
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-extrabold text-slate-900 text-base">UPI Payment</h4>
+                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-extrabold border border-emerald-200">
+                              ✓ Available
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Pay via any UPI app — Google Pay, PhonePe, Paytm, BHIM, or any UPI-linked bank account. Quick, instant & secure.
+                          </p>
+                          <div className="flex items-center gap-2 mt-3">
+                            <span className="text-lg">🟢</span>
+                            <span className="text-[11px] font-bold text-slate-600">Pay directly to technician on service day</span>
+                          </div>
+                        </div>
+                      </motion.div>
+
+                      {/* Cash Card */}
+                      <motion.div
+                        whileHover={{ y: -3 }}
+                        className="bg-white rounded-3xl p-6 border-2 border-emerald-200 shadow-sm flex items-start gap-4 cursor-default"
+                      >
+                        <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-3xl shrink-0 shadow-inner">
+                          💵
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-extrabold text-slate-900 text-base">Cash on Delivery</h4>
+                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-extrabold border border-emerald-200">
+                              ✓ Available
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Pay in cash directly to your assigned technician after the repair is completed. No advance required.
+                          </p>
+                          <div className="flex items-center gap-2 mt-3">
+                            <span className="text-lg">🟢</span>
+                            <span className="text-[11px] font-bold text-slate-600">Pay after repair is completed</span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    </div>
+                  </div>
+
+                  {/* Info Note */}
+                  <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0 mt-0.5">
+                      <HelpCircle className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-blue-900">Need Help with Payments?</p>
+                      <p className="text-xs text-blue-600 mt-0.5">
+                        If you have any billing queries or issues, please contact our support team from the Support tab.
+                        Online card/wallet payments will be available in a future update.
+                      </p>
                     </div>
                   </div>
                 </motion.div>
               )}
+
+
 
               {/* ───────────────────────────────────────────────────────────────── */}
               {/* 5. SAVED ADDRESSES TAB                                            */}

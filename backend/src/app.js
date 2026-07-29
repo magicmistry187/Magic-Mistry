@@ -4,24 +4,27 @@ const cookieParser = require('cookie-parser');
 
 const app = express();
 
-app.use(express.json());
-app.use(cookieParser());
-
+// CORS must be before all routes
 app.use(cors({
-  origin: "http://localhost:5173", 
-  credentials: true,              
+  origin: 'http://localhost:5173',
+  credentials: true,
 }));
 
-app.get("/", (req, res) => {
-  res.send("Backend is working");
+app.use(cookieParser());
+
+// express.json() is for JSON bodies only — multer handles multipart/form-data separately
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.get('/', (req, res) => {
+  res.send('Backend is working');
 });
 
-// importing routes
+// Routes
 const authRoutes = require('./routes/auth.routes');
-const bookingRoutes = require('./routes/booking.routes')
+const bookingRoutes = require('./routes/booking.routes');
 
-//mounting routes
 app.use('/api/auth', authRoutes);
-app.use('/api/booking',bookingRoutes)
+app.use('/api/booking', bookingRoutes);
 
 module.exports = app;

@@ -218,9 +218,11 @@ export default function AddressForm() {
       )}
 
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <h2 className="text-xl font-semibold mb-4 flex items-center">
-          <span className="bg-gray-100 text-gray-700 rounded-full w-8 h-8 inline-flex items-center justify-center mr-3 text-sm font-bold">4</span>
-          Service Address
+        <h2 className="text-xl font-extrabold text-[#0B1E40] mb-4 flex items-center gap-3">
+          <span className="bg-blue-600 text-white rounded-full w-8 h-8 inline-flex items-center justify-center text-sm font-bold shadow-md shadow-blue-200">
+            4
+          </span>
+          Share Address
         </h2>
 
         {/* ── Use My Location button ──────────────── */}
@@ -293,69 +295,6 @@ export default function AddressForm() {
           </p>
         )}
 
-        {/* ── Image Upload ──────────────────────────── */}
-        <div className="mt-5">
-          <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">
-            Upload Appliance Photos
-            <span className="ml-2 text-[11px] font-normal text-gray-400 normal-case">(Optional · up to 5 images)</span>
-          </label>
-          <p className="text-xs text-gray-400 mb-3">
-            Help the technician understand the issue better by uploading photos of the appliance or the problem area.
-          </p>
-
-          <div
-            onClick={() => fileInputRef.current?.click()}
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => { e.preventDefault(); setDragOver(false); processFiles(e.dataTransfer.files); }}
-            className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
-              dragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-400 hover:bg-slate-50 bg-gray-50/50'
-            }`}
-          >
-            <UploadCloud className={`w-8 h-8 mx-auto mb-2 ${dragOver ? 'text-blue-500' : 'text-gray-400'}`} />
-            <p className="text-sm font-medium text-gray-600">
-              Drag &amp; drop images here, or{' '}
-              <span className="text-blue-600 font-semibold">click to browse</span>
-            </p>
-            <p className="text-xs text-gray-400 mt-1">JPG, PNG, WEBP · Max 5MB each</p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={(e) => processFiles(e.target.files)}
-            />
-          </div>
-
-          {previews.length > 0 && (
-            <div className="mt-4 grid grid-cols-3 sm:grid-cols-5 gap-3">
-              {previews.map((p, idx) => (
-                <div key={idx} className="relative group rounded-lg overflow-hidden border border-gray-200 aspect-square bg-gray-100">
-                  <img src={p.url} alt={p.name} className="w-full h-full object-cover" />
-                  <button
-                    onClick={(e) => { e.stopPropagation(); removeImage(idx); }}
-                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                  <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[9px] px-1 py-0.5 truncate opacity-0 group-hover:opacity-100 transition-opacity">
-                    {p.name}
-                  </div>
-                </div>
-              ))}
-              {previews.length < 5 && (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all"
-                >
-                  <ImageIcon className="w-5 h-5 mb-1" />
-                  <span className="text-[10px] font-medium">Add more</span>
-                </button>
-              )}
-            </div>
-          )}
-        </div>
       </div>
     </>
   );

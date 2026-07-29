@@ -72,7 +72,6 @@ export async function loginUser(email, password) {
     if (!response.data?.success) {
       throw new Error(response.data?.message || 'Login failed');
     }
- localStorage.setItem("token", response.token);
     return {
       success: true,
       message: response.data.message || 'Logged in successfully!',

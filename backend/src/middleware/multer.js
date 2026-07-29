@@ -1,13 +1,18 @@
 const multer = require('multer');
 
+// Store file in memory as buffer — passed to ImageKit as base64
 const storage = multer.memoryStorage();
 
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  },
+});
 
 module.exports = upload;
-
-
-const Booking = require('../models/booking.model');
-const { uploadImageToImageKit } = require('../config/imagekit');
-
-

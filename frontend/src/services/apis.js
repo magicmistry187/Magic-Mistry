@@ -6,8 +6,11 @@ export const authEndpoints = {
   SIGNUP_API: BASE_URL + '/auth/signup',
   LOGIN_API: BASE_URL + '/auth/login',
   GOOGLE_LOGIN_API: BASE_URL + '/auth/googleLogin',
-}
+};
 
 export const bookingEndpoints = {
-  CREATE_BOOKING_API : BASE_URL + '/booking'
-}
+  CREATE_BOOKING_API: BASE_URL + '/booking',
+  GET_MY_BOOKINGS_API: BASE_URL + '/booking/my-bookings',
+  GET_BOOKING_DETAILS_API: BASE_URL + '/booking', // + /:bookingId
+  CANCEL_BOOKING_API: BASE_URL + '/booking',       // + /:bookingId/cancel
+};

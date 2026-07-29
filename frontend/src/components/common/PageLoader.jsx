@@ -34,7 +34,7 @@ const PageLoader = ({ label = 'Loading page...' }) => {
             animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0.7, 0.3] }}
             transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
           />
-          <div className="w-16 h-16 rounded-2xl bg-slate-900 text-white flex items-center justify-center p-2 shadow-lg z-10">
+          <div className="w-16 h-16 rounded-2xl  text-white flex items-center justify-center p-2 shadow-lg z-10">
             <img src="/logo2.png" alt="Magic Mistry" className="h-10 w-auto object-contain" />
           </div>
         </div>

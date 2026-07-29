@@ -17,7 +17,7 @@ router.get('/my-bookings', auth, isCustomer, getMyBookings);
 
 router.get('/:bookingId', auth, isCustomer, getBookingDetails);
 
-router.put('/:bookingId/cancel', auth, isCustomer, cancelBooking);
+router.patch('/:bookingId/cancel', auth, isCustomer, cancelBooking);
 
 module.exports = router;
 

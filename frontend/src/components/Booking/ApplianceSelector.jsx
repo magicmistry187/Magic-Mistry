@@ -1,99 +1,178 @@
 import React from 'react';
-import { useBooking } from './BookingContext';
-import { Lock, Unlock } from 'lucide-react';
-import { APPLIANCE_PRICING } from './BookingContext';
+import { useBooking, APPLIANCE_SUB_SERVICES } from './BookingContext';
+import { Lock, Unlock, CheckCircle2, ChevronRight } from 'lucide-react';
 
 export default function ApplianceSelector() {
   const { bookingState, updateBooking, unlockApplianceSelection } = useBooking();
 
-  // All appliance categories matching home page and standard services
+  // All appliance categories matching home page & diagram flow
   const defaultServices = [
-    { id: 1,  name: 'AC Repair',          icon: '❄️' },
-    { id: 2,  name: 'Refrigeration',       icon: '🧊' },
-    { id: 3,  name: 'Washing Machine',     icon: '🧺' },
-    { id: 4,  name: 'Microwave',           icon: '♨️' },
-    { id: 5,  name: 'Mixi Grinder',        icon: '🥛' },
-    { id: 6,  name: 'Water Pump',          icon: '💧' },
-    { id: 7,  name: 'Air Cooler',          icon: '💨' },
-    { id: 8,  name: 'Induction Cooktop',   icon: '🍳' },
-    { id: 9,  name: 'Stabilizer',          icon: '🔌' },
-    { id: 10, name: 'Press Iron',          icon: '♨️' },
+    { id: 11, name: 'TV',                icon: '📺' },
+    { id: 7,  name: 'Air Cooler',        icon: '💨' },
+    { id: 12, name: 'Fan',               icon: '🌀' },
+    { id: 1,  name: 'AC Repair',         icon: '❄️' },
+    { id: 2,  name: 'Refrigeration',      icon: '🧊' },
+    { id: 3,  name: 'Washing Machine',    icon: '🧺' },
+    { id: 4,  name: 'Microwave',          icon: '♨️' },
+    { id: 5,  name: 'Mixi Grinder',       icon: '🥛' },
+    { id: 6,  name: 'Water Pump',         icon: '💧' },
+    { id: 8,  name: 'Induction Cooktop',  icon: '🍳' },
+    { id: 9,  name: 'Stabilizer',         icon: '🔌' },
+    { id: 10, name: 'Press Iron',         icon: '👔' },
   ];
 
-  // If selected service isn't in default list, add it dynamically
-  const isCustomAppliance =
-    bookingState.serviceId && !defaultServices.some((s) => s.id === bookingState.serviceId);
-  const services = isCustomAppliance
-    ? [{ id: bookingState.serviceId, name: bookingState.serviceName, icon: '🛠️' }, ...defaultServices]
-    : defaultServices;
+  // null means user came directly to booking page — no pre-selection
+  const currentCatId = bookingState.serviceId || null;
+  const currentCatData = currentCatId ? (APPLIANCE_SUB_SERVICES[currentCatId] || null) : null;
+  const subServicesList = currentCatData?.subServices || [];
+
+  const handleSelectCategory = (cat) => {
+    if (bookingState.isApplianceLocked) return;
+
+    updateBooking('serviceId', cat.id);
+    updateBooking('serviceName', cat.name);
+
+    // Auto-select first sub-service of new category
+    const catData = APPLIANCE_SUB_SERVICES[cat.id];
+    if (catData?.subServices?.length) {
+      const firstSub = catData.subServices[0];
+      updateBooking('selectedSubService', firstSub.label);
+      updateBooking('priceInfo', { basePrice: firstSub.price, visitCharge: 0, total: firstSub.price });
+    }
+  };
+
+  const handleSelectSubService = (sub) => {
+    updateBooking('selectedSubService', sub.label);
+    updateBooking('priceInfo', { basePrice: sub.price, visitCharge: 0, total: sub.price });
+  };
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold flex items-center">
-          <span className="bg-gray-100 text-gray-700 rounded-full w-8 h-8 inline-flex items-center justify-center mr-3 text-sm font-bold">1</span>
-          Select Appliance
-        </h2>
+    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-extrabold text-[#0B1E40] flex items-center gap-3">
+            <span className="bg-blue-600 text-white rounded-full w-8 h-8 inline-flex items-center justify-center text-sm font-bold shadow-md shadow-blue-200">
+              1
+            </span>
+            Select Main Category & Service
+          </h2>
+          <p className="text-xs text-slate-500 mt-1 ml-11">
+            Choose your appliance category and select the specific service package with clear pricing.
+          </p>
+        </div>
+
         {bookingState.isApplianceLocked && (
           <button
             onClick={unlockApplianceSelection}
             className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-full transition-colors cursor-pointer"
           >
             <Unlock className="w-3.5 h-3.5" />
-            Change Appliance
+            Change Main Category
           </button>
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-        {services.map((service) => {
-          const isSelected =
-            bookingState.serviceId === service.id ||
-            (bookingState.serviceName &&
-              bookingState.serviceName.toLowerCase() === service.name.toLowerCase());
+      {/* Main Categories Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+        {defaultServices.map((cat) => {
+          const isSelected = bookingState.serviceId === cat.id;
           const isDisabled = bookingState.isApplianceLocked && !isSelected;
-          const price = APPLIANCE_PRICING[service.id]?.basePrice;
 
           return (
             <button
-              key={service.id}
-              onClick={() => {
-                if (!bookingState.isApplianceLocked) {
-                  updateBooking('serviceId', service.id);
-                  updateBooking('serviceName', service.name);
-                }
-              }}
+              key={cat.id}
+              onClick={() => handleSelectCategory(cat)}
               disabled={isDisabled}
-              className={`p-4 rounded-xl border-2 flex flex-col items-center justify-center transition-all gap-1 ${
+              className={`p-3.5 rounded-xl border-2 flex flex-col items-center justify-center transition-all gap-1.5 text-center relative ${
                 isSelected
-                  ? 'border-blue-600 bg-blue-50/80 text-blue-900 shadow-sm ring-2 ring-blue-500/20 font-bold'
+                  ? 'border-blue-600 bg-blue-50/90 text-blue-950 shadow-md ring-2 ring-blue-500/20 font-extrabold'
                   : isDisabled
                   ? 'border-gray-100 bg-gray-50 opacity-40 cursor-not-allowed'
                   : 'border-gray-200 hover:border-blue-300 hover:bg-slate-50 bg-white cursor-pointer'
               }`}
             >
-              <span className="text-3xl">{service.icon}</span>
-              <span className="text-xs text-center font-medium leading-tight">{service.name}</span>
-              {price && (
-                <span
-                  className={`text-[11px] font-bold mt-0.5 ${
-                    isSelected ? 'text-blue-700' : 'text-emerald-600'
-                  }`}
-                >
-                  ₹{price}
+              {isSelected && (
+                <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">
+                  ✓
                 </span>
               )}
+              <span className="text-3xl">{cat.icon}</span>
+              <span className="text-xs font-bold leading-tight truncate w-full">{cat.name}</span>
             </button>
           );
         })}
       </div>
 
+      {/* Sub-Services & Price Table — only shown after a category is selected */}
+      {currentCatData ? (
+        <div className="bg-slate-50 p-5 rounded-xl border border-slate-200/80 space-y-4">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">{currentCatData?.icon || '⚙️'}</span>
+              <h3 className="font-extrabold text-slate-900 text-base">
+                {currentCatData?.name} Service &amp; Pricing Packages
+              </h3>
+            </div>
+            <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100">
+              Fixed Price Guarantee
+            </span>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            {subServicesList.map((sub) => {
+              const isSubSelected =
+                bookingState.selectedSubService === sub.label ||
+                (!bookingState.selectedSubService && subServicesList[0]?.id === sub.id);
+
+              return (
+                <div
+                  key={sub.id}
+                  onClick={() => handleSelectSubService(sub)}
+                  className={`p-3.5 rounded-xl border-2 flex items-center justify-between cursor-pointer transition-all ${
+                    isSubSelected
+                      ? 'border-blue-600 bg-white shadow-sm ring-1 ring-blue-400 font-bold text-slate-900'
+                      : 'border-slate-200 bg-white/80 hover:border-blue-300 hover:bg-white text-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className={`w-5 h-5 rounded-md border flex items-center justify-center text-xs transition-colors ${
+                        isSubSelected
+                          ? 'bg-blue-600 border-blue-600 text-white font-bold'
+                          : 'border-slate-300 bg-slate-50'
+                      }`}
+                    >
+                      {isSubSelected ? '✓' : ''}
+                    </div>
+                    <span className="text-xs font-semibold truncate">{sub.label}</span>
+                  </div>
+                  <span
+                    className={`text-sm font-extrabold px-2.5 py-1 rounded-lg ${
+                      isSubSelected ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-800'
+                    }`}
+                  >
+                    ₹{sub.price}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        /* Placeholder shown before any appliance is selected */
+        <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-center gap-2">
+          <span className="text-4xl">👆</span>
+          <p className="text-sm font-bold text-slate-500">Select an appliance above</p>
+          <p className="text-xs text-slate-400">Service packages and pricing will appear here</p>
+        </div>
+      )}
+
       {bookingState.isApplianceLocked && (
-        <div className="mt-3 flex items-center gap-1.5 text-xs text-blue-700 bg-blue-50/50 p-2.5 rounded-lg border border-blue-100">
+        <div className="flex items-center gap-1.5 text-xs text-blue-700 bg-blue-50/50 p-2.5 rounded-lg border border-blue-100">
           <Lock className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
           <span>
-            Pre-selected <strong>{bookingState.serviceName}</strong> from home page. Click 'Change
-            Appliance' above to choose another service.
+            Pre-selected <strong>{bookingState.serviceName}</strong> from homepage. Click 'Change Main Category' to switch.
           </span>
         </div>
       )}

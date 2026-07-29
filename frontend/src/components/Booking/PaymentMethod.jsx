@@ -35,9 +35,11 @@ export default function PaymentMethod() {
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-      <h2 className="text-xl font-semibold mb-5 flex items-center">
-        <span className="bg-gray-100 text-gray-700 rounded-full w-8 h-8 inline-flex items-center justify-center mr-3 text-sm font-bold">5</span>
-        Payment Method
+      <h2 className="text-xl font-extrabold text-[#0B1E40] mb-5 flex items-center gap-3">
+        <span className="bg-blue-600 text-white rounded-full w-8 h-8 inline-flex items-center justify-center text-sm font-bold shadow-md shadow-blue-200">
+          6
+        </span>
+        Select Payment Method
       </h2>
 
       <div className="space-y-3">

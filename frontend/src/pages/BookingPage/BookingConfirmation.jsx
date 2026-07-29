@@ -48,18 +48,23 @@ export default function BookingConfirmation() {
 
   if (!booking) return null;
 
-  const formattedDate = booking.date
-    ? new Date(booking.date + 'T00:00:00').toLocaleDateString('en-IN', {
+  const rawDate = booking.serviceDate || booking.date;
+  const formattedDate = rawDate
+    ? new Date(rawDate).toLocaleDateString('en-IN', {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
       })
     : '—';
+
+  const bookingIdDisplay = booking._id || booking.bookingId || 'MM-' + Date.now().toString(36).toUpperCase();
+  const serviceDisplayName = booking.serviceCategory || booking.appliance || booking.serviceName || 'Appliance Repair';
+  const priceDisplay = booking.serviceCategoryCharge ?? booking.basePrice ?? 299;
 
   const paymentLabel =
     booking.paymentMethod === 'upi'
       ? 'Pay via UPI After Service'
       : booking.paymentMethod === 'cash'
       ? 'Pay Cash After Service'
-      : 'After Service';
+      : 'Cash / UPI After Service';
 
   return (
     <>
@@ -99,7 +104,7 @@ export default function BookingConfirmation() {
               <div className="mt-4 inline-flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-full px-5 py-2">
                 <span className="text-xs text-blue-600 font-medium">Booking ID</span>
                 <span className="text-sm font-bold text-blue-800 tracking-wider">
-                  {booking.bookingId}
+                  {bookingIdDisplay}
                 </span>
               </div>
             </div>
@@ -120,7 +125,7 @@ export default function BookingConfirmation() {
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide">Service</p>
-                    <p className="text-slate-800 font-semibold text-sm truncate">{booking.serviceName}</p>
+                    <p className="text-slate-800 font-semibold text-sm truncate">{serviceDisplayName}</p>
                   </div>
                 </div>
 
@@ -157,6 +162,23 @@ export default function BookingConfirmation() {
                   </div>
                 </div>
 
+                {/* Uploaded Image if available */}
+                {booking.image && (
+                  <div className="flex items-center gap-4 px-6 py-4">
+                    <img
+                      src={booking.image}
+                      alt="Uploaded problem issue"
+                      className="w-14 h-14 object-cover rounded-xl border border-slate-200"
+                    />
+                    <div className="flex-1">
+                      <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide">Attached Photo</p>
+                      <p className="text-xs text-blue-600 font-semibold hover:underline truncate">
+                        <a href={booking.image} target="_blank" rel="noreferrer">View full image</a>
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Payment */}
                 <div className="flex items-center gap-4 px-6 py-4">
                   <span className="w-9 h-9 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
@@ -166,7 +188,7 @@ export default function BookingConfirmation() {
                     <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide">Payment</p>
                     <p className="text-slate-800 font-semibold text-sm">{paymentLabel}</p>
                   </div>
-                  <span className="text-lg font-bold text-[#0B1E40]">₹{booking.basePrice}</span>
+                  <span className="text-lg font-bold text-[#0B1E40]">₹{priceDisplay}</span>
                 </div>
               </div>
 
@@ -174,7 +196,7 @@ export default function BookingConfirmation() {
               <div className="bg-amber-50 border-t border-amber-100 px-6 py-3 flex items-start gap-2">
                 <span className="text-amber-500 text-base">ℹ️</span>
                 <p className="text-xs text-amber-800 leading-relaxed">
-                  Service charge <strong>₹{booking.basePrice}</strong> is fixed. If any part needs replacement,
+                  Service charge <strong>₹{priceDisplay}</strong> is fixed. If any part needs replacement,
                   the technician will inform you first — <strong>you decide before anything is replaced</strong>.
                 </p>
               </div>
