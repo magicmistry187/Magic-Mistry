@@ -4,7 +4,7 @@ require("dotenv").config();
 
 // verifies that token is there or not
 exports.auth = async (req, res, next) => {
-  console.log("Auth middleware")
+  // console.log("Auth middleware")
   try {
 
     const token =
@@ -47,7 +47,7 @@ exports.auth = async (req, res, next) => {
 
 
 const authorizeRoles = (...allowedRoles) => {
-  console.log("in the role checker")
+  // console.log("in the role checker")
   return (req, res, next) => {
     try {
       const userRole = req.user?.role;
