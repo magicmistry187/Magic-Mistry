@@ -47,6 +47,7 @@ export async function signUp({ fullName, email, password, phoneNumber, otp }) {
     return {
       success: true,
       message: response.data.message || 'Account created successfully!',
+      token: response.data.token,
       user: response.data.user,
     };
   } catch (error) {

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import logo2 from '../../../public/logo2.png';
 import { useAuth } from '../../context/AuthContext';
 import LocationSelectorModal from './LocationSelectorModal';
+import LoginRequiredModal from '../auth/LoginRequiredModal';
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -15,6 +16,8 @@ const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+  const [showSearchLoginModal, setShowSearchLoginModal] = useState(false);
+  const [selectedSearchAppliance, setSelectedSearchAppliance] = useState(null);
   const dropdownRef = useRef(null);
 
   // Hide/show navbar on scroll
@@ -48,15 +51,21 @@ const Navbar = () => {
     navigate('/');
   };
 
-  // Search
-  const searchData = [
-    "AC Service & Repair",
-    "AC Installation",
-    "Fridge Repair",
-    "Washing Machine Repair",
-    "Microwave Repair"
+  // Search Data with direct booking capability
+  const searchServices = [
+    { id: 1, name: 'AC Service & Repair', category: 'AC Repair', icon: '❄️' },
+    { id: 1, name: 'AC Installation', category: 'AC Repair', icon: '❄️' },
+    { id: 2, name: 'Fridge Repair', category: 'Refrigeration', icon: '🧊' },
+    { id: 3, name: 'Washing Machine Repair', category: 'Washing Machine', icon: '🧺' },
+    { id: 5, name: 'Mixi Grinder Repair', category: 'Mixi Grinder', icon: '🥛' },
+    { id: 6, name: 'Water Pump Repair', category: 'Water Pump', icon: '💧' },
+    { id: 7, name: 'Air Cooler Repair', category: 'Air Cooler', icon: '💨' },
+    { id: 8, name: 'Induction Cooktop Repair', category: 'Induction Cooktop', icon: '🍳' },
+    { id: 9, name: 'Stabilizer Repair', category: 'Stabilizer', icon: '🔌' },
+    { id: 10, name: 'Press Iron Repair', category: 'Press Iron', icon: '♨️' },
   ];
-  const [searchQuery, setSearchQuery] = useState("");
+
+  const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -64,7 +73,12 @@ const Navbar = () => {
     const query = e.target.value;
     setSearchQuery(query);
     if (query.trim().length > 0) {
-      setSuggestions(searchData.filter(item => item.toLowerCase().includes(query.toLowerCase())));
+      const matches = searchServices.filter(
+        (item) =>
+          item.name.toLowerCase().includes(query.toLowerCase()) ||
+          item.category.toLowerCase().includes(query.toLowerCase())
+      );
+      setSuggestions(matches);
       setShowSuggestions(true);
     } else {
       setSuggestions([]);
@@ -72,9 +86,41 @@ const Navbar = () => {
     }
   };
 
-  const handleSuggestionSelect = (selection) => {
-    setSearchQuery(selection);
+  // Direct booking trigger from Search Box
+  const handleSuggestionSelect = (serviceItem) => {
+    setSearchQuery(serviceItem.name);
     setShowSuggestions(false);
+
+    const applianceObj = {
+      id: serviceItem.id,
+      name: serviceItem.category,
+      icon: serviceItem.icon,
+      serviceName: serviceItem.category,
+    };
+
+    if (!isLoggedIn) {
+      setSelectedSearchAppliance(applianceObj);
+      setShowSearchLoginModal(true);
+      return;
+    }
+
+    navigate('/booking', {
+      state: {
+        appliance: applianceObj,
+      },
+    });
+  };
+
+  const handleSearchKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (suggestions.length > 0) {
+        handleSuggestionSelect(suggestions[0]);
+      } else if (searchQuery.trim().length > 0) {
+        const fallback = searchServices[0];
+        handleSuggestionSelect(fallback);
+      }
+    }
   };
 
   // User avatar initials
@@ -116,7 +162,7 @@ const Navbar = () => {
 
               {/* Logo */}
               <Link to="/" className="shrink-0">
-                <img src={logo2} alt="Magic Mistry Logo" className="h-10 w-auto" />
+                <img src={logo2} alt="Magic Mistry Logo" loading="lazy" decoding="async" className="h-10 w-auto" />
               </Link>
 
               {/* Desktop Nav Links (Visible >= 930px) */}
@@ -142,28 +188,36 @@ const Navbar = () => {
                     type="text"
                     value={searchQuery}
                     onChange={handleSearchChange}
+                    onKeyDown={handleSearchKeyDown}
                     onFocus={() => searchQuery.trim().length > 0 && setShowSuggestions(true)}
                     onBlur={() => setShowSuggestions(false)}
-                    placeholder="Search for AC, Fridge .."
-                    className="w-full px-4 py-2 pl-10 text-sm bg-gray-100 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors"
+                    placeholder="Search for AC, Washing Machine, Fridge..."
+                    className="w-full px-4 py-2 pl-10 text-sm bg-gray-100 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white transition-colors"
                   />
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   {showSuggestions && (
-                    <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden flex flex-col">
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden flex flex-col z-50">
                       {suggestions.length > 0 ? (
                         suggestions.map((item, index) => (
                           <div
                             key={index}
                             onMouseDown={() => handleSuggestionSelect(item)}
-                            className="px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer transition-colors border-b border-gray-50 last:border-none flex items-center gap-2"
+                            className="px-4 py-3 text-sm text-slate-700 hover:bg-orange-50 hover:text-orange-700 cursor-pointer transition-colors border-b border-slate-100 last:border-none flex items-center justify-between group"
                           >
-                            <Search className="w-3 h-3 text-gray-400" />
-                            {item}
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-base">{item.icon}</span>
+                              <span className="font-bold text-slate-800 group-hover:text-orange-600 transition-colors">
+                                {item.name}
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-extrabold text-orange-600 bg-orange-100/70 group-hover:bg-orange-600 group-hover:text-white px-2.5 py-1 rounded-full transition-colors shrink-0">
+                              Book Now &rarr;
+                            </span>
                           </div>
                         ))
                       ) : (
-                        <div className="px-4 py-4 text-sm text-gray-500 text-center">
-                          No results found for "{searchQuery}"
+                        <div className="px-4 py-4 text-sm text-slate-500 text-center">
+                          No services found for "{searchQuery}"
                         </div>
                       )}
                     </div>
@@ -181,7 +235,9 @@ const Navbar = () => {
                   title="Click to select & save your location"
                 >
                   <MapPin className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-                  <span className="hidden min-[930px]:inline max-w-[130px] truncate">{location || 'Select Location'}</span>
+                  <span className="hidden min-[930px]:inline max-w-[130px] truncate">
+                    {isLoggedIn ? (location || 'Set Your Location') : 'Set Your Location'}
+                  </span>
                 </button>
 
                 {/* Bell Icon */}
@@ -344,28 +400,36 @@ const Navbar = () => {
                 type="text"
                 value={searchQuery}
                 onChange={handleSearchChange}
+                onKeyDown={handleSearchKeyDown}
                 onFocus={() => searchQuery.trim().length > 0 && setShowSuggestions(true)}
                 onBlur={() => setShowSuggestions(false)}
-                placeholder="Search for AC, Fridge .."
-                className="w-full px-4 py-2 pl-10 text-sm bg-white border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Search for AC, Washing Machine, Fridge..."
+                className="w-full px-4 py-2 pl-10 text-sm bg-white border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               {showSuggestions && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden flex flex-col">
+                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden flex flex-col z-50">
                   {suggestions.length > 0 ? (
                     suggestions.map((item, index) => (
                       <div
                         key={index}
                         onMouseDown={() => handleSuggestionSelect(item)}
-                        className="px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer transition-colors border-b border-gray-50 last:border-none flex items-center gap-2"
+                        className="px-4 py-3 text-sm text-slate-700 hover:bg-orange-50 hover:text-orange-700 cursor-pointer transition-colors border-b border-slate-100 last:border-none flex items-center justify-between group"
                       >
-                        <Search className="w-3 h-3 text-gray-400" />
-                        {item}
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-base">{item.icon}</span>
+                          <span className="font-bold text-slate-800 group-hover:text-orange-600 transition-colors">
+                            {item.name}
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-extrabold text-orange-600 bg-orange-100/70 group-hover:bg-orange-600 group-hover:text-white px-2.5 py-1 rounded-full transition-colors shrink-0">
+                          Book Now &rarr;
+                        </span>
                       </div>
                     ))
                   ) : (
-                    <div className="px-4 py-4 text-sm text-gray-500 text-center">
-                      No results found for "{searchQuery}"
+                    <div className="px-4 py-4 text-sm text-slate-500 text-center">
+                      No services found for "{searchQuery}"
                     </div>
                   )}
                 </div>
@@ -397,7 +461,7 @@ const Navbar = () => {
                   >
                     <div className="flex items-center space-x-2">
                       <MapPin className="w-4 h-4 text-orange-500" />
-                      <span>{location || 'Select Location'}</span>
+                      <span>{isLoggedIn ? (location || 'Set Your Location') : 'Set Your Location'}</span>
                     </div>
                     <span className="text-xs text-orange-600 font-bold">Change</span>
                   </button>
@@ -453,6 +517,13 @@ const Navbar = () => {
       <LocationSelectorModal
         isOpen={isLocationModalOpen}
         onClose={() => setIsLocationModalOpen(false)}
+      />
+
+      {/* Search Booking Login Required Modal */}
+      <LoginRequiredModal
+        isOpen={showSearchLoginModal}
+        onClose={() => setShowSearchLoginModal(false)}
+        appliance={selectedSearchAppliance}
       />
     </>
   );

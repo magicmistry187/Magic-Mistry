@@ -1,7 +1,13 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import LoginRequiredModal from '../auth/LoginRequiredModal';
 
 export default function ServiceCategories() {
   const navigate = useNavigate();
+  const { isLoggedIn } = useAuth();
+  const [selectedAppliance, setSelectedAppliance] = useState(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const categories = [
     { id: 1, name: 'AC Repair', icon: '❄️' },
@@ -15,8 +21,14 @@ export default function ServiceCategories() {
     { id: 10, name: 'Press Iron', icon: '♨️' },
   ];
 
-  // Passes the selected appliance data to the BookingPage route
+  // Check login before making booking
   const handleServiceClick = (appliance) => {
+    if (!isLoggedIn) {
+      setSelectedAppliance(appliance);
+      setShowLoginModal(true);
+      return;
+    }
+
     navigate('/booking', {
       state: {
         appliance: appliance 
@@ -54,6 +66,12 @@ export default function ServiceCategories() {
           </div>
         ))}
       </div>
+
+      <LoginRequiredModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        appliance={selectedAppliance}
+      />
     </section>
   );
 }

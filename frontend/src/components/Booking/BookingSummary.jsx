@@ -61,7 +61,7 @@ export default function BookingSummary() {
 
     // Auth check — redirect to login if not logged in
     if (!isLoggedIn || !token) {
-      errs.push('Please log in to complete your booking.');
+      errs.push('A user cannot make a booking until they log in.');
     }
 
     if (!bookingState.serviceId && !bookingState.serviceName)
@@ -83,7 +83,7 @@ export default function BookingSummary() {
       // Redirect to login if unauthenticated
       if (!isLoggedIn || !token) {
         setTimeout(() => {
-          navigate('/login', { state: { from: '/booking' } });
+          navigate('/login', { state: { from: '/booking', reason: 'A user cannot make a booking until they log in.' } });
         }, 1200);
       }
       return;
@@ -267,6 +267,26 @@ export default function BookingSummary() {
       <p className="text-[11px] text-slate-400 mb-5">
         + Part costs (if any) confirmed by technician on-site.
       </p>
+
+      {/* Unauthenticated User Warning */}
+      {!isLoggedIn && (
+        <div className="mb-4 bg-amber-500/20 border border-amber-400/40 rounded-lg p-3 flex items-start gap-2.5 text-xs text-amber-200">
+          <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-amber-300">Login Required</p>
+            <p className="mt-0.5 leading-relaxed text-[11px]">
+              A user cannot make a booking until they log in.{' '}
+              <button
+                type="button"
+                onClick={() => navigate('/login', { state: { from: '/booking', reason: 'A user cannot make a booking until they log in.' } })}
+                className="underline font-extrabold text-orange-400 hover:text-orange-300 cursor-pointer ml-0.5"
+              >
+                Log in now →
+              </button>
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Validation errors */}
       {errors.length > 0 && (

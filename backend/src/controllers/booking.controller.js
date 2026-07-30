@@ -2,9 +2,6 @@ const mongoose = require('mongoose');
 const Booking = require('../models/booking.model');
 const uploadImageToImageKit = require('../config/imagekit');
 
-const isDbConnected = () => mongoose.connection.readyState === 1;
-const inMemoryBookings = [];
-
 // Create booking
 exports.createBooking = async (req, res) => {
   console.log('Customer being saved:', req.user.id);
@@ -140,10 +137,6 @@ exports.cancelBooking = async (req, res) => {
       _id: bookingId,
       customer: userId,
     });
-
-    console.log('bookingId:', bookingId);
-    console.log('userId:', userId);
-    console.log('req.user:', req.user);
 
     if (!booking) {
       return res.status(404).json({

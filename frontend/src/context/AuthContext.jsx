@@ -7,9 +7,7 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true); // prevent flash before rehydrate
-  const [location, setLocation] = useState(() => {
-    return localStorage.getItem('mm_location') || 'Bangalore, IN';
-  });
+  const [location, setLocation] = useState('Set Your Location');
 
   // Rehydrate session from localStorage on app startup
   useEffect(() => {
@@ -27,26 +25,31 @@ export function AuthProvider({ children }) {
           setLocation(parsedUser.location);
         } else if (storedLocation) {
           setLocation(storedLocation);
+        } else {
+          setLocation('Set Your Location');
         }
-      } else if (storedLocation) {
-        setLocation(storedLocation);
+      } else {
+        setLocation('Set Your Location');
       }
     } catch {
       localStorage.removeItem('mm_token');
       localStorage.removeItem('mm_user');
+      setLocation('Set Your Location');
     } finally {
       setLoading(false);
     }
   }, []);
 
   const login = (userData, authToken) => {
+    const userLoc = userData.location || (location !== 'Set Your Location' ? location : '') || 'Kolkata, West Bengal';
     const updatedUser = {
       ...userData,
-      location: userData.location || location,
+      location: userLoc,
     };
     setUser(updatedUser);
     setToken(authToken);
     setIsLoggedIn(true);
+    setLocation(userLoc);
     localStorage.setItem('mm_token', authToken);
     localStorage.setItem('mm_user', JSON.stringify(updatedUser));
   };
@@ -55,6 +58,7 @@ export function AuthProvider({ children }) {
     setUser(null);
     setToken(null);
     setIsLoggedIn(false);
+    setLocation('Set Your Location');
     localStorage.removeItem('mm_token');
     localStorage.removeItem('mm_user');
   };

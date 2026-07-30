@@ -1,10 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ShieldCheck, Award, Users, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import LoginRequiredModal from '../auth/LoginRequiredModal';
+import LazyImage from '../common/LazyImage';
 
 const HeroSection = () => {
   const navigate = useNavigate();
+  const { isLoggedIn } = useAuth();
+  const [showLoginModal, setShowLoginModal] = useState(false);
   // Framer Motion Animation Variants
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -88,7 +93,13 @@ const HeroSection = () => {
             {/* Primary CTA Buttons */}
             <motion.div variants={itemVariants} className="mb-10 flex flex-wrap gap-4">
               <button 
-                onClick={() => navigate('/booking')}
+                onClick={() => {
+                  if (!isLoggedIn) {
+                    setShowLoginModal(true);
+                  } else {
+                    navigate('/booking');
+                  }
+                }}
                 className="flex items-center gap-2 bg-[#0B1E40] hover:bg-blue-900 text-white px-8 py-4 rounded-full font-semibold transition-all shadow-lg hover:shadow-xl hover:-translate-y-1 cursor-pointer"
               >
                 Book Service Now
@@ -132,10 +143,10 @@ const HeroSection = () => {
             {/* Main Image */}
             <div className="relative rounded-3xl overflow-hidden shadow-2xl h-[400px] sm:h-[500px] lg:h-[600px] w-full group">
               <div className="absolute inset-0 bg-[#0B1E40]/5 group-hover:bg-transparent transition-colors z-10 duration-500"></div>
-              <img
+              <LazyImage
                 src="https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?q=80&w=2070&auto=format&fit=crop"
                 alt="Expert Technician"
-                className="object-cover w-full h-full transform group-hover:scale-105 transition-transform duration-700"
+                className="w-full h-full transform group-hover:scale-105 transition-transform duration-700"
               />
             </div>
 
@@ -182,6 +193,11 @@ const HeroSection = () => {
           </motion.div>
         </div>
       </motion.div>
+
+      <LoginRequiredModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+      />
     </section>
   );
 };
