@@ -55,14 +55,21 @@ const Navbar = () => {
   const searchServices = [
     { id: 1, name: 'AC Service & Repair', category: 'AC Repair', icon: '❄️' },
     { id: 1, name: 'AC Installation', category: 'AC Repair', icon: '❄️' },
-    { id: 2, name: 'Fridge Repair', category: 'Refrigeration', icon: '🧊' },
+    { id: 2, name: 'Refrigerator Repair', category: 'Refrigerator', icon: '🧊' },
     { id: 3, name: 'Washing Machine Repair', category: 'Washing Machine', icon: '🧺' },
-    { id: 5, name: 'Mixi Grinder Repair', category: 'Mixi Grinder', icon: '🥛' },
-    { id: 6, name: 'Water Pump Repair', category: 'Water Pump', icon: '💧' },
+    { id: 4, name: 'Microwave Repair', category: 'Microwave', icon: '♨️' },
+    { id: 5, name: 'Mixer Grinder Repair', category: 'Mixer Grinder', icon: '🥛' },
+    { id: 6, name: 'Pump Motor Repair', category: 'Pump Motor', icon: '💧' },
     { id: 7, name: 'Air Cooler Repair', category: 'Air Cooler', icon: '💨' },
     { id: 8, name: 'Induction Cooktop Repair', category: 'Induction Cooktop', icon: '🍳' },
     { id: 9, name: 'Stabilizer Repair', category: 'Stabilizer', icon: '🔌' },
-    { id: 10, name: 'Press Iron Repair', category: 'Press Iron', icon: '♨️' },
+    { id: 10, name: 'Press Iron Repair', category: 'Press Iron', icon: '👔' },
+    { id: 11, name: 'TV Repair', category: 'TV', icon: '📺' },
+    { id: 12, name: 'Ceiling Fan Repair', category: 'Ceiling Fan / Fan Repair', icon: '🌀' },
+    { id: 13, name: 'Geyser Repair', category: 'Geyser', icon: '🚿' },
+    { id: 14, name: 'Stand Fan Repair', category: 'Stand Fan', icon: '🌬️' },
+    { id: 15, name: 'Table/Wall Fan Repair', category: 'Table Fan / Wall Fan', icon: '🎐' },
+    { id: 16, name: 'Wiring & Switch Board', category: 'Wiring / Switch Board', icon: '⚡' },
   ];
 
   const [searchQuery, setSearchQuery] = useState('');
