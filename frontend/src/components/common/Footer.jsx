@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { 
   TbRosetteDiscountCheck, 
@@ -8,8 +9,50 @@ import {
   TbBrandInstagram,
   TbBrandLinkedin
 } from "react-icons/tb";
+import { useAuth } from "../../context/AuthContext";
+import LoginRequiredModal from "../auth/LoginRequiredModal";
 
 const Footer = () => {
+  const navigate = useNavigate();
+  const { isLoggedIn } = useAuth();
+  const [selectedAppliance, setSelectedAppliance] = useState(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
+  const categories = [
+    { id: 1, name: 'AC Repair', icon: '❄️' },
+    { id: 2, name: 'Refrigerator', icon: '🧊' },
+    { id: 3, name: 'Washing Machine', icon: '🧺' },
+    { id: 4, name: 'Microwave', icon: '♨️' },
+    { id: 5, name: 'Mixer Grinder', icon: '🥛' },
+    { id: 6, name: 'Pump Motor', icon: '💧' },
+    { id: 7, name: 'Air Cooler', icon: '💨' },
+    { id: 8, name: 'Induction Cooktop', icon: '🍳' },
+    { id: 9, name: 'Stabilizer', icon: '🔌' },
+    { id: 10, name: 'Press Iron', icon: '👔' },
+    { id: 11, name: 'TV', icon: '📺' },
+    { id: 12, name: 'Ceiling Fan', icon: '🌀' },
+    { id: 13, name: 'Geyser', icon: '🚿' },
+    { id: 14, name: 'Stand Fan', icon: '🌬️' },
+    { id: 15, name: 'Table / Wall Fan', icon: '🎐' },
+    { id: 16, name: 'Wiring / Switch Board', icon: '⚡' },
+  ];
+
+  const handleServiceClick = (e, appliance) => {
+    e.preventDefault();
+    if (!isLoggedIn) {
+      setSelectedAppliance(appliance);
+      setShowLoginModal(true);
+      return;
+    }
+
+    navigate('/booking', {
+      state: {
+        appliance: appliance 
+      }
+    });
+  };
+
+  const displayedServices = categories.slice(0, 4);
   const containerVariants = {
     hidden: { opacity: 0, y: 15 },
     visible: {
@@ -46,7 +89,7 @@ const Footer = () => {
           {/* Column 1: Brand & Badges */}
           <motion.div variants={itemVariants} className="flex flex-col">
             <h2 className="text-xl font-bold text-white mb-3 tracking-wide">
-              FixIt Pro
+              Magic Mistry
             </h2>
             <p className="text-[13px] leading-relaxed mb-4 pe-2">
               Professional, certified, and transparent electronics repair service
@@ -91,22 +134,24 @@ const Footer = () => {
               Services
             </h3>
             <ul className="flex flex-col gap-2">
-              {[
-                { name: "AC Repair", path: "/services/ac-repair" },
-                { name: "Refrigerator Service", path: "/services/refrigerator" },
-                { name: "Washing Machine", path: "/services/washing-machine" },
-                { name: "Microwave Repair", path: "/services/microwave" },
-                { name: "Television Service", path: "/services/television" },
-              ].map((link) => (
-                <li key={link.name}>
-                  <Link
-                    to={link.path}
-                    className="text-[13px] inline-block transition-all duration-200 hover:translate-x-1 hover:text-white"
+              {displayedServices.map((link) => (
+                <li key={link.id}>
+                  <button
+                    onClick={(e) => handleServiceClick(e, link)}
+                    className="text-[13px] inline-block transition-all duration-200 hover:translate-x-1 hover:text-white text-left"
                   >
                     {link.name}
-                  </Link>
+                  </button>
                 </li>
               ))}
+              <li>
+                <button
+                  onClick={() => navigate('/booking')}
+                  className="text-[13px] font-bold text-[#a8c1de] mt-2 transition-all duration-200 hover:text-white"
+                >
+                  View More
+                </button>
+              </li>
             </ul>
           </motion.div>
 
@@ -167,13 +212,19 @@ const Footer = () => {
           viewport={{ once: true }}
         >
           <p className="text-xs">
-            © 2024 FixIt Electronics Repair
+            © 2024 Magic Mistry. All rights reserved.
           </p>
           
          
         </motion.div>
         
       </div>
+      
+      <LoginRequiredModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        appliance={selectedAppliance}
+      />
     </footer>
   );
 };

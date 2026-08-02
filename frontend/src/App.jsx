@@ -14,6 +14,7 @@ const PrivacyPolicy = lazy(() => import('./pages/term & policy/PrivacyPolicy'));
 const TermsAndConditions = lazy(() => import('./pages/term & policy/TermsAndConditions'));
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
 const BookingConfirmation = lazy(() => import('./pages/BookingPage/BookingConfirmation'));
+const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPasswordPage'));
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<CreateAccountModal isOpen={true} onClose={() => window.history.back()} />} />
           <Route path="/create-account" element={<CreateAccountModal isOpen={true} onClose={() => window.history.back()} />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
           {/* Information & Company Pages */}
           <Route path="/about" element={<AboutPage />} />

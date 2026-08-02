@@ -55,14 +55,21 @@ const Navbar = () => {
   const searchServices = [
     { id: 1, name: 'AC Service & Repair', category: 'AC Repair', icon: '❄️' },
     { id: 1, name: 'AC Installation', category: 'AC Repair', icon: '❄️' },
-    { id: 2, name: 'Fridge Repair', category: 'Refrigeration', icon: '🧊' },
+    { id: 2, name: 'Refrigerator Repair', category: 'Refrigerator', icon: '🧊' },
     { id: 3, name: 'Washing Machine Repair', category: 'Washing Machine', icon: '🧺' },
-    { id: 5, name: 'Mixi Grinder Repair', category: 'Mixi Grinder', icon: '🥛' },
-    { id: 6, name: 'Water Pump Repair', category: 'Water Pump', icon: '💧' },
+    { id: 4, name: 'Microwave Repair', category: 'Microwave', icon: '♨️' },
+    { id: 5, name: 'Mixer Grinder Repair', category: 'Mixer Grinder', icon: '🥛' },
+    { id: 6, name: 'Pump Motor Repair', category: 'Pump Motor', icon: '💧' },
     { id: 7, name: 'Air Cooler Repair', category: 'Air Cooler', icon: '💨' },
     { id: 8, name: 'Induction Cooktop Repair', category: 'Induction Cooktop', icon: '🍳' },
     { id: 9, name: 'Stabilizer Repair', category: 'Stabilizer', icon: '🔌' },
-    { id: 10, name: 'Press Iron Repair', category: 'Press Iron', icon: '♨️' },
+    { id: 10, name: 'Press Iron Repair', category: 'Press Iron', icon: '👔' },
+    { id: 11, name: 'TV Repair', category: 'TV', icon: '📺' },
+    { id: 12, name: 'Ceiling Fan Repair', category: 'Ceiling Fan / Fan Repair', icon: '🌀' },
+    { id: 13, name: 'Geyser Repair', category: 'Geyser', icon: '🚿' },
+    { id: 14, name: 'Stand Fan Repair', category: 'Stand Fan', icon: '🌬️' },
+    { id: 15, name: 'Table/Wall Fan Repair', category: 'Table Fan / Wall Fan', icon: '🎐' },
+    { id: 16, name: 'Wiring & Switch Board', category: 'Wiring / Switch Board', icon: '⚡' },
   ];
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -190,7 +197,7 @@ const Navbar = () => {
                     onChange={handleSearchChange}
                     onKeyDown={handleSearchKeyDown}
                     onFocus={() => searchQuery.trim().length > 0 && setShowSuggestions(true)}
-                    onBlur={() => setShowSuggestions(false)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                     placeholder="Search for AC, Washing Machine, Fridge..."
                     className="w-full px-4 py-2 pl-10 text-sm bg-gray-100 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white transition-colors"
                   />
@@ -402,7 +409,7 @@ const Navbar = () => {
                 onChange={handleSearchChange}
                 onKeyDown={handleSearchKeyDown}
                 onFocus={() => searchQuery.trim().length > 0 && setShowSuggestions(true)}
-                onBlur={() => setShowSuggestions(false)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                 placeholder="Search for AC, Washing Machine, Fridge..."
                 className="w-full px-4 py-2 pl-10 text-sm bg-white border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
@@ -448,9 +455,9 @@ const Navbar = () => {
                 className="min-[930px]:hidden overflow-hidden bg-gray-50 border-t border-gray-100"
               >
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 space-y-3">
-                  <a href="#" className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">Find Service</a>
-                  <a href="#" className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">How it Works</a>
-                  <a href="#" className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">Business Solutions</a>
+                  <Link to="/find-service" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">Find Service</Link>
+                  <Link to="/how-it-works" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">How it Works</Link>
+                  <Link to="/business-solutions" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">Business Solutions</Link>
 
                   <button
                     onClick={() => {

@@ -11,14 +11,21 @@ export default function ServiceCategories() {
 
   const categories = [
     { id: 1, name: 'AC Repair', icon: '❄️' },
-    { id: 5, name: 'Mixi Grinder', icon: '🥛' },
-    { id: 2, name: 'Refrigeration', icon: '🧊' },
+    { id: 2, name: 'Refrigerator', icon: '🧊' },
     { id: 3, name: 'Washing Machine', icon: '🧺' },
-    { id: 6, name: 'Water Pump', icon: '💧' },
+    { id: 4, name: 'Microwave', icon: '♨️' },
+    { id: 5, name: 'Mixer Grinder', icon: '🥛' },
+    { id: 6, name: 'Pump Motor', icon: '💧' },
     { id: 7, name: 'Air Cooler', icon: '💨' },
     { id: 8, name: 'Induction Cooktop', icon: '🍳' },
     { id: 9, name: 'Stabilizer', icon: '🔌' },
-    { id: 10, name: 'Press Iron', icon: '♨️' },
+    { id: 10, name: 'Press Iron', icon: '👔' },
+    { id: 11, name: 'TV', icon: '📺' },
+    { id: 12, name: 'Ceiling Fan', icon: '🌀' },
+    { id: 13, name: 'Geyser', icon: '🚿' },
+    { id: 14, name: 'Stand Fan', icon: '🌬️' },
+    { id: 15, name: 'Table / Wall Fan', icon: '🎐' },
+    { id: 16, name: 'Wiring / Switch Board', icon: '⚡' },
   ];
 
   // Check login before making booking
@@ -36,6 +43,8 @@ export default function ServiceCategories() {
     });
   };
 
+  const displayedCategories = categories.slice(0, 9);
+
   return (
     <section id="services" className="max-w-6xl mx-auto px-4 py-8">
       <div className="text-center mb-8">
@@ -48,7 +57,7 @@ export default function ServiceCategories() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-        {categories.map((item) => (
+        {displayedCategories.map((item) => (
           <div
             key={item.id}
             onClick={() => handleServiceClick(item)}
@@ -65,6 +74,20 @@ export default function ServiceCategories() {
             </span>
           </div>
         ))}
+          <div
+            onClick={() => navigate('/booking')}
+            className="group bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-blue-500 transition-all duration-300 flex flex-col items-center justify-center text-center cursor-pointer transform hover:-translate-y-1"
+          >
+            <div className="text-4xl mb-3 transform group-hover:scale-110 transition-transform duration-300">
+              ➕
+            </div>
+            <h3 className="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
+              View More
+            </h3>
+            <span className="mt-2 text-[11px] font-semibold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full group-hover:bg-blue-600 group-hover:text-white transition-colors">
+              All Services &rarr;
+            </span>
+          </div>
       </div>
 
       <LoginRequiredModal

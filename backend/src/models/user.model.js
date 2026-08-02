@@ -18,14 +18,13 @@ const userSchema = new mongoose.Schema(
 
     password: {
       type: String,
-      
+
       select: false,
     },
     phoneNumber: {
       type: String,
       unique: true,
-      sparse:true,
-      
+      sparse: true,
       trim: true,
     },
 

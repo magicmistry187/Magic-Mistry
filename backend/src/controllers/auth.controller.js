@@ -8,6 +8,7 @@ const sendEmail = require('../utils/sendEmail');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 
+
 // In-memory dev fallback when MongoDB service is offline
 const inMemoryUsers = [];
 const inMemoryOtps = [];
@@ -250,7 +251,7 @@ async function login(req, res) {
     // User signed up only with Google
     if (!user.password) {
       return res.status(400).json({
-        
+
         success: false,
         message: "This account was created using Google. Please sign in with Google.",
       });
@@ -399,9 +400,106 @@ async function googleLogin(req, res) {
   }
 }
 
+
+
+async function changePassword(req , res){
+
+
+  try{
+    //get user id from auth middleware or token
+    const userId = req.user.id;
+
+    //get user info from db
+
+    const userDetails = await userModel.findById(userId).select("+password");
+
+    //get old and new password from request body
+    const { oldPassword, newPassword } = req.body;
+
+    //validaton for both fields if any of them is missing
+
+    if (!oldPassword || !newPassword) {
+      return res.status(404).josn({
+        success: false,
+        message: "All fields are required",
+      });
+    }
+
+    //Check if old password is correct or not
+
+    const isPasswordMatch = await bcrypt.compare(
+      oldPassword,
+      userDetails.password,
+    );
+
+    if (!isPasswordMatch) {
+      console.log("Password does not match , Please enter correct password");
+      return res.status(400).json({
+        sucess: false,
+        message: "Password does not match , Please enter correct password",
+      });
+    }
+
+    //hash the new password and update it in the database
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    const updateUserDetails = await userModel.findByIdAndUpdate(
+      userId,
+      {
+        password: hashedPassword,
+      },
+      {
+        new: true,
+      },
+    );
+
+
+
+    try{
+
+      //send email to user about password change
+
+      const emailInfo = await sendEmail(updateUserDetails.email, "Password Changed Successfully",`Password Changed Successfully for ${updateUserDeatils.fullName}`)
+
+    }catch(err){
+      return res.status(500).json({
+        success: false,
+        message : 'Something went wrong while sending email'
+      })
+    }
+
+return res.status(200).json({
+  success: true,
+  message: "Password Changes Successfully",
+})
+
+
+
+  }catch(err){
+     console.log("Error while changing password: ", err);
+
+     return res.status(500).json({
+      success:false,
+      error: err.message,
+      message: "Something went wrong while changing password",
+     })
+  }
+
+
+
+
+
+
+ 
+
+
+}
+
 module.exports = {
   signup,
   sendOtp,
   login,
   googleLogin,
+  changePassword,
 };

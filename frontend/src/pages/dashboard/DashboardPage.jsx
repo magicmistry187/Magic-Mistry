@@ -161,9 +161,9 @@ export default function DashboardPage() {
   const [bookingsFilter, setBookingsFilter] = useState('All');
 
   // Settings State
-  const [fullName, setFullName] = useState(user?.fullName || 'Rahul Sharma');
-  const [email, setEmail] = useState(user?.email || 'rahul.sharma@example.com');
-  const [phone, setPhone] = useState(user?.phoneNumber || '+91 98765 43210');
+  const [fullName, setFullName] = useState(user?.fullName || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [phone, setPhone] = useState(user?.phoneNumber || '');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [pushNotifs, setPushNotifs] = useState(true);
   const [whatsappNotifs, setWhatsappNotifs] = useState(true);

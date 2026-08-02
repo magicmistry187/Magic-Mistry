@@ -203,12 +203,12 @@ const WelcomeModal = () => {
                 >
                   Password
                 </label>
-                <a
-                  href="#"
+                <Link
+                  to="/forgot-password"
                   className="text-[13px] font-bold text-[#b86118] hover:text-[#914b10] transition-colors"
                 >
                   Forgot Password?
-                </a>
+                </Link>
               </div>
               <input
                 type="password"
