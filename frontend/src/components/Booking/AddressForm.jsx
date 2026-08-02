@@ -1,7 +1,6 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { useBooking } from '../../components/Booking/BookingContext';
 import {
-  UploadCloud, X, ImageIcon,
   LocateFixed, Loader2, MapPin, AlertCircle, CheckCircle2,
   MapPinOff, Clock3,
 } from 'lucide-react';
@@ -96,9 +95,6 @@ function OutOfAreaModal({ city, state, onClose }) {
 export default function AddressForm() {
   const { bookingState, updateBooking } = useBooking();
   const { location, updateLocation } = useAuth();
-  const fileInputRef = useRef(null);
-  const [previews, setPreviews]     = useState([]);
-  const [dragOver, setDragOver]     = useState(false);
   const [locState, setLocState]     = useState(LOC.IDLE);
   const [locError, setLocError]     = useState('');
   const [outOfArea, setOutOfArea]   = useState(null);
@@ -110,26 +106,6 @@ export default function AddressForm() {
       updateBooking('address', location);
     }
   }, [location]);
-
-  /* ── Image helpers ──────────────────────────────── */
-  const processFiles = (files) => {
-    const allowed = Array.from(files).filter((f) => f.type.startsWith('image/'));
-    if (!allowed.length) return;
-    const newPreviews = allowed.map((f) => ({ url: URL.createObjectURL(f), name: f.name, file: f }));
-    setPreviews((prev) => {
-      const combined = [...prev, ...newPreviews].slice(0, 5);
-      updateBooking('images', combined.map((p) => p.file));
-      return combined;
-    });
-  };
-
-  const removeImage = (idx) => {
-    setPreviews((prev) => {
-      const updated = prev.filter((_, i) => i !== idx);
-      updateBooking('images', updated.map((p) => p.file));
-      return updated;
-    });
-  };
 
   /* ── Validate manual address on blur ────────────── */
   const handleAddressBlur = () => {

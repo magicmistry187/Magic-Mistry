@@ -38,8 +38,10 @@ app.get('/', (req, res) => {
 // Routes
 const authRoutes = require('./routes/auth.routes');
 const bookingRoutes = require('./routes/booking.routes');
+const addressRoutes = require('./routes/address.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/booking', bookingRoutes);
+app.use('/api/address', addressRoutes);
 
 module.exports = app;

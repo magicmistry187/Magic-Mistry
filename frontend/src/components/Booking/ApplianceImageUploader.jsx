@@ -1,6 +1,6 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo, useEffect } from 'react';
 import { useBooking } from './BookingContext';
-import { UploadCloud, X, ImageIcon, CheckCircle2 } from 'lucide-react';
+import { UploadCloud, X, CheckCircle2 } from 'lucide-react';
 
 export default function ApplianceImageUploader() {
   const { bookingState, updateBooking } = useBooking();
@@ -15,6 +15,19 @@ export default function ApplianceImageUploader() {
   const removeFile = () => {
     updateBooking('imageFile', null);
   };
+
+  // Memoize the object URL to avoid creating a new one on every render
+  // and revoke the previous one to prevent memory leaks
+  const previewUrl = useMemo(() => {
+    if (!bookingState.imageFile) return null;
+    return URL.createObjectURL(bookingState.imageFile);
+  }, [bookingState.imageFile]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
@@ -66,7 +79,7 @@ export default function ApplianceImageUploader() {
         <div className="relative rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 flex items-center gap-4">
           <div className="w-16 h-16 rounded-lg overflow-hidden border border-emerald-300 shrink-0 bg-white shadow-xs">
             <img
-              src={URL.createObjectURL(bookingState.imageFile)}
+              src={previewUrl}
               alt="Appliance Preview"
               className="w-full h-full object-cover"
             />

@@ -51,7 +51,7 @@ export default function BookingConfirmation() {
 
   const rawDate = booking.serviceDate || booking.date;
   const formattedDate = rawDate
-    ? new Date(rawDate).toLocaleDateString('en-IN', {
+    ? new Date(rawDate + 'T00:00:00').toLocaleDateString('en-IN', {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
       })
     : '—';

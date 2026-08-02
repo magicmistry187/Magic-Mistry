@@ -7,18 +7,22 @@ export default function ApplianceSelector() {
 
   // All appliance categories matching home page & diagram flow
   const defaultServices = [
-    { id: 11, name: 'TV',                icon: '📺' },
-    { id: 7,  name: 'Air Cooler',        icon: '💨' },
-    { id: 12, name: 'Fan',               icon: '🌀' },
-    { id: 1,  name: 'AC Repair',         icon: '❄️' },
-    { id: 2,  name: 'Refrigeration',      icon: '🧊' },
-    { id: 3,  name: 'Washing Machine',    icon: '🧺' },
-    { id: 4,  name: 'Microwave',          icon: '♨️' },
-    { id: 5,  name: 'Mixi Grinder',       icon: '🥛' },
-    { id: 6,  name: 'Water Pump',         icon: '💧' },
-    { id: 8,  name: 'Induction Cooktop',  icon: '🍳' },
-    { id: 9,  name: 'Stabilizer',         icon: '🔌' },
-    { id: 10, name: 'Press Iron',         icon: '👔' },
+    { id: 1, name: 'AC Repair', icon: '❄️' },
+    { id: 2, name: 'Refrigerator', icon: '🧊' },
+    { id: 3, name: 'Washing Machine', icon: '🧺' },
+    { id: 4, name: 'Microwave', icon: '♨️' },
+    { id: 5, name: 'Mixer Grinder', icon: '🥛' },
+    { id: 6, name: 'Pump Motor', icon: '💧' },
+    { id: 7, name: 'Air Cooler', icon: '💨' },
+    { id: 8, name: 'Induction Cooktop', icon: '🍳' },
+    { id: 9, name: 'Stabilizer', icon: '🔌' },
+    { id: 10, name: 'Press Iron', icon: '👔' },
+    { id: 11, name: 'TV', icon: '📺' },
+    { id: 12, name: 'Ceiling Fan / Fan Repair', icon: '🌀' },
+    { id: 13, name: 'Geyser', icon: '🚿' },
+    { id: 14, name: 'Stand Fan', icon: '🌬️' },
+    { id: 15, name: 'Table Fan / Wall Fan', icon: '🎐' },
+    { id: 16, name: 'Wiring / Switch Board', icon: '⚡' },
   ];
 
   // null means user came directly to booking page — no pre-selection
