@@ -89,7 +89,7 @@ const Footer = () => {
           {/* Column 1: Brand & Badges */}
           <motion.div variants={itemVariants} className="flex flex-col">
             <h2 className="text-xl font-bold text-white mb-3 tracking-wide">
-              FixIt Pro
+              Magic Mistry
             </h2>
             <p className="text-[13px] leading-relaxed mb-4 pe-2">
               Professional, certified, and transparent electronics repair service
@@ -212,7 +212,7 @@ const Footer = () => {
           viewport={{ once: true }}
         >
           <p className="text-xs">
-            © 2024 FixIt Electronics Repair
+            © 2024 Magic Mistry. All rights reserved.
           </p>
           
          

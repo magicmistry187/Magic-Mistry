@@ -27,7 +27,7 @@ const HomePage = () => {
         <section className="max-w-6xl mx-auto px-4 py-8">
           <div className="bg-gradient-to-r from-[#0B1E40] to-blue-900 rounded-3xl p-8 sm:p-12 text-white shadow-xl">
             <h2 className="text-3xl font-extrabold text-center mb-8">
-              Why Customers Trust FixIt Pro
+              Why Customers Trust Magic Mistry
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-center">
               <div className="p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">

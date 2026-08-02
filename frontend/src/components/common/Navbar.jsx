@@ -197,7 +197,7 @@ const Navbar = () => {
                     onChange={handleSearchChange}
                     onKeyDown={handleSearchKeyDown}
                     onFocus={() => searchQuery.trim().length > 0 && setShowSuggestions(true)}
-                    onBlur={() => setShowSuggestions(false)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                     placeholder="Search for AC, Washing Machine, Fridge..."
                     className="w-full px-4 py-2 pl-10 text-sm bg-gray-100 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white transition-colors"
                   />
@@ -409,7 +409,7 @@ const Navbar = () => {
                 onChange={handleSearchChange}
                 onKeyDown={handleSearchKeyDown}
                 onFocus={() => searchQuery.trim().length > 0 && setShowSuggestions(true)}
-                onBlur={() => setShowSuggestions(false)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                 placeholder="Search for AC, Washing Machine, Fridge..."
                 className="w-full px-4 py-2 pl-10 text-sm bg-white border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
@@ -455,9 +455,9 @@ const Navbar = () => {
                 className="min-[930px]:hidden overflow-hidden bg-gray-50 border-t border-gray-100"
               >
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 space-y-3">
-                  <a href="#" className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">Find Service</a>
-                  <a href="#" className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">How it Works</a>
-                  <a href="#" className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">Business Solutions</a>
+                  <Link to="/find-service" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">Find Service</Link>
+                  <Link to="/how-it-works" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">How it Works</Link>
+                  <Link to="/business-solutions" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">Business Solutions</Link>
 
                   <button
                     onClick={() => {

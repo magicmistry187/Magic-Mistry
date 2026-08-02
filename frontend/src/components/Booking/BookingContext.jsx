@@ -267,13 +267,16 @@ export const BookingProvider = ({ children, initialAppliance }) => {
 
   useEffect(() => {
     if (initialAppliance) {
-      const base = getBasePrice(initialAppliance.id);
+      const subServList = APPLIANCE_SUB_SERVICES[initialAppliance.id]?.subServices || [];
+      const firstSub = subServList[0] || null;
+      const price = firstSub?.price || getBasePrice(initialAppliance.id);
       setBookingState((prev) => ({
         ...prev,
         serviceId: initialAppliance.id,
         serviceName: initialAppliance.name,
         isApplianceLocked: true,
-        priceInfo: { basePrice: base, visitCharge: 0, total: base },
+        selectedSubService: firstSub ? firstSub.label : prev.selectedSubService,
+        priceInfo: { basePrice: price, visitCharge: 0, total: price },
       }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
