@@ -249,6 +249,7 @@ async function login(req, res) {
     // User signed up only with Google
     if (!user.password) {
       return res.status(400).json({
+        
         success: false,
         message: "This account was created using Google. Please sign in with Google.",
       });
