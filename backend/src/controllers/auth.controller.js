@@ -29,6 +29,7 @@ function generateToken(user) {
 }
 
 // send otp
+//little bit modifying it for forgot password and signup
 async function sendOtp(req, res) {
   try {
     const { email } = req.body;
