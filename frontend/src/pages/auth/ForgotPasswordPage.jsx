@@ -63,7 +63,7 @@ function StepEmail({ onNext }) {
     if (res.success) {
       onNext(email.trim());
     } else {
-      setError(res.message || 'Failed to send OTP. Please try again.');
+      setError(`${res.message}` || 'Failed to send OTP. Please try again.');
     }
   };
 
