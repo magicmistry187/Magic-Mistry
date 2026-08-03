@@ -1,8 +1,15 @@
+// UserRatingModal.jsx
+// ─────────────────────────────────────────────────────────────────────────────
+// User Dashboard Component — Lets the logged-in user rate a completed booking.
+// Used exclusively in: pages/dashboard/UserDashboardPage.jsx
+// Renamed from: RatingModal.jsx  →  UserRatingModal.jsx
+// ─────────────────────────────────────────────────────────────────────────────
+
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Star, ThumbsUp } from 'lucide-react';
 
-export default function RatingModal({ isOpen, onClose, booking, onSubmitRating }) {
+export default function UserRatingModal({ isOpen, onClose, booking, onSubmitRating }) {
   const [rating, setRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
   const [review, setReview] = useState('');
@@ -31,7 +38,7 @@ export default function RatingModal({ isOpen, onClose, booking, onSubmitRating }
         >
           <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
             <h3 className="font-bold text-base flex items-center gap-2">
-              <Star className="w-5 h-5 text-amber-400 fill-amber-400" /> Rate Technician & Service
+              <Star className="w-5 h-5 text-amber-400 fill-amber-400" /> Rate Technician &amp; Service
             </h3>
             <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-white rounded-full hover:bg-white/10 transition-colors">
               <X className="w-5 h-5" />

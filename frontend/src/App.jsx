@@ -12,9 +12,12 @@ const AboutPage = lazy(() => import('./pages/aboutus/AboutPage'));
 const ContactPage = lazy(() => import('./pages/contactus/ContactPage'));
 const PrivacyPolicy = lazy(() => import('./pages/term & policy/PrivacyPolicy'));
 const TermsAndConditions = lazy(() => import('./pages/term & policy/TermsAndConditions'));
-const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
+const UserDashboardPage = lazy(() => import('./pages/dashboard/UserDashboardPage'));
 const BookingConfirmation = lazy(() => import('./pages/BookingPage/BookingConfirmation'));
 const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPasswordPage'));
+const FaqPage = lazy(() => import('./pages/faq/FaqPage'));
+const BecomeAVendorPage = lazy(() => import('./pages/vendor/BecomeAVendorPage'));
+const VendorApplyPage = lazy(() => import('./pages/vendor/VendorApplyPage'));
 
 export default function App() {
   return (
@@ -37,17 +40,20 @@ export default function App() {
           {/* Information & Company Pages */}
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
+          <Route path="/faq" element={<FaqPage />} />
           <Route path="/terms" element={<TermsAndConditions />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/become-a-vandor" element={<BecomeAVendorPage />} />
+          <Route path="/vendor-apply" element={<VendorApplyPage />} />
           <Route path="/how-it-works" element={<HomePage />} />
           <Route path="/find-service" element={<HomePage />} />
 
           {/* User Dashboard & Sub-routes */}
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/my-bookings" element={<DashboardPage />} />
-          <Route path="/bookings" element={<DashboardPage />} />
-          <Route path="/history" element={<DashboardPage />} />
-          <Route path="/settings" element={<DashboardPage />} />
+          <Route path="/dashboard" element={<UserDashboardPage />} />
+          <Route path="/my-bookings" element={<UserDashboardPage />} />
+          <Route path="/bookings" element={<UserDashboardPage />} />
+          <Route path="/history" element={<UserDashboardPage />} />
+          <Route path="/settings" element={<UserDashboardPage />} />
 
           {/* Fallback Route */}
           <Route path="*" element={<HomePage />} />

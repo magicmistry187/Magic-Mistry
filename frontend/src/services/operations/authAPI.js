@@ -1,5 +1,11 @@
-import { apiConnector } from '../apiConnector';
-import { authEndpoints } from '../apis';
+import { apiConnector, BASE_URL } from '../apiConnector';
+
+export const authEndpoints = {
+  SENDOTP_API: BASE_URL + '/auth/sendOtp',
+  SIGNUP_API: BASE_URL + '/auth/signup',
+  LOGIN_API: BASE_URL + '/auth/login',
+  GOOGLE_LOGIN_API: BASE_URL + '/auth/googleLogin',
+};
 
 const { SENDOTP_API, SIGNUP_API, LOGIN_API, GOOGLE_LOGIN_API } = authEndpoints;
 
@@ -89,9 +95,6 @@ export async function loginUser(email, password) {
     };
   }
 }
-
-
-
 
 export async function googleLogin(accessToken) {
   try {

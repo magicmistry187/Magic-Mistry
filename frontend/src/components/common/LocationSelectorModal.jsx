@@ -58,7 +58,9 @@ export default function LocationSelectorModal({ isOpen, onClose }) {
           const state = a.state || '';
           const detectedStr = [city, state].filter(Boolean).join(', ') || data.display_name;
 
-          updateLocation(detectedStr);
+          // ── CONNECTION: pass GPS coords so AuthContext can sync to backend ──
+          // updateLocation(str, coords) → AuthContext → createAddressApi → POST /api/address
+          updateLocation(detectedStr, { lat: coords.latitude, lng: coords.longitude });
           setIsDetecting(false);
           onClose();
         } catch {
