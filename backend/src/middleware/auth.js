@@ -4,7 +4,8 @@ require("dotenv").config();
 
 // verifies that token is there or not
 exports.auth = async (req, res, next) => {
-  // console.log("Auth middleware")
+  console.log("Auth middleware")
+  console.log("Cookies:", req.cookies);
   try {
 
     const token =
