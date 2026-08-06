@@ -14,15 +14,17 @@ import {
   Home, Briefcase, Tag, Trash2, HelpCircle
 } from 'lucide-react';
 
-import TechnicianMapModal from '../../components/dashboard/TechnicianMapModal';
-import InvoiceModal from '../../components/dashboard/InvoiceModal';
-import AddressModal from '../../components/dashboard/AddressModal';
-import RatingModal from '../../components/dashboard/RatingModal';
-import LocationSelectorModal from '../../components/common/LocationSelectorModal';
+// ── User Dashboard Components (renamed with User__ prefix for clarity) ───────
+import UserTechnicianMapModal from '../../components/dashboard/UserTechnicianMapModal';
+import UserInvoiceModal       from '../../components/dashboard/UserInvoiceModal';
+import UserAddressModal        from '../../components/dashboard/UserAddressModal';
+import UserRatingModal         from '../../components/dashboard/UserRatingModal';
+import LocationSelectorModal   from '../../components/common/LocationSelectorModal';
 
-// ─── Initial User Data (No Mock/Dummy Data) ─────────────────────────
-const initialBookings = [];
-const savedAppliances = [];
+
+// ─── Initial Data ────────────────────────────────────────────────────────────
+const initialBookings  = [];   // populated from backend via getMyBookingsApi
+const savedAppliances  = [];
 const initialAddresses = [];
 
 // ─── Status Badge ────────────────────────────────────────────────────────────
@@ -78,7 +80,7 @@ const itemVariants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] } },
 };
 
-export default function DashboardPage() {
+export default function UserDashboardPage() {
   const { user, token, logout, location, updateLocation } = useAuth();
   const navigate = useNavigate();
 
@@ -130,29 +132,6 @@ export default function DashboardPage() {
   const [addresses, setAddresses] = useState(initialAddresses);
   const [isLocationSelectorOpen, setIsLocationSelectorOpen] = useState(false);
 
-  // Sync location from Navbar/AuthContext into saved addresses state
-  React.useEffect(() => {
-    if (!location) return;
-    setAddresses((prev) => {
-      const exists = prev.some(
-        (a) =>
-          location.toLowerCase().includes(a.flat.toLowerCase()) ||
-          a.flat.toLowerCase().includes(location.toLowerCase())
-      );
-      if (!exists) {
-        const newPrimary = {
-          id: 'loc-' + Date.now(),
-          type: 'Primary Location',
-          flat: location,
-          street: 'Set via Navbar / GPS',
-          landmark: 'Active Primary Location',
-          pincode: 'Active',
-        };
-        return [newPrimary, ...prev];
-      }
-      return prev;
-    });
-  }, [location]);
 
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
   const [selectedBookingForRating, setSelectedBookingForRating] = useState(null);
@@ -239,7 +218,7 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-[#f4f7fb] font-sans antialiased text-slate-800">
       <Navbar />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 print:hidden">
         <div className="flex flex-col lg:flex-row gap-8">
 
           {/* ── SIDEBAR NAVIGATION (Matching Reference Screenshot Design) ───────── */}
@@ -326,14 +305,11 @@ export default function DashboardPage() {
                     </p>
                   </div>
 
-                  {/* ─ ACTIVE BOOKINGS TRACKING SECTION ─ */}
+                  {/* ─ RECENT / ACTIVE BOOKINGS SECTION ─ */}
                   {(() => {
-                    const activeBookings = bookingsList.filter((b) =>
-                      ['Pending', 'Accepted', 'In Progress', 'On The Way'].includes(b.status)
-                    );
-                    const activeCount = activeBookings.length;
+                    const totalCount = bookingsList.length;
 
-                    if (activeCount === 0) {
+                    if (totalCount === 0) {
                       return (
                         <motion.div
                           variants={itemVariants}
@@ -344,10 +320,10 @@ export default function DashboardPage() {
                           <div className="flex items-center justify-between flex-wrap gap-4">
                             <div className="flex items-center gap-3">
                               <h2 className="font-extrabold text-slate-900 text-lg">
-                                Active Service Tracking
+                                Service Tracking
                               </h2>
                               <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                                0 Active Bookings
+                                0 Bookings
                               </span>
                             </div>
                             <button
@@ -363,7 +339,7 @@ export default function DashboardPage() {
                               <div className="w-14 h-14 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center text-2xl mx-auto mb-3 shadow-xs">
                                 🛠️
                               </div>
-                              <h3 className="text-base font-extrabold text-slate-900">No Active Repair Orders</h3>
+                              <h3 className="text-base font-extrabold text-slate-900">No Repair Orders Yet</h3>
                               <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
                                 Submit a new service request to track technician assignment, arrival time, and repair diagnostic progress live.
                               </p>
@@ -412,6 +388,8 @@ export default function DashboardPage() {
                       );
                     }
 
+                    const displayedBookings = bookingsList.slice(0, 2);
+
                     return (
                       <motion.div
                         variants={itemVariants}
@@ -422,23 +400,17 @@ export default function DashboardPage() {
                         <div className="flex items-center justify-between flex-wrap gap-4">
                           <div className="flex items-center gap-3">
                             <h2 className="font-extrabold text-slate-900 text-lg">
-                              Active Bookings
+                              Recent Bookings
                             </h2>
                             <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-orange-100 text-orange-700 border border-orange-200">
-                              {activeCount} Active {activeCount === 1 ? 'Booking' : 'Bookings'}
+                              Showing {displayedBookings.length} of {totalCount} {totalCount === 1 ? 'Booking' : 'Bookings'}
                             </span>
                           </div>
-
-                          <button
-                            onClick={() => setActiveTab('bookings')}
-                            className="text-xs font-bold text-orange-600 hover:text-orange-700 flex items-center gap-1 hover:underline"
-                          >
-                            View all ({bookingsList.length}) <ChevronRight className="w-4 h-4" />
-                          </button>
                         </div>
-                        {/* List all active booking tracking cards */}
+
+                        {/* List maximum 2 booking tracking cards in Overview */}
                         <div className="space-y-6">
-                          {activeBookings.map((activeBooking) => (
+                          {displayedBookings.map((activeBooking) => (
                             <div key={activeBooking.id} className="bg-slate-50 rounded-2xl p-6 border border-slate-100 space-y-6">
                               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
 
@@ -567,6 +539,19 @@ export default function DashboardPage() {
                             </div>
                           ))}
                         </div>
+
+                        {/* View All Button when there are more than 2 bookings */}
+                        {totalCount > 2 && (
+                          <div className="pt-2 text-center border-t border-slate-100">
+                            <button
+                              onClick={() => setActiveTab('bookings')}
+                              className="w-full sm:w-auto px-6 py-3 bg-[#0a192f] hover:bg-[#122849] text-white text-xs font-extrabold rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 mx-auto cursor-pointer"
+                            >
+                              View All Bookings ({totalCount})
+                              <ChevronRight className="w-4 h-4 text-orange-400" />
+                            </button>
+                          </div>
+                        )}
                       </motion.div>
                     );
                   })()}
@@ -1185,65 +1170,75 @@ export default function DashboardPage() {
                   </div>
 
                   <div className="grid sm:grid-cols-2 gap-6">
-                    {addresses.map((addr) => {
-                      const fullAddrStr = [addr.flat, addr.street, addr.landmark, addr.pincode].filter(Boolean).join(', ');
-                      const isCurrentPrimary = location && location.toLowerCase().includes(addr.flat.toLowerCase());
-
-                      return (
-                        <div key={addr.id} className={`bg-white rounded-3xl p-6 border shadow-sm flex flex-col justify-between space-y-4 transition-all ${isCurrentPrimary ? 'border-orange-500 ring-2 ring-orange-200' : 'border-slate-100'}`}>
-                          <div>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className="px-3 py-1 bg-orange-50 text-orange-600 font-extrabold text-xs rounded-full flex items-center gap-1">
-                                  {addr.type === 'Home' ? <Home className="w-3.5 h-3.5" /> : <Briefcase className="w-3.5 h-3.5" />}
-                                  {addr.type}
-                                </span>
-                                {isCurrentPrimary && (
-                                  <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 font-bold text-[10px] rounded-full flex items-center gap-1">
-                                    <Check className="w-3 h-3 text-emerald-600" /> Active Primary
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() => {
-                                    setEditingAddress(addr);
-                                    setIsAddressModalOpen(true);
-                                  }}
-                                  className="p-1.5 text-slate-400 hover:text-slate-700"
-                                  title="Edit Address"
-                                >
-                                  <Edit3 className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteAddress(addr.id)}
-                                  className="p-1.5 text-rose-400 hover:text-rose-600"
-                                  title="Delete Address"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </div>
-                            <p className="font-extrabold text-slate-900 text-base mt-3">{addr.flat}</p>
-                            <p className="text-xs text-slate-500 mt-1">{addr.street}, {addr.landmark}</p>
-                            <p className="text-xs font-bold text-slate-600 mt-1">Pincode: {addr.pincode}</p>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => updateLocation(fullAddrStr)}
-                            className={`w-full py-2.5 rounded-2xl text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 ${
-                              isCurrentPrimary
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default'
-                                : 'bg-slate-100 hover:bg-orange-500 hover:text-white text-slate-700'
-                            }`}
-                          >
-                            <MapPin className="w-3.5 h-3.5 text-orange-500 group-hover:text-white" />
-                            {isCurrentPrimary ? 'Currently Selected Location' : 'Set as Active Location'}
-                          </button>
+                    {addresses.length === 0 ? (
+                      <div className="col-span-2 flex flex-col items-center justify-center py-16 text-center">
+                        <div className="w-16 h-16 rounded-3xl bg-slate-100 flex items-center justify-center mb-4">
+                          <MapPin className="w-8 h-8 text-slate-300" />
                         </div>
-                      );
-                    })}
+                        <p className="font-extrabold text-slate-700 text-base">No saved addresses yet</p>
+                        <p className="text-slate-400 text-sm mt-1">Click "Add Address" above to save your home or work location.</p>
+                      </div>
+                    ) : (
+                      addresses.map((addr) => {
+                        const fullAddrStr = [addr.flat, addr.street, addr.landmark, addr.pincode].filter(Boolean).join(', ');
+                        const isCurrentPrimary = location && location.toLowerCase().includes(addr.flat.toLowerCase());
+
+                        return (
+                          <div key={addr.id} className={`bg-white rounded-3xl p-6 border shadow-sm flex flex-col justify-between space-y-4 transition-all ${isCurrentPrimary ? 'border-orange-500 ring-2 ring-orange-200' : 'border-slate-100'}`}>
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="px-3 py-1 bg-orange-50 text-orange-600 font-extrabold text-xs rounded-full flex items-center gap-1">
+                                    {addr.type === 'Home' ? <Home className="w-3.5 h-3.5" /> : <Briefcase className="w-3.5 h-3.5" />}
+                                    {addr.type}
+                                  </span>
+                                  {isCurrentPrimary && (
+                                    <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 font-bold text-[10px] rounded-full flex items-center gap-1">
+                                      <Check className="w-3 h-3 text-emerald-600" /> Active Primary
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setEditingAddress(addr);
+                                      setIsAddressModalOpen(true);
+                                    }}
+                                    className="p-1.5 text-slate-400 hover:text-slate-700"
+                                    title="Edit Address"
+                                  >
+                                    <Edit3 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteAddress(addr.id)}
+                                    className="p-1.5 text-rose-400 hover:text-rose-600"
+                                    title="Delete Address"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                              <p className="font-extrabold text-slate-900 text-base mt-3">{addr.flat}</p>
+                              <p className="text-xs text-slate-500 mt-1">{addr.street}, {addr.landmark}</p>
+                              <p className="text-xs font-bold text-slate-600 mt-1">Pincode: {addr.pincode}</p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => updateLocation(fullAddrStr)}
+                              className={`w-full py-2.5 rounded-2xl text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 ${
+                                isCurrentPrimary
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default'
+                                  : 'bg-slate-100 hover:bg-orange-500 hover:text-white text-slate-700'
+                              }`}
+                            >
+                              <MapPin className="w-3.5 h-3.5 text-orange-500 group-hover:text-white" />
+                              {isCurrentPrimary ? 'Currently Selected Location' : 'Set as Active Location'}
+                            </button>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 </motion.div>
               )}
@@ -1404,7 +1399,7 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Notification Switches Card */}
-                  <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-sm space-y-6">
+                  {/* <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-sm space-y-6">
                     <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2 border-b border-slate-100 pb-4">
                       <Bell className="w-5 h-5 text-amber-500" /> Notification Preferences
                     </h3>
@@ -1429,7 +1424,7 @@ export default function DashboardPage() {
                         </div>
                       ))}
                     </div>
-                  </div>
+                  </div> */}
                 </motion.div>
               )}
 
@@ -1438,28 +1433,32 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── MODALS INTEGRATION ─────────────────────────────────────────────────── */}
-      <TechnicianMapModal
+      {/* ── USER DASHBOARD MODALS ────────────────────────────────────────────── */}
+      {/* UserTechnicianMapModal — shows live technician GPS tracker to the user */}
+      <UserTechnicianMapModal
         isOpen={isMapOpen}
         onClose={() => setIsMapOpen(false)}
         technician={selectedTech}
         booking={selectedBookingForMap}
       />
 
-      <InvoiceModal
+      {/* UserInvoiceModal — shows printable tax invoice for a completed booking */}
+      <UserInvoiceModal
         isOpen={isInvoiceOpen}
         onClose={() => setIsInvoiceOpen(false)}
         booking={selectedBookingForInvoice}
       />
 
-      <AddressModal
+      {/* UserAddressModal — add / edit a saved address for the logged-in user */}
+      <UserAddressModal
         isOpen={isAddressModalOpen}
         onClose={() => setIsAddressModalOpen(false)}
         onSave={handleSaveAddress}
         initialData={editingAddress}
       />
 
-      <RatingModal
+      {/* UserRatingModal — lets the user rate a completed booking */}
+      <UserRatingModal
         isOpen={isRatingModalOpen}
         onClose={() => setIsRatingModalOpen(false)}
         booking={selectedBookingForRating}

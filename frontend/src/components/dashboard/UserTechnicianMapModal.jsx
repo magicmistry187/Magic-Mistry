@@ -1,8 +1,15 @@
+// UserTechnicianMapModal.jsx
+// ─────────────────────────────────────────────────────────────────────────────
+// User Dashboard Component — Shows live technician GPS tracking to the user.
+// Used exclusively in: pages/dashboard/UserDashboardPage.jsx
+// Renamed from: TechnicianMapModal.jsx  →  UserTechnicianMapModal.jsx
+// ─────────────────────────────────────────────────────────────────────────────
+
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Phone, MessageSquare, ShieldCheck, MapPin, Navigation, Clock, Star } from 'lucide-react';
 
-export default function TechnicianMapModal({ isOpen, onClose, technician, booking }) {
+export default function UserTechnicianMapModal({ isOpen, onClose, technician, booking }) {
   const [eta, setEta] = useState(18); // 18 mins ETA
 
   useEffect(() => {

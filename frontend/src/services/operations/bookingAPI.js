@@ -1,5 +1,11 @@
-import { apiConnector } from '../apiConnector';
-import { bookingEndpoints } from '../apis';
+import { apiConnector, BASE_URL } from '../apiConnector';
+
+export const bookingEndpoints = {
+  CREATE_BOOKING_API: BASE_URL + '/booking',
+  GET_MY_BOOKINGS_API: BASE_URL + '/booking/my-bookings',
+  GET_BOOKING_DETAILS_API: BASE_URL + '/booking', // + /:bookingId
+  CANCEL_BOOKING_API: BASE_URL + '/booking',       // + /:bookingId/cancel
+};
 
 const {
   CREATE_BOOKING_API,
@@ -13,7 +19,6 @@ export async function createBookingApi(formData, token) {
   try {
     const res = await apiConnector('POST', CREATE_BOOKING_API, formData, {
       Authorization: `Bearer ${token}`,
-      // Do NOT set Content-Type here — apiConnector handles it automatically for FormData
     });
 
     console.log('Create booking response:', res.data);

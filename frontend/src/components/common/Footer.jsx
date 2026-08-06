@@ -72,11 +72,7 @@ const Footer = () => {
 
   return (
     <footer className="bg-[#02182e] text-[#94a9c5] font-sans w-full">
-      {/* 
-        WIDER LAYOUT: 
-        - max-w-[1400px] allows the footer to stretch wider on desktop
-        - px-6 md:px-12 ensures the side gaps aren't overly huge
-      */}
+     
       <div className="max-w-[1400px] w-full mx-auto px-6 md:px-12 pt-8 pb-4">
         
         <motion.div
@@ -164,7 +160,8 @@ const Footer = () => {
               {[
                 { name: "About Us", path: "/about" },
                 { name: "Contact Us", path: "/contact" },
-                { name: "Become a Vendor", path: "/become a vandor" },
+                { name: "FAQ / Help Center", path: "/faq" },
+                { name: "Become a Vendor", path: "/become-a-vandor" },
                 // { name: "Blog", path: "/blog" },
               ].map((link) => (
                 <li key={link.name}>

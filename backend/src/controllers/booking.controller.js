@@ -4,7 +4,7 @@ const uploadImageToImageKit = require('../config/imagekit');
 
 // Create booking
 exports.createBooking = async (req, res) => {
-  console.log('Customer being saved:', req.user.id);
+  console.log('Customer booking saved:', req.user.id);
   try {
     const {
       appliance,

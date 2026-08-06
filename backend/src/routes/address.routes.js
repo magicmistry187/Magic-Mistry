@@ -5,7 +5,7 @@ const router = express.Router();
 const { auth, isCustomer } = require('../middleware/auth');
 const {
   createAddress,
-  getAddressById,
+  getAddress,
   getAddresses,
   updateAddress,
   deleteAddress,
@@ -15,7 +15,7 @@ router.post('/', auth, isCustomer, createAddress);
 
 router.get('/', auth, isCustomer, getAddresses);
 
-router.get('/:id', auth, isCustomer, getAddressById);
+router.get('/:id', auth, isCustomer, getAddress);
 
 router.put('/:id', auth, isCustomer, updateAddress);
 
