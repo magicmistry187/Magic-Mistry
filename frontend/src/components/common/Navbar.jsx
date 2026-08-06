@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Bell, ShoppingCart, MapPin, Menu, X, LogOut, User, LayoutDashboard, ChevronDown } from 'lucide-react';
+import { Search, MapPin, Menu, X, LogOut, User, LayoutDashboard, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import logo2 from '../../../public/logo2.png';
 import { useAuth } from '../../context/AuthContext';
@@ -174,16 +174,20 @@ const Navbar = () => {
 
               {/* Desktop Nav Links (Visible >= 930px) */}
               <div className="hidden min-[930px]:flex items-center space-x-4 lg:space-x-8 shrink-0">
-                <Link to="/find-service" className="relative group text-sm font-medium text-gray-700 hover:text-blue-800 transition-colors duration-300">
+                <Link to="/" className="relative group text-sm font-medium text-gray-700 hover:text-blue-800 transition-colors duration-300">
                   Find Service
                   <span className="absolute left-0 -bottom-1 w-0 h-[2px] bg-blue-800 transition-all duration-300 group-hover:w-full"></span>
                 </Link>
-                <Link to="/how-it-works" className="relative group text-sm font-medium text-gray-700 hover:text-blue-800 transition-colors duration-300">
-                  How it Works
+                <Link to="/become-a-vandor" className="relative group text-sm font-medium text-gray-700 hover:text-blue-800 transition-colors duration-300">
+                  Become a Vandor
                   <span className="absolute left-0 -bottom-1 w-0 h-[2px] bg-blue-800 transition-all duration-300 group-hover:w-full"></span>
                 </Link>
-                <Link to="/business-solutions" className="relative group text-sm font-medium text-gray-700 hover:text-blue-800 transition-colors duration-300">
-                  Business Solutions
+                <Link to="/about" className="relative group text-sm font-medium text-gray-700 hover:text-blue-800 transition-colors duration-300">
+                 About Us
+                  <span className="absolute left-0 -bottom-1 w-0 h-[2px] bg-blue-800 transition-all duration-300 group-hover:w-full"></span>
+                </Link>
+                <Link to="/faq" className="relative group text-sm font-medium text-gray-700 hover:text-blue-800 transition-colors duration-300">
+                  FAQ
                   <span className="absolute left-0 -bottom-1 w-0 h-[2px] bg-blue-800 transition-all duration-300 group-hover:w-full"></span>
                 </Link>
               </div>
@@ -247,39 +251,7 @@ const Navbar = () => {
                   </span>
                 </button>
 
-                {/* Bell Icon */}
-                <style>{`
-                  @keyframes ring {
-                    0%   { transform: rotate(0deg); }
-                    15%  { transform: rotate(15deg); }
-                    30%  { transform: rotate(-15deg); }
-                    45%  { transform: rotate(10deg); }
-                    60%  { transform: rotate(-10deg); }
-                    75%  { transform: rotate(5deg); }
-                    85%  { transform: rotate(-5deg); }
-                    100% { transform: rotate(0deg); }
-                  }
-                  .group:hover .bell-ring {
-                    animation: ring 0.8s ease-in-out;
-                    transform-origin: top center;
-                  }
-                  @keyframes avatar-pulse {
-                    0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.5); }
-                    50%      { box-shadow: 0 0 0 6px rgba(59,130,246,0); }
-                  }
-                  .avatar-btn:hover {
-                    animation: avatar-pulse 1.2s ease-in-out infinite;
-                  }
-                `}</style>
-                <button className="group p-[15px] rounded-[10px] text-gray-600 transition-colors duration-500 hover:bg-gray-100 hover:text-gray-900">
-                  <Bell className="w-6 h-6 bell-ring" />
-                </button>
 
-                {/* Cart Icon */}
-                <button className="relative p-2 text-gray-600 hover:text-gray-900">
-                  <ShoppingCart className="w-5 h-5" />
-                  <span className="absolute -top-2 -right-2 w-5 h-5 bg-blue-600 text-white text-xs rounded-full flex items-center justify-center font-bold">0</span>
-                </button>
 
                 {/* ── USER AVATAR + DROPDOWN or LOGIN BUTTON ── */}
                 {isLoggedIn ? (
@@ -455,9 +427,10 @@ const Navbar = () => {
                 className="min-[930px]:hidden overflow-hidden bg-gray-50 border-t border-gray-100"
               >
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 space-y-3">
-                  <Link to="/find-service" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">Find Service</Link>
-                  <Link to="/how-it-works" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">How it Works</Link>
-                  <Link to="/business-solutions" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">Business Solutions</Link>
+                  <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">Find Service</Link>
+                  <Link to="/become-a-vandor" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">Become a Vandor</Link>
+                  <Link to="/about" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">About Us</Link>
+                  <Link to="/faq" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">FAQ</Link>
 
                   <button
                     onClick={() => {

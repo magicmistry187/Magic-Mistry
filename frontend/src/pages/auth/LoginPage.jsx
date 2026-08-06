@@ -3,6 +3,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FcGoogle } from 'react-icons/fc';
 import { IoClose } from 'react-icons/io5';
+import { Eye, EyeOff } from 'lucide-react';
 import { useGoogleLogin } from '@react-oauth/google';
 import { loginUser, googleLogin } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -13,6 +14,7 @@ const WelcomeModal = () => {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -210,18 +212,31 @@ const WelcomeModal = () => {
                   Forgot Password?
                 </Link>
               </div>
-              <input
-                type="password"
-                id="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none transition-all placeholder:text-gray-300 tracking-[0.2em] font-mono ${
-                  errors.password
-                    ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-200'
-                    : 'border-gray-300 focus:border-gray-400 focus:ring-1 focus:ring-gray-200'
-                }`}
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  id="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className={`w-full border rounded-lg px-4 pr-11 py-2.5 text-sm outline-none transition-all placeholder:text-gray-300 ${
+                    showPassword ? '' : 'tracking-[0.2em] font-mono'
+                  } ${
+                    errors.password
+                      ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-200'
+                      : 'border-gray-300 focus:border-gray-400 focus:ring-1 focus:ring-gray-200'
+                  }`}
+                />
+                {/* Show / Hide password toggle */}
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               <AnimatePresence>
                 {errors.password && (
                   <motion.span
@@ -285,6 +300,8 @@ const WelcomeModal = () => {
               Sign Up
             </Link>
           </div>
+
+
         </div>
       </motion.div>
     </div>

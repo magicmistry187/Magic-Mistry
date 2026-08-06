@@ -1,8 +1,15 @@
+// UserAddressModal.jsx
+// ─────────────────────────────────────────────────────────────────────────────
+// User Dashboard Component — Add / Edit saved address for the logged-in user.
+// Used exclusively in: pages/dashboard/UserDashboardPage.jsx
+// Renamed from: AddressModal.jsx  →  UserAddressModal.jsx
+// ─────────────────────────────────────────────────────────────────────────────
+
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, MapPin, Home, Briefcase, Tag } from 'lucide-react';
 
-export default function AddressModal({ isOpen, onClose, onSave, initialData }) {
+export default function UserAddressModal({ isOpen, onClose, onSave, initialData }) {
   const [type, setType] = useState(initialData?.type || 'Home');
   const [flat, setFlat] = useState(initialData?.flat || '');
   const [street, setStreet] = useState(initialData?.street || '');

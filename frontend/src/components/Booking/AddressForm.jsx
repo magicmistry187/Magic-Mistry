@@ -101,11 +101,13 @@ export default function AddressForm() {
   const [addrError, setAddrError]   = useState('');
 
   // Sync saved global location into booking address if empty
+  // BUG FIX: added updateBooking to deps to avoid stale-closure React warning
   React.useEffect(() => {
     if (!bookingState.address && location) {
       updateBooking('address', location);
     }
-  }, [location]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location, updateBooking]);
 
   /* ── Validate manual address on blur ────────────── */
   const handleAddressBlur = () => {
@@ -163,7 +165,9 @@ export default function AddressForm() {
 
           const fullAddress = parts.length ? parts.join(', ') : data.display_name;
           updateBooking('address', fullAddress);
-          updateLocation(fullAddress);
+          // ── CONNECTION: pass GPS coords to AuthContext so it can sync to backend ──
+          // updateLocation(str, coords) → AuthContext → createAddressApi → POST /api/address
+          updateLocation(fullAddress, { lat: coords.latitude, lng: coords.longitude });
           setAddrError('');
           setLocState(LOC.SUCCESS);
         } catch {

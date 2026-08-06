@@ -90,7 +90,7 @@ exports.getAddresses = async (req, res) => {
   }
 };
 
-exports.getAddressById = async (req, res) => {
+exports.getAddress = async (req, res) => {
   try {
     const { id } = req.params;
     const address = await Address.findOne({
