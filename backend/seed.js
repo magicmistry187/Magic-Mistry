@@ -7,7 +7,7 @@ console.log("MongoDB URL:", process.env.MONGODB_URI); // Log the MongoDB URL to 
 
 // const userModel = require("../src/models/user.model");
 const userModel = require('./src/models/user.model');
-// const mongooseString = 'mongodb+srv://magicmistry187_db_user:98DLQu7pFsqgEQLf@cluster0.rhwdqkm.mongodb.net/Magic-Mistry' 
+
 
 const seedAdminVendor = async () => {
   try {
