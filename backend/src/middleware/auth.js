@@ -4,10 +4,11 @@ require("dotenv").config();
 
 // verifies that token is there or not
 exports.auth = async (req, res, next) => {
-  console.log("Auth middleware")
-  console.log("Cookies:", req.cookies);
+  // console.log("Auth middleware")
+  // console.log("Cookies:", req.cookies);
   try {
 
+    // const token = req.cookies?.token 
     const token =
       req.cookies?.token ||
       req.header("Authorization")?.replace("Bearer ", "");
