@@ -24,7 +24,9 @@ function generateToken(user) {
 //little bit modifying it for forgot password and signup
 async function sendOtp(req, res) {
   try {
-    const { email } = req.body;
+    const { email , purpose } = req.body;
+
+    
 
     if (!email) {
       return res.status(400).json({
@@ -37,12 +39,24 @@ async function sendOtp(req, res) {
       email: email.toLowerCase().trim(),
     });
 
-    if (checkUser) {
+
+    if(purpose === 'signup' && checkUser){
+
+    
       return res.status(400).json({
         success: false,
         message: 'User already exists',
       });
     }
+
+    if(purpose === 'forgotPassword' && !checkUser){
+      return res.status(400).json({
+        success: false,
+        message: 'User is not registered with this email',
+      });
+    }
+
+ 
 
     let otp = otpGenerator.generate(6, {
       upperCaseAlphabets: false,

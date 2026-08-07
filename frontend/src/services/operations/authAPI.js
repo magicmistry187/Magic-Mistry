@@ -10,9 +10,9 @@ export const authEndpoints = {
 const { SENDOTP_API, SIGNUP_API, LOGIN_API, GOOGLE_LOGIN_API } = authEndpoints;
 
 // Send OTP for account creation
-export async function sendOtp(email) {
+export async function sendOtp({ email, purpose }) {
   try {
-    const response = await apiConnector('POST', SENDOTP_API, { email });
+    const response = await apiConnector('POST', SENDOTP_API, { email, purpose });
     console.log('SENDOTP API RESPONSE............', response);
 
     if (!response.data?.success) {
