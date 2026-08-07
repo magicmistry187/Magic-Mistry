@@ -73,6 +73,7 @@ exports.createBooking = async (req, res) => {
   }
 };
 
+//gets all the booking
 exports.getMyBookings = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -178,6 +179,58 @@ exports.cancelBooking = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to cancel booking.',
+      error: error.message,
+    });
+  }
+};
+
+exports.getBookingsToAdmin = async (req, res) =>{
+
+  try{
+    const bookings = await Booking.find()
+      .populate('customer', 'fullName email phoneNumber')
+      .populate('vendor', 'fullName email phoneNumber')
+      .sort({ createdAt: -1 });
+      // console.log('Bookings fetched:', bookings);
+
+    return res.status(200).json({
+      success: true,
+      count: bookings.length,
+      bookings,
+      message: "All bookings fetched successfully.",
+    });
+  } catch (error) {
+    console.error('Get All Bookings Error:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch bookings.',
+      error: error.message,
+    });
+  }
+}
+
+exports.getBookingsToVendor = async (req, res) => {
+  try {
+    const bookings = await Booking.find({
+      bookingStatus: "Pending",
+    })
+      .populate("customer", "fullName email phoneNumber")
+      .sort({ createdAt: -1 });
+      // console.log("Pending bookings fetched:", bookings);
+
+    return res.status(200).json({
+      success: true,
+      count: bookings.length,
+      bookings,
+      message: "Pending bookings fetched successfully.",
+    });
+  } catch (error) {
+    console.error("Get Bookings to Vendor Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch bookings.",
       error: error.message,
     });
   }
