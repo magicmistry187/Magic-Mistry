@@ -496,6 +496,23 @@ return res.status(200).json({
 
 }
 
+
+async function verifyOtp(req, res){
+    
+  const {otp} = req.body;
+
+  if(!otp){
+    return res.status(400).json({
+      success: false,
+      message: "OTP is required",
+    })
+  }
+
+
+  
+
+}
+
 module.exports = {
   signup,
   sendOtp,
