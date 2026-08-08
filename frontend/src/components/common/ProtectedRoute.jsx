@@ -4,14 +4,14 @@ import { useAuth } from '../../context/AuthContext';
 import PageLoader from './PageLoader';
 
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
-  const { user, isAuthenticated, loading } = useAuth();
+  const { user, isLoggedIn, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
     return <PageLoader label="Checking permissions..." />;
   }
 
-  if (!isAuthenticated) {
+  if (!isLoggedIn) {
     return <Navigate to="/login" state={{ from: location.pathname, reason: 'Please log in to access this page.' }} replace />;
   }
 

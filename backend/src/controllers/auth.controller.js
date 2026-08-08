@@ -149,7 +149,7 @@ async function signup(req, res) {
       password: hashedPassword,
       phoneNumber,
       authProviders: ['email'],
-      role: "admin", // Default role is 'user' if not provided
+      role: "customer", // Default role is 'customer' if not provided
     });
 
     const token = generateToken(user);
