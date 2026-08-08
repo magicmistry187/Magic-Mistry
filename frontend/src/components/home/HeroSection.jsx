@@ -10,6 +10,7 @@ const HeroSection = () => {
   const navigate = useNavigate();
   const { isLoggedIn } = useAuth();
   const [showLoginModal, setShowLoginModal] = useState(false);
+
   // Framer Motion Animation Variants
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -40,10 +41,10 @@ const HeroSection = () => {
   };
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center bg-slate-50 p-4 sm:p-8 overflow-hidden">
-      {/* Extra Design Component: Subtle Background Glowing Blobs */}
-      <div className="absolute top-0 left-0 w-96 h-96 bg-blue-100 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob" />
-      <div className="absolute top-0 right-0 w-96 h-96 bg-orange-100 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob animation-delay-2000" />
+    <section className="relative flex items-center justify-center bg-slate-50 p-4 sm:p-8 overflow-hidden">
+      {/* Background Glowing Blobs */}
+      <div className="absolute top-0 left-0 w-96 h-96 bg-blue-100 rounded-full mix-blend-multiply filter blur-3xl opacity-50 pointer-events-none" />
+      <div className="absolute top-0 right-0 w-96 h-96 bg-orange-100 rounded-full mix-blend-multiply filter blur-3xl opacity-50 pointer-events-none" />
 
       {/* Main Card Container */}
       <motion.div
@@ -119,18 +120,6 @@ const HeroSection = () => {
                 View Pricing
               </button>
             </motion.div>
-
-            {/* Badges */}
-            <motion.div variants={itemVariants} className="flex flex-wrap gap-4">
-              <div className="flex items-center gap-2 border border-slate-200 bg-white shadow-sm rounded-full px-5 py-2.5 cursor-default hover:border-[#0B1E40] transition-colors">
-                <CheckCircle2 className="w-5 h-5 text-[#0B1E40] fill-[#0B1E40]/10" />
-                <span className="text-sm font-bold text-[#0B1E40]">ISO 9001:2015</span>
-              </div>
-              <div className="flex items-center gap-2 border border-slate-200 bg-white shadow-sm rounded-full px-5 py-2.5 cursor-default hover:border-[#0B1E40] transition-colors">
-                <Award className="w-5 h-5 text-[#0B1E40] fill-[#0B1E40]/10" />
-                <span className="text-sm font-bold text-[#0B1E40]">NABL Certified</span>
-              </div>
-            </motion.div>
           </motion.div>
 
           {/* Right Column: Image & Floating Elements */}
@@ -146,7 +135,7 @@ const HeroSection = () => {
               <LazyImage
                 src="https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?q=80&w=2070&auto=format&fit=crop"
                 alt="Expert Technician"
-                className="w-full h-full transform group-hover:scale-105 transition-transform duration-700"
+                className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700"
               />
             </div>
 
@@ -165,7 +154,7 @@ const HeroSection = () => {
                   Verified Professionals
                 </h4>
                 <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
-                  Background checked & trained
+                  Background checked &amp; trained
                 </p>
               </div>
             </motion.div>

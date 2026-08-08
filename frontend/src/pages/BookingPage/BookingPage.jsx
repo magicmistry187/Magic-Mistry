@@ -24,46 +24,48 @@ export default function BookingPage() {
   const initialAppliance = location.state?.appliance || null;
 
   // Auto-show login required modal if user accesses booking while unauthenticated
-  useEffect(() => {
-    if (!isLoggedIn) {
-      setShowLoginModal(true);
-    }
-  }, [isLoggedIn]);
+  // useEffect(() => {
+  //   if (!isLoggedIn) {
+  //     setShowLoginModal(true);
+  //   }
+  // }, [isLoggedIn]);
 
   return (
     <BookingProvider initialAppliance={initialAppliance}>
-      <div className="min-h-screen flex flex-col bg-slate-50 font-sans">
+      <div className="min-h-screen flex flex-col bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-100 via-slate-50 to-white font-sans text-slate-800">
         <Navbar />
 
         <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-8">
-          <div className="mb-8">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-extrabold uppercase tracking-wide mb-3">
+          <div className="mb-10 text-center md:text-left">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-blue-100 to-indigo-100 text-indigo-800 text-xs font-bold uppercase tracking-widest mb-4 shadow-sm border border-indigo-200/50">
               ⚡ 7-Step Integrated Booking Flow
             </div>
-            <h1 className="text-3xl font-extrabold text-[#0B1E40]">Book a Repair Service</h1>
-            <p className="text-slate-600 mt-2 text-sm">
+            <h1 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-[#0B1E40] to-indigo-900 tracking-tight leading-tight">
+              Book a Repair Service
+            </h1>
+            <p className="text-slate-500 mt-3 text-base md:text-lg max-w-2xl font-medium">
               Follow our simple step-by-step process to schedule a verified technician for your home appliances.
             </p>
           </div>
 
           {/* Unauthenticated Guest Warning Banner */}
           {!isLoggedIn && (
-            <div className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-xl shrink-0">
+            <div className="mb-8 p-5 bg-gradient-to-r from-amber-50 to-orange-50/30 border border-amber-200/60 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center text-2xl shrink-0 shadow-inner border border-amber-200/50">
                   🔒
                 </div>
                 <div>
-                  <h3 className="text-sm font-extrabold text-amber-950">A user cannot make a booking until they log in.</h3>
-                  <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
-                    You can configure your repair preferences below, but logging in is required to confirm your appointment.
+                  <h3 className="text-base font-bold text-amber-900">Login Required to Confirm</h3>
+                  <p className="text-sm text-amber-700/90 mt-1 leading-relaxed font-medium">
+                    You can configure your repair preferences below, but logging in is required to submit your booking.
                   </p>
                 </div>
               </div>
               <Link
                 to="/login"
                 state={{ from: '/booking', reason: 'A user cannot make a booking until they log in.' }}
-                className="shrink-0 bg-[#0B1E40] hover:bg-blue-900 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm"
+                className="shrink-0 bg-gradient-to-r from-[#0B1E40] to-indigo-900 hover:from-indigo-900 hover:to-[#0B1E40] text-white font-bold text-sm px-6 py-3 rounded-xl transition-all duration-300 shadow-md shadow-indigo-900/20 hover:shadow-lg hover:-translate-y-0.5"
               >
                 Log In / Sign Up
               </Link>
@@ -76,29 +78,43 @@ export default function BookingPage() {
             {/* Left Column: Integrated 7-Step Form Flow (Matching Diagram) */}
             <div className="lg:col-span-2 space-y-6">
               {/* Step 1: Select Main Category & Service Package */}
-              <ApplianceSelector />
+              <div id="step-appliance-selector">
+                <ApplianceSelector />
+              </div>
 
               {/* Fixed Pricing Transparency */}
-              <PricingTransparency />
+              <div id="step-pricing-transparency">
+                <PricingTransparency />
+              </div>
 
               {/* Step 2: Describe Issue */}
-              <ProblemSelector />
+              <div id="step-problem-selector">
+                <ProblemSelector />
+              </div>
 
               {/* Step 3: Schedule Date and Time */}
-              <ScheduleForm />
+              <div id="step-schedule-form">
+                <ScheduleForm />
+              </div>
 
               {/* Step 4: Share Address */}
-              <AddressForm />
+              <div id="step-address-form">
+                <AddressForm />
+              </div>
 
               {/* Step 5: Upload Image of Appliance */}
-              <ApplianceImageUploader />
+              <div id="step-image-uploader">
+                <ApplianceImageUploader />
+              </div>
 
               {/* Step 6: Select Payment Method */}
-              <PaymentMethod />
+              <div id="step-payment-method">
+                <PaymentMethod />
+              </div>
             </div>
 
             {/* Right Column: Step 7 & Sticky Summary */}
-            <div className="lg:col-span-1 lg:sticky lg:top-24">
+            <div id="step-booking-summary" className="lg:col-span-1 lg:sticky lg:top-24">
               <BookingSummary />
             </div>
 

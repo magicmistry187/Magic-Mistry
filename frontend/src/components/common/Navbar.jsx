@@ -136,6 +136,24 @@ const Navbar = () => {
     return user.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   };
 
+  const getAvatarRenderInfo = () => {
+    const avatarMap = {
+      okapi: { icon: '🦒', color: 'from-amber-500 to-orange-600' },
+      saiga: { icon: '🐂', color: 'from-yellow-600 to-amber-700' },
+      harpy: { icon: '🦅', color: 'from-sky-500 to-blue-600' },
+      cerata: { icon: '❄️', color: 'from-blue-400 to-indigo-500' },
+      gerenuk: { icon: '📡', color: 'from-teal-500 to-emerald-600' },
+      hopper: { icon: '🐸', color: 'from-green-400 to-emerald-600' },
+      aye_aye: { icon: '🐒', color: 'from-rose-500 to-pink-600' },
+      quokka: { icon: '🐹', color: 'from-orange-400 to-amber-500' },
+      shoebill: { icon: '🐦', color: 'from-indigo-500 to-purple-600' },
+      sparkle: { icon: '🕷️', color: 'from-red-500 to-rose-600' },
+      pangolin: { icon: '🛡️', color: 'from-slate-600 to-slate-800' },
+      squishblob: { icon: '💧', color: 'from-cyan-400 to-blue-500' },
+    };
+    return avatarMap[user?.avatar] || null;
+  };
+
   // Dropdown menu animation variants
   const dropdownVariants = {
     hidden: { opacity: 0, scale: 0.92, y: -8 },
@@ -174,19 +192,19 @@ const Navbar = () => {
 
               {/* Desktop Nav Links (Visible >= 930px) */}
               <div className="hidden min-[930px]:flex items-center space-x-4 lg:space-x-8 shrink-0">
-                <Link to="/" className="relative group text-sm font-medium text-gray-700 hover:text-blue-800 transition-colors duration-300">
+                <Link to="/" className="relative group text-sm font-medium text-gray-700 hover:text-blue-800 transition-colors duration-300 cursor-pointer select-none outline-none focus:outline-none">
                   Find Service
                   <span className="absolute left-0 -bottom-1 w-0 h-[2px] bg-blue-800 transition-all duration-300 group-hover:w-full"></span>
                 </Link>
-                <Link to="/become-a-vandor" className="relative group text-sm font-medium text-gray-700 hover:text-blue-800 transition-colors duration-300">
-                  Become a Vandor
+                <Link to="/become-a-vendor" className="relative group text-sm font-medium text-gray-700 hover:text-blue-800 transition-colors duration-300 cursor-pointer select-none outline-none focus:outline-none">
+                  Become a Vendor
                   <span className="absolute left-0 -bottom-1 w-0 h-[2px] bg-blue-800 transition-all duration-300 group-hover:w-full"></span>
                 </Link>
-                <Link to="/about" className="relative group text-sm font-medium text-gray-700 hover:text-blue-800 transition-colors duration-300">
-                 About Us
+                <Link to="/about" className="relative group text-sm font-medium text-gray-700 hover:text-blue-800 transition-colors duration-300 cursor-pointer select-none outline-none focus:outline-none">
+                  About Us
                   <span className="absolute left-0 -bottom-1 w-0 h-[2px] bg-blue-800 transition-all duration-300 group-hover:w-full"></span>
                 </Link>
-                <Link to="/faq" className="relative group text-sm font-medium text-gray-700 hover:text-blue-800 transition-colors duration-300">
+                <Link to="/faq" className="relative group text-sm font-medium text-gray-700 hover:text-blue-800 transition-colors duration-300 cursor-pointer select-none outline-none focus:outline-none">
                   FAQ
                   <span className="absolute left-0 -bottom-1 w-0 h-[2px] bg-blue-800 transition-all duration-300 group-hover:w-full"></span>
                 </Link>
@@ -267,9 +285,21 @@ const Navbar = () => {
                     >
                       {/* Avatar Circle */}
                       <div className="relative">
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-white flex items-center justify-center font-bold text-sm shadow-md ring-2 ring-blue-200 ring-offset-1">
-                          {getInitials()}
-                        </div>
+                        {(() => {
+                          const avatarInfo = getAvatarRenderInfo();
+                          if (avatarInfo) {
+                            return (
+                              <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${avatarInfo.color} text-white flex items-center justify-center text-xl shadow-md ring-2 ring-orange-200 ring-offset-1 shrink-0`}>
+                                {avatarInfo.icon}
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-white flex items-center justify-center font-bold text-sm shadow-md ring-2 ring-blue-200 ring-offset-1 shrink-0">
+                              {getInitials()}
+                            </div>
+                          );
+                        })()}
                         {/* Online dot */}
                         <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 border-2 border-white rounded-full"></span>
                       </div>
@@ -298,9 +328,21 @@ const Navbar = () => {
                           {/* User Info Header */}
                           <div className="px-4 py-4 bg-gradient-to-br from-blue-50 to-indigo-50 border-b border-gray-100">
                             <div className="flex items-center gap-3">
-                              <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-white flex items-center justify-center font-bold text-base shadow">
-                                {getInitials()}
-                              </div>
+                              {(() => {
+                                const avatarInfo = getAvatarRenderInfo();
+                                if (avatarInfo) {
+                                  return (
+                                    <div className={`w-11 h-11 rounded-full bg-gradient-to-br ${avatarInfo.color} text-white flex items-center justify-center text-2xl shadow shrink-0`}>
+                                      {avatarInfo.icon}
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-white flex items-center justify-center font-bold text-base shadow shrink-0">
+                                    {getInitials()}
+                                  </div>
+                                );
+                              })()}
                               <div className="min-w-0">
                                 <p className="text-sm font-bold text-gray-800 truncate">{user?.fullName || 'User'}</p>
                                 <p className="text-xs text-gray-500 truncate">{user?.email || ''}</p>
@@ -427,10 +469,10 @@ const Navbar = () => {
                 className="min-[930px]:hidden overflow-hidden bg-gray-50 border-t border-gray-100"
               >
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 space-y-3">
-                  <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">Find Service</Link>
-                  <Link to="/become-a-vandor" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">Become a Vandor</Link>
-                  <Link to="/about" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">About Us</Link>
-                  <Link to="/faq" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded">FAQ</Link>
+                  <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded cursor-pointer select-none outline-none">Find Service</Link>
+                  <Link to="/become-a-vendor" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded cursor-pointer select-none outline-none">Become a Vendor</Link>
+                  <Link to="/about" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded cursor-pointer select-none outline-none">About Us</Link>
+                  <Link to="/faq" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded cursor-pointer select-none outline-none">FAQ</Link>
 
                   <button
                     onClick={() => {
@@ -450,9 +492,21 @@ const Navbar = () => {
                     <div className="px-4 py-3 border-t border-gray-200 mt-2 pt-3 space-y-3">
                       {/* Mobile User Info */}
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-white flex items-center justify-center font-bold text-sm shadow">
-                          {getInitials()}
-                        </div>
+                        {(() => {
+                          const avatarInfo = getAvatarRenderInfo();
+                          if (avatarInfo) {
+                            return (
+                              <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${avatarInfo.color} text-white flex items-center justify-center text-xl shadow shrink-0`}>
+                                {avatarInfo.icon}
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-white flex items-center justify-center font-bold text-sm shadow shrink-0">
+                              {getInitials()}
+                            </div>
+                          );
+                        })()}
                         <div>
                           <p className="text-sm font-bold text-gray-800">{user?.fullName || 'User'}</p>
                           <p className="text-xs text-gray-500">{user?.email || ''}</p>

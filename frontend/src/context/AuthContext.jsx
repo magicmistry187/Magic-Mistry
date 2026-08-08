@@ -203,6 +203,16 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const updateProfile = (profileData) => {
+    if (!user) return;
+    const updatedUser = {
+      ...user,
+      ...profileData,
+    };
+    setUser(updatedUser);
+    localStorage.setItem('mm_user', JSON.stringify(updatedUser));
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -214,6 +224,7 @@ export function AuthProvider({ children }) {
         updateLocation,
         login,
         logout,
+        updateProfile,
       }}
     >
       {children}

@@ -16,7 +16,7 @@ const timeSlots = [
 ];
 
 export default function ScheduleForm() {
-  const { bookingState, updateBooking } = useBooking();
+  const { bookingState, updateBooking, scrollToNextStep } = useBooking();
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -79,48 +79,52 @@ export default function ScheduleForm() {
   ];
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-      <h2 className="text-xl font-extrabold text-[#0B1E40] mb-5 flex items-center gap-3">
-        <span className="bg-blue-600 text-white rounded-full w-8 h-8 inline-flex items-center justify-center text-sm font-bold shadow-md shadow-blue-200">
-          3
-        </span>
-        Schedule Date and Time
-      </h2>
+    <div className="bg-white p-7 md:p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 relative overflow-hidden">
+      <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full mix-blend-multiply filter blur-3xl opacity-50 translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
+
+      <div className="relative z-10 mb-6">
+        <h2 className="text-2xl md:text-3xl font-extrabold text-[#0B1E40] flex items-center gap-4 tracking-tight">
+          <span className="bg-gradient-to-br from-indigo-500 to-blue-600 text-white rounded-2xl w-10 h-10 inline-flex items-center justify-center text-lg font-black shadow-lg shadow-blue-500/30">
+            3
+          </span>
+          Schedule Date and Time
+        </h2>
+      </div>
 
       {/* ── CALENDAR ────────────────────────────────── */}
-      <div className="mb-6">
-        <label className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">
-          <CalendarDays className="w-3.5 h-3.5" /> Pick a Date
+      <div className="mb-8 relative z-10">
+        <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">
+          <CalendarDays className="w-4 h-4 text-indigo-500" /> Pick a Date
         </label>
 
-        <div className="border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+        <div className="border border-slate-200 rounded-3xl overflow-hidden shadow-sm bg-white">
 
           {/* Month header */}
-          <div className="flex items-center justify-between bg-[#0B1E40] px-5 py-3.5">
+          <div className="flex items-center justify-between bg-slate-50 border-b border-slate-200 px-6 py-4">
             <button
               onClick={goPrev}
               disabled={isPrevDisabled}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-white hover:bg-white/15 disabled:opacity-25 disabled:cursor-not-allowed transition-colors"
+              className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-600 bg-white shadow-sm border border-slate-200 hover:bg-slate-100 hover:text-indigo-600 disabled:opacity-30 disabled:shadow-none disabled:cursor-not-allowed transition-all"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <span className="text-white font-semibold text-sm tracking-wide">
+            <span className="text-slate-800 font-extrabold text-base tracking-wide">
               {MONTH_NAMES[curMonth]} {curYear}
             </span>
             <button
               onClick={goNext}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-white hover:bg-white/15 transition-colors"
+              className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-600 bg-white shadow-sm border border-slate-200 hover:bg-slate-100 hover:text-indigo-600 transition-all"
             >
               <ChevronRight className="w-5 h-5" />
             </button>
           </div>
 
           {/* Day-name headers */}
-          <div className="grid grid-cols-7 bg-slate-50 border-b border-gray-100">
+          <div className="grid grid-cols-7 bg-white pt-4 pb-2 px-2">
             {DAY_NAMES.map((d) => (
               <div
                 key={d}
-                className="text-center py-2 text-[11px] font-bold text-gray-400 uppercase tracking-wide"
+                className="text-center text-[11px] font-bold text-slate-400 uppercase tracking-widest"
               >
                 {d}
               </div>
@@ -128,10 +132,10 @@ export default function ScheduleForm() {
           </div>
 
           {/* Day cells */}
-          <div className="grid grid-cols-7 gap-px bg-gray-100 p-0">
+          <div className="grid grid-cols-7 gap-y-2 gap-x-1 bg-white px-2 pb-4">
             {cells.map((day, idx) => {
               if (!day) {
-                return <div key={`blank-${idx}`} className="bg-white h-10" />;
+                return <div key={`blank-${idx}`} className="h-10" />;
               }
 
               const past = isPast(day);
@@ -139,50 +143,40 @@ export default function ScheduleForm() {
               const tod  = isToday(day);
 
               return (
-                <button
-                  key={day}
-                  onClick={() => handleDayClick(day)}
-                  disabled={past}
-                  className={[
-                    'bg-white h-10 w-full flex flex-col items-center justify-center text-sm font-medium transition-all',
-                    sel
-                      ? 'bg-[#0B1E40] text-white font-bold z-10'
-                      : tod
-                      ? 'text-blue-700 font-bold'
-                      : past
-                      ? 'text-gray-300 cursor-not-allowed'
-                      : 'text-gray-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer',
-                  ].join(' ')}
-                  style={sel ? { backgroundColor: '#0B1E40', color: '#fff' } : {}}
-                >
-                  {day}
-                  {/* Today dot — blue ring + small dot when not selected */}
-                  {tod && !sel && (
-                    <span className="w-1 h-1 rounded-full bg-blue-500 mt-0.5 block" />
-                  )}
-                </button>
+                <div key={day} className="flex justify-center items-center h-10">
+                  <button
+                    onClick={() => handleDayClick(day)}
+                    disabled={past}
+                    className={[
+                      'h-10 w-10 flex flex-col items-center justify-center text-sm font-semibold rounded-full transition-all duration-300 relative',
+                      sel
+                        ? 'bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-md shadow-indigo-500/40 z-10 scale-110'
+                        : tod
+                        ? 'text-indigo-600 font-bold bg-indigo-50 hover:bg-indigo-100'
+                        : past
+                        ? 'text-slate-300 cursor-not-allowed'
+                        : 'text-slate-700 hover:bg-slate-100 cursor-pointer',
+                    ].join(' ')}
+                  >
+                    {day}
+                    {/* Today dot */}
+                    {tod && !sel && (
+                      <span className="w-1 h-1 rounded-full bg-indigo-600 absolute bottom-1.5" />
+                    )}
+                  </button>
+                </div>
               );
             })}
           </div>
 
           {/* Legend */}
-          <div className="flex items-center gap-4 px-4 py-2.5 bg-slate-50 border-t border-gray-100 text-[11px] text-gray-400">
-            <span className="flex items-center gap-1">
-              <span className="inline-flex items-center justify-center w-5 h-5 rounded text-blue-700 font-bold text-xs border-2 border-blue-400 bg-white">
-                {today.getDate()}
-              </span>
-              Today
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-[#0B1E40] text-white font-bold text-xs">
-                ✓
-              </span>
+          <div className="flex items-center gap-6 px-6 py-4 bg-slate-50 border-t border-slate-200 text-[11px] text-slate-500 font-medium">
+            <span className="flex items-center gap-2">
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
               Selected
             </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-flex items-center justify-center w-5 h-5 rounded text-gray-300 text-xs">
-                ✕
-              </span>
+            <span className="flex items-center gap-2">
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-slate-300"></span>
               Not available
             </span>
           </div>
@@ -190,27 +184,30 @@ export default function ScheduleForm() {
 
         {/* Selected date pill */}
         {readableDate && (
-          <div className="mt-3 flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5 text-sm text-blue-800 font-semibold">
-            <CalendarDays className="w-4 h-4 text-blue-500 flex-shrink-0" />
+          <div className="mt-4 flex items-center justify-center gap-2 bg-indigo-50/80 border border-indigo-100 rounded-2xl px-5 py-3 text-sm text-indigo-900 font-bold shadow-sm">
+            <CalendarDays className="w-5 h-5 text-indigo-500 flex-shrink-0" />
             {readableDate}
           </div>
         )}
       </div>
 
       {/* ── TIME SLOTS ──────────────────────────────── */}
-      <div>
-        <label className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">
-          <Clock className="w-3.5 h-3.5" /> Preferred Time Slot
+      <div className="relative z-10">
+        <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">
+          <Clock className="w-4 h-4 text-indigo-500" /> Preferred Time Slot
         </label>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {timeSlots.map((slot) => (
             <button
               key={slot}
-              onClick={() => updateBooking('timeSlot', slot)}
-              className={`py-2.5 px-3 text-sm rounded-xl border-2 transition-all ${
+              onClick={() => {
+                updateBooking('timeSlot', slot);
+                if (scrollToNextStep) scrollToNextStep('step-address-form');
+              }}
+              className={`py-4 px-4 text-sm rounded-2xl border-2 transition-all duration-300 transform hover:-translate-y-0.5 ${
                 bookingState.timeSlot === slot
-                  ? 'border-blue-700 bg-blue-50 text-blue-900 font-semibold shadow-sm'
-                  : 'border-gray-200 hover:border-blue-300 hover:bg-slate-50 text-gray-700'
+                  ? 'border-indigo-500 bg-indigo-50 text-indigo-900 font-extrabold shadow-md shadow-indigo-100 ring-2 ring-indigo-500/20'
+                  : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 hover:shadow-sm font-semibold'
               }`}
             >
               {slot}

@@ -92,7 +92,9 @@ const Footer = () => {
               you can trust.
             </p>
             <div className="flex flex-col gap-2">
-              <motion.div 
+
+              {/* this function when i add when the client send me the certifications that when they will arange it */}
+              {/* <motion.div 
                 whileHover={{ scale: 1.02 }}
                 className="flex items-center gap-2 border border-[#1a385b] bg-[#09223e] px-3 py-1.5 rounded-md text-xs font-medium w-fit shadow-sm cursor-default"
               >
@@ -105,7 +107,8 @@ const Footer = () => {
               >
                 <TbAward className="text-base text-[#a8c1de]" />
                 NABL Certified
-              </motion.div>
+              </motion.div> */}
+              
             </div>
              {/* Added Social Media Icons */}
           <div className="flex items-center gap-4 text-[#a8c1de] pt-4">
@@ -161,15 +164,24 @@ const Footer = () => {
                 { name: "About Us", path: "/about" },
                 { name: "Contact Us", path: "/contact" },
                 { name: "FAQ / Help Center", path: "/faq" },
-                { name: "Become a Vendor", path: "/become-a-vandor" },
-                // { name: "Blog", path: "/blog" },
+                { name: "Become a Vendor", path: "/become-a-vendor" },
+                { name: "Vendor Dashboard", path: "/vendor-dashboard", isBadge: true, badgeText: "Demo" },
               ].map((link) => (
                 <li key={link.name}>
                   <Link
                     to={link.path}
-                    className="text-[13px] inline-block transition-all duration-200 hover:translate-x-1 hover:text-white"
+                    className={`text-[13px] inline-flex items-center gap-1.5 transition-all duration-200 hover:translate-x-1 ${
+                      link.isBadge 
+                        ? 'text-orange-400 font-bold hover:text-orange-300' 
+                        : 'hover:text-white'
+                    }`}
                   >
-                    {link.name}
+                    <span>{link.name}</span>
+                    {link.isBadge && (
+                      <span className="text-[10px] font-extrabold bg-orange-500/20 text-orange-400 border border-orange-500/40 px-1.5 py-0.2 rounded uppercase">
+                        {link.badgeText || 'Demo'}
+                      </span>
+                    )}
                   </Link>
                 </li>
               ))}

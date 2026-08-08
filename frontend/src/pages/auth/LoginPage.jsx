@@ -58,7 +58,11 @@ const WelcomeModal = () => {
 
     if (res.success) {
       login(res.user, res.token);
-      navigate(from, { replace: true });
+      if (res.user?.role === 'admin') {
+        navigate('/admin-dashboard', { replace: true });
+      } else {
+        navigate(from, { replace: true });
+      }
     } else {
       setErrors({ password: res.message || 'Invalid email or password.' });
     }
@@ -72,7 +76,11 @@ const WelcomeModal = () => {
 
         if (response.success) {
           login(response.user, response.token);
-          navigate(from, { replace: true });
+          if (response.user?.role === 'admin') {
+            navigate('/admin-dashboard', { replace: true });
+          } else {
+            navigate(from, { replace: true });
+          }
         } else {
           setErrors({ password: response.message || 'Google login failed. Please try again.' });
         }

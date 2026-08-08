@@ -229,7 +229,7 @@ export default function VendorApplyPage() {
               <motion.button
                 whileHover={{ scale: 1.04, y: -2 }}
                 whileTap={{ scale: 0.97 }}
-                onClick={() => navigate('/become-a-vandor')}
+                onClick={() => navigate('/become-a-vendor')}
                 className="flex items-center justify-center gap-2 px-6 py-3 bg-[#0B1E40] text-white rounded-full font-semibold text-sm shadow-lg hover:bg-blue-900 transition-colors cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -515,7 +515,7 @@ export default function VendorApplyPage() {
                     type="button"
                     whileHover={{ scale: 1.03, x: -2 }}
                     whileTap={{ scale: 0.97 }}
-                    onClick={() => navigate('/become-a-vandor')}
+                    onClick={() => navigate('/become-a-vendor')}
                     className="flex items-center gap-2 px-6 py-3 border border-slate-200 text-slate-600 rounded-full font-semibold text-sm hover:bg-slate-100 transition-colors cursor-pointer"
                   >
                     <ArrowLeft className="w-4 h-4" />

@@ -3,13 +3,14 @@ import { useBooking } from './BookingContext';
 import { UploadCloud, X, CheckCircle2 } from 'lucide-react';
 
 export default function ApplianceImageUploader() {
-  const { bookingState, updateBooking } = useBooking();
+  const { bookingState, updateBooking, scrollToNextStep } = useBooking();
   const fileInputRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
 
   const handleFileChange = (file) => {
     if (!file || !file.type.startsWith('image/')) return;
     updateBooking('imageFile', file);
+    if (scrollToNextStep) scrollToNextStep('step-payment-method');
   };
 
   const removeFile = () => {

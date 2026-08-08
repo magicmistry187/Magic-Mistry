@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import LoginRequiredModal from '../auth/LoginRequiredModal';
+import ApplianceIcon from '../common/ApplianceIcon';
 
 export default function ServiceCategories() {
   const navigate = useNavigate();
@@ -10,22 +11,15 @@ export default function ServiceCategories() {
   const [showLoginModal, setShowLoginModal] = useState(false);
 
   const categories = [
-    { id: 1, name: 'AC Repair', icon: '❄️' },
-    { id: 2, name: 'Refrigerator', icon: '🧊' },
-    { id: 3, name: 'Washing Machine', icon: '🧺' },
-    { id: 4, name: 'Microwave', icon: '♨️' },
-    { id: 5, name: 'Mixer Grinder', icon: '🥛' },
-    { id: 6, name: 'Pump Motor', icon: '💧' },
-    { id: 7, name: 'Air Cooler', icon: '💨' },
-    { id: 8, name: 'Induction Cooktop', icon: '🍳' },
-    { id: 9, name: 'Stabilizer', icon: '🔌' },
-    { id: 10, name: 'Press Iron', icon: '👔' },
-    { id: 11, name: 'TV', icon: '📺' },
-    { id: 12, name: 'Ceiling Fan', icon: '🌀' },
-    { id: 13, name: 'Geyser', icon: '🚿' },
-    { id: 14, name: 'Stand Fan', icon: '🌬️' },
-    { id: 15, name: 'Table / Wall Fan', icon: '🎐' },
-    { id: 16, name: 'Wiring / Switch Board', icon: '⚡' },
+    { id: 1, name: 'AC Repair' },
+    { id: 2, name: 'Refrigerator' },
+    { id: 3, name: 'Washing Machine' },
+    { id: 4, name: 'Microwave' },
+    { id: 5, name: 'Mixer Grinder' },
+    { id: 6, name: 'Pump Motor' },
+    { id: 7, name: 'Air Cooler' },
+    { id: 8, name: 'Induction Cooktop' },
+    { id: 9, name: 'Stabilizer' },
   ];
 
   // Check login before making booking
@@ -43,51 +37,44 @@ export default function ServiceCategories() {
     });
   };
 
-  const displayedCategories = categories.slice(0, 9);
-
   return (
     <section id="services" className="max-w-6xl mx-auto px-4 py-8">
       <div className="text-center mb-8">
         <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0B1E40]">
           Our Electronics Repair Services
         </h2>
-        <p className="text-slate-600 mt-2 text-sm max-w-xl mx-auto">
+        <p className="text-slate-600 mt-2 text-sm max-w-xl mx-auto font-medium">
           Select your appliance below to get instant transparent pricing and book a verified technician.
         </p>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-        {displayedCategories.map((item) => (
+        {categories.map((item) => (
           <div
             key={item.id}
             onClick={() => handleServiceClick(item)}
-            className="group bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-blue-500 transition-all duration-300 flex flex-col items-center justify-center text-center cursor-pointer transform hover:-translate-y-1"
+            className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:border-slate-300"
           >
-            <div className="text-4xl mb-3 transform group-hover:scale-110 transition-transform duration-300">
-              {item.icon}
+            <div className="mb-3 flex items-center justify-center w-12 h-12">
+              <ApplianceIcon id={item.id} name={item.name} className="w-12 h-12" />
             </div>
-            <h3 className="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
+            <h3 className="text-xs sm:text-sm font-extrabold text-slate-800 leading-tight">
               {item.name}
             </h3>
-            <span className="mt-2 text-[11px] font-semibold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full group-hover:bg-blue-600 group-hover:text-white transition-colors">
-              Book Repair &rarr;
-            </span>
           </div>
         ))}
-          <div
-            onClick={() => navigate('/booking')}
-            className="group bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-blue-500 transition-all duration-300 flex flex-col items-center justify-center text-center cursor-pointer transform hover:-translate-y-1"
-          >
-            <div className="text-4xl mb-3 transform group-hover:scale-110 transition-transform duration-300">
-              ➕
-            </div>
-            <h3 className="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
-              View More
-            </h3>
-            <span className="mt-2 text-[11px] font-semibold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full group-hover:bg-blue-600 group-hover:text-white transition-colors">
-              All Services &rarr;
-            </span>
+
+        <div
+          onClick={() => navigate('/booking')}
+          className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:border-slate-300"
+        >
+          <div className="mb-3 flex items-center justify-center w-12 h-12">
+            <ApplianceIcon name="generic" className="w-12 h-12" />
           </div>
+          <h3 className="text-xs sm:text-sm font-extrabold text-slate-800 leading-tight">
+            View More Services
+          </h3>
+        </div>
       </div>
 
       <LoginRequiredModal

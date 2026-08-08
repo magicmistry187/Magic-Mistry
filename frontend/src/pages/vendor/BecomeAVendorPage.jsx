@@ -182,10 +182,11 @@ export default function BecomeAVendorPage() {
                     <ArrowRight className="w-5 h-5" />
                   </button>
                   <button
-                    onClick={() => document.getElementById('path-to-success')?.scrollIntoView({ behavior: 'smooth' })}
-                    className="flex items-center gap-2 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-[#0B1E40] px-8 py-4 rounded-full font-semibold transition-all cursor-pointer"
+                    onClick={() => navigate('/vendor-dashboard')}
+                    className="flex items-center gap-2 bg-orange-50 border border-orange-200 hover:bg-orange-100 text-orange-700 px-7 py-4 rounded-full font-bold transition-all shadow-sm hover:shadow cursor-pointer"
                   >
-                    Watch Success Stories
+                    Vendor Dashboard
+                    <ArrowRight className="w-4 h-4 text-orange-600" />
                   </button>
                 </motion.div>
 

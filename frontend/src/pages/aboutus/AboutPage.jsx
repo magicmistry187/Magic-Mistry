@@ -1,6 +1,27 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Wrench, Award, Eye, Sparkles, Shield, Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { 
+  Wrench, 
+  Award, 
+  Eye, 
+  Sparkles, 
+  ShieldCheck, 
+  Clock, 
+  Users, 
+  Target, 
+  CheckCircle2, 
+  ArrowRight, 
+  Zap, 
+  Compass, 
+  Star,
+  Settings,
+  Shield,
+  Building2,
+  Cpu,
+  History,
+  HeartHandshake
+} from 'lucide-react';
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
 
@@ -26,13 +47,15 @@ const AnimatedImage = ({ src, alt, containerClassName = "", imgClassName = "" })
 };
 
 export default function AboutPage() {
-  // Framer Motion Animation Variants (Optimized for smooth framerate without CSS conflict)
+  const navigate = useNavigate();
+
+  // Framer Motion Animation Variants
   const fadeUp = {
     hidden: { opacity: 0, y: 30 },
     visible: { 
       opacity: 1, 
       y: 0, 
-      transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } 
+      transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] } 
     }
   };
 
@@ -41,7 +64,7 @@ export default function AboutPage() {
     visible: { 
       opacity: 1, 
       x: 0, 
-      transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } 
+      transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] } 
     }
   };
 
@@ -50,7 +73,7 @@ export default function AboutPage() {
     visible: { 
       opacity: 1, 
       x: 0, 
-      transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } 
+      transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] } 
     }
   };
 
@@ -59,151 +82,217 @@ export default function AboutPage() {
     visible: {
       opacity: 1,
       transition: {
-        staggerChildren: 0.18,
+        staggerChildren: 0.12,
         delayChildren: 0.1
       }
     }
   };
 
-  const cardHover = {
-    rest: { y: 0, scale: 1 },
-    hover: { 
-      y: -8, 
-      scale: 1.015,
-      transition: { type: "spring", stiffness: 350, damping: 22 } 
+  const companyMilestones = [
+    {
+      year: '2021',
+      title: 'Company Foundation',
+      description: 'Magic Mistry was incorporated in Kolkata to eliminate chaotic home repair services, unverified mechanics, and hidden fees.'
+    },
+    {
+      year: '2022',
+      title: 'Statewide Network Expansion',
+      description: 'Expanded across West Bengal (Kolkata, Howrah, Hooghly, Durgapur, Siliguri, Asansol) with 100% background-checked technicians.'
+    },
+    {
+      year: '2023',
+      title: '50,000+ Completed Repairs',
+      description: 'Reached a landmark milestone of 50,000 successful doorstep appliance repairs with our signature 30-day service warranty.'
+    },
+    {
+      year: '2024',
+      title: 'ISO 9001:2015 & NABL Standards',
+      description: 'Standardized PCB circuit board diagnostics and quality control processes under certified lab frameworks.'
     }
-  };
+  ];
+
+  const companyPillars = [
+    {
+      icon: Cpu,
+      title: 'Technical Precision & Training',
+      desc: 'Our engineers undergo rigorous diagnostic training on inverter PCB logic, split AC compressors, and modern motor microcontrollers.'
+    },
+    {
+      icon: ShieldCheck,
+      title: 'Rigorous Police & Background Vetting',
+      desc: 'Every field mechanic is police-verified, background-checked, and certified before visiting customer homes.'
+    },
+    {
+      icon: HeartHandshake,
+      title: 'Unwavering Customer-First Ethics',
+      desc: 'We operate on a strict 100% Pay-After-Service policy — customers only pay after testing and verifying the working appliance.'
+    }
+  ];
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 font-sans relative overflow-x-hidden">
-      {/* Ambient Background Glowing Blobs for Premium Aesthetics */}
-      <div className="absolute top-1/4 left-5 w-[420px] h-[420px] bg-blue-100/40 rounded-full mix-blend-multiply filter blur-3xl pointer-events-none -z-0 animate-pulse" />
-      <div className="absolute top-2/3 right-5 w-[420px] h-[420px] bg-orange-100/40 rounded-full mix-blend-multiply filter blur-3xl pointer-events-none -z-0 animate-pulse" style={{ animationDelay: '2s' }} />
+      {/* Background Decorative Ambient Blobs */}
+      <div className="absolute top-1/4 left-5 w-[500px] h-[500px] bg-blue-100/50 rounded-full mix-blend-multiply filter blur-3xl pointer-events-none -z-0" />
+      <div className="absolute top-2/3 right-5 w-[500px] h-[500px] bg-orange-100/50 rounded-full mix-blend-multiply filter blur-3xl pointer-events-none -z-0" />
 
       <Navbar />
 
       <main className="flex-1 z-10">
-        {/* 1. HERO SECTION */}
-        <section className="relative w-full overflow-hidden bg-[#0B1E40]">
-          {/* Background Laboratory Technicians Image */}
+        
+        {/* 1. HERO HEADER SECTION */}
+        <section className="relative w-full overflow-hidden bg-[#0B1E40] text-white">
           <div className="absolute inset-0 z-0">
             <img 
               src="https://images.unsplash.com/photo-1581092160607-ee22621dd758?q=80&w=2070&auto=format&fit=crop" 
-              alt="Expert Technicians Working in Electronics Laboratory" 
-              className="w-full h-full object-cover object-center scale-105 opacity-35 mix-blend-overlay md:opacity-45"
+              alt="Magic Mistry Engineering Laboratory" 
+              className="w-full h-full object-cover object-center opacity-30 mix-blend-overlay"
             />
-            {/* Deep Navy Gradients for Legibility & Brand Consistency */}
-            <div className="absolute inset-0 bg-gradient-to-r from-[#0B1E40] via-[#0B1E40]/90 to-[#0B1E40]/50 z-10" />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0B1E40] via-transparent to-transparent opacity-50 z-10" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#0B1E40] via-[#0B1E40]/95 to-[#0B1E40]/70 z-10" />
           </div>
 
-          <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 sm:py-32 lg:py-36">
+          <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 sm:py-28 lg:py-32">
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
               className="max-w-3xl"
             >
-              <motion.div 
-                whileHover={{ scale: 1.05 }}
-                className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-extrabold text-xs sm:text-sm uppercase tracking-wider px-4 py-1.5 rounded-full shadow-lg shadow-orange-600/30 mb-6 border border-orange-400/40 cursor-default"
-              >
-                <Sparkles className="w-4 h-4 text-orange-200 fill-orange-200 animate-spin" style={{ animationDuration: '6s' }} />
-                <span>Expert Technical Support</span>
-              </motion.div>
+              <div className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-extrabold text-xs sm:text-sm uppercase tracking-wider px-4 py-1.5 rounded-full shadow-lg shadow-orange-500/20 mb-6 border border-orange-400/40">
+                <Building2 className="w-4 h-4 text-orange-100" />
+                <span>Company Overview &amp; Story</span>
+              </div>
 
-              <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-white tracking-tight leading-[1.1] mb-6 drop-shadow-sm">
-                The Experts Behind Your Peace of Mind
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.12] mb-6">
+                About Magic Mistry
               </h1>
-              <p className="text-slate-300 text-lg sm:text-xl font-normal leading-relaxed max-w-2xl">
-                We don't just fix electronics; we restore the pulse of your home and business through meticulous technical precision.
+              
+              <p className="text-slate-300 text-lg sm:text-xl font-normal leading-relaxed max-w-2xl mb-8">
+                Magic Mistry is West Bengal's leading tech-enabled home electronics service organization. Founded on technical precision, absolute pricing transparency, and verified doorstep service, we redefine home appliance care.
               </p>
+
+              {/* Quick Trust Badges */}
+              <div className="flex flex-wrap gap-3 pt-2">
+                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-2 rounded-xl border border-white/15 text-xs font-bold text-slate-200">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>ISO 9001:2015 Certified</span>
+                </div>
+                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-2 rounded-xl border border-white/15 text-xs font-bold text-slate-200">
+                  <Award className="w-4 h-4 text-amber-400" />
+                  <span>NABL Quality Standards</span>
+                </div>
+                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-2 rounded-xl border border-white/15 text-xs font-bold text-slate-200">
+                  <CheckCircle2 className="w-4 h-4 text-cyan-400" />
+                  <span>50,000+ Completed Services</span>
+                </div>
+              </div>
             </motion.div>
           </div>
         </section>
 
-        {/* 2. OUR MISSION SECTION */}
+        {/* 2. STATS & COMPANY METRICS BAR */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-10 relative z-30">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200/80 grid grid-cols-2 md:grid-cols-4 gap-6 text-center"
+          >
+            <div className="p-3">
+              <span className="text-3xl sm:text-4xl font-black text-[#0B1E40] block tracking-tight">50,000+</span>
+              <span className="text-xs sm:text-sm text-slate-500 font-bold mt-1 block">Satisfied Households</span>
+            </div>
+            <div className="p-3 border-l border-slate-100">
+              <span className="text-3xl sm:text-4xl font-black text-orange-600 block tracking-tight">98%</span>
+              <span className="text-xs sm:text-sm text-slate-500 font-bold mt-1 block">First-Visit Resolution</span>
+            </div>
+            <div className="p-3 border-l border-slate-100">
+              <span className="text-3xl sm:text-4xl font-black text-[#0B1E40] block tracking-tight">4.9 ★</span>
+              <span className="text-xs sm:text-sm text-slate-500 font-bold mt-1 block">Customer Rating</span>
+            </div>
+            <div className="p-3 border-l border-slate-100">
+              <span className="text-3xl sm:text-4xl font-black text-emerald-600 block tracking-tight">100%</span>
+              <span className="text-xs sm:text-sm text-slate-500 font-bold mt-1 block">Police-Verified Team</span>
+            </div>
+          </motion.div>
+        </section>
+
+        {/* 3. WHO WE ARE & OUR COMPANY STORY */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24 relative z-10">
           <motion.div 
             variants={staggerContainer}
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, amount: 0.2 }}
-            className="grid lg:grid-cols-12 gap-10 lg:gap-16 items-center"
+            className="grid lg:grid-cols-12 gap-10 lg:gap-14 items-center"
           >
-            {/* Mission Text */}
-            <motion.div variants={fadeLeft} className="lg:col-span-7">
-              <h2 className="text-3xl sm:text-4xl font-extrabold text-[#0B1E40] mb-6 tracking-tight">
-                Our Mission
+            <motion.div variants={fadeLeft} className="lg:col-span-6 space-y-6">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-extrabold uppercase tracking-wide">
+                <Building2 className="w-3.5 h-3.5" />
+                <span>Our Corporate Background</span>
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-black text-[#0B1E40] tracking-tight leading-tight">
+                Engineering Excellence &amp; Honest Servicing
               </h2>
-              <p className="text-slate-600 text-lg sm:text-xl leading-relaxed font-normal">
-                At Magic Mistry, our mission is to eliminate the stress of appliance and electronics failure. We are dedicated to providing reliable, fast, and transparent repair services that prioritize the user's journey. By combining technical mastery with an unwavering commitment to honesty, we ensure every customer feels supported from first contact to final resolution.
+              <p className="text-slate-600 text-base sm:text-lg leading-relaxed">
+                Founded in Kolkata, <strong>Magic Mistry</strong> was established to transform the unorganized home electronics repair sector into a professional, transparent, and technology-driven service industry.
               </p>
+              <p className="text-slate-600 text-base sm:text-lg leading-relaxed">
+                Prior to Magic Mistry, homeowners faced chronic issues: unpredictable visiting charges, unverified technicians entering their homes, and low-quality imitation spare parts. We engineered a platform that guarantees fixed package pricing, verified field mechanics, and genuine OEM component replacements.
+              </p>
+              <div className="pt-2 flex flex-col gap-2.5">
+                <div className="flex items-center gap-2.5 text-sm font-bold text-[#0B1E40]">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <span>ISO 9001:2015 Certified Operations Framework</span>
+                </div>
+                <div className="flex items-center gap-2.5 text-sm font-bold text-[#0B1E40]">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <span>Transparent Upfront Quotes Prior to Repair Work</span>
+                </div>
+                <div className="flex items-center gap-2.5 text-sm font-bold text-[#0B1E40]">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <span>Comprehensive 30-Day Free Re-Inspection &amp; Warranty</span>
+                </div>
+              </div>
             </motion.div>
 
-            {/* Metric Cards */}
-            <div className="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {/* Metric 1: Navy */}
-              <motion.div 
-                variants={fadeRight}
-                initial="rest"
-                whileHover="hover"
-                animate="rest"
-                className="bg-[#0F2650] text-white rounded-3xl p-8 shadow-xl shadow-slate-300/60 border border-blue-900/40 flex flex-col justify-center relative overflow-hidden group cursor-default"
-              >
-                <motion.div variants={cardHover} className="flex flex-col z-10">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-5xl sm:text-6xl font-black text-white font-mono tracking-tight">
-                      98%
-                    </span>
-                    <Shield className="w-9 h-9 text-blue-400/30 group-hover:text-blue-400/60 transition-colors duration-300" />
-                  </div>
-                  <span className="text-slate-300 font-semibold text-base sm:text-lg">
-                    Resolution Rate
-                  </span>
-                </motion.div>
-                <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 rounded-full bg-blue-500/10 blur-2xl group-hover:bg-blue-400/25 transition-colors duration-500 pointer-events-none" />
-              </motion.div>
-
-              {/* Metric 2: Orange */}
-              <motion.div 
-                variants={fadeRight}
-                initial="rest"
-                whileHover="hover"
-                animate="rest"
-                className="bg-gradient-to-br from-[#FF7200] to-[#E55A00] text-white rounded-3xl p-8 shadow-xl shadow-orange-500/25 border border-orange-400/30 flex flex-col justify-center relative overflow-hidden group cursor-default"
-              >
-                <motion.div variants={cardHover} className="flex flex-col z-10">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-5xl sm:text-6xl font-black text-white font-mono tracking-tight">
-                      2hr
-                    </span>
-                    <Clock className="w-9 h-9 text-orange-200/40 group-hover:text-white/70 transition-colors duration-300" />
-                  </div>
-                  <span className="text-orange-100 font-semibold text-base sm:text-lg">
-                    Avg. Response
-                  </span>
-                </motion.div>
-                <div className="absolute bottom-0 right-0 -mr-8 -mb-8 w-32 h-32 rounded-full bg-white/15 blur-2xl group-hover:bg-white/25 transition-colors duration-500 pointer-events-none" />
-              </motion.div>
-            </div>
+            {/* Right Company Image Box */}
+            <motion.div 
+              variants={fadeRight}
+              className="lg:col-span-6 rounded-3xl overflow-hidden shadow-2xl border border-slate-200 relative min-h-[400px]"
+            >
+              <AnimatedImage
+                src="https://images.unsplash.com/photo-1581092580497-e0d23cbdf1dc?q=80&w=2070&auto=format&fit=crop"
+                alt="Magic Mistry Engineering Workshop"
+                containerClassName="w-full h-full"
+                imgClassName="transform hover:scale-105 transition-transform duration-700"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0B1E40]/80 via-transparent to-transparent" />
+              <div className="absolute bottom-6 left-6 right-6 text-white">
+                <span className="text-xs font-extrabold bg-orange-500 text-white px-3 py-1 rounded-full uppercase tracking-wider mb-2 inline-block">
+                  Established 2021
+                </span>
+                <h4 className="text-lg font-bold">Kolkata Engineering Center &amp; Quality Lab</h4>
+              </div>
+            </motion.div>
           </motion.div>
         </section>
 
-        {/* 3. OUR STORY SECTION */}
+        {/* 4. COMPANY PILLARS & WORK ETHICS */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-20 relative z-10">
           <motion.div 
             initial="hidden"
             whileInView="visible"
-            viewport={{ once: true, amount: 0.2 }}
+            viewport={{ once: true }}
             variants={fadeUp}
-            className="text-center mb-12 sm:mb-16"
+            className="text-center mb-14"
           >
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#0B1E40] tracking-tight mb-3">
-              Our Story
+            <span className="text-xs font-black uppercase tracking-widest text-orange-600 mb-2 block">Why We Succeed</span>
+            <h2 className="text-3xl sm:text-4xl font-black text-[#0B1E40] tracking-tight">
+              Our Core Company Pillars
             </h2>
-            <p className="text-slate-500 text-base sm:text-lg max-w-xl mx-auto font-medium">
-              Built on a foundation of solving real-world frustrations.
+            <p className="text-slate-500 text-sm sm:text-base max-w-xl mx-auto font-medium mt-2">
+              The operational principles that guide our technicians and customer care team every single day.
             </p>
           </motion.div>
 
@@ -211,60 +300,44 @@ export default function AboutPage() {
             variants={staggerContainer}
             initial="hidden"
             whileInView="visible"
-            viewport={{ once: true, amount: 0.15 }}
-            className="grid lg:grid-cols-12 gap-8 lg:gap-10 items-stretch"
+            viewport={{ once: true }}
+            className="grid grid-cols-1 md:grid-cols-3 gap-8"
           >
-            {/* Left Story Card */}
-            <motion.div 
-              variants={fadeLeft} 
-              className="lg:col-span-7 bg-white rounded-3xl p-8 sm:p-12 lg:p-14 border border-slate-100 shadow-xl shadow-slate-200/50 flex flex-col justify-center relative overflow-hidden group hover:border-slate-200 hover:shadow-2xl transition-shadow duration-300"
-            >
-              <div className="absolute top-0 left-0 w-2 sm:w-2.5 h-full bg-gradient-to-b from-[#0B1E40] via-blue-800 to-orange-500 rounded-l-3xl" />
-              <h3 className="text-2xl sm:text-3xl font-extrabold text-[#0B1E40] mb-6 tracking-tight">
-                Born from Necessity
-              </h3>
-              <p className="text-slate-600 text-base sm:text-lg leading-relaxed mb-6">
-                Magic Mistry started when our founders experienced the chaotic reality of modern repair services—long wait times, hidden costs, and unprofessional results. They realized that homeowners didn't just need a fix; they needed a partner they could trust.
-              </p>
-              <p className="text-slate-600 text-base sm:text-lg leading-relaxed">
-                What began as a small local workshop has grown into a tech-enabled service powerhouse, driven by a proprietary tracking system that ensures you're never in the dark about your repair status.
-              </p>
-            </motion.div>
-
-            {/* Right Vintage Photo Card */}
-            <motion.div 
-              variants={fadeRight} 
-              className="lg:col-span-5 rounded-3xl overflow-hidden border border-slate-200/80 shadow-xl shadow-slate-200/60 relative group min-h-[350px] sm:min-h-[440px] bg-slate-200"
-            >
-              <div className="absolute inset-0 z-10 bg-gradient-to-t from-[#0B1E40]/70 via-transparent to-transparent opacity-70 group-hover:opacity-25 transition-opacity duration-500 pointer-events-none" />
-              
-              <AnimatedImage
-                src="https://images.unsplash.com/photo-1581092580497-e0d23cbdf1dc?q=80&w=2070&auto=format&fit=crop"
-                alt="Vintage Electronics Workshop and Craftsman"
-                containerClassName="w-full h-full"
-                imgClassName="filter grayscale-[35%] sepia-[15%] contrast-110 group-hover:scale-105 group-hover:grayscale-0 group-hover:sepia-0 transition-all duration-700 ease-out"
-              />
-
-              <div className="absolute bottom-6 left-6 right-6 z-20 transform translate-y-2 opacity-90 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 pointer-events-none">
-                <span className="inline-block px-4 py-1.5 bg-white/95 backdrop-blur-md text-[#0B1E40] font-bold text-xs rounded-xl shadow-lg uppercase tracking-wider border border-white/50">
-                  Authentic Craftsmanship
-                </span>
-              </div>
-            </motion.div>
+            {companyPillars.map((item, idx) => {
+              const IconComp = item.icon;
+              return (
+                <motion.div
+                  key={idx}
+                  variants={fadeUp}
+                  whileHover={{ y: -6 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+                  className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-lg hover:shadow-2xl transition-all duration-300 flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-6 shadow-sm">
+                      <IconComp className="w-7 h-7" />
+                    </div>
+                    <h3 className="font-extrabold text-xl text-[#0B1E40] mb-3">{item.title}</h3>
+                    <p className="text-sm text-slate-600 leading-relaxed">{item.desc}</p>
+                  </div>
+                </motion.div>
+              );
+            })}
           </motion.div>
         </section>
 
-        {/* 4. CORE VALUES SECTION */}
+        {/* 5. COMPANY HISTORY & MILESTONES */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24 relative z-10">
           <motion.div 
             initial="hidden"
             whileInView="visible"
-            viewport={{ once: true, amount: 0.2 }}
+            viewport={{ once: true }}
             variants={fadeUp}
-            className="text-center mb-16"
+            className="text-center mb-14"
           >
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#0B1E40] tracking-tight">
-              Core Values
+            <span className="text-xs font-black uppercase tracking-widest text-blue-600 mb-2 block">Our Track Record</span>
+            <h2 className="text-3xl sm:text-4xl font-black text-[#0B1E40] tracking-tight">
+              Company History &amp; Growth Milestones
             </h2>
           </motion.div>
 
@@ -272,174 +345,126 @@ export default function AboutPage() {
             variants={staggerContainer}
             initial="hidden"
             whileInView="visible"
-            viewport={{ once: true, amount: 0.15 }}
-            className="grid md:grid-cols-3 gap-8 sm:gap-10 max-w-6xl mx-auto"
+            viewport={{ once: true }}
+            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto"
           >
-            {/* Expertise */}
-            <motion.div 
-              variants={fadeUp}
-              whileHover={{ y: -10 }}
-              transition={{ type: "spring", stiffness: 350, damping: 25 }}
-              className="bg-white rounded-3xl p-8 sm:p-10 border border-slate-100 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:border-blue-200 transition-colors transition-shadow duration-300 text-center group flex flex-col items-center relative overflow-hidden"
-            >
-              <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-inner group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300">
-                <Wrench className="w-9 h-9 transform group-hover:rotate-12 transition-transform duration-300" />
-              </div>
-              <h3 className="font-extrabold text-xl sm:text-2xl text-[#0B1E40] mb-3">
-                Expertise
-              </h3>
-              <p className="text-slate-500 text-sm sm:text-base leading-relaxed">
-                Our technicians undergo continuous certification to stay ahead of the latest technological advancements.
-              </p>
-            </motion.div>
-
-            {/* Reliability */}
-            <motion.div 
-              variants={fadeUp}
-              whileHover={{ y: -10 }}
-              transition={{ type: "spring", stiffness: 350, damping: 25 }}
-              className="bg-white rounded-3xl p-8 sm:p-10 border border-slate-100 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:border-orange-200 transition-colors transition-shadow duration-300 text-center group flex flex-col items-center relative overflow-hidden"
-            >
-              <div className="w-20 h-20 bg-orange-50 text-orange-600 rounded-2xl flex items-center justify-center mb-6 shadow-inner group-hover:bg-orange-600 group-hover:text-white transition-colors duration-300">
-                <Award className="w-9 h-9 transform group-hover:scale-110 transition-transform duration-300" />
-              </div>
-              <h3 className="font-extrabold text-xl sm:text-2xl text-[#0B1E40] mb-3">
-                Reliability
-              </h3>
-              <p className="text-slate-500 text-sm sm:text-base leading-relaxed">
-                When we set a timeline, we stick to it. Your time is as valuable as the devices we service.
-              </p>
-            </motion.div>
-
-            {/* Transparency */}
-            <motion.div 
-              variants={fadeUp}
-              whileHover={{ y: -10 }}
-              transition={{ type: "spring", stiffness: 350, damping: 25 }}
-              className="bg-white rounded-3xl p-8 sm:p-10 border border-slate-100 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:border-slate-300 transition-colors transition-shadow duration-300 text-center group flex flex-col items-center relative overflow-hidden"
-            >
-              <div className="w-20 h-20 bg-slate-100 text-[#0B1E40] rounded-2xl flex items-center justify-center mb-6 shadow-inner group-hover:bg-[#0B1E40] group-hover:text-white transition-colors duration-300">
-                <Eye className="w-9 h-9 transform group-hover:scale-110 transition-transform duration-300" />
-              </div>
-              <h3 className="font-extrabold text-xl sm:text-2xl text-[#0B1E40] mb-3">
-                Transparency
-              </h3>
-              <p className="text-slate-500 text-sm sm:text-base leading-relaxed">
-                Clear pricing, live tracking, and honest diagnostics. No hidden fees, ever.
-              </p>
-            </motion.div>
+            {companyMilestones.map((evt, idx) => (
+              <motion.div 
+                key={idx} 
+                variants={fadeUp}
+                className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between"
+              >
+                <div>
+                  <div className="w-12 h-12 rounded-2xl bg-[#0B1E40] text-white font-black text-sm flex items-center justify-center mb-4 shadow-md">
+                    {evt.year}
+                  </div>
+                  <h3 className="text-base font-extrabold text-[#0B1E40] mb-2">{evt.title}</h3>
+                  <p className="text-xs text-slate-600 leading-relaxed">{evt.description}</p>
+                </div>
+              </motion.div>
+            ))}
           </motion.div>
         </section>
 
-        {/* 5. LEADERSHIP TEAM SECTION */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 pb-28 relative z-10">
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.2 }}
-            variants={fadeUp}
-            className="text-center mb-16"
-          >
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#0B1E40] tracking-tight">
-              Leadership Team
-            </h2>
-          </motion.div>
-
+        {/* 6. MISSION & VISION SECTION */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24 relative z-10">
           <motion.div 
             variants={staggerContainer}
             initial="hidden"
             whileInView="visible"
-            viewport={{ once: true, amount: 0.15 }}
-            className="grid md:grid-cols-3 gap-8 sm:gap-10 max-w-6xl mx-auto"
+            viewport={{ once: true }}
+            className="grid lg:grid-cols-2 gap-8 items-stretch"
           >
-            {/* Robert Chen */}
+            {/* Mission Card */}
             <motion.div 
-              variants={fadeUp}
-              whileHover={{ y: -10 }}
-              transition={{ type: "spring", stiffness: 350, damping: 25 }}
-              className="bg-white rounded-3xl p-8 sm:p-10 border border-slate-100 shadow-xl shadow-slate-200/50 hover:shadow-2xl transition-shadow duration-300 text-center flex flex-col items-center group relative overflow-hidden"
+              variants={fadeLeft}
+              whileHover={{ y: -6 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+              className="bg-white rounded-3xl p-8 sm:p-12 border border-slate-200/80 shadow-xl relative overflow-hidden flex flex-col justify-between"
             >
-              <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-transparent via-[#0B1E40] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              
-              <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full overflow-hidden border-4 border-slate-100 shadow-lg group-hover:border-orange-500/40 group-hover:shadow-orange-500/20 transition-colors transition-shadow duration-300 mb-6 relative">
-                <AnimatedImage 
-                  src="https://images.unsplash.com/photo-1560250097-0b93528c311a?q=80&w=650&auto=format&fit=crop" 
-                  alt="Robert Chen" 
-                  containerClassName="w-full h-full"
-                  imgClassName="group-hover:scale-110 transition-transform duration-500"
-                />
+              <div className="absolute top-0 left-0 w-2 h-full bg-blue-600 rounded-l-3xl" />
+              <div>
+                <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-6 shadow-sm">
+                  <Target className="w-7 h-7" />
+                </div>
+                <span className="text-xs font-black uppercase tracking-widest text-blue-600 mb-2 block">Our Mission</span>
+                <h2 className="text-2xl sm:text-3xl font-black text-[#0B1E40] mb-4">
+                  Eliminating Home Repair Anxiety
+                </h2>
+                <p className="text-slate-600 text-base sm:text-lg leading-relaxed">
+                  Our mission is to eliminate home repair hassles across West Bengal. By combining skilled technicians, transparent fixed pricing, and live service status tracking, we ensure every customer gets their appliances working like new without any stress.
+                </p>
               </div>
 
-              <h3 className="font-extrabold text-2xl text-[#0B1E40]">
-                Robert Chen
-              </h3>
-              <span className="text-xs sm:text-sm font-bold text-orange-600 mt-1 mb-4 block uppercase tracking-widest">
-                Chief Executive Officer
-              </span>
-              <p className="text-slate-500 text-sm sm:text-base leading-relaxed">
-                A visionary leader with 20 years in tech operations.
-              </p>
+              <div className="mt-8 pt-4 border-t border-slate-100 flex items-center gap-2 text-xs font-extrabold text-blue-700">
+                <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                <span>Zero Hidden Fees Guaranteed</span>
+              </div>
             </motion.div>
 
-            {/* Sarah Miller */}
+            {/* Vision Card */}
             <motion.div 
-              variants={fadeUp}
-              whileHover={{ y: -10 }}
-              transition={{ type: "spring", stiffness: 350, damping: 25 }}
-              className="bg-white rounded-3xl p-8 sm:p-10 border border-slate-100 shadow-xl shadow-slate-200/50 hover:shadow-2xl transition-shadow duration-300 text-center flex flex-col items-center group relative overflow-hidden"
+              variants={fadeRight}
+              whileHover={{ y: -6 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+              className="bg-[#0B1E40] text-white rounded-3xl p-8 sm:p-12 border border-slate-800 shadow-xl relative overflow-hidden flex flex-col justify-between"
             >
-              <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-transparent via-orange-500 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              
-              <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full overflow-hidden border-4 border-slate-100 shadow-lg group-hover:border-orange-500/40 group-hover:shadow-orange-500/20 transition-colors transition-shadow duration-300 mb-6 relative">
-                <AnimatedImage 
-                  src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=650&auto=format&fit=crop" 
-                  alt="Sarah Miller" 
-                  containerClassName="w-full h-full"
-                  imgClassName="group-hover:scale-110 transition-transform duration-500"
-                />
+              <div className="absolute top-0 left-0 w-2 h-full bg-orange-500 rounded-l-3xl" />
+              <div>
+                <div className="w-14 h-14 rounded-2xl bg-orange-500/20 text-orange-400 flex items-center justify-center mb-6 shadow-sm">
+                  <Compass className="w-7 h-7" />
+                </div>
+                <span className="text-xs font-black uppercase tracking-widest text-orange-400 mb-2 block">Our Vision</span>
+                <h2 className="text-2xl sm:text-3xl font-black text-white mb-4">
+                  Eastern India's Most Trusted Service Network
+                </h2>
+                <p className="text-slate-300 text-base sm:text-lg leading-relaxed">
+                  To become the household name for doorstep electronics servicing by combining ISO 9001:2015 quality standards with fast 60-minute express service availability in every neighborhood.
+                </p>
               </div>
 
-              <h3 className="font-extrabold text-2xl text-[#0B1E40]">
-                Sarah Miller
-              </h3>
-              <span className="text-xs sm:text-sm font-bold text-orange-600 mt-1 mb-4 block uppercase tracking-widest">
-                Head of Technical Operations
-              </span>
-              <p className="text-slate-500 text-sm sm:text-base leading-relaxed">
-                Ensuring every repair meets our gold-standard precision.
-              </p>
-            </motion.div>
-
-            {/* Marcus Vance */}
-            <motion.div 
-              variants={fadeUp}
-              whileHover={{ y: -10 }}
-              transition={{ type: "spring", stiffness: 350, damping: 25 }}
-              className="bg-white rounded-3xl p-8 sm:p-10 border border-slate-100 shadow-xl shadow-slate-200/50 hover:shadow-2xl transition-shadow duration-300 text-center flex flex-col items-center group relative overflow-hidden"
-            >
-              <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-transparent via-[#0B1E40] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              
-              <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full overflow-hidden border-4 border-slate-100 shadow-lg group-hover:border-orange-500/40 group-hover:shadow-orange-500/20 transition-colors transition-shadow duration-300 mb-6 relative">
-                <AnimatedImage 
-                  src="https://images.unsplash.com/photo-1531427186611-ecfd6d936c79?q=80&w=650&auto=format&fit=crop" 
-                  alt="Marcus Vance" 
-                  containerClassName="w-full h-full"
-                  imgClassName="group-hover:scale-110 transition-transform duration-500"
-                />
+              <div className="mt-8 pt-4 border-t border-slate-800/80 flex items-center gap-2 text-xs font-extrabold text-orange-400">
+                <CheckCircle2 className="w-4 h-4 text-orange-400" />
+                <span>100% Verified Appliance Mechanics</span>
               </div>
-
-              <h3 className="font-extrabold text-2xl text-[#0B1E40]">
-                Marcus Vance
-              </h3>
-              <span className="text-xs sm:text-sm font-bold text-orange-600 mt-1 mb-4 block uppercase tracking-widest">
-                Customer Success Lead
-              </span>
-              <p className="text-slate-500 text-sm sm:text-base leading-relaxed">
-                The voice of our customers within the heart of our operations.
-              </p>
             </motion.div>
           </motion.div>
         </section>
+
+        {/* 7. BOTTOM CORPORATE CALL TO ACTION */}
+        <section className="max-w-6xl mx-auto px-4 py-12 mb-12">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="bg-gradient-to-r from-[#0B1E40] via-blue-900 to-[#0B1E40] rounded-3xl p-8 sm:p-12 text-white shadow-2xl text-center relative overflow-hidden border border-blue-900/50"
+          >
+            <div className="relative z-10 max-w-2xl mx-auto">
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30 text-xs font-extrabold uppercase tracking-wider mb-4">
+                <Zap className="w-3.5 h-3.5 text-orange-400" />
+                Certified Service Quality
+              </span>
+
+              <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">
+                Experience Professional Home Servicing
+              </h2>
+
+              <p className="text-slate-300 text-sm sm:text-base mb-8 leading-relaxed">
+                Connect with our certified support team or schedule doorstep service with a 100% pay-after-service guarantee.
+              </p>
+
+              <button
+                onClick={() => navigate('/booking')}
+                className="inline-flex items-center gap-2.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold text-base px-8 py-4 rounded-full shadow-lg shadow-orange-500/30 transition-all duration-300 cursor-pointer transform hover:-translate-y-0.5"
+              >
+                <span>Book Service Now</span>
+                <ArrowRight className="w-5 h-5" />
+              </button>
+            </div>
+          </motion.div>
+        </section>
+
       </main>
 
       <Footer />
