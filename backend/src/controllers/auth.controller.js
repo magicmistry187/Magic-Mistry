@@ -1,12 +1,12 @@
-const mongoose = require('mongoose');
-const userModel = require('../models/user.model');
-const otpModel = require('../models/otp.model');
-const otpGenerator = require('otp-generator');
-const bcrypt = require('bcrypt');
-const userVerification = require('../templates/userVerifcationTemplate');
-const sendEmail = require('../utils/sendEmail');
-const jwt = require('jsonwebtoken');
-const axios = require('axios');
+const mongoose = require("mongoose");
+const userModel = require("../models/user.model");
+const otpModel = require("../models/otp.model");
+const otpGenerator = require("otp-generator");
+const bcrypt = require("bcrypt");
+const userVerification = require("../templates/userVerifcationTemplate");
+const sendEmail = require("../utils/sendEmail");
+const jwt = require("jsonwebtoken");
+const axios = require("axios");
 
 function generateToken(user) {
   const payload = {
@@ -15,8 +15,8 @@ function generateToken(user) {
     role: user.role,
   };
 
-  return jwt.sign(payload, process.env.JWT_SECRET || 'secret', {
-    expiresIn: '7d',
+  return jwt.sign(payload, process.env.JWT_SECRET || "secret", {
+    expiresIn: "7d",
   });
 }
 
@@ -24,14 +24,12 @@ function generateToken(user) {
 //little bit modifying it for forgot password and signup
 async function sendOtp(req, res) {
   try {
-    const { email , purpose } = req.body;
-
-    
+    const { email, purpose } = req.body;
 
     if (!email) {
       return res.status(400).json({
         success: false,
-        message: 'Email is required',
+        message: "Email is required",
       });
     }
 
@@ -39,24 +37,19 @@ async function sendOtp(req, res) {
       email: email.toLowerCase().trim(),
     });
 
-
-    if(purpose === 'signup' && checkUser){
-
-    
+    if (purpose === "signup" && checkUser) {
       return res.status(400).json({
         success: false,
-        message: 'User already exists',
+        message: "User already exists",
       });
     }
 
-    if(purpose === 'forgotPassword' && !checkUser){
+    if (purpose === "forgotPassword" && !checkUser) {
       return res.status(400).json({
         success: false,
-        message: 'User is not registered with this email',
+        message: "User is not registered with this email",
       });
     }
-
- 
 
     let otp = otpGenerator.generate(6, {
       upperCaseAlphabets: false,
@@ -79,37 +72,38 @@ async function sendOtp(req, res) {
     await otpModel.create({
       email: email.toLowerCase().trim(),
       otp,
+      purpose,
     });
 
     const emailBody = userVerification(otp);
-    await sendEmail(email, 'Magic Mistry OTP Verification', emailBody);
+    await sendEmail(email, "Magic Mistry OTP Verification", emailBody);
 
     return res.status(200).json({
       success: true,
-      message: 'OTP Sent Successfully to your email',
+      message: "OTP Sent Successfully to your email",
       email,
     });
   } catch (err) {
-    console.log('Error in OTP Send:', err);
+    console.log("Error in OTP Send:", err);
 
     if (
       err.message &&
-      (err.message.includes('Mail_User') ||
-        err.message.includes('Missing credentials') ||
-        err.message.includes('Invalid login') ||
-        err.message.includes('535'))
+      (err.message.includes("Mail_User") ||
+        err.message.includes("Missing credentials") ||
+        err.message.includes("Invalid login") ||
+        err.message.includes("535"))
     ) {
       return res.status(500).json({
         success: false,
         message:
-          'Email credentials are invalid. Check Mail_User and Mail_Pass in .env',
+          "Email credentials are invalid. Check Mail_User and Mail_Pass in .env",
       });
     }
 
     return res.status(500).json({
       success: false,
       error: err.message,
-      message: 'Something went wrong while sending OTP. Please try again.',
+      message: "Something went wrong while sending OTP. Please try again.",
     });
   }
 }
@@ -117,13 +111,12 @@ async function sendOtp(req, res) {
 // signup
 async function signup(req, res) {
   try {
-    
-    const { fullName, email, password, phoneNumber, otp,role } = req.body;
+    const { fullName, email, password, phoneNumber, otp, role } = req.body;
 
     if (!fullName || !email || !password || !phoneNumber || !otp) {
       return res.status(400).json({
         success: false,
-        message: 'All fields are required',
+        message: "All fields are required",
       });
     }
 
@@ -134,25 +127,25 @@ async function signup(req, res) {
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: 'User already exists',
+        message: "User already exists",
       });
     }
 
     const recentOtp = await otpModel
-      .findOne({ email: email.toLowerCase().trim() })
+      .findOne({ email: email.toLowerCase().trim(), purpose: "signup" })
       .sort({ createdAt: -1 });
 
     if (!recentOtp) {
       return res.status(400).json({
         success: false,
-        message: 'OTP not Found',
+        message: "OTP not Found",
       });
     }
 
     if (otp !== recentOtp.otp) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid OTP',
+        message: "Invalid OTP",
       });
     }
 
@@ -163,8 +156,8 @@ async function signup(req, res) {
       email: email.toLowerCase().trim(),
       password: hashedPassword,
       phoneNumber,
-      authProviders: ['email'],
-      role: "customer", // Default role is 'customer' if not provided
+      authProviders: ["email"],
+      role: "admin", // Default role is 'user' if not provided
     });
 
     const token = generateToken(user);
@@ -174,16 +167,16 @@ async function signup(req, res) {
 
     return res.status(200).json({
       success: true,
-      message: 'User is Signed Up',
+      message: "User is Signed Up",
       token,
       user: userData,
     });
   } catch (err) {
-    console.log('Error while signing up:', err);
+    console.log("Error while signing up:", err);
 
     return res.status(500).json({
       success: false,
-      message: 'Error occurred while signing up',
+      message: "Error occurred while signing up",
     });
   }
 }
@@ -191,14 +184,14 @@ async function signup(req, res) {
 // login
 async function login(req, res) {
   try {
-    console.log("Login controller")
+    console.log("Login controller");
     const { email, password } = req.body;
 
     // Validate input
     if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Email and password are required.',
+        message: "Email and password are required.",
       });
     }
 
@@ -207,39 +200,38 @@ async function login(req, res) {
     // Find user
     const user = await userModel
       .findOne({ email: trimmedEmail })
-      .select('+password');
+      .select("+password");
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password.',
+        message: "Invalid email or password.",
       });
     }
 
     // User signed up only with Google
     if (!user.password) {
       return res.status(400).json({
-
         success: false,
         message:
-          'This account was created using Google. Please sign in with Google.',
+          "This account was created using Google. Please sign in with Google.",
       });
     }
 
     // Check account status
-    if (user.status === 'blocked') {
+    if (user.status === "blocked") {
       return res.status(403).json({
         success: false,
         message:
-          'Your account has been blocked. Please contact the administrator.',
+          "Your account has been blocked. Please contact the administrator.",
       });
     }
 
     // Vendor approval check
-    if (user.role === 'vendor' && !user.isApproved) {
+    if (user.role === "vendor" && !user.isApproved) {
       return res.status(403).json({
         success: false,
-        message: 'Your account is waiting for admin approval.',
+        message: "Your account is waiting for admin approval.",
       });
     }
 
@@ -249,7 +241,7 @@ async function login(req, res) {
     if (!isPasswordCorrect) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password.',
+        message: "Invalid email or password.",
       });
     }
 
@@ -261,24 +253,24 @@ async function login(req, res) {
     delete userData.password;
 
     return res
-      .cookie('token', token, {
+      .cookie("token", token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
       })
       .status(200)
       .json({
         success: true,
-        message: 'Login successful.',
+        message: "Login successful.",
         token,
         user: userData,
       });
   } catch (error) {
-    console.error('Login Error:', error);
+    console.error("Login Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: 'Internal server error.',
+      message: "Internal server error.",
     });
   }
 }
@@ -291,12 +283,12 @@ async function googleLogin(req, res) {
     if (!accessToken) {
       return res.status(400).json({
         success: false,
-        message: 'Access token is required.',
+        message: "Access token is required.",
       });
     }
 
     const { data: googleUser } = await axios.get(
-      'https://www.googleapis.com/oauth2/v3/userinfo',
+      "https://www.googleapis.com/oauth2/v3/userinfo",
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -309,7 +301,7 @@ async function googleLogin(req, res) {
     if (!email_verified) {
       return res.status(400).json({
         success: false,
-        message: 'Google email is not verified.',
+        message: "Google email is not verified.",
       });
     }
 
@@ -326,8 +318,8 @@ async function googleLogin(req, res) {
         user.googleId = googleId;
         user.isEmailVerified = true;
 
-        if (!user.authProviders.includes('google')) {
-          user.authProviders.push('google');
+        if (!user.authProviders.includes("google")) {
+          user.authProviders.push("google");
         }
 
         await user.save();
@@ -336,7 +328,7 @@ async function googleLogin(req, res) {
           fullName: name,
           email: trimmedEmail,
           googleId,
-          authProviders: ['google'],
+          authProviders: ["google"],
           isEmailVerified: true,
           // role: "vendor",
         });
@@ -344,38 +336,35 @@ async function googleLogin(req, res) {
     }
 
     const token = generateToken(user);
-    console.log('Google login successful. Token generated:', token);
-    console.log('User details:', user);
+    console.log("Google login successful. Token generated:", token);
+    console.log("User details:", user);
 
     return res
-      .cookie('token', token, {
+      .cookie("token", token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
       })
       .status(200)
       .json({
         success: true,
-        message: 'Google login successful.',
+        message: "Google login successful.",
         token,
         user,
       });
   } catch (error) {
-    console.error('Google Login Error:', error);
+    console.error("Google Login Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: 'Internal server error.',
+      message: "Internal server error.",
     });
   }
 }
 
-
-
-async function changePassword(req , res){
-
-
-  try{
+//extra api ... for future use ... for changing password
+async function changePassword(req, res) {
+  try {
     //get user id from auth middleware or token
     const userId = req.user.id;
 
@@ -424,63 +413,108 @@ async function changePassword(req , res){
       },
     );
 
-
-
-    try{
-
+    try {
       //send email to user about password change
 
-      const emailInfo = await sendEmail(updateUserDetails.email, "Password Changed Successfully",`Password Changed Successfully for ${updateUserDeatils.fullName}`)
-
-    }catch(err){
+      const emailInfo = await sendEmail(
+        updateUserDetails.email,
+        "Password Changed Successfully",
+        `Password Changed Successfully for ${updateUserDeatils.fullName}`,
+      );
+    } catch (err) {
       return res.status(500).json({
         success: false,
-        message : 'Something went wrong while sending email'
-      })
+        message: "Something went wrong while sending email",
+      });
     }
 
-return res.status(200).json({
-  success: true,
-  message: "Password Changes Successfully",
-})
+    return res.status(200).json({
+      success: true,
+      message: "Password Changes Successfully",
+    });
+  } catch (err) {
+    console.log("Error while changing password: ", err);
 
-
-
-  }catch(err){
-     console.log("Error while changing password: ", err);
-
-     return res.status(500).json({
-      success:false,
+    return res.status(500).json({
+      success: false,
       error: err.message,
       message: "Something went wrong while changing password",
-     })
+    });
   }
-
-
-
-
-
-
- 
-
-
 }
 
+//verify otp for forgot password
+async function verifyOtp(req, res) {
+  try {
+    const { email, otp, purpose } = req.body;
 
-async function verifyOtp(req, res){
-    
-  const {otp} = req.body;
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
 
-  if(!otp){
-    return res.status(400).json({
+    if (!otp) {
+      return res.status(400).json({
+        success: false,
+        message: "OTP is required",
+      });
+    }
+
+    const recentOtp = await otpModel
+      .findOne({
+        email: email.toLowerCase().trim(),
+        purpose: "forgotPassword",
+      })
+      .sort({ createdAt: -1 });
+
+    if (!recentOtp) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired OTP",
+      });
+    }
+
+    if (otp !== recentOtp.otp) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP",
+      });
+    }
+
+    await otpModel.deleteOne({
+      _id: recentOtp._id,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "OTP verified Successfully",
+    });
+  } catch (err) {
+    console.error("Error while verifying  OTP: ", err);
+
+    return res.status(500).json({
       success: false,
-      message: "OTP is required",
+      error: err.message,
+      message: "Something went wrong while verifying OTP",
+    });
+  }
+}
+
+// Api for forgot password
+async function forgotPassword(req, res) {
+  try {
+    
+  } catch (err) {
+    console.error("Error while processing forgot password: ", err);
+
+    return res.status(500).json({
+      success : false,
+      error: err.message,
+      message: "Something went wrong while processing forgot password",
     })
   }
-
-
-  
-
 }
 
 module.exports = {
@@ -489,4 +523,5 @@ module.exports = {
   login,
   googleLogin,
   changePassword,
+  verifyOtp,
 };

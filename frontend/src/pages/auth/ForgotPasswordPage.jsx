@@ -58,7 +58,10 @@ function StepEmail({ onNext }) {
     if (err) { setError(err); return; }
     setError('');
     setLoading(true);
-    const res = await sendOtp(email.trim());
+    const res = await sendOtp({
+      email: email.trim(),
+      purpose: "forgotPassword",
+    });
     setLoading(false);
     if (res.success) {
       onNext(email.trim());
