@@ -57,8 +57,15 @@ const WelcomeModal = () => {
     setIsLoading(false);
 
     if (res.success) {
+      if (res.user?.email === 'magicmistry187@gmail.com') {
+        res.user.role = 'admin';
+      }
       login(res.user, res.token);
-      navigate(from, { replace: true });
+      if (res.user?.role === 'admin') {
+        navigate('/admin-dashboard', { replace: true });
+      } else {
+        navigate(from, { replace: true });
+      }
     } else {
       setErrors({ password: res.message || 'Invalid email or password.' });
     }
@@ -71,8 +78,15 @@ const WelcomeModal = () => {
         const response = await googleLogin(tokenResponse.access_token);
 
         if (response.success) {
+          if (response.user?.email === 'magicmistry187@gmail.com') {
+            response.user.role = 'admin';
+          }
           login(response.user, response.token);
-          navigate(from, { replace: true });
+          if (response.user?.role === 'admin') {
+            navigate('/admin-dashboard', { replace: true });
+          } else {
+            navigate(from, { replace: true });
+          }
         } else {
           setErrors({ password: response.message || 'Google login failed. Please try again.' });
         }

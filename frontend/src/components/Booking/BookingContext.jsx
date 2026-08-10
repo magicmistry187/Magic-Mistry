@@ -103,14 +103,11 @@ export const APPLIANCE_SUB_SERVICES = {
   7: {
     id: 7,
     name: 'Air Cooler',
-    icon: '💨',
+    icon: '🌀',
     subServices: [
-      { id: 'cooler_service', label: 'Service (Starting from)', price: 299 },
-      { id: 'cooler_checkup', label: 'Check up', price: 200 },
-      { id: 'cooler_mini', label: 'Any problem mini charge', price: 199 },
-      { id: 'cooler_buss_big', label: 'Soft buss change (Big)', price: 599 },
-      { id: 'cooler_buss_small', label: 'Soft buss change (Small)', price: 499 },
-      { id: 'cooler_switch', label: 'Switch change', price: 199 },
+      { id: 'cooler_checkup', label: 'Check up', price: 199 },
+      { id: 'cooler_motor', label: 'Motor replacement', price: 499 },
+      { id: 'cooler_pump', label: 'Submersible pump change', price: 299 },
     ],
   },
   8: {
@@ -118,22 +115,17 @@ export const APPLIANCE_SUB_SERVICES = {
     name: 'Induction Cooktop',
     icon: '🍳',
     subServices: [
-      { id: 'induction_service', label: 'Service', price: 199 },
-      { id: 'induction_fan', label: 'Fan change', price: 199 },
-      { id: 'induction_mosfet', label: 'Mosfet change', price: 399 },
-      { id: 'induction_other', label: 'Other items change mini', price: 199 },
+      { id: 'ind_checkup', label: 'Check up', price: 199 },
+      { id: 'ind_coil', label: 'Heating coil repair', price: 399 },
     ],
   },
   9: {
     id: 9,
     name: 'Stabilizer',
-    icon: '🔌',
+    icon: '⚡',
     subServices: [
-      { id: 'stab_fuse', label: 'Fuse socket change', price: 199 },
-      { id: 'stab_cable', label: 'Cable change', price: 199 },
-      { id: 'stab_board', label: 'Board kit change', price: 249 },
-      { id: 'stab_switch', label: 'Rotary switch change', price: 299 },
-      { id: 'stab_relay', label: 'Relay change', price: 399 },
+      { id: 'stab_checkup', label: 'Check up', price: 199 },
+      { id: 'stab_repair', label: 'PCB / Relay Repair', price: 399 },
     ],
   },
   10: {
@@ -141,10 +133,8 @@ export const APPLIANCE_SUB_SERVICES = {
     name: 'Press Iron',
     icon: '👔',
     subServices: [
-      { id: 'iron_power', label: 'Power issue Any', price: 79 },
-      { id: 'iron_switch', label: 'Switch change', price: 199 },
-      { id: 'iron_cable', label: 'Cable change', price: 79 },
-      { id: 'iron_coil', label: 'Coil change', price: 199 },
+      { id: 'iron_checkup', label: 'Check up', price: 79 },
+      { id: 'iron_element', label: 'Heating Element Repair', price: 149 },
     ],
   },
   11: {
@@ -153,70 +143,53 @@ export const APPLIANCE_SUB_SERVICES = {
     icon: '📺',
     subServices: [
       { id: 'tv_checkup', label: 'Check up', price: 199 },
-      { id: 'tv_install', label: 'Installation', price: 299 },
-      { id: 'tv_uninstall', label: 'Uninstallation', price: 249 },
-      { id: 'tv_min', label: 'Minimum charge', price: 199 },
+      { id: 'tv_display', label: 'Display Panel Repair', price: 999 },
+      { id: 'tv_sound', label: 'Sound / Speaker Issue', price: 499 },
     ],
   },
   12: {
     id: 12,
-    name: 'Ceiling Fan / Fan Repair',
-    icon: '🌀',
+    name: 'Ceiling Fan',
+    icon: '💨',
     subServices: [
-      { id: 'fan_install', label: 'Installation', price: 149 },
-      { id: 'fan_repair', label: 'Repair', price: 199 },
-      { id: 'fan_uninstall', label: 'Uninstallation', price: 149 },
-      { id: 'fan_capacitor', label: 'Capacitor charge', price: 149 },
-      { id: 'fan_any_mini', label: 'Any problem mini', price: 149 },
-      { id: 'fan_bearings', label: 'Bearings change', price: 99 },
-      { id: 'fan_coil_c', label: 'Coil change (Copper)', price: 449 },
-      { id: 'fan_coil_al', label: 'Coil change (Aluminum)', price: 349 },
+      { id: 'fan_checkup', label: 'Check up', price: 149 },
+      { id: 'fan_winding', label: 'Motor Rewinding', price: 349 },
+      { id: 'fan_capacitor', label: 'Capacitor Change', price: 199 },
     ],
   },
   13: {
     id: 13,
     name: 'Geyser',
-    icon: '🚿',
+    icon: '♨️',
     subServices: [
-      { id: 'geyser_service', label: 'Servicing', price: 499 },
-      { id: 'geyser_install', label: 'Installation', price: 399 },
-      { id: 'geyser_checkup', label: 'Check-up power issue', price: 799 },
+      { id: 'geyser_checkup', label: 'Check up', price: 199 },
+      { id: 'geyser_element', label: 'Heating Element Change', price: 599 },
+      { id: 'geyser_thermostat', label: 'Thermostat Replacement', price: 449 },
     ],
   },
   14: {
     id: 14,
     name: 'Stand Fan',
-    icon: '🌬️',
+    icon: '💨',
     subServices: [
-      { id: 'stand_fan_service', label: 'Service', price: 149 },
-      { id: 'stand_fan_wire', label: 'Wire cable change', price: 99 },
-      { id: 'stand_fan_soft_bus', label: 'Soft bus change - farata', price: 499 },
-      { id: 'stand_fan_plastic', label: 'Plastic china', price: 249 },
-      { id: 'stand_fan_coil_farata', label: 'Farata Coil Change', price: 759 },
-      { id: 'stand_fan_coil_china', label: 'Plastic china Coil change', price: 549 },
-      { id: 'stand_fan_coil_china_al', label: 'Plastic china Coil change (Al)', price: 449 },
-      { id: 'stand_fan_switch', label: 'Switch change', price: 149 },
+      { id: 'sfan_checkup', label: 'Check up', price: 99 },
+      { id: 'sfan_motor', label: 'Motor Repair', price: 249 },
     ],
   },
   15: {
     id: 15,
-    name: 'Table Fan / Wall Fan',
-    icon: '🎐',
+    name: 'Table / Wall Fan',
+    icon: '💨',
     subServices: [
-      { id: 'table_fan_service', label: 'Service', price: 129 },
-      { id: 'table_fan_wire', label: 'Wire cable change', price: 99 },
-      { id: 'table_fan_switch', label: 'Switch change', price: 149 },
-      { id: 'table_fan_soft_bus', label: 'Soft buss change', price: 249 },
-      { id: 'table_fan_coil_c', label: 'Coil change (Copper)', price: 499 },
-      { id: 'table_fan_coil_al', label: 'Coil change (Aluminum)', price: 349 },
+      { id: 'tfan_checkup', label: 'Check up', price: 99 },
+      { id: 'tfan_motor', label: 'Motor Repair', price: 249 },
     ],
   },
   16: {
     id: 16,
     name: 'Wiring / Switch Board',
-    icon: '⚡',
+    icon: '🔌',
     subServices: [
-      { id: 'wiring_replace', label: 'Switch Board Replace (mini)', price: 199 },
       { id: 'wiring_problem', label: 'Switch Board problem', price: 149 },
       { id: 'wiring_10_switch', label: '10 Switch Board increase the amount', price: 299 },
       { id: 'wiring_change', label: 'Switch change', price: 99 },
@@ -225,31 +198,40 @@ export const APPLIANCE_SUB_SERVICES = {
       { id: 'wiring_internal', label: 'Internal (5m per)', price: 250 },
       { id: 'wiring_old_mini', label: 'Old wirings mini change', price: 249 },
     ],
-  }
+  },
+};
+
+export const scrollToNextStep = (targetId) => {
+  if (typeof window === 'undefined') return;
+  setTimeout(() => {
+    const element = document.getElementById(targetId);
+    if (element) {
+      const yOffset = -90; // account for sticky navbar offset
+      const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }
+  }, 150);
 };
 
 const DEFAULT_BASE_PRICE = 299;
 
-export const BookingProvider = ({ children, initialAppliance }) => {
+export const BookingProvider = ({ children, initialAppliance = null }) => {
   const getBasePrice = (id) =>
     APPLIANCE_PRICING[id]?.basePrice ?? DEFAULT_BASE_PRICE;
 
   const savedLocation =
     typeof window !== 'undefined'
-      ? localStorage.getItem('mm_location') || ''
-      : '';
+      ? localStorage.getItem('mm_location') || 'Kolkata, West Bengal'
+      : 'Kolkata, West Bengal';
 
   // Only pre-fill if user came from home page with an appliance selected
-  const hasInitialAppliance = !!initialAppliance;
-  const initialCatId = initialAppliance?.id || null;
-  const initialSubServices = initialCatId ? (APPLIANCE_SUB_SERVICES[initialCatId]?.subServices || []) : [];
-  const defaultSubService = initialSubServices[0] || null;
-  const initialPrice = defaultSubService?.price || (hasInitialAppliance ? getBasePrice(initialAppliance.id) : 0);
+  const hasInitialAppliance = Boolean(initialAppliance && initialAppliance.id);
+  const initialCatId = hasInitialAppliance ? initialAppliance.id : null;
 
   const [bookingState, setBookingState] = useState({
     serviceId: initialCatId,                                          // null when no appliance from home
     serviceName: initialAppliance?.name || '',                        // empty when no appliance from home
-    selectedSubService: defaultSubService ? defaultSubService.label : '', // empty when no appliance from home
+    selectedSubServices: [],                                          // array of { label, price }
     isApplianceLocked: hasInitialAppliance,
     problemDescription: '',
     date: '',
@@ -259,24 +241,21 @@ export const BookingProvider = ({ children, initialAppliance }) => {
     images: [],
     imageFile: null,
     priceInfo: {
-      basePrice: initialPrice,
+      basePrice: 0,
       visitCharge: 0,
-      total: initialPrice,
+      total: 0,
     },
   });
 
   useEffect(() => {
     if (initialAppliance) {
-      const subServList = APPLIANCE_SUB_SERVICES[initialAppliance.id]?.subServices || [];
-      const firstSub = subServList[0] || null;
-      const price = firstSub?.price || getBasePrice(initialAppliance.id);
       setBookingState((prev) => ({
         ...prev,
         serviceId: initialAppliance.id,
         serviceName: initialAppliance.name,
         isApplianceLocked: true,
-        selectedSubService: firstSub ? firstSub.label : prev.selectedSubService,
-        priceInfo: { basePrice: price, visitCharge: 0, total: price },
+        selectedSubServices: [],
+        priceInfo: { basePrice: 0, visitCharge: 0, total: 0 },
       }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -286,10 +265,14 @@ export const BookingProvider = ({ children, initialAppliance }) => {
     setBookingState((prev) => {
       const next = { ...prev, [key]: value };
 
-      // When the appliance changes, recalculate pricing
       if (key === 'serviceId') {
-        const base = getBasePrice(value);
-        next.priceInfo = { basePrice: base, visitCharge: 0, total: base };
+        next.selectedSubServices = [];
+        next.priceInfo = { basePrice: 0, visitCharge: 0, total: 0 };
+      }
+
+      if (key === 'selectedSubServices') {
+        const total = value.reduce((sum, sub) => sum + sub.price, 0);
+        next.priceInfo = { basePrice: total, visitCharge: 0, total: total };
       }
 
       return next;
@@ -302,7 +285,7 @@ export const BookingProvider = ({ children, initialAppliance }) => {
 
   return (
     <BookingContext.Provider
-      value={{ bookingState, updateBooking, unlockApplianceSelection }}
+      value={{ bookingState, updateBooking, unlockApplianceSelection, scrollToNextStep }}
     >
       {children}
     </BookingContext.Provider>

@@ -93,15 +93,15 @@ export default function BookingSummary() {
       setErrors([]);
       setLoading(true);
 
-      const serviceTitle = bookingState.selectedSubService
-        ? `${bookingState.serviceName} (${bookingState.selectedSubService})`
+      const serviceTitle = bookingState.selectedSubServices.length > 0
+        ? `${bookingState.serviceName} (${bookingState.selectedSubServices.map(s => s.label).join(', ')})`
         : bookingState.serviceName || 'Appliance Repair';
 
       const formData = new FormData();
       formData.append('appliance', bookingState.serviceName || 'Appliance Repair');
       formData.append('serviceCategory', serviceTitle);
       formData.append('serviceCategoryCharge', basePrice);
-      formData.append('issue', bookingState.problemDescription || bookingState.selectedSubService || 'General Repair & Maintenance');
+      formData.append('issue', bookingState.problemDescription || (bookingState.selectedSubServices.length > 0 ? bookingState.selectedSubServices.map(s => s.label).join(', ') : 'General Repair & Maintenance'));
       formData.append('address', bookingState.address);
       formData.append('serviceDate', bookingState.date);
       formData.append('timeSlot', bookingState.timeSlot);
@@ -126,11 +126,14 @@ export default function BookingSummary() {
   };
 
   return (
-    <div className="bg-slate-800 text-white p-6 rounded-xl shadow-lg sticky top-6">
-      <div className="flex items-center justify-between mb-6 pb-3 border-b border-slate-700">
-        <h2 className="text-xl font-bold">Booking Summary</h2>
-        <span className="text-[11px] font-extrabold bg-orange-500/20 text-orange-400 px-2.5 py-1 rounded-full border border-orange-500/30">
-          Step 7 of 7
+    <div className="bg-gradient-to-b from-[#0B1E40] to-slate-900 text-white p-7 md:p-8 rounded-3xl shadow-[0_20px_50px_rgba(11,_30,_64,_0.3)] sticky top-6 border border-slate-700/50 relative overflow-hidden">
+      {/* Glow effect */}
+      <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500 rounded-full mix-blend-screen filter blur-[80px] opacity-10 pointer-events-none"></div>
+
+      <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-700/60 relative z-10">
+        <h2 className="text-xl font-extrabold tracking-tight">Booking Summary</h2>
+        <span className="text-[10px] font-black uppercase tracking-widest bg-gradient-to-r from-orange-500/20 to-amber-500/20 text-orange-400 px-3 py-1.5 rounded-full border border-orange-500/30">
+          Checkout
         </span>
       </div>
 
@@ -145,13 +148,17 @@ export default function BookingSummary() {
           </span>
         </div>
 
-        {/* Sub-service package */}
-        {bookingState.selectedSubService && (
+        {/* Sub-service packages */}
+        {bookingState.selectedSubServices.length > 0 && (
           <div className="flex justify-between items-start gap-2">
-            <span className="text-slate-400 shrink-0">Package</span>
-            <span className="font-semibold text-right max-w-[60%] text-xs text-emerald-300">
-              {bookingState.selectedSubService}
-            </span>
+            <span className="text-slate-400 shrink-0">Packages</span>
+            <div className="text-right max-w-[60%] flex flex-col items-end gap-1">
+              {bookingState.selectedSubServices.map((sub, idx) => (
+                <span key={idx} className="font-semibold text-xs text-emerald-300">
+                  {sub.label}
+                </span>
+              ))}
+            </div>
           </div>
         )}
 
@@ -233,24 +240,24 @@ export default function BookingSummary() {
 
 
       {/* Price breakdown */}
-      <div className="space-y-3 mb-5 text-sm border-b border-slate-600 pb-5">
-        <p className="text-slate-400 text-xs font-bold uppercase tracking-wide mb-2">
-          Price Breakdown
+      <div className="space-y-4 mb-6 pb-6 border-b border-slate-700/60 relative z-10">
+        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2">
+          <span className="h-px bg-slate-700 flex-1"></span> Price Breakdown <span className="h-px bg-slate-700 flex-1"></span>
         </p>
-        <div className="flex justify-between items-center">
-          <span className="text-slate-300">Fixed Package Price</span>
-          <span className="font-semibold text-white">
+        <div className="flex justify-between items-center text-sm">
+          <span className="text-slate-300 font-medium">Selected Packages</span>
+          <span className="font-bold text-white">
             ₹{bookingState.serviceId ? Number(basePrice).toFixed(2) : '0.00'}
           </span>
         </div>
-        <div className="flex items-start gap-2 bg-slate-700/60 rounded-lg p-3 mt-2">
-          <Info className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+        <div className="flex items-start gap-3 bg-slate-800/80 rounded-2xl p-4 mt-4 border border-slate-700/50">
+          <Info className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-slate-300 leading-relaxed">
-            <span className="text-amber-300 font-semibold">
-              Part charges extra
-            </span>{' '}
-            — technician informs you first.{' '}
-            <span className="text-white font-medium">
+            <span className="text-amber-300 font-bold block mb-1">
+              Part charges are extra
+            </span>
+            Technician will inform you first.{' '}
+            <span className="text-white font-semibold">
               You decide before any part is replaced.
             </span>
           </p>
@@ -258,30 +265,32 @@ export default function BookingSummary() {
       </div>
 
       {/* Total */}
-      <div className="flex justify-between items-center mb-1">
-        <span className="text-base text-slate-200">Total Fixed Charge</span>
-        <span className="text-2xl font-extrabold text-emerald-400">
-          ₹{bookingState.serviceId ? Number(total).toFixed(2) : '0.00'}
-        </span>
+      <div className="flex justify-between items-end mb-2 relative z-10">
+        <div className="flex flex-col">
+          <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-1">Total Fixed Charge</span>
+          <span className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300 leading-none">
+            ₹{bookingState.serviceId ? Number(total).toFixed(2) : '0.00'}
+          </span>
+        </div>
       </div>
-      <p className="text-[11px] text-slate-400 mb-5">
-        + Part costs (if any) confirmed by technician on-site.
+      <p className="text-[11px] text-slate-400 mb-8 font-medium">
+        + Part costs (if any) confirmed on-site.
       </p>
 
       {/* Unauthenticated User Warning */}
       {!isLoggedIn && (
-        <div className="mb-4 bg-amber-500/20 border border-amber-400/40 rounded-lg p-3 flex items-start gap-2.5 text-xs text-amber-200">
-          <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+        <div className="mb-6 bg-gradient-to-br from-amber-500/20 to-orange-500/10 border border-amber-400/30 rounded-2xl p-4 flex items-start gap-3 text-sm text-amber-200">
+          <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="font-bold text-amber-300">Login Required</p>
-            <p className="mt-0.5 leading-relaxed text-[11px]">
-              A user cannot make a booking until they log in.{' '}
+            <p className="font-extrabold text-amber-300">Login Required</p>
+            <p className="mt-1 leading-relaxed text-xs opacity-90">
+              Please log in to submit your booking.{' '}
               <button
                 type="button"
                 onClick={() => navigate('/login', { state: { from: '/booking', reason: 'A user cannot make a booking until they log in.' } })}
-                className="underline font-extrabold text-orange-400 hover:text-orange-300 cursor-pointer ml-0.5"
+                className="underline font-bold text-orange-400 hover:text-orange-300 cursor-pointer ml-1"
               >
-                Log in now →
+                Log in now
               </button>
             </p>
           </div>
@@ -292,14 +301,14 @@ export default function BookingSummary() {
       {errors.length > 0 && (
         <div
           id="summary-errors"
-          className="mb-4 bg-red-500/20 border border-red-400/40 rounded-lg px-4 py-3 space-y-1.5"
+          className="mb-6 bg-red-500/10 border border-red-500/30 rounded-2xl p-4 space-y-2 backdrop-blur-sm"
         >
           {errors.map((e, i) => (
             <div
               key={i}
-              className="flex items-start gap-2 text-xs text-red-300"
+              className="flex items-start gap-2 text-xs text-red-300 font-medium"
             >
-              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-red-400" />
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-400" />
               {e}
             </div>
           ))}
@@ -307,23 +316,31 @@ export default function BookingSummary() {
       )}
 
       {/* Submit button (Step 7) */}
-      <button
-        onClick={handleBookingSubmit}
-        disabled={loading}
-        className="w-full bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 disabled:opacity-50 disabled:cursor-wait text-white font-extrabold py-3.5 px-4 rounded-xl shadow-lg shadow-orange-500/20 transition-all flex justify-center items-center gap-2 cursor-pointer text-base"
-      >
-        {loading ? (
-          <>
-            <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-            </svg>
-            Confirming Booking…
-          </>
-        ) : (
-          'Step 7: Confirm Booking →'
-        )}
-      </button>
+      <div className="relative z-10 group">
+        <div className="absolute -inset-1 bg-gradient-to-r from-orange-500 to-rose-500 rounded-2xl blur opacity-30 group-hover:opacity-50 transition duration-500"></div>
+        <button
+          onClick={handleBookingSubmit}
+          disabled={loading}
+          className="relative w-full bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-400 hover:to-rose-400 disabled:opacity-50 disabled:cursor-wait text-white font-black py-4 px-6 rounded-2xl shadow-xl transition-all duration-300 flex justify-center items-center gap-3 cursor-pointer text-base uppercase tracking-wider overflow-hidden"
+        >
+          {loading ? (
+            <>
+              <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+              </svg>
+              Confirming…
+            </>
+          ) : (
+            <>
+              Confirm Booking
+              <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </>
+          )}
+        </button>
+      </div>
 
       <div className="text-center mt-4 text-xs text-slate-400 flex items-center justify-center gap-1">
         🔒 Pay after service — Cash / UPI only

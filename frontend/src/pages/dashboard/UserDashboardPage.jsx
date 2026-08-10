@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getMyBookingsApi, cancelBookingApi } from '../../services/api';
 import Navbar from '../../components/common/Navbar';
+import Footer from '../../components/common/Footer';
 import {
   LayoutDashboard, Wrench, Heart, Settings, LogOut, Bell,
   Star, CheckCircle2, Clock, AlertCircle, ChevronRight,
@@ -20,6 +21,7 @@ import UserInvoiceModal       from '../../components/dashboard/UserInvoiceModal'
 import UserAddressModal        from '../../components/dashboard/UserAddressModal';
 import UserRatingModal         from '../../components/dashboard/UserRatingModal';
 import LocationSelectorModal   from '../../components/common/LocationSelectorModal';
+import ApplianceIcon           from '../../components/common/ApplianceIcon';
 
 
 // ─── Initial Data ────────────────────────────────────────────────────────────
@@ -336,8 +338,8 @@ export default function UserDashboardPage() {
 
                           <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 space-y-6">
                             <div className="text-center py-4">
-                              <div className="w-14 h-14 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center text-2xl mx-auto mb-3 shadow-xs">
-                                🛠️
+                              <div className="w-14 h-14 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center mx-auto mb-3 shadow-xs">
+                                <Wrench className="w-7 h-7 text-orange-500" />
                               </div>
                               <h3 className="text-base font-extrabold text-slate-900">No Repair Orders Yet</h3>
                               <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
@@ -416,8 +418,8 @@ export default function UserDashboardPage() {
 
                                 {/* Service Title & Booking ID */}
                                 <div className="flex items-start gap-4">
-                                  <div className="w-14 h-14 rounded-2xl bg-orange-100 flex items-center justify-center text-2xl shrink-0 shadow-xs">
-                                    {activeBooking.applianceIcon || '🔧'}
+                                  <div className="w-14 h-14 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center shrink-0 shadow-xs p-2">
+                                    <ApplianceIcon name={activeBooking.service} className="w-9 h-9" />
                                   </div>
                                   <div>
                                     <div className="flex items-center gap-3 flex-wrap">
@@ -589,8 +591,8 @@ export default function UserDashboardPage() {
                         className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between cursor-pointer hover:border-orange-200 transition-colors"
                       >
                         <div className="flex items-start justify-between">
-                          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-2xl">
-                            ❄️
+                          <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center p-1">
+                            <ApplianceIcon name="ac" className="w-8 h-8" />
                           </div>
                           <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700">Popular</span>
                         </div>
@@ -614,8 +616,8 @@ export default function UserDashboardPage() {
                         className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between cursor-pointer hover:border-orange-200 transition-colors"
                       >
                         <div className="flex items-start justify-between">
-                          <div className="w-12 h-12 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center text-2xl">
-                            ⚡
+                          <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center">
+                            <Zap className="w-6 h-6 text-amber-500" />
                           </div>
                           <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-orange-100 text-orange-700">Fast Repair</span>
                         </div>
@@ -666,8 +668,8 @@ export default function UserDashboardPage() {
                             bookingsList.slice(0, 5).map((row) => (
                               <tr key={row.id} className="hover:bg-slate-50/60 transition-colors">
                                 <td className="py-4 px-4 font-bold text-slate-600">{row.date}</td>
-                                <td className="py-4 px-4 font-bold text-slate-900 flex items-center gap-2">
-                                  <span>{row.applianceIcon || '🔧'}</span>
+                                <td className="py-4 px-4 font-extrabold text-slate-900 flex items-center gap-2">
+                                  <ApplianceIcon name={row.service} className="w-5 h-5 shrink-0" />
                                   <span>{row.service}</span>
                                 </td>
                                 <td className="py-4 px-4">
@@ -748,7 +750,9 @@ export default function UserDashboardPage() {
                       .filter(b => bookingsFilter === 'All' || b.status === bookingsFilter)
                       .length === 0 ? (
                         <div className="bg-white rounded-3xl p-10 text-center border border-slate-100 shadow-sm">
-                          <div className="text-4xl mb-3">📭</div>
+                          <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+                            <Package className="w-6 h-6" />
+                          </div>
                           <h3 className="font-extrabold text-slate-900 text-base">No bookings found</h3>
                           <p className="text-xs text-slate-400 mt-1">No bookings match the selected filter.</p>
                         </div>
@@ -786,8 +790,8 @@ export default function UserDashboardPage() {
                                 <div className="p-6 flex flex-col md:flex-row md:items-start justify-between gap-5">
                                   {/* Left: Service info */}
                                   <div className="flex items-start gap-4 flex-1 min-w-0">
-                                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 text-white flex items-center justify-center text-2xl shrink-0 shadow-md">
-                                      {item.applianceIcon || '🔧'}
+                                    <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center shrink-0 p-2">
+                                      <ApplianceIcon name={item.service} className="w-8 h-8" />
                                     </div>
                                     <div className="min-w-0">
                                       <div className="flex items-center gap-3 flex-wrap">
@@ -961,9 +965,11 @@ export default function UserDashboardPage() {
                           {bookingsList.map((item) => (
                             <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
                               <td className="py-4 px-4 font-bold text-slate-900">{item.id}</td>
-                              <td className="py-4 px-4 font-bold text-slate-800 flex items-center gap-2">
-                                <span>{item.applianceIcon || '🔧'}</span>
-                                {item.service}
+                              <td className="py-4 px-4">
+                                <div className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                                  <ApplianceIcon name={item.service} className="w-5 h-5 shrink-0" />
+                                  <span>{item.service}</span>
+                                </div>
                               </td>
                               <td className="py-4 px-4 text-slate-500">{item.date}</td>
                               <td className="py-4 px-4 text-slate-600">{item.technician || 'Unassigned'}</td>
@@ -1025,9 +1031,9 @@ export default function UserDashboardPage() {
                     transition={{ duration: 0.4 }}
                     className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-3xl p-8 flex flex-col items-center text-center gap-4 shadow-sm"
                   >
-                    <div className="w-16 h-16 rounded-2xl bg-amber-100 flex items-center justify-center text-3xl shadow-inner">
-                      🚧
-                    </div>
+                      <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-3">
+                        <Wrench className="w-6 h-6 text-amber-500" />
+                      </div>
                     <div>
                       <h2 className="text-xl font-extrabold text-slate-900">This Feature is In Progress</h2>
                       <p className="text-sm text-slate-500 mt-1.5 max-w-md mx-auto">
@@ -1051,8 +1057,8 @@ export default function UserDashboardPage() {
                         whileHover={{ y: -3 }}
                         className="bg-white rounded-3xl p-6 border-2 border-violet-200 shadow-sm flex items-start gap-4 cursor-default"
                       >
-                        <div className="w-14 h-14 rounded-2xl bg-violet-50 flex items-center justify-center text-3xl shrink-0 shadow-inner">
-                          📲
+                        <div className="w-14 h-14 rounded-2xl bg-violet-50 flex items-center justify-center shrink-0 border border-violet-100">
+                          <Phone className="w-7 h-7 text-violet-600" />
                         </div>
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
@@ -1065,7 +1071,7 @@ export default function UserDashboardPage() {
                             Pay via any UPI app — Google Pay, PhonePe, Paytm, BHIM, or any UPI-linked bank account. Quick, instant & secure.
                           </p>
                           <div className="flex items-center gap-2 mt-3">
-                            <span className="text-lg">🟢</span>
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                             <span className="text-[11px] font-bold text-slate-600">Pay directly to technician on service day</span>
                           </div>
                         </div>
@@ -1076,8 +1082,8 @@ export default function UserDashboardPage() {
                         whileHover={{ y: -3 }}
                         className="bg-white rounded-3xl p-6 border-2 border-emerald-200 shadow-sm flex items-start gap-4 cursor-default"
                       >
-                        <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-3xl shrink-0 shadow-inner">
-                          💵
+                        <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center shrink-0 border border-emerald-100">
+                          <CreditCard className="w-7 h-7 text-emerald-600" />
                         </div>
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
@@ -1090,7 +1096,7 @@ export default function UserDashboardPage() {
                             Pay in cash directly to your assigned technician after the repair is completed. No advance required.
                           </p>
                           <div className="flex items-center gap-2 mt-3">
-                            <span className="text-lg">🟢</span>
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                             <span className="text-[11px] font-bold text-slate-600">Pay after repair is completed</span>
                           </div>
                         </div>
@@ -1469,6 +1475,8 @@ export default function UserDashboardPage() {
         isOpen={isLocationSelectorOpen}
         onClose={() => setIsLocationSelectorOpen(false)}
       />
+
+      <Footer />
     </div>
   );
 }

@@ -30,7 +30,7 @@ const methods = [
 ];
 
 export default function PaymentMethod() {
-  const { bookingState, updateBooking } = useBooking();
+  const { bookingState, updateBooking, scrollToNextStep } = useBooking();
   const selected = bookingState.paymentMethod || null;
 
   return (
@@ -50,7 +50,12 @@ export default function PaymentMethod() {
             <button
               key={method.id}
               disabled={!method.enabled}
-              onClick={() => method.enabled && updateBooking('paymentMethod', method.id)}
+              onClick={() => {
+                if (method.enabled) {
+                  updateBooking('paymentMethod', method.id);
+                  if (scrollToNextStep) scrollToNextStep('step-booking-summary');
+                }
+              }}
               className={`w-full text-left flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
                 !method.enabled
                   ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
