@@ -45,7 +45,7 @@ app.get('/', (req, res) => {
 const authRoutes = require('./routes/auth.routes');
 const bookingRoutes = require('./routes/booking.routes');
 const addressRoutes = require('./routes/address.routes');
-const vendorRoutes = require('./routes/vendorApplication.routes');
+const vendorRoutes = require('./routes/vendor.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/booking', bookingRoutes);

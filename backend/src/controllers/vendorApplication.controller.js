@@ -68,6 +68,9 @@ const createVendorApplication = async (req, res) => {
         fileId: result.fileId,
       });
     }
+
+    // Generate application ID
+    const applicationId = `APP-${Date.now()}`;
     // create db entry
     const application = await VendorApplication.create({
       applicationId,
@@ -100,7 +103,6 @@ const createVendorApplication = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
-
 
 module.exports = {
   createVendorApplication,

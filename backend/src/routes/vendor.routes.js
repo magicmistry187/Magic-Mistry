@@ -5,7 +5,7 @@ const documentUpload = require('../middleware/documentUpload');
 
 const {
   createVendorApplication,
-} = require('../controllers/vendorApplicationController');
+} = require('../controllers/vendorApplication.controller');
 
 router.post(
   '/apply',
