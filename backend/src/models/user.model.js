@@ -31,7 +31,7 @@ const userSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: ['customer', 'admin', 'vendor'],
-      // default: 'customer',
+      default: 'customer',
     },
 
     // Admin approval for vendors
