@@ -1,30 +1,37 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { IoClose } from 'react-icons/io5';
-import { FiRefreshCcw } from 'react-icons/fi';
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { IoClose } from "react-icons/io5";
+import { FiRefreshCcw } from "react-icons/fi";
 import {
-  Mail, ShieldCheck, KeyRound, Eye, EyeOff,
-  CheckCircle2, ArrowLeft, Loader2, Lock,
-} from 'lucide-react';
-import { sendOtp } from '../../services/api';
+  Mail,
+  ShieldCheck,
+  KeyRound,
+  Eye,
+  EyeOff,
+  CheckCircle2,
+  ArrowLeft,
+  Loader2,
+  Lock,
+} from "lucide-react";
+import { sendOtp, verifyOtpForForgotPassword } from "../../services/api";
 
 /* ─────────────────────────────────────────────────────────
    Password-strength helper
 ───────────────────────────────────────────────────────── */
 function getPasswordStrength(pw) {
-  if (!pw) return { score: 0, label: '', color: '' };
+  if (!pw) return { score: 0, label: "", color: "" };
   let score = 0;
-  if (pw.length >= 8)  score++;
+  if (pw.length >= 8) score++;
   if (/[A-Z]/.test(pw)) score++;
   if (/[0-9]/.test(pw)) score++;
   if (/[@$!%*?&]/.test(pw)) score++;
   const map = [
-    { label: '', color: '' },
-    { label: 'Weak', color: 'bg-red-500' },
-    { label: 'Fair', color: 'bg-amber-500' },
-    { label: 'Good', color: 'bg-blue-500' },
-    { label: 'Strong', color: 'bg-emerald-500' },
+    { label: "", color: "" },
+    { label: "Weak", color: "bg-red-500" },
+    { label: "Fair", color: "bg-amber-500" },
+    { label: "Good", color: "bg-blue-500" },
+    { label: "Strong", color: "bg-emerald-500" },
   ];
   return { score, ...map[score] };
 }
@@ -33,30 +40,34 @@ function getPasswordStrength(pw) {
    Shared page-level animation variants
 ───────────────────────────────────────────────────────── */
 const stepVariants = {
-  enter:  { opacity: 0, x: 40 },
-  center: { opacity: 1, x: 0,  transition: { duration: 0.35, ease: 'easeOut' } },
-  exit:   { opacity: 0, x: -40, transition: { duration: 0.25, ease: 'easeIn' } },
+  enter: { opacity: 0, x: 40 },
+  center: { opacity: 1, x: 0, transition: { duration: 0.35, ease: "easeOut" } },
+  exit: { opacity: 0, x: -40, transition: { duration: 0.25, ease: "easeIn" } },
 };
 
 /* ─────────────────────────────────────────────────────────
    STEP 1 — Enter Email
 ───────────────────────────────────────────────────────── */
 function StepEmail({ onNext }) {
-  const [email, setEmail] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const validate = () => {
-    if (!email.trim()) return 'Email address is required.';
-    if (!/\S+@\S+\.\S+/.test(email)) return 'Please enter a valid email address.';
-    return '';
+    if (!email.trim()) return "Email address is required.";
+    if (!/\S+@\S+\.\S+/.test(email))
+      return "Please enter a valid email address.";
+    return "";
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const err = validate();
-    if (err) { setError(err); return; }
-    setError('');
+    if (err) {
+      setError(err);
+      return;
+    }
+    setError("");
     setLoading(true);
     const res = await sendOtp({
       email: email.trim(),
@@ -66,7 +77,7 @@ function StepEmail({ onNext }) {
     if (res.success) {
       onNext(email.trim());
     } else {
-      setError(`${res.message}` || 'Failed to send OTP. Please try again.');
+      setError(`${res.message}` || "Failed to send OTP. Please try again.");
     }
   };
 
@@ -90,12 +101,16 @@ function StepEmail({ onNext }) {
         Forgot Your Password?
       </h1>
       <p className="text-gray-500 text-[14px] text-center leading-relaxed mb-7 px-2">
-        Enter your registered email address and we'll send you a one-time verification code.
+        Enter your registered email address and we'll send you a one-time
+        verification code.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="fp-email" className="text-sm font-semibold text-gray-700">
+          <label
+            htmlFor="fp-email"
+            className="text-sm font-semibold text-gray-700"
+          >
             Email Address
           </label>
           <input
@@ -104,19 +119,22 @@ function StepEmail({ onNext }) {
             autoComplete="email"
             autoFocus
             value={email}
-            onChange={(e) => { setEmail(e.target.value); setError(''); }}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setError("");
+            }}
             placeholder="name@company.com"
             className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none transition-all placeholder:text-gray-400 ${
               error
-                ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-200'
-                : 'border-gray-300 focus:border-gray-400 focus:ring-1 focus:ring-gray-200'
+                ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-200"
+                : "border-gray-300 focus:border-gray-400 focus:ring-1 focus:ring-gray-200"
             }`}
           />
           <AnimatePresence>
             {error && (
               <motion.span
                 initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
+                animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
                 className="text-xs font-medium text-red-500 mt-0.5"
               >
@@ -151,11 +169,11 @@ function StepEmail({ onNext }) {
    STEP 2 — Verify OTP
 ───────────────────────────────────────────────────────── */
 function StepOTP({ email, onNext, onBack }) {
-  const [otp, setOtp] = useState(new Array(6).fill(''));
-  const [error, setError] = useState('');
+  const [otp, setOtp] = useState(new Array(6).fill(""));
+  const [error, setError] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
-  const [resendMsg, setResendMsg] = useState('');
+  const [resendMsg, setResendMsg] = useState("");
   const [shake, setShake] = useState(false);
   const inputRefs = useRef([]);
 
@@ -169,20 +187,20 @@ function StepOTP({ email, onNext, onBack }) {
     const next = [...otp];
     next[idx] = val.slice(-1);
     setOtp(next);
-    setError('');
-    setResendMsg('');
+    setError("");
+    setResendMsg("");
     if (val && idx < 5) inputRefs.current[idx + 1]?.focus();
   };
 
   const handleKeyDown = (e, idx) => {
-    if (e.key === 'Backspace' && !otp[idx] && idx > 0) {
+    if (e.key === "Backspace" && !otp[idx] && idx > 0) {
       inputRefs.current[idx - 1]?.focus();
     }
   };
 
   const handlePaste = (e) => {
     e.preventDefault();
-    const data = e.clipboardData.getData('text/plain').slice(0, 6);
+    const data = e.clipboardData.getData("text/plain").slice(0, 6);
     if (!/^\d+$/.test(data)) return;
     const next = [...otp];
     for (let i = 0; i < data.length; i++) next[i] = data[i];
@@ -199,33 +217,52 @@ function StepOTP({ email, onNext, onBack }) {
   // For this frontend-only flow we verify locally —
   // a real backend would expose POST /auth/verifyOtp
   const handleVerify = async () => {
-    const code = otp.join('');
+    const code = otp.join("");
     if (code.length < 6) {
-      setError('Please enter all 6 digits.');
+      setError("Please enter all 6 digits.");
       triggerShake();
       return;
     }
     setVerifying(true);
-    setError('');
+    setError("");
     // Simulate a short network round-trip (replace with real API call when backend is ready)
-    await new Promise((r) => setTimeout(r, 900));
+    // await new Promise((r) => setTimeout(r, 900));
+
+    const res = await verifyOtpForForgotPassword({
+      email: email.toLowerCase().trim(),
+      otp: code,
+    });
+
     setVerifying(false);
-    // On success, advance. On failure, shake + show error.
-    onNext(code);
+    //  if (res.success) {
+    //    onNext(email.trim());
+    //  } else {
+    //    setError(`${res.message}` || "Failed to send OTP. Please try again.");
+    //  }
+
+    if (res.success) {
+      onNext(res.resetToken);
+    } else {
+      setError(`${res.message}` || "Failed to verify OTP. Please try again");
+    }
   };
 
   const handleResend = async () => {
     setResending(true);
-    setResendMsg('');
-    setError('');
-    const res = await sendOtp(email);
+    setResendMsg("");
+    setError("");
+
+    const res = await sendOtp({
+      email: email.toLowerCase().trim(),
+      purpose: "forgotPassword",
+    });
     setResending(false);
     if (res.success) {
-      setResendMsg('A new code has been sent to your inbox.');
-      setOtp(new Array(6).fill(''));
+      setResendMsg("A new code has been sent to your inbox.");
+      setOtp(new Array(6).fill(""));
       inputRefs.current[0]?.focus();
     } else {
-      setError(res.message || 'Failed to resend code.');
+      setError(res.message || "Failed to resend code.");
     }
   };
 
@@ -260,7 +297,7 @@ function StepOTP({ email, onNext, onBack }) {
         {error && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
+            animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs font-medium text-center"
           >
@@ -270,7 +307,7 @@ function StepOTP({ email, onNext, onBack }) {
         {resendMsg && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
+            animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-xs font-medium text-center"
           >
@@ -298,10 +335,10 @@ function StepOTP({ email, onNext, onBack }) {
             onPaste={handlePaste}
             className={`w-11 h-14 text-center text-xl font-bold rounded-xl border-2 outline-none transition-all bg-slate-50 focus:bg-white shadow-sm ${
               error
-                ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-200'
+                ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-200"
                 : digit
-                ? 'border-[#0a192f] bg-white'
-                : 'border-gray-200 focus:border-[#0a192f] focus:ring-1 focus:ring-[#0a192f]/20'
+                  ? "border-[#0a192f] bg-white"
+                  : "border-gray-200 focus:border-[#0a192f] focus:ring-1 focus:ring-[#0a192f]/20"
             }`}
           />
         ))}
@@ -330,8 +367,8 @@ function StepOTP({ email, onNext, onBack }) {
           disabled={resending}
           className="flex items-center gap-1.5 text-sm font-semibold text-[#b86118] hover:text-[#914b10] transition-colors disabled:opacity-50"
         >
-          <FiRefreshCcw size={13} className={resending ? 'animate-spin' : ''} />
-          {resending ? 'Resending…' : 'Resend Code'}
+          <FiRefreshCcw size={13} className={resending ? "animate-spin" : ""} />
+          {resending ? "Resending…" : "Resend Code"}
         </button>
         <button
           onClick={onBack}
@@ -348,12 +385,12 @@ function StepOTP({ email, onNext, onBack }) {
 /* ─────────────────────────────────────────────────────────
    STEP 3 — Set New Password
 ───────────────────────────────────────────────────────── */
-function StepNewPassword({ email, otp, onSuccess }) {
-  const [password, setPassword]     = useState('');
-  const [confirm, setConfirm]       = useState('');
-  const [showPw, setShowPw]         = useState(false);
-  const [showCf, setShowCf]         = useState(false);
-  const [errors, setErrors]         = useState({});
+function StepNewPassword({ resetToken, onSuccess }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [showCf, setShowCf] = useState(false);
+  const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
   const strength = getPasswordStrength(password);
@@ -361,19 +398,21 @@ function StepNewPassword({ email, otp, onSuccess }) {
   const validate = () => {
     const e = {};
     const re = /^(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-    if (!password)      e.password = 'New password is required.';
+    if (!password) e.password = "New password is required.";
     else if (!re.test(password))
-      e.password = 'Min 8 chars, 1 uppercase, 1 number, 1 special character.';
-    if (!confirm)       e.confirm = 'Please confirm your password.';
-    else if (password !== confirm)
-      e.confirm = 'Passwords do not match.';
+      e.password = "Min 8 chars, 1 uppercase, 1 number, 1 special character.";
+    if (!confirm) e.confirm = "Please confirm your password.";
+    else if (password !== confirm) e.confirm = "Passwords do not match.";
     return e;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const errs = validate();
-    if (Object.keys(errs).length) { setErrors(errs); return; }
+    if (Object.keys(errs).length) {
+      setErrors(errs);
+      return;
+    }
     setErrors({});
     setSubmitting(true);
 
@@ -410,19 +449,24 @@ function StepNewPassword({ email, otp, onSuccess }) {
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         {/* New password */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-semibold text-gray-700">New Password</label>
+          <label className="text-sm font-semibold text-gray-700">
+            New Password
+          </label>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             <input
-              type={showPw ? 'text' : 'password'}
+              type={showPw ? "text" : "password"}
               autoFocus
               value={password}
-              onChange={(e) => { setPassword(e.target.value); setErrors((p) => ({ ...p, password: '' })); }}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setErrors((p) => ({ ...p, password: "" }));
+              }}
               placeholder="Min 8 chars, uppercase, number, symbol"
               className={`w-full border rounded-lg pl-9 pr-10 py-2.5 text-sm outline-none transition-all placeholder:text-gray-400 ${
                 errors.password
-                  ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-200'
-                  : 'border-gray-300 focus:border-gray-400 focus:ring-1 focus:ring-gray-200'
+                  ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-200"
+                  : "border-gray-300 focus:border-gray-400 focus:ring-1 focus:ring-gray-200"
               }`}
             />
             <button
@@ -431,7 +475,11 @@ function StepNewPassword({ email, otp, onSuccess }) {
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
               tabIndex={-1}
             >
-              {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              {showPw ? (
+                <EyeOff className="w-4 h-4" />
+              ) : (
+                <Eye className="w-4 h-4" />
+              )}
             </button>
           </div>
 
@@ -443,17 +491,22 @@ function StepNewPassword({ email, otp, onSuccess }) {
                   <div
                     key={n}
                     className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
-                      strength.score >= n ? strength.color : 'bg-gray-200'
+                      strength.score >= n ? strength.color : "bg-gray-200"
                     }`}
                   />
                 ))}
               </div>
-              <p className={`text-[11px] font-bold ${
-                strength.score <= 1 ? 'text-red-500'
-                : strength.score === 2 ? 'text-amber-500'
-                : strength.score === 3 ? 'text-blue-600'
-                : 'text-emerald-600'
-              }`}>
+              <p
+                className={`text-[11px] font-bold ${
+                  strength.score <= 1
+                    ? "text-red-500"
+                    : strength.score === 2
+                      ? "text-amber-500"
+                      : strength.score === 3
+                        ? "text-blue-600"
+                        : "text-emerald-600"
+                }`}
+              >
                 {strength.label} password
               </p>
             </div>
@@ -461,8 +514,12 @@ function StepNewPassword({ email, otp, onSuccess }) {
 
           <AnimatePresence>
             {errors.password && (
-              <motion.span initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-                className="text-xs font-medium text-red-500">
+              <motion.span
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="text-xs font-medium text-red-500"
+              >
                 {errors.password}
               </motion.span>
             )}
@@ -471,20 +528,25 @@ function StepNewPassword({ email, otp, onSuccess }) {
 
         {/* Confirm password */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-semibold text-gray-700">Confirm Password</label>
+          <label className="text-sm font-semibold text-gray-700">
+            Confirm Password
+          </label>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             <input
-              type={showCf ? 'text' : 'password'}
+              type={showCf ? "text" : "password"}
               value={confirm}
-              onChange={(e) => { setConfirm(e.target.value); setErrors((p) => ({ ...p, confirm: '' })); }}
+              onChange={(e) => {
+                setConfirm(e.target.value);
+                setErrors((p) => ({ ...p, confirm: "" }));
+              }}
               placeholder="Re-enter your new password"
               className={`w-full border rounded-lg pl-9 pr-10 py-2.5 text-sm outline-none transition-all placeholder:text-gray-400 ${
                 errors.confirm
-                  ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-200'
+                  ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-200"
                   : confirm && confirm === password
-                  ? 'border-emerald-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-200'
-                  : 'border-gray-300 focus:border-gray-400 focus:ring-1 focus:ring-gray-200'
+                    ? "border-emerald-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-200"
+                    : "border-gray-300 focus:border-gray-400 focus:ring-1 focus:ring-gray-200"
               }`}
             />
             <button
@@ -493,20 +555,31 @@ function StepNewPassword({ email, otp, onSuccess }) {
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
               tabIndex={-1}
             >
-              {showCf ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              {showCf ? (
+                <EyeOff className="w-4 h-4" />
+              ) : (
+                <Eye className="w-4 h-4" />
+              )}
             </button>
           </div>
           {/* Match indicator */}
           {confirm && confirm === password && (
-            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-[11px] font-bold text-emerald-600 flex items-center gap-1"
+            >
               <CheckCircle2 className="w-3 h-3" /> Passwords match
             </motion.p>
           )}
           <AnimatePresence>
             {errors.confirm && (
-              <motion.span initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-                className="text-xs font-medium text-red-500">
+              <motion.span
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="text-xs font-medium text-red-500"
+              >
                 {errors.confirm}
               </motion.span>
             )}
@@ -553,7 +626,7 @@ function StepSuccess() {
       <motion.div
         initial={{ scale: 0, rotate: -180 }}
         animate={{ scale: 1, rotate: 0 }}
-        transition={{ type: 'spring', stiffness: 260, damping: 18, delay: 0.1 }}
+        transition={{ type: "spring", stiffness: 260, damping: 18, delay: 0.1 }}
         className="w-20 h-20 rounded-full bg-emerald-100 border-4 border-emerald-300 flex items-center justify-center mb-6 shadow-lg"
       >
         <CheckCircle2 className="w-10 h-10 text-emerald-500" />
@@ -573,7 +646,8 @@ function StepSuccess() {
         transition={{ delay: 0.35 }}
         className="text-gray-500 text-[13.5px] leading-relaxed mb-8 px-2 max-w-xs"
       >
-        Your password has been successfully reset. You can now log in with your new password.
+        Your password has been successfully reset. You can now log in with your
+        new password.
       </motion.p>
 
       <motion.button
@@ -582,7 +656,7 @@ function StepSuccess() {
         transition={{ delay: 0.45 }}
         whileHover={{ scale: 1.01 }}
         whileTap={{ scale: 0.98 }}
-        onClick={() => navigate('/login')}
+        onClick={() => navigate("/login")}
         className="w-full bg-[#0a192f] text-white font-semibold text-sm py-3 rounded-lg hover:bg-[#122849] transition-colors shadow-sm"
       >
         Back to Login
@@ -602,10 +676,10 @@ function StepDots({ current, total }) {
           key={i}
           className={`rounded-full transition-all duration-300 ${
             i === current
-              ? 'w-6 h-2 bg-[#0a192f]'
+              ? "w-6 h-2 bg-[#0a192f]"
               : i < current
-              ? 'w-2 h-2 bg-[#0a192f]/40'
-              : 'w-2 h-2 bg-gray-200'
+                ? "w-2 h-2 bg-[#0a192f]/40"
+                : "w-2 h-2 bg-gray-200"
           }`}
         />
       ))}
@@ -618,19 +692,20 @@ function StepDots({ current, total }) {
 ───────────────────────────────────────────────────────── */
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
-  const [step, setStep]   = useState(0); // 0=email, 1=otp, 2=newpw, 3=success
-  const [email, setEmail] = useState('');
-  const [otp, setOtp]     = useState('');
+  const [step, setStep] = useState(0); // 0=email, 1=otp, 2=newpw, 3=success
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [resetToken, setResetToken] = useState("");
 
-  const stepLabels = ['Email', 'Verify', 'New Password', 'Done'];
-  const showDots   = step < 3;
+  const stepLabels = ["Email", "Verify", "New Password", "Done"];
+  const showDots = step < 3;
 
   return (
     <div className="min-h-screen w-full bg-[#f4f7f9] flex items-center justify-center p-4 sm:p-6 font-sans text-slate-800">
       <motion.div
         initial={{ opacity: 0, y: 20, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.4, ease: 'easeOut' }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
         className="w-full max-w-[420px] bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.07)] relative overflow-hidden flex flex-col"
       >
         {/* Bottom accent bar */}
@@ -638,7 +713,7 @@ export default function ForgotPasswordPage() {
 
         {/* Close / back to login */}
         <button
-          onClick={() => navigate('/login')}
+          onClick={() => navigate("/login")}
           className="absolute top-5 right-5 text-gray-500 hover:text-gray-800 transition-colors cursor-pointer z-10"
           aria-label="Back to login"
         >
@@ -665,22 +740,27 @@ export default function ForgotPasswordPage() {
             {step === 0 && (
               <StepEmail
                 key="email"
-                onNext={(e) => { setEmail(e); setStep(1); }}
+                onNext={(e) => {
+                  setEmail(e);
+                  setStep(1);
+                }}
               />
             )}
             {step === 1 && (
               <StepOTP
                 key="otp"
                 email={email}
-                onNext={(code) => { setOtp(code); setStep(2); }}
+                onNext={(token) => {
+                  setResetToken(token);
+                  setStep(2);
+                }}
                 onBack={() => setStep(0)}
               />
             )}
             {step === 2 && (
               <StepNewPassword
                 key="newpw"
-                email={email}
-                otp={otp}
+                resetToken={resetToken}
                 onSuccess={() => setStep(3)}
               />
             )}
@@ -690,8 +770,11 @@ export default function ForgotPasswordPage() {
           {/* Footer — login link (hidden on success step) */}
           {step < 3 && (
             <div className="text-center mt-7 text-[14px] text-gray-600">
-              Remember your password?{' '}
-              <Link to="/login" className="text-[#b86118] font-semibold hover:underline transition-all">
+              Remember your password?{" "}
+              <Link
+                to="/login"
+                className="text-[#b86118] font-semibold hover:underline transition-all"
+              >
                 Back to Login
               </Link>
             </div>

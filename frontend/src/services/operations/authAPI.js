@@ -5,9 +5,10 @@ export const authEndpoints = {
   SIGNUP_API: BASE_URL + '/auth/signup',
   LOGIN_API: BASE_URL + '/auth/login',
   GOOGLE_LOGIN_API: BASE_URL + '/auth/googleLogin',
+  VERIFY_OTP: BASE_URL + '/auth/forgotPassword/verifyOtp',
 };
 
-const { SENDOTP_API, SIGNUP_API, LOGIN_API, GOOGLE_LOGIN_API } = authEndpoints;
+const { SENDOTP_API, SIGNUP_API, LOGIN_API, GOOGLE_LOGIN_API , VERIFY_OTP} = authEndpoints;
 
 // Send OTP for account creation
 export async function sendOtp({ email, purpose }) {
@@ -109,3 +110,32 @@ export async function googleLogin(accessToken) {
     };
   }
 }
+
+export async function verifyOtpForForgotPassword({email, otp}) {
+try{
+  const res = await apiConnector('POST', VERIFY_OTP,{email , otp});
+  console.log("VERIFY OTP RESPONSE..........", res.data);
+
+  if(!res.data?.success || !res.data?.resetToken){
+    throw new Error(res.data?.message || "OTP VERIFICATION FAILED")
+  }
+
+  return {
+    success: true,
+    message: res.data.message || "Otp verified successfully",
+    resetToken : res.data.resetToken,
+  }
+
+}catch(err){
+
+  console.log("VERIFY OTP ERROR......." , err);
+  const errorMessage  = err.response?.data?.message || err.message || "OTP verification failed";
+  return {
+    success: false,
+    message: errorMessage,
+  };
+
+
+}
+}
+  

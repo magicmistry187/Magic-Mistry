@@ -444,9 +444,10 @@ async function changePassword(req, res) {
 }
 
 //verify otp for forgot password
-async function verifyOtp(req, res) {
+async function verifyOtpForForgotPassword(req, res) {
   try {
-    const { email, otp, purpose } = req.body;
+    const { email, otp } = req.body;
+  
 
     if (!email) {
       return res.status(400).json({
@@ -455,12 +456,25 @@ async function verifyOtp(req, res) {
       });
     }
 
+     const user = await userModel.findOne({
+       email: email.toLowerCase().trim(),
+     });
+
+     if(!user){
+       return res.status(400).json({
+         success: false,
+         message: "User is not registered with this email",
+       });
+     }
+
     if (!otp) {
       return res.status(400).json({
         success: false,
         message: "OTP is required",
       });
     }
+
+
 
     const recentOtp = await otpModel
       .findOne({
@@ -487,9 +501,19 @@ async function verifyOtp(req, res) {
       _id: recentOtp._id,
     });
 
+   
+
+    const resetToken = jwt.sign({
+      userId: user._id,
+      purpose: "resetPassword",
+    }, process.env.JWT_SECRET || "secret", {
+      expiresIn: "10m",
+    });
+
     return res.status(200).json({
       success: true,
       message: "OTP verified Successfully",
+      resetToken,
     });
   } catch (err) {
     console.error("Error while verifying  OTP: ", err);
@@ -523,5 +547,5 @@ module.exports = {
   login,
   googleLogin,
   changePassword,
-  verifyOtp,
+  verifyOtpForForgotPassword,
 };
