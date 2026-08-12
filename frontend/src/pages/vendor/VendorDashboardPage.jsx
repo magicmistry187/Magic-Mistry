@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   Wrench, ShieldCheck, Star, Clock, MapPin, Phone, Navigation,
   CheckCircle2, XCircle, AlertCircle, IndianRupee, TrendingUp,
@@ -1278,9 +1278,9 @@ export default function VendorDashboardPage() {
 
                     <div className="flex items-center gap-2.5">
                       <Phone className="w-4 h-4 text-orange-400 shrink-0" />
-                      <a href={`tel:${selectedJob.customerPhone}`} className="hover:underline text-white font-bold">
+                      <Link to={`tel:${selectedJob.customerPhone}`} className="hover:underline text-white font-bold">
                         {selectedJob.customerPhone}
-                      </a>
+                      </Link>
                     </div>
                   </div>
 

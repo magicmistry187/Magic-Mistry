@@ -343,13 +343,13 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
 
               <p className="text-[11px] sm:text-xs text-slate-400 leading-relaxed max-w-xs mx-auto">
                 By signing up, you agree to our{' '}
-                <a href="#terms" className="underline hover:text-slate-600">
+                <Link to="/terms" className="underline hover:text-slate-600">
                   Terms of Service
-                </a>{' '}
+                </Link>{' '}
                 and{' '}
-                <a href="#privacy" className="underline hover:text-slate-600">
+                <Link to="/privacy" className="underline hover:text-slate-600">
                   Privacy Policy
-                </a>
+                </Link>
                 .
               </p>
             </div>

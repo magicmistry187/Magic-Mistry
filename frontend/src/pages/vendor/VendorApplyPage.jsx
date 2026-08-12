@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, CheckCircle2, User, Phone,
   Mail, MapPin, Briefcase, Wrench, FileText, Shield,
-  Upload, ChevronDown, Sparkles, AlertCircle
+  Upload, ChevronDown, Sparkles, AlertCircle, ExternalLink
 } from 'lucide-react';
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
@@ -70,7 +70,6 @@ const InputField = ({ label, id, type = 'text', placeholder, value, onChange, ic
   </motion.div>
 );
 
-/* ─── Reusable Select Field ──────────────────────────────────────── */
 const SelectField = ({ label, id, value, onChange, options, placeholder, error, required }) => (
   <motion.div variants={fadeUp} className="flex flex-col gap-1.5">
     <label htmlFor={id} className="text-sm font-semibold text-[#0B1E40]">
@@ -99,6 +98,66 @@ const SelectField = ({ label, id, value, onChange, options, placeholder, error, 
     )}
   </motion.div>
 );
+
+/* ─── Reusable File Input Field ──────────────────────────────────────── */
+const FileInputField = ({ label, id, onChange, error, required, accept, file, helperText }) => {
+  const [pdfUrl, setPdfUrl] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!file) {
+      setPdfUrl(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(file);
+    setPdfUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
+
+  return (
+    <motion.div variants={fadeUp} className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-sm font-semibold text-[#0B1E40]">
+        {label}{required && <span className="text-orange-500 ml-0.5">*</span>}
+      </label>
+      <div className="relative">
+        <input
+          id={id}
+          type="file"
+          accept={accept}
+          onChange={onChange}
+          className={`w-full px-4 py-2.5 text-sm bg-slate-50 border ${
+            error ? 'border-red-400 focus:ring-red-300' : 'border-slate-200 focus:ring-orange-300'
+          } rounded-xl focus:outline-none focus:ring-2 focus:bg-white text-slate-800 transition-all cursor-pointer`}
+        />
+      </div>
+      {file && pdfUrl && (
+        <div className="mt-2 flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 shadow-sm">
+          <div className="flex items-center gap-2">
+            <FileText className="w-5 h-5 text-orange-500 shrink-0" />
+            <span className="text-xs font-semibold truncate max-w-[200px]">{file.name}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => window.open(pdfUrl, '_blank')}
+            className="text-[11px] font-extrabold text-[#FF6B00] hover:underline flex items-center gap-1 cursor-pointer shrink-0 ml-4"
+          >
+            Preview <ExternalLink className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+      {helperText && !error && (
+        <p className="text-xs text-slate-500 font-medium italic mt-0.5">
+          * {helperText}
+        </p>
+      )}
+      {error && (
+        <p className="text-xs text-red-500 flex items-center gap-1 mt-0.5">
+          <AlertCircle className="w-3.5 h-3.5" />{error}
+        </p>
+      )}
+    </motion.div>
+  );
+};
+
 
 /* ─── Step Indicator ─────────────────────────────────────────────── */
 const steps = ['Personal Info', 'Work Details', 'Review & Submit'];
@@ -156,9 +215,13 @@ export default function VendorApplyPage() {
     serviceType:  '',
     experience:   '',
     about:        '',
+    photo:        null,
+    aadhar:       null,
+    resume:       null,
   });
 
   const set = (key) => (e) => setForm(prev => ({ ...prev, [key]: e.target.value }));
+  const setFile = (key) => (e) => setForm(prev => ({ ...prev, [key]: e.target.files[0] }));
 
   /* ── Validation ── */
   const validateStep = (s) => {
@@ -173,6 +236,16 @@ export default function VendorApplyPage() {
       if (!form.serviceType) e.serviceType = 'Please select a service type.';
       if (!form.experience)  e.experience  = 'Please select your experience level.';
       if (!form.about.trim() || form.about.trim().split(/\s+/).length < 5) e.about = 'Please write at least a few words about yourself.';
+      const isPdf = (file) => file && (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'));
+
+      if (!form.photo) e.photo = 'Photo is required.';
+      else if (!isPdf(form.photo)) e.photo = 'Only PDF files are allowed.';
+
+      if (!form.aadhar) e.aadhar = 'Aadhar upload is required.';
+      else if (!isPdf(form.aadhar)) e.aadhar = 'Only PDF files are allowed.';
+
+      if (!form.resume) e.resume = 'Resume is required.';
+      else if (!isPdf(form.resume)) e.resume = 'Only PDF files are allowed.';
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -390,6 +463,24 @@ export default function VendorApplyPage() {
                         error={errors.experience} required
                       />
 
+                      <div className="flex flex-col gap-4 mt-2">
+                        <FileInputField
+                          label="Photo Upload" id="photo" accept=".pdf,application/pdf"
+                          onChange={setFile('photo')} error={errors.photo} required file={form.photo}
+                          helperText="upload only PDF File"
+                        />
+                        <FileInputField
+                          label="Aadhar Upload" id="aadhar" accept=".pdf,application/pdf"
+                          onChange={setFile('aadhar')} error={errors.aadhar} required file={form.aadhar}
+                          helperText="upload only PDF File"
+                        />
+                        <FileInputField
+                          label="Resume Upload" id="resume" accept=".pdf,application/pdf"
+                          onChange={setFile('resume')} error={errors.resume} required file={form.resume}
+                          helperText="upload only PDF File."
+                        />
+                      </div>
+
                       <motion.div variants={fadeUp} className="flex flex-col gap-1.5">
                         <label htmlFor="about" className="text-sm font-semibold text-[#0B1E40]">
                           Tell us about your experience<span className="text-orange-500 ml-0.5">*</span>
@@ -467,6 +558,20 @@ export default function VendorApplyPage() {
                             <span className="text-[#0B1E40] font-semibold">{form.about}</span>
                           </div>
                         )}
+                        <hr className="border-slate-200 mt-2" />
+                        <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Documents</h4>
+                        <div className="grid sm:grid-cols-3 gap-3 text-sm">
+                          {[
+                            { label: 'Photo', val: form.photo ? form.photo.name : '' },
+                            { label: 'Aadhar', val: form.aadhar ? form.aadhar.name : '' },
+                            { label: 'Resume', val: form.resume ? form.resume.name : '' },
+                          ].map(({ label, val }) => (
+                            <div key={label} className="truncate">
+                              <span className="text-slate-400 font-medium block mb-0.5">{label}: </span>
+                              <span className="text-[#0B1E40] font-semibold truncate block" title={val}>{val || '—'}</span>
+                            </div>
+                          ))}
+                        </div>
                       </motion.div>
 
                       {/* Terms Agreement */}
@@ -480,9 +585,9 @@ export default function VendorApplyPage() {
                         />
                         <label htmlFor="agreed" className="text-sm text-slate-600 leading-relaxed cursor-pointer">
                           I agree to the Magic Mistry{' '}
-                          <a href="/terms" target="_blank" className="text-orange-500 font-bold hover:underline">Terms of Service</a>
+                          <Link to="/terms" target="_blank" className="text-orange-500 font-bold hover:underline">Terms of Service</Link>
                           {' '}and{' '}
-                          <a href="/privacy" target="_blank" className="text-orange-500 font-bold hover:underline">Privacy Policy</a>,
+                          <Link to="/privacy" target="_blank" className="text-orange-500 font-bold hover:underline">Privacy Policy</Link>,
                           and consent to share provided information to process my vendor application.
                         </label>
                       </motion.div>

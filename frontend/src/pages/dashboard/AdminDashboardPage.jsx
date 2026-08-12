@@ -89,7 +89,7 @@ const INITIAL_APPLICATIONS = [
     status: 'Pending',
     date: 'Oct 24, 2026',
     experience: '6 Years',
-    docs: ['Govt Photo ID Proof', 'HVAC Master License Cert', 'Liability Insurance Verification'],
+    docs: ['Photo Upload', 'Aadhar Upload', 'Resume Upload'],
     notes: 'Applied for commercial and residential AC repair dispatches in Austin metro area.'
   },
   {
@@ -102,7 +102,7 @@ const INITIAL_APPLICATIONS = [
     status: 'Pending',
     date: 'Oct 23, 2026',
     experience: '8 Years',
-    docs: ['Aadhaar Card Proof', 'Diploma in Electrical Engg', 'NABL Safety Certification'],
+    docs: ['Photo Upload', 'Aadhar Upload', 'Resume Upload'],
     notes: 'Specializes in split AC, cassette AC, and double-door inverter refrigerators.'
   },
   {
@@ -115,7 +115,7 @@ const INITIAL_APPLICATIONS = [
     status: 'Approved',
     date: 'Oct 20, 2026',
     experience: '5 Years',
-    docs: ['Aadhaar Card Proof', 'Appliance Technician Skill Badge'],
+    docs: ['Photo Upload', 'Aadhar Upload', 'Resume Upload'],
     notes: 'Expert in front load washing machine drum seals and drain pumps.'
   },
   {
@@ -128,7 +128,7 @@ const INITIAL_APPLICATIONS = [
     status: 'Reviewing',
     date: 'Oct 19, 2026',
     experience: '4 Years',
-    docs: ['Govt ID Card', 'Trade Union Certificate'],
+    docs: ['Photo Upload', 'Aadhar Upload', 'Resume Upload'],
     notes: 'Residential wiring, switchboard installation, and leak repairs.'
   },
 ];
@@ -1652,7 +1652,11 @@ export default function AdminDashboardPage() {
                         </div>
                         <button
                           type="button"
-                          onClick={() => showToast(`Previewing ${doc}...`)}
+                          onClick={() => {
+                            showToast(`Opening ${doc}...`);
+                            // In a real app, this would be the actual file URL
+                            window.open('https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank');
+                          }}
                           className="text-[11px] font-extrabold text-[#FF6B00] hover:underline flex items-center gap-1 cursor-pointer"
                         >
                           View <ExternalLink className="w-3 h-3" />
