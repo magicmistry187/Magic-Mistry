@@ -30,7 +30,7 @@ exports.createBooking = async (req, res) => {
     // Upload image if provided
     let image = '';
 
-    if (req.file) {
+    if (req.file){
       try {
         const result = await uploadImageToImageKit(req.file.buffer);
         image = result.url;

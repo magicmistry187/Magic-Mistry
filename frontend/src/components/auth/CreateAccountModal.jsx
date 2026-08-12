@@ -78,7 +78,7 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
     setApiError('');
     if (validateForm()) {
       setIsLoading(true);
-      const res = await sendOtp(formData.email);
+      const res = await sendOtp({ email: formData.email, purpose: 'signup' });
       setIsLoading(false);
       if (res.success) {
         setIsOTPVisible(true);

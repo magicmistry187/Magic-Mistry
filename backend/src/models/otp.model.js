@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const otpSchema = new mongoose.Schema({
   email: {
@@ -9,6 +9,11 @@ const otpSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  purpose: {
+    type: String,
+    enum: ["signup", "forgotPassword"],
+    required: true,
+  },
   createdAt: {
     type: Date,
     default: Date.now(),
@@ -16,4 +21,4 @@ const otpSchema = new mongoose.Schema({
   },
 });
 
-module.exports = mongoose.model('Otp', otpSchema);
+module.exports = mongoose.model("Otp", otpSchema);
