@@ -221,12 +221,12 @@ export default function ContactPage() {
                       <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                         Email Address
                       </p>
-                      <a
-                        href="mailto:support@magicmistry.com"
+                      <Link
+                        to="mailto:support@magicmistry.com"
                         className="text-sm font-semibold text-blue-700 hover:underline mt-0.5 block"
                       >
                         support@magicmistry.com
-                      </a>
+                      </Link>
                     </div>
                   </div>
                 </div>
@@ -238,27 +238,27 @@ export default function ContactPage() {
                   Follow Our Updates
                 </p>
                 <div className="flex items-center gap-3">
-                  <a
-                    href="#website"
+                  <Link
+                    to="#website"
                     aria-label="Website"
                     className="w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-700 hover:text-orange-600 hover:border-orange-300 flex items-center justify-center shadow-xs transition-all hover:scale-105"
                   >
                     <Globe className="w-4 h-4" />
-                  </a>
-                  <a
-                    href="#share"
+                  </Link>
+                  <Link
+                    to="#share"
                     aria-label="Share"
                     className="w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-700 hover:text-orange-600 hover:border-orange-300 flex items-center justify-center shadow-xs transition-all hover:scale-105"
                   >
                     <Share2 className="w-4 h-4" />
-                  </a>
-                  <a
-                    href="#community"
+                  </Link>
+                  <Link
+                    to="#community"
                     aria-label="Community"
                     className="w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-700 hover:text-orange-600 hover:border-orange-300 flex items-center justify-center shadow-xs transition-all hover:scale-105"
                   >
                     <Users className="w-4 h-4" />
-                  </a>
+                  </Link>
                 </div>
               </div>
             </motion.div>

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Shield, Database, Users, Lock, UserCheck, Mail } from "lucide-react";
+import { Link } from "react-router-dom";
 import Navbar from "../../components/common/Navbar";
 import Footer from "../../components/common/Footer";
 
@@ -269,12 +270,12 @@ export default function PrivacyPolicy() {
                 </p>
               </div>
             </div>
-            <a
-              href="mailto:privacy@fixitpro.com"
+            <Link
+              to="mailto:privacy@fixitpro.com"
               className="z-10 inline-flex items-center justify-center px-6 py-3 rounded-xl bg-slate-900 text-white font-medium hover:bg-blue-600 transition-colors duration-300 whitespace-nowrap gap-2"
             >
               Contact Support
-            </a>
+            </Link>
           </motion.div>
         </main>
       </div>

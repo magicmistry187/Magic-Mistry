@@ -8,6 +8,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Phone, MessageSquare, ShieldCheck, MapPin, Navigation, Clock, Star } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function UserTechnicianMapModal({ isOpen, onClose, technician, booking }) {
   const [eta, setEta] = useState(18); // 18 mins ETA
@@ -135,13 +136,13 @@ export default function UserTechnicianMapModal({ isOpen, onClose, technician, bo
 
               {/* Quick Action Buttons */}
               <div className="flex items-center gap-2">
-                <a
-                  href={`tel:${technician?.phone || '+919876543210'}`}
+                <Link
+                  to={`tel:${technician?.phone || '+919876543210'}`}
                   className="w-11 h-11 rounded-2xl bg-emerald-500 text-white flex items-center justify-center hover:bg-emerald-600 transition-colors shadow-md shadow-emerald-200"
                   title="Call Technician"
                 >
                   <Phone className="w-5 h-5" />
-                </a>
+                </Link>
                 <button
                   onClick={() => alert(`Messaging ${technician?.name || 'Technician'}...`)}
                   className="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 transition-colors shadow-md shadow-blue-200"

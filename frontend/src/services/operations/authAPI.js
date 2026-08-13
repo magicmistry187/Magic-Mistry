@@ -6,9 +6,10 @@ export const authEndpoints = {
   LOGIN_API: BASE_URL + '/auth/login',
   GOOGLE_LOGIN_API: BASE_URL + '/auth/googleLogin',
   VERIFY_OTP: BASE_URL + '/auth/forgotPassword/verifyOtp',
+  FORGOT_PASSWORD_API: BASE_URL + '/auth/forgotPassword',
 };
 
-const { SENDOTP_API, SIGNUP_API, LOGIN_API, GOOGLE_LOGIN_API , VERIFY_OTP} = authEndpoints;
+const { SENDOTP_API, SIGNUP_API, LOGIN_API, GOOGLE_LOGIN_API , VERIFY_OTP, FORGOT_PASSWORD_API } = authEndpoints;
 
 // Send OTP for account creation
 export async function sendOtp({ email, purpose }) {

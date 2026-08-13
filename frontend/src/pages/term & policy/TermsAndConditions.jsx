@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, FileText, User, Calendar, CreditCard, Wrench, AlertTriangle, Scale, Mail } from "lucide-react";
+import { Link } from "react-router-dom";
 import Navbar from "../../components/common/Navbar";
 import Footer from "../../components/common/Footer";
 
@@ -328,12 +329,12 @@ export default function TermsAndConditions() {
                 </p>
               </div>
             </div>
-            <a
-              href="mailto:legal@fixitpro.com"
+            <Link
+              to="mailto:legal@fixitpro.com"
               className="z-10 inline-flex items-center justify-center px-6 py-3 rounded-xl bg-slate-900 text-white font-medium hover:bg-indigo-600 transition-colors duration-300 whitespace-nowrap gap-2"
             >
               Contact Legal
-            </a>
+            </Link>
           </motion.div>
         </main>
       </div>

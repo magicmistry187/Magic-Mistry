@@ -174,7 +174,7 @@ export default function BookingConfirmation() {
                     <div className="flex-1">
                       <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide">Attached Photo</p>
                       <p className="text-xs text-blue-600 font-semibold hover:underline truncate">
-                        <a href={booking.image} target="_blank" rel="noreferrer">View full image</a>
+                        <Link to={booking.image} target="_blank" rel="noreferrer">View full image</Link>
                       </p>
                     </div>
                   </div>
@@ -227,9 +227,9 @@ export default function BookingConfirmation() {
             <div className="flex items-center gap-2 justify-center mb-6 text-sm text-slate-500">
               <Phone className="w-4 h-4 text-blue-500" />
               Need help?&nbsp;
-              <a href="tel:+919999999999" className="font-semibold text-blue-600 hover:underline">
+              <Link to="tel:+919999999999" className="font-semibold text-blue-600 hover:underline">
                 +91 99999 99999
-              </a>
+              </Link>
             </div>
 
             {/* ── Action buttons ────────────────────── */}
