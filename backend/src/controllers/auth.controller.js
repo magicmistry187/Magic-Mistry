@@ -529,6 +529,8 @@ async function verifyOtpForForgotPassword(req, res) {
 // Api for forgot password
 async function forgotPassword(req, res) {
   try {
+
+    
     
   } catch (err) {
     console.error("Error while processing forgot password: ", err);

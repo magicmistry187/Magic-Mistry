@@ -129,7 +129,7 @@ try{
 }catch(err){
 
   console.log("VERIFY OTP ERROR......." , err);
-  const errorMessage  = err.response?.data?.message || err.message || "OTP verification failed";
+  const errorMessage  = err.res?.data?.message || err.message || "OTP verification failed";
   return {
     success: false,
     message: errorMessage,
@@ -139,3 +139,21 @@ try{
 }
 }
   
+
+export async function forgotPassword({resetToken , newPassword}){
+
+  try{
+
+    const res = await apiConnector('POST', FORGOT_PASSWORD_API,  {resetToken , newPassword})
+      console.log("FORGOT PASSWORD RESPONSE ........", res.data);
+    if(!res.data?.success){
+     throw new Error(res.data?.message || "Password reset failed");
+    }
+
+  }catch(err){
+    console.log("FORGOT PASSWORD ERROR .......", err);
+  
+  }
+
+
+}
