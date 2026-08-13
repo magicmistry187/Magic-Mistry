@@ -163,6 +163,13 @@ const INITIAL_VENDOR_APPROVALS = [
   { id: 'V-2', name: 'TechFix by Sarah', applied: 'Applied 5 hours ago', tags: ['Microwaves', 'Small Appliances'], icon: User },
 ];
 
+// ─── Initial Payment Requests Data ───────────────────────────────────────────
+const INITIAL_PAYMENT_REQUESTS = [
+  { id: 'PAY-1042', vendorName: 'Marcus Reed', vendorId: 'FX-8892-A', upiId: 'marcus@upi', bankAccount: '3123456789 (HDFC)', daysOfWork: 5, amount: 14500, status: 'Pending', date: 'Oct 25, 2026', notes: 'Weekly payout request' },
+  { id: 'PAY-1041', vendorName: 'Sarah Jenkins', vendorId: 'FX-8891-B', upiId: 'sarahj@ybl', bankAccount: '5566778899 (SBI)', daysOfWork: 3, amount: 8400, status: 'Approved', date: 'Oct 24, 2026', notes: 'Completed 8 jobs' },
+  { id: 'PAY-1040', vendorName: 'Vikram Singh', vendorId: 'FX-8890-C', upiId: 'vikram.s@okicici', bankAccount: '9988776655 (ICICI)', daysOfWork: 7, amount: 22100, status: 'Paid', date: 'Oct 22, 2026', notes: 'Full week payout' },
+];
+
 // ─── Stock Level Pill Badge (Exact match to Screenshot 1 & 3) ───────────────
 const StockLevelBadge = ({ level, count }) => {
   if (level === 'In Stock' || level === 'Approved' || level === 'Active' || level === 'Verified') {
@@ -200,6 +207,7 @@ export default function AdminDashboardPage() {
   const [applicationsList, setApplicationsList] = useState(INITIAL_APPLICATIONS);
   const [dispatchQueue, setDispatchQueue] = useState(INITIAL_DISPATCH_QUEUE);
   const [vendorApprovals, setVendorApprovals] = useState(INITIAL_VENDOR_APPROVALS);
+  const [paymentRequests, setPaymentRequests] = useState(INITIAL_PAYMENT_REQUESTS);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [selectedStatus, setSelectedStatus] = useState('All Status');
@@ -323,6 +331,7 @@ export default function AdminDashboardPage() {
     { id: 'inventory',    label: 'Inventory Management',icon: Package },
     { id: 'users',        label: 'User Management',    icon: Users },
     { id: 'applications', label: 'Vendor Applications', icon: FileText, badge: pendingApplicationsCount > 0 ? pendingApplicationsCount.toString() : null },
+    { id: 'payment-requests', label: 'Payment Requests', icon: IndianRupee, badge: paymentRequests.filter(p => p.status === 'Pending').length > 0 ? paymentRequests.filter(p => p.status === 'Pending').length.toString() : null },
     { id: 'id-creation', label: 'Vandor id creation',  icon: UserPlus, isOrange: true },
     { id: 'analytics',    label: 'Financial Analytics',icon: TrendingUp },
     { id: 'settings',     label: 'Platform Settings',  icon: Settings },
@@ -993,6 +1002,162 @@ export default function AdminDashboardPage() {
 
                 {/* ───────────────────────────────────────────────────────────────── */}
                 {/* 3. VANDOR ID CREATION TAB (Exact match to Screenshots 3, 4, 5)   */}
+                {/* ───────────────────────────────────────────────────────────────── */}
+                {/* ───────────────────────────────────────────────────────────────── */}
+                {/* NEW PAYMENT REQUESTS TAB                                          */}
+                {/* ───────────────────────────────────────────────────────────────── */}
+                {activeTab === 'payment-requests' && (
+                  <motion.div
+                    key="payment-requests"
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -15 }}
+                    transition={{ duration: 0.3 }}
+                    className="space-y-6"
+                  >
+                    {/* Header */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div>
+                        <h1 className="text-2xl sm:text-3xl font-extrabold text-[#02182e] tracking-tight">Vendor Payment Requests</h1>
+                        <p className="text-slate-500 text-xs sm:text-sm mt-1 font-medium">Review and process payout requests from vendors.</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-extrabold text-xs rounded-xl shadow-xs hover:bg-slate-50 transition-colors flex items-center gap-2">
+                          <Download className="w-4 h-4 text-slate-500" /> Export Records
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Stats */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Pending Payouts</span>
+                          <Clock className="w-5 h-5 text-amber-500" />
+                        </div>
+                        <span className="text-3xl font-black text-[#02182e]">{paymentRequests.filter(p => p.status === 'Pending').length}</span>
+                        <p className="text-xs font-medium text-slate-500 mt-2">Awaiting admin review</p>
+                      </div>
+                      <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Amount Pending</span>
+                          <IndianRupee className="w-5 h-5 text-orange-500" />
+                        </div>
+                        <span className="text-3xl font-black text-[#02182e]">
+                          ₹{paymentRequests.filter(p => p.status === 'Pending').reduce((acc, curr) => acc + curr.amount, 0).toLocaleString()}
+                        </span>
+                        <p className="text-xs font-medium text-slate-500 mt-2">Total requested amount</p>
+                      </div>
+                      <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Paid This Month</span>
+                          <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                        </div>
+                        <span className="text-3xl font-black text-[#02182e]">
+                          ₹{paymentRequests.filter(p => p.status === 'Paid').reduce((acc, curr) => acc + curr.amount, 0).toLocaleString()}
+                        </span>
+                        <p className="text-xs font-medium text-emerald-600 mt-2">Cleared payouts</p>
+                      </div>
+                    </div>
+
+                    {/* Data Table */}
+                    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
+                      <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <h2 className="text-lg font-extrabold text-[#02182e]">Recent Requests</h2>
+                        <div className="relative w-full sm:w-64">
+                          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input type="text" placeholder="Search by ID or Vendor..." className="w-full pl-9 pr-3 py-2 bg-slate-50 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                        </div>
+                      </div>
+                      
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse min-w-[800px]">
+                          <thead>
+                            <tr className="bg-slate-50/80 text-slate-500 uppercase font-extrabold tracking-wider border-b border-slate-100">
+                              <th className="py-3 px-5">REQ ID</th>
+                              <th className="py-3 px-4">VENDOR DETAILS</th>
+                              <th className="py-3 px-4">PAYMENT INFO</th>
+                              <th className="py-3 px-4">DAYS OF WORK</th>
+                              <th className="py-3 px-4">AMOUNT</th>
+                              <th className="py-3 px-4">DATE</th>
+                              <th className="py-3 px-4">STATUS</th>
+                              <th className="py-3 px-5 text-right">ACTION</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {paymentRequests.map((req) => (
+                              <tr key={req.id} className="hover:bg-slate-50/80 transition-colors">
+                                <td className="py-4 px-5 font-bold text-slate-700">{req.id}</td>
+                                <td className="py-4 px-4">
+                                  <div className="font-bold text-slate-900">{req.vendorName}</div>
+                                  <div className="text-[10px] text-slate-500 mt-0.5">{req.vendorId}</div>
+                                </td>
+                                <td className="py-4 px-4">
+                                  <div className="text-xs font-semibold text-slate-700">UPI: <span className="text-blue-600">{req.upiId}</span></div>
+                                  <div className="text-[10px] text-slate-500 mt-0.5">A/C: {req.bankAccount}</div>
+                                </td>
+                                <td className="py-4 px-4 font-semibold text-slate-600">{req.daysOfWork} Days</td>
+                                <td className="py-4 px-4 font-black text-slate-900">₹{req.amount.toLocaleString()}</td>
+                                <td className="py-4 px-4 text-slate-500 font-medium">{req.date}</td>
+                                <td className="py-4 px-4">
+                                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                                    req.status === 'Paid' ? 'bg-emerald-100/90 text-emerald-800 border border-emerald-200' :
+                                    req.status === 'Approved' ? 'bg-blue-100/90 text-blue-800 border border-blue-200' :
+                                    'bg-amber-100/90 text-amber-800 border border-amber-200'
+                                  }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${
+                                      req.status === 'Paid' ? 'bg-emerald-500' :
+                                      req.status === 'Approved' ? 'bg-blue-500' :
+                                      'bg-amber-500 animate-pulse'
+                                    }`} />
+                                    {req.status}
+                                  </span>
+                                </td>
+                                <td className="py-4 px-5 text-right">
+                                  {req.status === 'Pending' ? (
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button 
+                                        onClick={() => {
+                                          setPaymentRequests(prev => prev.map(p => p.id === req.id ? { ...p, status: 'Approved' } : p));
+                                          showToast(`Request ${req.id} Approved`);
+                                        }}
+                                        className="p-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg transition-colors" title="Approve"
+                                      >
+                                        <Check className="w-4 h-4" />
+                                      </button>
+                                      <button 
+                                        onClick={() => {
+                                          setPaymentRequests(prev => prev.filter(p => p.id !== req.id));
+                                          showToast(`Request ${req.id} Rejected`);
+                                        }}
+                                        className="p-1.5 bg-rose-100 text-rose-700 hover:bg-rose-200 rounded-lg transition-colors" title="Reject"
+                                      >
+                                        <X className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  ) : req.status === 'Approved' ? (
+                                    <button 
+                                      onClick={() => {
+                                        setPaymentRequests(prev => prev.map(p => p.id === req.id ? { ...p, status: 'Paid' } : p));
+                                        showToast(`Request ${req.id} Marked as Paid`);
+                                      }}
+                                      className="px-3 py-1.5 bg-[#02182e] hover:bg-[#082848] text-white text-xs font-bold rounded-lg transition-colors"
+                                    >
+                                      Mark Paid
+                                    </button>
+                                  ) : (
+                                    <span className="text-[10px] font-bold text-slate-400">COMPLETED</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
                 {/* ───────────────────────────────────────────────────────────────── */}
                 {activeTab === 'id-creation' && (
                   <motion.div
