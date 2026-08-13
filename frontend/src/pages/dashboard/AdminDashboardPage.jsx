@@ -89,7 +89,7 @@ const INITIAL_APPLICATIONS = [
     status: 'Pending',
     date: 'Oct 24, 2026',
     experience: '6 Years',
-    docs: ['Govt Photo ID Proof', 'HVAC Master License Cert', 'Liability Insurance Verification'],
+    docs: ['Photo Upload', 'Aadhar Upload', 'Resume Upload'],
     notes: 'Applied for commercial and residential AC repair dispatches in Austin metro area.'
   },
   {
@@ -102,7 +102,7 @@ const INITIAL_APPLICATIONS = [
     status: 'Pending',
     date: 'Oct 23, 2026',
     experience: '8 Years',
-    docs: ['Aadhaar Card Proof', 'Diploma in Electrical Engg', 'NABL Safety Certification'],
+    docs: ['Photo Upload', 'Aadhar Upload', 'Resume Upload'],
     notes: 'Specializes in split AC, cassette AC, and double-door inverter refrigerators.'
   },
   {
@@ -115,7 +115,7 @@ const INITIAL_APPLICATIONS = [
     status: 'Approved',
     date: 'Oct 20, 2026',
     experience: '5 Years',
-    docs: ['Aadhaar Card Proof', 'Appliance Technician Skill Badge'],
+    docs: ['Photo Upload', 'Aadhar Upload', 'Resume Upload'],
     notes: 'Expert in front load washing machine drum seals and drain pumps.'
   },
   {
@@ -128,7 +128,7 @@ const INITIAL_APPLICATIONS = [
     status: 'Reviewing',
     date: 'Oct 19, 2026',
     experience: '4 Years',
-    docs: ['Govt ID Card', 'Trade Union Certificate'],
+    docs: ['Photo Upload', 'Aadhar Upload', 'Resume Upload'],
     notes: 'Residential wiring, switchboard installation, and leak repairs.'
   },
 ];
@@ -161,6 +161,13 @@ const INITIAL_DISPATCH_QUEUE = [
 const INITIAL_VENDOR_APPROVALS = [
   { id: 'V-1', name: 'Cooling Experts Co.', applied: 'Applied 2 hours ago', tags: ['AC Repair', 'Refrigeration'], icon: Store },
   { id: 'V-2', name: 'TechFix by Sarah', applied: 'Applied 5 hours ago', tags: ['Microwaves', 'Small Appliances'], icon: User },
+];
+
+// ─── Initial Payment Requests Data ───────────────────────────────────────────
+const INITIAL_PAYMENT_REQUESTS = [
+  { id: 'PAY-1042', vendorName: 'Marcus Reed', vendorId: 'FX-8892-A', upiId: 'marcus@upi', bankAccount: '3123456789 (HDFC)', daysOfWork: 5, amount: 14500, status: 'Pending', date: 'Oct 25, 2026', notes: 'Weekly payout request' },
+  { id: 'PAY-1041', vendorName: 'Sarah Jenkins', vendorId: 'FX-8891-B', upiId: 'sarahj@ybl', bankAccount: '5566778899 (SBI)', daysOfWork: 3, amount: 8400, status: 'Approved', date: 'Oct 24, 2026', notes: 'Completed 8 jobs' },
+  { id: 'PAY-1040', vendorName: 'Vikram Singh', vendorId: 'FX-8890-C', upiId: 'vikram.s@okicici', bankAccount: '9988776655 (ICICI)', daysOfWork: 7, amount: 22100, status: 'Paid', date: 'Oct 22, 2026', notes: 'Full week payout' },
 ];
 
 // ─── Stock Level Pill Badge (Exact match to Screenshot 1 & 3) ───────────────
@@ -200,6 +207,7 @@ export default function AdminDashboardPage() {
   const [applicationsList, setApplicationsList] = useState(INITIAL_APPLICATIONS);
   const [dispatchQueue, setDispatchQueue] = useState(INITIAL_DISPATCH_QUEUE);
   const [vendorApprovals, setVendorApprovals] = useState(INITIAL_VENDOR_APPROVALS);
+  const [paymentRequests, setPaymentRequests] = useState(INITIAL_PAYMENT_REQUESTS);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [selectedStatus, setSelectedStatus] = useState('All Status');
@@ -232,15 +240,26 @@ export default function AdminDashboardPage() {
 
   // Credentials Success Modal state (Screenshot 4)
   const [isCredentialSuccessOpen, setIsCredentialSuccessOpen] = useState(false);
-  const [generatedCreds, setGeneratedCreds] = useState({
-    name: 'Robert Smith - HVAC Specialist',
-    id: 'FX-V-9921',
-    tempPassword: 'FixIt_2024_!v'
+  const [generatedCreds, setGeneratedCreds] = useState(null);
+
+  // Map: appId -> { id, tempPassword, name } — tracks which vendors have had IDs generated
+  // Pre-seed credentials for already-approved vendors in initial data
+  const [vendorCredentials, setVendorCredentials] = useState({
+    'APP-903': {
+      name: 'Anita Desai - Washing Machine Expert',
+      id: 'anita.d@repairs.in',
+      tempPassword: 'BackendGen_x7q2pz',
+      appId: 'APP-903',
+    },
   });
 
   // Vendor Application View Details Modal State
   const [isApplicationModalOpen, setIsApplicationModalOpen] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState(null);
+
+  // "View Vendor ID & Pass" modal
+  const [isViewCredsModalOpen, setIsViewCredsModalOpen] = useState(false);
+  const [viewingCreds, setViewingCreds] = useState(null);
 
   // Toast notification state
   const [toastMessage, setToastMessage] = useState(null);
@@ -284,28 +303,63 @@ export default function AdminDashboardPage() {
     setIsApplicationModalOpen(true);
   };
 
-  // Update Application Status (Approve / Reject)
-  const handleUpdateAppStatus = (appId, newStatus) => {
-    setApplicationsList(prev => prev.map(a => a.id === appId ? { ...a, status: newStatus } : a));
+  // Reject Application
+  const handleRejectApp = (appId) => {
+    setApplicationsList(prev => prev.map(a => a.id === appId ? { ...a, status: 'Rejected' } : a));
     setIsApplicationModalOpen(false);
-    showToast(`Application ${appId} marked as ${newStatus}!`);
+    showToast(`Application ${appId} rejected.`);
   };
 
-  // Generate Credentials Submit (Screenshot 5 -> 4)
+  // Clicking "Approve" — navigates to ID Creation tab (pre-filled), status stays Pending
+  const handleApproveNavigate = (app) => {
+    setIsApplicationModalOpen(false);
+    setVendorForm({
+      fullName: app.name,
+      email: app.email,
+      phone: app.phone || '',
+      specialization: app.service || '',
+      serviceArea: app.city || '',
+      appId: app.id,         // track which app this is for
+    });
+    setActiveTab('id-creation');
+    showToast(`Fill in details and generate ID for ${app.name}`);
+  };
+
+  // Open "View Vendor ID & Pass" modal
+  const handleViewVendorCreds = (appId) => {
+    const creds = vendorCredentials[appId];
+    if (creds) {
+      setViewingCreds(creds);
+      setIsViewCredsModalOpen(true);
+    }
+  };
+
+  // Generate Credentials Submit — saves per-vendor, marks app Approved
   const handleGenerateCredentials = (e) => {
     e.preventDefault();
     if (!vendorForm.fullName || !vendorForm.email) {
       showToast('Please provide full name and email address.');
       return;
     }
-    const newId = 'FX-V-' + Math.floor(1000 + Math.random() * 9000);
-    const newPass = 'FixIt_' + new Date().getFullYear() + '_!' + Math.random().toString(36).substring(2, 4);
-
-    setGeneratedCreds({
+    const newId = vendorForm.email;
+    const newPass = 'BackendGen_' + Math.random().toString(36).substring(2, 8);
+    const creds = {
       name: `${vendorForm.fullName} - ${vendorForm.specialization || 'Service Technician'}`,
       id: newId,
-      tempPassword: newPass
-    });
+      tempPassword: newPass,
+      appId: vendorForm.appId || null,
+    };
+
+    setGeneratedCreds(creds);
+
+    // If this was generated for a specific vendor application, mark it Approved & save creds
+    if (vendorForm.appId) {
+      setVendorCredentials(prev => ({ ...prev, [vendorForm.appId]: creds }));
+      setApplicationsList(prev =>
+        prev.map(a => a.id === vendorForm.appId ? { ...a, status: 'Approved' } : a)
+      );
+    }
+
     setIsCredentialSuccessOpen(true);
   };
 
@@ -323,6 +377,7 @@ export default function AdminDashboardPage() {
     { id: 'inventory',    label: 'Inventory Management',icon: Package },
     { id: 'users',        label: 'User Management',    icon: Users },
     { id: 'applications', label: 'Vendor Applications', icon: FileText, badge: pendingApplicationsCount > 0 ? pendingApplicationsCount.toString() : null },
+    { id: 'payment-requests', label: 'Payment Requests', icon: IndianRupee, badge: paymentRequests.filter(p => p.status === 'Pending').length > 0 ? paymentRequests.filter(p => p.status === 'Pending').length.toString() : null },
     { id: 'id-creation', label: 'Vandor id creation',  icon: UserPlus, isOrange: true },
     { id: 'analytics',    label: 'Financial Analytics',icon: TrendingUp },
     { id: 'settings',     label: 'Platform Settings',  icon: Settings },
@@ -935,7 +990,7 @@ export default function AdminDashboardPage() {
                                 </td>
                                 <td className="py-4 px-6 text-right">
                                   <div className="flex items-center justify-end gap-2">
-                                    
+
                                     {/* View Application Button */}
                                     <button
                                       type="button"
@@ -949,18 +1004,34 @@ export default function AdminDashboardPage() {
                                       <Eye className="w-3.5 h-3.5 text-orange-400" /> View Application
                                     </button>
 
-                                    {/* Quick Approve / Reject Buttons */}
-                                    {app.status === 'Pending' && (
+                                    {/* View Vendor ID & Pass — shown when ID has been generated */}
+                                    {vendorCredentials[app.id] && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          handleViewVendorCreds(app.id);
+                                        }}
+                                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                                        title="View Vendor ID & Password"
+                                      >
+                                        <ShieldCheck className="w-3.5 h-3.5" /> View ID & Pass
+                                      </button>
+                                    )}
+
+                                    {/* Quick Approve / Reject — only if Pending AND no ID yet */}
+                                    {app.status === 'Pending' && !vendorCredentials[app.id] && (
                                       <>
                                         <button
                                           type="button"
                                           onClick={(e) => {
                                             e.preventDefault();
                                             e.stopPropagation();
-                                            handleUpdateAppStatus(app.id, 'Approved');
+                                            handleApproveNavigate(app);
                                           }}
                                           className="p-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors cursor-pointer"
-                                          title="Quick Approve"
+                                          title="Approve & Create Vendor ID"
                                         >
                                           <Check className="w-4 h-4" />
                                         </button>
@@ -969,10 +1040,10 @@ export default function AdminDashboardPage() {
                                           onClick={(e) => {
                                             e.preventDefault();
                                             e.stopPropagation();
-                                            handleUpdateAppStatus(app.id, 'Rejected');
+                                            handleRejectApp(app.id);
                                           }}
                                           className="p-2 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-xl transition-colors cursor-pointer"
-                                          title="Quick Reject"
+                                          title="Reject Application"
                                         >
                                           <X className="w-4 h-4" />
                                         </button>
@@ -994,6 +1065,162 @@ export default function AdminDashboardPage() {
                 {/* ───────────────────────────────────────────────────────────────── */}
                 {/* 3. VANDOR ID CREATION TAB (Exact match to Screenshots 3, 4, 5)   */}
                 {/* ───────────────────────────────────────────────────────────────── */}
+                {/* ───────────────────────────────────────────────────────────────── */}
+                {/* NEW PAYMENT REQUESTS TAB                                          */}
+                {/* ───────────────────────────────────────────────────────────────── */}
+                {activeTab === 'payment-requests' && (
+                  <motion.div
+                    key="payment-requests"
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -15 }}
+                    transition={{ duration: 0.3 }}
+                    className="space-y-6"
+                  >
+                    {/* Header */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div>
+                        <h1 className="text-2xl sm:text-3xl font-extrabold text-[#02182e] tracking-tight">Vendor Payment Requests</h1>
+                        <p className="text-slate-500 text-xs sm:text-sm mt-1 font-medium">Review and process payout requests from vendors.</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-extrabold text-xs rounded-xl shadow-xs hover:bg-slate-50 transition-colors flex items-center gap-2">
+                          <Download className="w-4 h-4 text-slate-500" /> Export Records
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Stats */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Pending Payouts</span>
+                          <Clock className="w-5 h-5 text-amber-500" />
+                        </div>
+                        <span className="text-3xl font-black text-[#02182e]">{paymentRequests.filter(p => p.status === 'Pending').length}</span>
+                        <p className="text-xs font-medium text-slate-500 mt-2">Awaiting admin review</p>
+                      </div>
+                      <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Amount Pending</span>
+                          <IndianRupee className="w-5 h-5 text-orange-500" />
+                        </div>
+                        <span className="text-3xl font-black text-[#02182e]">
+                          ₹{paymentRequests.filter(p => p.status === 'Pending').reduce((acc, curr) => acc + curr.amount, 0).toLocaleString()}
+                        </span>
+                        <p className="text-xs font-medium text-slate-500 mt-2">Total requested amount</p>
+                      </div>
+                      <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Paid This Month</span>
+                          <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                        </div>
+                        <span className="text-3xl font-black text-[#02182e]">
+                          ₹{paymentRequests.filter(p => p.status === 'Paid').reduce((acc, curr) => acc + curr.amount, 0).toLocaleString()}
+                        </span>
+                        <p className="text-xs font-medium text-emerald-600 mt-2">Cleared payouts</p>
+                      </div>
+                    </div>
+
+                    {/* Data Table */}
+                    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
+                      <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <h2 className="text-lg font-extrabold text-[#02182e]">Recent Requests</h2>
+                        <div className="relative w-full sm:w-64">
+                          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input type="text" placeholder="Search by ID or Vendor..." className="w-full pl-9 pr-3 py-2 bg-slate-50 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                        </div>
+                      </div>
+                      
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse min-w-[800px]">
+                          <thead>
+                            <tr className="bg-slate-50/80 text-slate-500 uppercase font-extrabold tracking-wider border-b border-slate-100">
+                              <th className="py-3 px-5">REQ ID</th>
+                              <th className="py-3 px-4">VENDOR DETAILS</th>
+                              <th className="py-3 px-4">PAYMENT INFO</th>
+                              <th className="py-3 px-4">DAYS OF WORK</th>
+                              <th className="py-3 px-4">AMOUNT</th>
+                              <th className="py-3 px-4">DATE</th>
+                              <th className="py-3 px-4">STATUS</th>
+                              <th className="py-3 px-5 text-right">ACTION</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {paymentRequests.map((req) => (
+                              <tr key={req.id} className="hover:bg-slate-50/80 transition-colors">
+                                <td className="py-4 px-5 font-bold text-slate-700">{req.id}</td>
+                                <td className="py-4 px-4">
+                                  <div className="font-bold text-slate-900">{req.vendorName}</div>
+                                  <div className="text-[10px] text-slate-500 mt-0.5">{req.vendorId}</div>
+                                </td>
+                                <td className="py-4 px-4">
+                                  <div className="text-xs font-semibold text-slate-700">UPI: <span className="text-blue-600">{req.upiId}</span></div>
+                                  <div className="text-[10px] text-slate-500 mt-0.5">A/C: {req.bankAccount}</div>
+                                </td>
+                                <td className="py-4 px-4 font-semibold text-slate-600">{req.daysOfWork} Days</td>
+                                <td className="py-4 px-4 font-black text-slate-900">₹{req.amount.toLocaleString()}</td>
+                                <td className="py-4 px-4 text-slate-500 font-medium">{req.date}</td>
+                                <td className="py-4 px-4">
+                                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                                    req.status === 'Paid' ? 'bg-emerald-100/90 text-emerald-800 border border-emerald-200' :
+                                    req.status === 'Approved' ? 'bg-blue-100/90 text-blue-800 border border-blue-200' :
+                                    'bg-amber-100/90 text-amber-800 border border-amber-200'
+                                  }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${
+                                      req.status === 'Paid' ? 'bg-emerald-500' :
+                                      req.status === 'Approved' ? 'bg-blue-500' :
+                                      'bg-amber-500 animate-pulse'
+                                    }`} />
+                                    {req.status}
+                                  </span>
+                                </td>
+                                <td className="py-4 px-5 text-right">
+                                  {req.status === 'Pending' ? (
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button 
+                                        onClick={() => {
+                                          setPaymentRequests(prev => prev.map(p => p.id === req.id ? { ...p, status: 'Approved' } : p));
+                                          showToast(`Request ${req.id} Approved`);
+                                        }}
+                                        className="p-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg transition-colors" title="Approve"
+                                      >
+                                        <Check className="w-4 h-4" />
+                                      </button>
+                                      <button 
+                                        onClick={() => {
+                                          setPaymentRequests(prev => prev.filter(p => p.id !== req.id));
+                                          showToast(`Request ${req.id} Rejected`);
+                                        }}
+                                        className="p-1.5 bg-rose-100 text-rose-700 hover:bg-rose-200 rounded-lg transition-colors" title="Reject"
+                                      >
+                                        <X className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  ) : req.status === 'Approved' ? (
+                                    <button 
+                                      onClick={() => {
+                                        setPaymentRequests(prev => prev.map(p => p.id === req.id ? { ...p, status: 'Paid' } : p));
+                                        showToast(`Request ${req.id} Marked as Paid`);
+                                      }}
+                                      className="px-3 py-1.5 bg-[#02182e] hover:bg-[#082848] text-white text-xs font-bold rounded-lg transition-colors"
+                                    >
+                                      Mark Paid
+                                    </button>
+                                  ) : (
+                                    <span className="text-[10px] font-bold text-slate-400">COMPLETED</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* ───────────────────────────────────────────────────────────────── */}
                 {activeTab === 'id-creation' && (
                   <motion.div
                     key="id-creation"
@@ -1009,6 +1236,19 @@ export default function AdminDashboardPage() {
                         Provision a new service partner ID and temporary login credentials for the technician portal.
                       </p>
                     </div>
+
+                    {/* Auto-fill notice if navigated from an application */}
+                    {vendorForm.appId && (
+                      <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-2xl">
+                        <BadgeCheck className="w-5 h-5 text-amber-600 shrink-0" />
+                        <div>
+                          <p className="text-xs font-extrabold text-amber-800">Auto-filled from Application</p>
+                          <p className="text-[11px] text-amber-700 font-medium mt-0.5">
+                            Details pre-loaded for <span className="font-bold">{vendorForm.fullName}</span>. Review and click Generate Credentials.
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Vendor Information Form (Exact match to Screenshot 5) */}
                     <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-6">
@@ -1420,9 +1660,9 @@ export default function AdminDashboardPage() {
       </AnimatePresence>
 
 
-      {/* 2. Vendor Credentials Created Success Modal (Exact Match to Screenshot 4) */}
+      {/* 2. Vendor Credentials Created Success Modal */}
       <AnimatePresence>
-        {isCredentialSuccessOpen && (
+        {isCredentialSuccessOpen && generatedCreds && (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -1431,21 +1671,21 @@ export default function AdminDashboardPage() {
               className="bg-white rounded-3xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden p-6 sm:p-8 space-y-6 text-center my-8"
             >
               {/* Checkmark Icon Header */}
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 text-white flex items-center justify-center mx-auto shadow-lg shadow-orange-500/20">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
                 <Check className="w-8 h-8 stroke-[3]" />
               </div>
 
               <div>
-                <h3 className="text-2xl font-black text-[#02182e]">Vendor Credentials Created Successfully</h3>
+                <h3 className="text-2xl font-black text-[#02182e]">Vendor Credentials Created!</h3>
                 <p className="text-xs text-slate-500 font-medium mt-1">
-                  The profile for <span className="font-bold text-slate-800">{generatedCreds.name}</span> is now active and ready for dispatch.
+                  The account for <span className="font-bold text-slate-800">{generatedCreds.name}</span> is now active and ready for dispatch.
                 </p>
               </div>
 
               {/* Copyable Fields */}
               <div className="space-y-3 text-left">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-400 uppercase">Vendor ID</label>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase">Vendor ID (Login Email)</label>
                   <div className="flex items-center gap-2 mt-1">
                     <input
                       type="text"
@@ -1458,7 +1698,7 @@ export default function AdminDashboardPage() {
                         navigator.clipboard.writeText(generatedCreds.id);
                         showToast('Vendor ID copied to clipboard!');
                       }}
-                      className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer"
+                      className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shrink-0"
                     >
                       <Copy className="w-4 h-4 text-slate-600" />
                     </button>
@@ -1466,7 +1706,7 @@ export default function AdminDashboardPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-400 uppercase">Temporary Password</label>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase">Temporary Password (Backend-Generated)</label>
                   <div className="flex items-center gap-2 mt-1">
                     <input
                       type="text"
@@ -1477,9 +1717,9 @@ export default function AdminDashboardPage() {
                     <button
                       onClick={() => {
                         navigator.clipboard.writeText(generatedCreds.tempPassword);
-                        showToast('Temporary password copied!');
+                        showToast('Password copied!');
                       }}
-                      className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer"
+                      className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shrink-0"
                     >
                       <Copy className="w-4 h-4 text-slate-600" />
                     </button>
@@ -1491,7 +1731,7 @@ export default function AdminDashboardPage() {
               <div className="bg-rose-50 p-4 rounded-2xl border border-rose-200 text-left flex items-start gap-3">
                 <Shield className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                 <p className="text-xs text-rose-800 font-semibold leading-relaxed">
-                  For security: This password will only be visible once. Please share it with the vendor immediately. It will expire in 24 hours.
+                  Security: This password is shown only once. Share it with the vendor immediately. It expires in 24 hours.
                 </p>
               </div>
 
@@ -1507,13 +1747,111 @@ export default function AdminDashboardPage() {
                   <Mail className="w-4 h-4" /> Share via Email
                 </button>
                 <button
-                  onClick={() => setIsCredentialSuccessOpen(false)}
+                  onClick={() => {
+                    setIsCredentialSuccessOpen(false);
+                    setActiveTab('applications');
+                  }}
                   className="py-3 border border-slate-300 hover:bg-slate-50 text-slate-800 font-extrabold text-xs rounded-xl transition-colors cursor-pointer"
                 >
                   Go to Vendor List
                 </button>
               </div>
 
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 4. View Vendor ID & Pass Modal (re-viewable after generation) */}
+      <AnimatePresence>
+        {isViewCredsModalOpen && viewingCreds && (
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white rounded-3xl max-w-md w-full border border-slate-200 shadow-2xl p-6 sm:p-8 space-y-5 my-8"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center">
+                    <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-extrabold text-[#02182e]">Vendor Credentials</h3>
+                    <p className="text-[11px] text-slate-500 font-medium mt-0.5">{viewingCreds.name}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsViewCredsModalOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Approved badge */}
+              <div className="flex items-center gap-2 px-3 py-2.5 bg-emerald-50 rounded-xl border border-emerald-200">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="text-xs font-bold text-emerald-800">Vendor is Approved — ID & password have been generated.</span>
+              </div>
+
+              {/* Copyable Fields */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5">Vendor Login ID (Email)</label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                      <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="text-xs font-bold text-slate-800 truncate">{viewingCreds.id}</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(viewingCreds.id);
+                        showToast('Vendor ID copied!');
+                      }}
+                      className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shrink-0"
+                    >
+                      <Copy className="w-4 h-4 text-slate-600" />
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5">Temporary Password</label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                      <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="text-xs font-mono font-bold text-slate-800 truncate">{viewingCreds.tempPassword}</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(viewingCreds.tempPassword);
+                        showToast('Password copied!');
+                      }}
+                      className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shrink-0"
+                    >
+                      <Copy className="w-4 h-4 text-slate-600" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Warning */}
+              <div className="flex items-start gap-2.5 px-4 py-3 bg-amber-50 rounded-xl border border-amber-200">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-[11px] text-amber-800 font-semibold leading-relaxed">
+                  Ensure the vendor has changed their temporary password. If not, the password can be reset from the vendor portal.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setIsViewCredsModalOpen(false)}
+                className="w-full py-3 bg-[#02182e] hover:bg-[#082848] text-white font-extrabold text-xs rounded-xl shadow transition-colors cursor-pointer"
+              >
+                Done
+              </button>
             </motion.div>
           </div>
         )}
@@ -1652,7 +1990,11 @@ export default function AdminDashboardPage() {
                         </div>
                         <button
                           type="button"
-                          onClick={() => showToast(`Previewing ${doc}...`)}
+                          onClick={() => {
+                            showToast(`Opening ${doc}...`);
+                            // In a real app, this would be the actual file URL
+                            window.open('https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank');
+                          }}
                           className="text-[11px] font-extrabold text-[#FF6B00] hover:underline flex items-center gap-1 cursor-pointer"
                         >
                           View <ExternalLink className="w-3 h-3" />
@@ -1670,7 +2012,7 @@ export default function AdminDashboardPage() {
               </div>
 
               {/* Modal Footer Controls */}
-              <div className="p-6 bg-white border-t border-slate-100 flex items-center justify-between gap-3 shrink-0">
+              <div className="p-6 bg-white border-t border-slate-100 flex items-center justify-between gap-3 shrink-0 flex-wrap gap-y-3">
                 <button
                   type="button"
                   onClick={() => setIsApplicationModalOpen(false)}
@@ -1678,31 +2020,39 @@ export default function AdminDashboardPage() {
                 >
                   Close
                 </button>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateAppStatus(selectedApplication.id, 'Rejected')}
-                    className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <UserX className="w-4 h-4" /> Reject Application
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleUpdateAppStatus(selectedApplication.id, 'Approved');
-                      setVendorForm({
-                        fullName: selectedApplication.name,
-                        email: selectedApplication.email,
-                        phone: selectedApplication.phone,
-                        specialization: selectedApplication.service,
-                        serviceArea: selectedApplication.city
-                      });
-                      setActiveTab('id-creation');
-                    }}
-                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-colors flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <UserCheck className="w-4 h-4" /> Approve & Create Vendor ID
-                  </button>
+                <div className="flex items-center gap-2 flex-wrap">
+
+                  {/* View Vendor ID & Pass — shown when ID already generated */}
+                  {vendorCredentials[selectedApplication.id] && (
+                    <button
+                      type="button"
+                      onClick={() => handleViewVendorCreds(selectedApplication.id)}
+                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-colors flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <ShieldCheck className="w-4 h-4" /> View Vendor ID & Pass
+                    </button>
+                  )}
+
+                  {/* Approve / Reject — only if Pending AND no ID generated yet */}
+                  {selectedApplication.status === 'Pending' && !vendorCredentials[selectedApplication.id] && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleRejectApp(selectedApplication.id)}
+                        className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <UserX className="w-4 h-4" /> Reject Application
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApproveNavigate(selectedApplication)}
+                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-colors flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <UserCheck className="w-4 h-4" /> Approve & Create Vendor ID
+                      </button>
+                    </>
+                  )}
+
                 </div>
               </div>
 

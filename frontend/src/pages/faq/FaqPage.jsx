@@ -320,13 +320,13 @@ export default function FaqPage() {
                 <span>Contact Us</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
-              <a
-                href="tel:+9118001234567"
+              <Link
+                to="tel:+9118001234567"
                 className="px-6 py-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-extrabold text-xs rounded-xl transition-all text-center flex items-center justify-center gap-2"
               >
                 <PhoneCall className="w-4 h-4 text-orange-400" />
                 <span>+91 1800 123 4567</span>
-              </a>
+              </Link>
             </div>
           </div>
         </section>
