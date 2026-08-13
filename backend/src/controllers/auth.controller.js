@@ -447,7 +447,6 @@ async function changePassword(req, res) {
 async function verifyOtpForForgotPassword(req, res) {
   try {
     const { email, otp } = req.body;
-  
 
     if (!email) {
       return res.status(400).json({
@@ -456,16 +455,16 @@ async function verifyOtpForForgotPassword(req, res) {
       });
     }
 
-     const user = await userModel.findOne({
-       email: email.toLowerCase().trim(),
-     });
+    const user = await userModel.findOne({
+      email: email.toLowerCase().trim(),
+    });
 
-     if(!user){
-       return res.status(400).json({
-         success: false,
-         message: "User is not registered with this email",
-       });
-     }
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "User is not registered with this email",
+      });
+    }
 
     if (!otp) {
       return res.status(400).json({
@@ -473,8 +472,6 @@ async function verifyOtpForForgotPassword(req, res) {
         message: "OTP is required",
       });
     }
-
-
 
     const recentOtp = await otpModel
       .findOne({
@@ -497,17 +494,18 @@ async function verifyOtpForForgotPassword(req, res) {
       });
     }
 
+    const resetToken = jwt.sign(
+      {
+        userId: user._id,
+        purpose: "resetPassword",
+      },
+      process.env.JWT_SECRET || "secret",
+      {
+        expiresIn: "10m",
+      },
+    );
     await otpModel.deleteOne({
       _id: recentOtp._id,
-    });
-
-   
-
-    const resetToken = jwt.sign({
-      userId: user._id,
-      purpose: "resetPassword",
-    }, process.env.JWT_SECRET || "secret", {
-      expiresIn: "10m",
     });
 
     return res.status(200).json({
@@ -529,15 +527,98 @@ async function verifyOtpForForgotPassword(req, res) {
 // Api for forgot password
 async function forgotPassword(req, res) {
   try {
-    
+    const { resetToken, newPassword } = req.body;
+
+    if (!resetToken) {
+      return res.status(400).json({
+        success: false,
+        message: "Password reset session is missing. Please request a new OTP.",
+      });
+    }
+
+    if (!newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "New Password is required",
+      });
+    }
+
+    //verify reset token here
+
+    const decoded = jwt.verify(resetToken.process.env.JWT_SECRET);
+
+    // check if the token is for reset password purpose
+
+    if (decoded.purpose !== "resetPassword") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid password reset session",
+      });
+    }
+
+    const userId = decoded.userId;
+
+    const user = await userModel.findById(userId);
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    //Validate the new password strength
+    const passwordRegex =
+      /^(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+
+    if (!passwordRegex.test(newPassword)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Password must contain at least 8 characters, 1 uppercase letter, 1 number, and 1 special character.",
+      });
+    }
+
+   // hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    //update the password in the database
+
+    await userModel.findByIdAndUpdate(userId, {password: hashedPassword});
+
+    return res.status(200).json({
+      success:true,
+      message: "Password Changed Successfully"
+    })
+
+
   } catch (err) {
     console.error("Error while processing forgot password: ", err);
 
+    //JWT EXPRIED
+
+    if(err.name === "TokenExpiredError"){
+      return res.status(400).json({
+        success: false,
+
+        message: "Password reset session has expired. Please request a new OTP.",
+      })
+    }
+
+
+     // JWT invalid
+    if(err.name === "JsonWebTokenError"){
+      return res.status(400).json({
+        success: false,
+        message: "Invalid password reset session. Please request a new OTP.",
+      })
+    }
+
     return res.status(500).json({
-      success : false,
+      success: false,
       error: err.message,
       message: "Something went wrong while processing forgot password",
-    })
+    });
   }
 }
 
@@ -548,4 +629,5 @@ module.exports = {
   googleLogin,
   changePassword,
   verifyOtpForForgotPassword,
+  forgotPassword,
 };
