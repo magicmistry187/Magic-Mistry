@@ -240,15 +240,26 @@ export default function AdminDashboardPage() {
 
   // Credentials Success Modal state (Screenshot 4)
   const [isCredentialSuccessOpen, setIsCredentialSuccessOpen] = useState(false);
-  const [generatedCreds, setGeneratedCreds] = useState({
-    name: 'Robert Smith - HVAC Specialist',
-    id: 'FX-V-9921',
-    tempPassword: 'FixIt_2024_!v'
+  const [generatedCreds, setGeneratedCreds] = useState(null);
+
+  // Map: appId -> { id, tempPassword, name } — tracks which vendors have had IDs generated
+  // Pre-seed credentials for already-approved vendors in initial data
+  const [vendorCredentials, setVendorCredentials] = useState({
+    'APP-903': {
+      name: 'Anita Desai - Washing Machine Expert',
+      id: 'anita.d@repairs.in',
+      tempPassword: 'BackendGen_x7q2pz',
+      appId: 'APP-903',
+    },
   });
 
   // Vendor Application View Details Modal State
   const [isApplicationModalOpen, setIsApplicationModalOpen] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState(null);
+
+  // "View Vendor ID & Pass" modal
+  const [isViewCredsModalOpen, setIsViewCredsModalOpen] = useState(false);
+  const [viewingCreds, setViewingCreds] = useState(null);
 
   // Toast notification state
   const [toastMessage, setToastMessage] = useState(null);
@@ -292,28 +303,63 @@ export default function AdminDashboardPage() {
     setIsApplicationModalOpen(true);
   };
 
-  // Update Application Status (Approve / Reject)
-  const handleUpdateAppStatus = (appId, newStatus) => {
-    setApplicationsList(prev => prev.map(a => a.id === appId ? { ...a, status: newStatus } : a));
+  // Reject Application
+  const handleRejectApp = (appId) => {
+    setApplicationsList(prev => prev.map(a => a.id === appId ? { ...a, status: 'Rejected' } : a));
     setIsApplicationModalOpen(false);
-    showToast(`Application ${appId} marked as ${newStatus}!`);
+    showToast(`Application ${appId} rejected.`);
   };
 
-  // Generate Credentials Submit (Screenshot 5 -> 4)
+  // Clicking "Approve" — navigates to ID Creation tab (pre-filled), status stays Pending
+  const handleApproveNavigate = (app) => {
+    setIsApplicationModalOpen(false);
+    setVendorForm({
+      fullName: app.name,
+      email: app.email,
+      phone: app.phone || '',
+      specialization: app.service || '',
+      serviceArea: app.city || '',
+      appId: app.id,         // track which app this is for
+    });
+    setActiveTab('id-creation');
+    showToast(`Fill in details and generate ID for ${app.name}`);
+  };
+
+  // Open "View Vendor ID & Pass" modal
+  const handleViewVendorCreds = (appId) => {
+    const creds = vendorCredentials[appId];
+    if (creds) {
+      setViewingCreds(creds);
+      setIsViewCredsModalOpen(true);
+    }
+  };
+
+  // Generate Credentials Submit — saves per-vendor, marks app Approved
   const handleGenerateCredentials = (e) => {
     e.preventDefault();
     if (!vendorForm.fullName || !vendorForm.email) {
       showToast('Please provide full name and email address.');
       return;
     }
-    const newId = 'FX-V-' + Math.floor(1000 + Math.random() * 9000);
-    const newPass = 'FixIt_' + new Date().getFullYear() + '_!' + Math.random().toString(36).substring(2, 4);
-
-    setGeneratedCreds({
+    const newId = vendorForm.email;
+    const newPass = 'BackendGen_' + Math.random().toString(36).substring(2, 8);
+    const creds = {
       name: `${vendorForm.fullName} - ${vendorForm.specialization || 'Service Technician'}`,
       id: newId,
-      tempPassword: newPass
-    });
+      tempPassword: newPass,
+      appId: vendorForm.appId || null,
+    };
+
+    setGeneratedCreds(creds);
+
+    // If this was generated for a specific vendor application, mark it Approved & save creds
+    if (vendorForm.appId) {
+      setVendorCredentials(prev => ({ ...prev, [vendorForm.appId]: creds }));
+      setApplicationsList(prev =>
+        prev.map(a => a.id === vendorForm.appId ? { ...a, status: 'Approved' } : a)
+      );
+    }
+
     setIsCredentialSuccessOpen(true);
   };
 
@@ -944,7 +990,7 @@ export default function AdminDashboardPage() {
                                 </td>
                                 <td className="py-4 px-6 text-right">
                                   <div className="flex items-center justify-end gap-2">
-                                    
+
                                     {/* View Application Button */}
                                     <button
                                       type="button"
@@ -958,18 +1004,34 @@ export default function AdminDashboardPage() {
                                       <Eye className="w-3.5 h-3.5 text-orange-400" /> View Application
                                     </button>
 
-                                    {/* Quick Approve / Reject Buttons */}
-                                    {app.status === 'Pending' && (
+                                    {/* View Vendor ID & Pass — shown when ID has been generated */}
+                                    {vendorCredentials[app.id] && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          handleViewVendorCreds(app.id);
+                                        }}
+                                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                                        title="View Vendor ID & Password"
+                                      >
+                                        <ShieldCheck className="w-3.5 h-3.5" /> View ID & Pass
+                                      </button>
+                                    )}
+
+                                    {/* Quick Approve / Reject — only if Pending AND no ID yet */}
+                                    {app.status === 'Pending' && !vendorCredentials[app.id] && (
                                       <>
                                         <button
                                           type="button"
                                           onClick={(e) => {
                                             e.preventDefault();
                                             e.stopPropagation();
-                                            handleUpdateAppStatus(app.id, 'Approved');
+                                            handleApproveNavigate(app);
                                           }}
                                           className="p-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors cursor-pointer"
-                                          title="Quick Approve"
+                                          title="Approve & Create Vendor ID"
                                         >
                                           <Check className="w-4 h-4" />
                                         </button>
@@ -978,10 +1040,10 @@ export default function AdminDashboardPage() {
                                           onClick={(e) => {
                                             e.preventDefault();
                                             e.stopPropagation();
-                                            handleUpdateAppStatus(app.id, 'Rejected');
+                                            handleRejectApp(app.id);
                                           }}
                                           className="p-2 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-xl transition-colors cursor-pointer"
-                                          title="Quick Reject"
+                                          title="Reject Application"
                                         >
                                           <X className="w-4 h-4" />
                                         </button>
@@ -1174,6 +1236,19 @@ export default function AdminDashboardPage() {
                         Provision a new service partner ID and temporary login credentials for the technician portal.
                       </p>
                     </div>
+
+                    {/* Auto-fill notice if navigated from an application */}
+                    {vendorForm.appId && (
+                      <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-2xl">
+                        <BadgeCheck className="w-5 h-5 text-amber-600 shrink-0" />
+                        <div>
+                          <p className="text-xs font-extrabold text-amber-800">Auto-filled from Application</p>
+                          <p className="text-[11px] text-amber-700 font-medium mt-0.5">
+                            Details pre-loaded for <span className="font-bold">{vendorForm.fullName}</span>. Review and click Generate Credentials.
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Vendor Information Form (Exact match to Screenshot 5) */}
                     <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-6">
@@ -1585,9 +1660,9 @@ export default function AdminDashboardPage() {
       </AnimatePresence>
 
 
-      {/* 2. Vendor Credentials Created Success Modal (Exact Match to Screenshot 4) */}
+      {/* 2. Vendor Credentials Created Success Modal */}
       <AnimatePresence>
-        {isCredentialSuccessOpen && (
+        {isCredentialSuccessOpen && generatedCreds && (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -1596,21 +1671,21 @@ export default function AdminDashboardPage() {
               className="bg-white rounded-3xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden p-6 sm:p-8 space-y-6 text-center my-8"
             >
               {/* Checkmark Icon Header */}
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 text-white flex items-center justify-center mx-auto shadow-lg shadow-orange-500/20">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
                 <Check className="w-8 h-8 stroke-[3]" />
               </div>
 
               <div>
-                <h3 className="text-2xl font-black text-[#02182e]">Vendor Credentials Created Successfully</h3>
+                <h3 className="text-2xl font-black text-[#02182e]">Vendor Credentials Created!</h3>
                 <p className="text-xs text-slate-500 font-medium mt-1">
-                  The profile for <span className="font-bold text-slate-800">{generatedCreds.name}</span> is now active and ready for dispatch.
+                  The account for <span className="font-bold text-slate-800">{generatedCreds.name}</span> is now active and ready for dispatch.
                 </p>
               </div>
 
               {/* Copyable Fields */}
               <div className="space-y-3 text-left">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-400 uppercase">Vendor ID</label>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase">Vendor ID (Login Email)</label>
                   <div className="flex items-center gap-2 mt-1">
                     <input
                       type="text"
@@ -1623,7 +1698,7 @@ export default function AdminDashboardPage() {
                         navigator.clipboard.writeText(generatedCreds.id);
                         showToast('Vendor ID copied to clipboard!');
                       }}
-                      className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer"
+                      className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shrink-0"
                     >
                       <Copy className="w-4 h-4 text-slate-600" />
                     </button>
@@ -1631,7 +1706,7 @@ export default function AdminDashboardPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-400 uppercase">Temporary Password</label>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase">Temporary Password (Backend-Generated)</label>
                   <div className="flex items-center gap-2 mt-1">
                     <input
                       type="text"
@@ -1642,9 +1717,9 @@ export default function AdminDashboardPage() {
                     <button
                       onClick={() => {
                         navigator.clipboard.writeText(generatedCreds.tempPassword);
-                        showToast('Temporary password copied!');
+                        showToast('Password copied!');
                       }}
-                      className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer"
+                      className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shrink-0"
                     >
                       <Copy className="w-4 h-4 text-slate-600" />
                     </button>
@@ -1656,7 +1731,7 @@ export default function AdminDashboardPage() {
               <div className="bg-rose-50 p-4 rounded-2xl border border-rose-200 text-left flex items-start gap-3">
                 <Shield className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                 <p className="text-xs text-rose-800 font-semibold leading-relaxed">
-                  For security: This password will only be visible once. Please share it with the vendor immediately. It will expire in 24 hours.
+                  Security: This password is shown only once. Share it with the vendor immediately. It expires in 24 hours.
                 </p>
               </div>
 
@@ -1672,13 +1747,111 @@ export default function AdminDashboardPage() {
                   <Mail className="w-4 h-4" /> Share via Email
                 </button>
                 <button
-                  onClick={() => setIsCredentialSuccessOpen(false)}
+                  onClick={() => {
+                    setIsCredentialSuccessOpen(false);
+                    setActiveTab('applications');
+                  }}
                   className="py-3 border border-slate-300 hover:bg-slate-50 text-slate-800 font-extrabold text-xs rounded-xl transition-colors cursor-pointer"
                 >
                   Go to Vendor List
                 </button>
               </div>
 
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 4. View Vendor ID & Pass Modal (re-viewable after generation) */}
+      <AnimatePresence>
+        {isViewCredsModalOpen && viewingCreds && (
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white rounded-3xl max-w-md w-full border border-slate-200 shadow-2xl p-6 sm:p-8 space-y-5 my-8"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center">
+                    <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-extrabold text-[#02182e]">Vendor Credentials</h3>
+                    <p className="text-[11px] text-slate-500 font-medium mt-0.5">{viewingCreds.name}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsViewCredsModalOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Approved badge */}
+              <div className="flex items-center gap-2 px-3 py-2.5 bg-emerald-50 rounded-xl border border-emerald-200">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="text-xs font-bold text-emerald-800">Vendor is Approved — ID & password have been generated.</span>
+              </div>
+
+              {/* Copyable Fields */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5">Vendor Login ID (Email)</label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                      <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="text-xs font-bold text-slate-800 truncate">{viewingCreds.id}</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(viewingCreds.id);
+                        showToast('Vendor ID copied!');
+                      }}
+                      className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shrink-0"
+                    >
+                      <Copy className="w-4 h-4 text-slate-600" />
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5">Temporary Password</label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                      <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="text-xs font-mono font-bold text-slate-800 truncate">{viewingCreds.tempPassword}</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(viewingCreds.tempPassword);
+                        showToast('Password copied!');
+                      }}
+                      className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shrink-0"
+                    >
+                      <Copy className="w-4 h-4 text-slate-600" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Warning */}
+              <div className="flex items-start gap-2.5 px-4 py-3 bg-amber-50 rounded-xl border border-amber-200">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-[11px] text-amber-800 font-semibold leading-relaxed">
+                  Ensure the vendor has changed their temporary password. If not, the password can be reset from the vendor portal.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setIsViewCredsModalOpen(false)}
+                className="w-full py-3 bg-[#02182e] hover:bg-[#082848] text-white font-extrabold text-xs rounded-xl shadow transition-colors cursor-pointer"
+              >
+                Done
+              </button>
             </motion.div>
           </div>
         )}
@@ -1839,7 +2012,7 @@ export default function AdminDashboardPage() {
               </div>
 
               {/* Modal Footer Controls */}
-              <div className="p-6 bg-white border-t border-slate-100 flex items-center justify-between gap-3 shrink-0">
+              <div className="p-6 bg-white border-t border-slate-100 flex items-center justify-between gap-3 shrink-0 flex-wrap gap-y-3">
                 <button
                   type="button"
                   onClick={() => setIsApplicationModalOpen(false)}
@@ -1847,31 +2020,39 @@ export default function AdminDashboardPage() {
                 >
                   Close
                 </button>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateAppStatus(selectedApplication.id, 'Rejected')}
-                    className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <UserX className="w-4 h-4" /> Reject Application
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleUpdateAppStatus(selectedApplication.id, 'Approved');
-                      setVendorForm({
-                        fullName: selectedApplication.name,
-                        email: selectedApplication.email,
-                        phone: selectedApplication.phone,
-                        specialization: selectedApplication.service,
-                        serviceArea: selectedApplication.city
-                      });
-                      setActiveTab('id-creation');
-                    }}
-                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-colors flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <UserCheck className="w-4 h-4" /> Approve & Create Vendor ID
-                  </button>
+                <div className="flex items-center gap-2 flex-wrap">
+
+                  {/* View Vendor ID & Pass — shown when ID already generated */}
+                  {vendorCredentials[selectedApplication.id] && (
+                    <button
+                      type="button"
+                      onClick={() => handleViewVendorCreds(selectedApplication.id)}
+                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-colors flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <ShieldCheck className="w-4 h-4" /> View Vendor ID & Pass
+                    </button>
+                  )}
+
+                  {/* Approve / Reject — only if Pending AND no ID generated yet */}
+                  {selectedApplication.status === 'Pending' && !vendorCredentials[selectedApplication.id] && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleRejectApp(selectedApplication.id)}
+                        className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <UserX className="w-4 h-4" /> Reject Application
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApproveNavigate(selectedApplication)}
+                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-colors flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <UserCheck className="w-4 h-4" /> Approve & Create Vendor ID
+                      </button>
+                    </>
+                  )}
+
                 </div>
               </div>
 
