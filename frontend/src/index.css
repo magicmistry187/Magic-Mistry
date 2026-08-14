@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Custom xs breakpoint (480px) for Tailwind v4 - enables xs: responsive prefix */
+@theme {
+  --breakpoint-xs: 30rem; /* 480px */
+}
+
 @layer base {
   html {
     scroll-behavior: smooth;
