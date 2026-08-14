@@ -504,6 +504,7 @@ async function verifyOtpForForgotPassword(req, res) {
         expiresIn: "10m",
       },
     );
+    
     await otpModel.deleteOne({
       _id: recentOtp._id,
     });
@@ -545,7 +546,7 @@ async function forgotPassword(req, res) {
 
     //verify reset token here
 
-    const decoded = jwt.verify(resetToken.process.env.JWT_SECRET);
+    const decoded = jwt.verify(resetToken,process.env.JWT_SECRET);
 
     // check if the token is for reset password purpose
 

@@ -14,7 +14,11 @@ import {
   Loader2,
   Lock,
 } from "lucide-react";
-import { sendOtp, verifyOtpForForgotPassword } from "../../services/api";
+import {
+  sendOtp,
+  verifyOtpForForgotPassword,
+  forgotPassword,
+} from "../../services/api";
 
 /* ─────────────────────────────────────────────────────────
    Password-strength helper
@@ -416,11 +420,15 @@ function StepNewPassword({ resetToken, onSuccess }) {
     setErrors({});
     setSubmitting(true);
 
-    // ── Placeholder: replace with real API call when backend exposes
-    //    POST /auth/resetPassword  { email, otp, newPassword }
-    await new Promise((r) => setTimeout(r, 1000));
+    const res = await forgotPassword({
+      resetToken: resetToken,
+      newPassword: password,
+    });
+
     setSubmitting(false);
-    onSuccess();
+    if (res.success) {
+      onSuccess();
+    }
   };
 
   return (
