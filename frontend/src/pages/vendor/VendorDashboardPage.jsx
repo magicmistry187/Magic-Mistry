@@ -201,6 +201,12 @@ export default function VendorDashboardPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('active'); // 'active', 'service', 'invoice', 'history', 'earnings', 'profile'
   const [isOnline, setIsOnline] = useState(true);
+
+  // Scroll to top whenever tab changes
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
   const [jobs, setJobs] = useState(INITIAL_JOBS);
   const [history, setHistory] = useState(INITIAL_HISTORY);
   const [filterCategory, setFilterCategory] = useState('All');
@@ -344,6 +350,7 @@ export default function VendorDashboardPage() {
     setCustomerNotes(
       job.notes || 'Recommended regular maintenance every 6 months to ensure optimal performance. All debris cleared from unit.'
     );
+    window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
   // Toggle checklist item with jobs state sync
@@ -389,6 +396,7 @@ export default function VendorDashboardPage() {
     setJobs(prevJobs => prevJobs.map(j => j.id === selectedJob.id ? updatedJob : j));
     setInvoiceParts(selectedJob.parts || []);
     setActiveTab('invoice');
+    window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
   // Component Selection via Dropdown (immutably update state)
@@ -537,6 +545,7 @@ export default function VendorDashboardPage() {
       setSelectedJob(null);
     }
     setActiveTab(modalReturnTab);
+    window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
   // View past invoice from history list
@@ -640,63 +649,66 @@ export default function VendorDashboardPage() {
         }
       `}</style>
 
-      <div className="no-print-bg">
+      <div className="no-print-bg" style={{ position: 'relative', zIndex: 9999 }}>
         <Navbar />
       </div>
 
       {/* Main Container */}
-      <main className="flex-1 w-full max-w-[1380px] mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-16">
+      <main className="flex-1 w-full max-w-[1380px] mx-auto px-4 sm:px-6 lg:px-8 pb-16" style={{ marginTop: '120px' }}>
 
         {/* ── TOP BANNER / HEADER BAR (Only visible on main tabs) ── */}
         {activeTab !== 'service' && activeTab !== 'invoice' && (
-          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 sm:p-6 mb-6 transition-all duration-300 no-print-bg">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-3 sm:p-6 mb-6 transition-all duration-300 no-print-bg">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
               
               {/* Left: Title & Tabs */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              <div className="space-y-2.5 sm:space-y-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <h1 className="text-lg sm:text-3xl font-extrabold text-slate-900 tracking-tight truncate">
                     Vendor Dashboard
                   </h1>
                   
                   {/* Live Pulse Badge */}
-                  <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                  <div className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[9px] sm:text-xs font-bold shrink-0 ${
                     isOnline 
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
                       : 'bg-amber-50 text-amber-700 border border-amber-200'
                   }`}>
-                    <span className="relative flex h-2 w-2">
+                    <span className="relative flex h-1.5 w-1.5 sm:h-2 sm:w-2">
                       {isOnline && (
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                       )}
-                      <span className={`relative inline-flex rounded-full h-2 w-2 ${isOnline ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+                      <span className={`relative inline-flex rounded-full h-1.5 w-1.5 sm:h-2 sm:w-2 ${isOnline ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
                     </span>
                     {isOnline ? 'ONLINE' : 'OFFLINE'}
                   </div>
                 </div>
 
-                {/* Navigation Tabs */}
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                {/* Navigation Tabs - scrollable on mobile */}
+                <div
+                  className="flex items-center gap-0.5 sm:gap-1 overflow-x-auto pb-0.5"
+                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
+                >
                   {[
-                    { id: 'active', label: 'Active Jobs', badge: jobs.length },
+                    { id: 'active', label: 'Jobs', badge: jobs.length },
                     { id: 'history', label: 'History', badge: history.length },
                     { id: 'earnings', label: 'Earnings', badge: `₹${(todayEarnings/1000).toFixed(1)}k` },
-                    { id: 'profile', label: 'Profile', badge: 'NABL' },
+                    { id: 'profile', label: 'Profile', badge: '★' },
                   ].map((tab) => {
                     const isActive = activeTab === tab.id;
                     return (
                       <button
                         key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`relative px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-2 shrink-0 ${
+                        onClick={() => handleTabChange(tab.id)}
+                        className={`relative flex-shrink-0 px-2 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-sm font-semibold rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-0.5 sm:gap-1.5 ${
                           isActive
                             ? 'bg-[#061e38] text-white shadow-md'
                             : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                         }`}
                       >
-                        {tab.label}
+                        <span>{tab.label}</span>
                         <span
-                          className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                          className={`text-[9px] sm:text-[10px] font-bold px-1 sm:px-1.5 py-0.5 rounded-full leading-none ${
                             isActive
                               ? 'bg-orange-500 text-white'
                               : 'bg-slate-200 text-slate-700'
@@ -711,27 +723,27 @@ export default function VendorDashboardPage() {
               </div>
 
               {/* Right: Duty Switcher */}
-              <div className="flex items-center gap-3 self-start md:self-center shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100 w-full md:w-auto justify-between md:justify-end">
-                <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-                  <Power className={`w-4 h-4 ${isOnline ? 'text-emerald-600' : 'text-slate-400'}`} />
+              <div className="flex items-center gap-2 sm:gap-3 self-start md:self-center shrink-0 pt-2.5 md:pt-0 border-t md:border-t-0 border-slate-100 w-full md:w-auto justify-between md:justify-end">
+                <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-semibold text-slate-500">
+                  <Power className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isOnline ? 'text-emerald-600' : 'text-slate-400'}`} />
                   <span>Duty Status</span>
                 </div>
 
-                <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-full border border-slate-200 shadow-inner">
+                <div className="flex items-center gap-0.5 sm:gap-1 bg-slate-100 p-0.5 sm:p-1 rounded-full border border-slate-200 shadow-inner">
                   <button
                     onClick={handleToggleOnline}
-                    className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-extrabold transition-all duration-300 cursor-pointer ${
+                    className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-extrabold transition-all duration-300 cursor-pointer ${
                       isOnline
                         ? 'bg-emerald-600 text-white shadow-md'
                         : 'bg-transparent text-slate-500 hover:text-slate-800'
                     }`}
                   >
-                    <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+                    <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-white animate-pulse"></span>
                     Online
                   </button>
                   <button
                     onClick={handleToggleOnline}
-                    className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-extrabold transition-all duration-300 cursor-pointer ${
+                    className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-extrabold transition-all duration-300 cursor-pointer ${
                       !isOnline
                         ? 'bg-slate-700 text-white shadow-md'
                         : 'bg-transparent text-slate-500 hover:text-slate-800'
@@ -751,34 +763,34 @@ export default function VendorDashboardPage() {
           <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-r from-[#dbeafe] via-[#eff6ff] to-[#e0e7ff] border border-blue-200/90 rounded-2xl p-4 sm:p-5 mb-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 no-print-bg"
+            className="bg-gradient-to-r from-[#dbeafe] via-[#eff6ff] to-[#e0e7ff] border border-blue-200/90 rounded-2xl p-3.5 sm:p-5 mb-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 no-print-bg"
           >
-            <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-[#092543] text-blue-300 flex items-center justify-center shadow-md shrink-0 ring-4 ring-blue-100">
-                <Award className="w-6 h-6 text-orange-400" />
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-[#092543] text-blue-300 flex items-center justify-center shadow-md shrink-0 ring-2 sm:ring-4 ring-blue-100">
+                <Award className="w-5 h-5 sm:w-6 sm:h-6 text-orange-400" />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base sm:text-lg font-extrabold text-[#08223e]">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                  <h3 className="text-sm sm:text-lg font-extrabold text-[#08223e]">
                     NABL Verified Professional
                   </h3>
-                  <span className="bg-[#092543] text-orange-400 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                  <span className="bg-[#092543] text-orange-400 text-[9px] sm:text-[10px] font-bold px-2 sm:px-2.5 py-0.5 rounded-full uppercase tracking-wider shrink-0">
                     ISO Certified
                   </span>
                 </div>
-                <p className="text-xs sm:text-sm text-slate-600 font-medium mt-0.5">
+                <p className="text-[11px] sm:text-sm text-slate-600 font-medium mt-0.5 leading-snug">
                   Your certification is active and visible to all customers on Magic Mistry.
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
-              <span className="text-xs font-bold text-slate-500 bg-white/80 px-3 py-1.5 rounded-xl border border-blue-200/60 shadow-xs">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0 self-start sm:self-center w-full sm:w-auto justify-between sm:justify-end">
+              <span className="text-[10px] sm:text-xs font-bold text-slate-500 bg-white/80 px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl border border-blue-200/60 shadow-xs truncate max-w-[130px] sm:max-w-none">
                 ID: {vendorProfile.nablId}
               </span>
               <button 
-                onClick={() => setActiveTab('profile')}
-                className="text-xs font-bold text-blue-700 hover:text-blue-900 bg-white px-3.5 py-1.5 rounded-xl border border-blue-300 shadow-xs hover:shadow transition-all"
+                onClick={() => handleTabChange('profile')}
+                className="text-[10px] sm:text-xs font-bold text-blue-700 hover:text-blue-900 bg-white px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-xl border border-blue-300 shadow-xs hover:shadow transition-all shrink-0"
               >
                 View Badge &rarr;
               </button>
@@ -792,75 +804,75 @@ export default function VendorDashboardPage() {
           <div className="space-y-6 no-print-bg">
 
             {/* TOP STATS & VENDOR MINI PROFILE GRID */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-6">
 
               {/* 3 METRIC CARDS */}
-              <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+              <div className="lg:col-span-8 grid grid-cols-3 gap-2 sm:gap-6">
                 
                 <motion.div 
                   whileHover={{ y: -3 }}
-                  className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm flex flex-col justify-between"
+                  className="bg-white rounded-xl sm:rounded-2xl border border-slate-200/80 p-2.5 sm:p-5 shadow-sm flex flex-col justify-between min-w-0"
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-extrabold text-slate-400 tracking-wider uppercase">TODAY'S EARNINGS</span>
-                    <span className="text-[11px] font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                  <div className="flex items-start justify-between mb-1 sm:mb-2 gap-0.5">
+                    <span className="text-[8px] sm:text-xs font-extrabold text-slate-400 tracking-wider uppercase leading-tight">EARN.</span>
+                    <span className="hidden sm:inline text-[11px] font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
                       ↗ 12%
                     </span>
                   </div>
-                  <div className="flex items-baseline gap-1 mt-1">
-                    <span className="text-3xl font-extrabold text-slate-900 tracking-tight">₹{todayEarnings.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  <div className="flex items-baseline gap-0.5 mt-0.5 sm:mt-1">
+                    <span className="text-sm sm:text-3xl font-extrabold text-slate-900 tracking-tight truncate">₹{(todayEarnings/1000).toFixed(1)}k</span>
                   </div>
-                  <p className="text-[11px] text-slate-500 font-medium mt-2">Active service payout count</p>
+                  <p className="hidden sm:block text-[11px] text-slate-500 font-medium mt-2">Active service payout count</p>
                 </motion.div>
 
                 <motion.div 
                   whileHover={{ y: -3 }}
-                  className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm flex flex-col justify-between"
+                  className="bg-white rounded-xl sm:rounded-2xl border border-slate-200/80 p-2.5 sm:p-5 shadow-sm flex flex-col justify-between min-w-0"
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-extrabold text-slate-400 tracking-wider uppercase">PENDING JOBS</span>
+                  <div className="flex items-start justify-between mb-1 sm:mb-2 gap-0.5">
+                    <span className="text-[8px] sm:text-xs font-extrabold text-slate-400 tracking-wider uppercase leading-tight">PENDING</span>
                     {pendingJobsCount > 0 && (
-                      <span className="text-[11px] font-extrabold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">Action Needed</span>
+                      <span className="hidden sm:inline text-[11px] font-extrabold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200 shrink-0">Action!</span>
                     )}
                   </div>
-                  <div className="flex items-baseline gap-2 mt-1">
-                    <span className="text-3xl font-extrabold text-orange-600 tracking-tight">{pendingJobsCount}</span>
-                    <span className="text-xs font-bold text-slate-500">Requires Action</span>
+                  <div className="flex items-baseline gap-0.5 sm:gap-1 mt-0.5 sm:mt-1">
+                    <span className="text-sm sm:text-3xl font-extrabold text-orange-600 tracking-tight">{pendingJobsCount}</span>
+                    <span className="hidden sm:inline text-xs font-bold text-slate-500">Jobs</span>
                   </div>
-                  <p className="text-[11px] text-slate-500 font-medium mt-2">Respond within 15 mins</p>
+                  <p className="hidden sm:block text-[11px] text-slate-500 font-medium mt-2">Respond within 15 mins</p>
                 </motion.div>
 
                 <motion.div 
                   whileHover={{ y: -3 }}
-                  className="bg-[#061e38] text-white rounded-2xl border border-slate-800 p-5 shadow-sm flex flex-col justify-between"
+                  className="bg-[#061e38] text-white rounded-xl sm:rounded-2xl border border-slate-800 p-2.5 sm:p-5 shadow-sm flex flex-col justify-between min-w-0"
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-extrabold text-slate-300 tracking-wider uppercase">AVERAGE RATING</span>
-                    <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                  <div className="flex items-start justify-between mb-1 sm:mb-2 gap-0.5">
+                    <span className="text-[8px] sm:text-xs font-extrabold text-slate-300 tracking-wider uppercase leading-tight">RATING</span>
+                    <Star className="w-3 h-3 sm:w-4 sm:h-4 text-amber-400 fill-amber-400 shrink-0" />
                   </div>
-                  <div className="flex items-baseline gap-1 mt-1">
-                    <span className="text-3xl font-extrabold text-white tracking-tight">{rating}</span>
-                    <span className="text-amber-400 text-lg">★</span>
+                  <div className="flex items-baseline gap-0.5 mt-0.5 sm:mt-1">
+                    <span className="text-sm sm:text-3xl font-extrabold text-white tracking-tight">{rating}</span>
+                    <span className="text-amber-400 text-xs sm:text-lg">★</span>
                   </div>
-                  <p className="text-[11px] text-slate-300 font-medium mt-2">Based on {totalJobsDone} reviews</p>
+                  <p className="hidden sm:block text-[11px] text-slate-300 font-medium mt-2">Based on {totalJobsDone} reviews</p>
                 </motion.div>
 
               </div>
 
               {/* VENDOR MINI PROFILE */}
-              <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-5 shadow-sm flex items-center gap-4">
+              <div className="lg:col-span-4 bg-white rounded-xl sm:rounded-2xl border border-slate-200/80 p-3 sm:p-5 shadow-sm flex items-center gap-3 sm:gap-4">
                 <img
                   src="https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=250&q=80"
                   alt={vendorProfile.name}
-                  className="w-16 h-16 rounded-2xl object-cover ring-2 ring-blue-100 shadow-md shrink-0"
+                  className="w-11 h-11 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl object-cover ring-2 ring-blue-100 shadow-md shrink-0"
                 />
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-base font-extrabold text-slate-900 truncate">{vendorProfile.name}</h3>
-                  <p className="text-xs font-semibold text-slate-500">ID: {vendorProfile.vendorId}</p>
-                  <div className="flex items-center gap-1.5 mt-2">
-                    <span className="text-amber-500 text-xs font-extrabold flex items-center">★ {rating}</span>
+                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900 truncate">{vendorProfile.name}</h3>
+                  <p className="text-[10px] sm:text-xs font-semibold text-slate-500 truncate">ID: {vendorProfile.vendorId}</p>
+                  <div className="flex items-center gap-1 sm:gap-1.5 mt-1 sm:mt-1.5 flex-wrap">
+                    <span className="text-amber-500 text-[11px] sm:text-xs font-extrabold flex items-center">★ {rating}</span>
                     <span className="text-slate-300">•</span>
-                    <span className="text-xs font-semibold text-slate-600">({totalJobsDone} jobs)</span>
+                    <span className="text-[11px] sm:text-xs font-semibold text-slate-600">({totalJobsDone} jobs)</span>
                   </div>
                 </div>
               </div>
@@ -869,7 +881,7 @@ export default function VendorDashboardPage() {
 
 
             {/* MAIN CONTENT ROW (LEFT: ACTIVE QUEUE, RIGHT: WEEKLY EARNINGS CHART) */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
 
               {/* LEFT COLUMN: ACTIVE JOB QUEUE */}
               <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-6">
@@ -925,7 +937,7 @@ export default function VendorDashboardPage() {
                                 : 'border-slate-200 bg-white'
                             }`}
                           >
-                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                               
                               <div className="flex items-start gap-3.5">
                                 <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-2xl shrink-0">
@@ -967,24 +979,26 @@ export default function VendorDashboardPage() {
                                 </div>
                               </div>
 
-                              <div className="flex sm:flex-col items-center sm:items-end justify-between gap-3 pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-100 shrink-0">
-                                <div className="text-left sm:text-right">
-                                  <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Est. Payout</span>
-                                  <span className="text-lg font-extrabold text-slate-900">₹{job.estimatedPay.toLocaleString('en-IN')}</span>
+                              <div className="flex flex-col gap-3 pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-100 sm:items-end shrink-0 w-full sm:w-auto">
+                                <div className="flex sm:flex-col items-center sm:items-end justify-between">
+                                  <div>
+                                    <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Est. Payout</span>
+                                    <span className="text-lg font-extrabold text-slate-900">₹{job.estimatedPay.toLocaleString('en-IN')}</span>
+                                  </div>
                                 </div>
 
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 w-full sm:w-auto">
                                   {isNew ? (
                                     <>
                                       <button
                                         onClick={() => handleAcceptJob(job.id)}
-                                        className="px-5 py-2 bg-orange-600 hover:bg-orange-700 text-white text-xs font-extrabold rounded-xl shadow-sm cursor-pointer"
+                                        className="flex-1 sm:flex-none px-5 py-2 bg-orange-600 hover:bg-orange-700 text-white text-xs font-extrabold rounded-xl shadow-sm cursor-pointer"
                                       >
                                         Accept
                                       </button>
                                       <button
                                         onClick={() => handleRejectJob(job.id)}
-                                        className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-extrabold rounded-xl cursor-pointer"
+                                        className="flex-1 sm:flex-none px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-extrabold rounded-xl cursor-pointer"
                                       >
                                         Reject
                                       </button>
@@ -995,14 +1009,14 @@ export default function VendorDashboardPage() {
                                         href={`https://maps.google.com/?q=${encodeURIComponent(job.serviceAddress)}`}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold rounded-xl flex items-center gap-1.5 transition-colors border border-slate-200"
+                                        className="flex-1 sm:flex-none px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold rounded-xl flex items-center justify-center gap-1.5 transition-colors border border-slate-200"
                                       >
                                         <Navigation className="w-3.5 h-3.5 text-blue-500" />
-                                        Track Location
+                                        Navigate
                                       </a>
                                       <button
                                         onClick={() => handleStartService(job)}
-                                        className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer transition-transform active:scale-95"
+                                        className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold rounded-xl shadow-md flex items-center justify-center gap-1.5 cursor-pointer transition-transform active:scale-95"
                                       >
                                         <Play className="w-3.5 h-3.5 fill-white" />
                                         Start Service
@@ -1011,7 +1025,7 @@ export default function VendorDashboardPage() {
                                   ) : (
                                     <button
                                       onClick={() => openServiceExecution(job)}
-                                      className="px-5 py-2.5 bg-[#061e38] hover:bg-[#0a2f57] text-white text-xs font-extrabold rounded-xl shadow-md flex items-center gap-2 cursor-pointer transition-transform active:scale-95"
+                                      className="w-full sm:w-auto px-5 py-2.5 bg-[#061e38] hover:bg-[#0a2f57] text-white text-xs font-extrabold rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-95"
                                     >
                                       <RefreshCw className="w-3.5 h-3.5" />
                                       Resume Execution &rarr;
@@ -1119,13 +1133,13 @@ export default function VendorDashboardPage() {
             </div>
 
             {/* Service Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
 
               {/* Left Column (8 Cols): Timer, Checklist, Customer Notes */}
               <div className="lg:col-span-8 space-y-6">
 
                 {/* 1. SERVICE DURATION TIMER CARD */}
-                <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 flex flex-col sm:flex-row items-center justify-between gap-6">
+                <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 sm:p-6 flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6">
                   <div>
                     <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider block">
                       SERVICE DURATION
@@ -1351,7 +1365,7 @@ export default function VendorDashboardPage() {
             </div>
 
             {/* Main Invoice Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
 
               {/* Left Column (8 Cols) */}
               <div className="lg:col-span-8 space-y-6">
@@ -1427,8 +1441,8 @@ export default function VendorDashboardPage() {
                   </div>
 
                   {/* Parts Table */}
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
+                  <div className="overflow-x-auto -mx-6 px-6">
+                    <table className="w-full text-left text-xs" style={{minWidth:'540px'}}>
                       <thead>
                         <tr className="bg-slate-100/80 text-slate-600 font-extrabold uppercase tracking-wider">
                           <th className="p-3 rounded-l-xl">Select Component</th>
@@ -1515,7 +1529,7 @@ export default function VendorDashboardPage() {
                 </div>
 
                 {/* 3. PAYMENT METHOD (UPI, CASH & ONLINE GATEWAY IN-PROGRESS STATUS) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
 
                   {/* Payment Method Selector */}
                   <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-5 space-y-4">
@@ -1725,7 +1739,7 @@ export default function VendorDashboardPage() {
 
         {/* ── TAB 2: HISTORY ── */}
         {activeTab === 'history' && (
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-6 space-y-6 no-print-bg">
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-6 space-y-4 sm:space-y-6 no-print-bg">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <div>
                 <h2 className="text-xl font-extrabold text-slate-900">Job History & Ratings</h2>
@@ -1735,9 +1749,9 @@ export default function VendorDashboardPage() {
 
             <div className="space-y-4">
               {history.map((item) => (
-                <div key={item.id} className="rounded-2xl border border-slate-200 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white hover:border-blue-300 transition-all">
+                <div key={item.id} className="rounded-2xl border border-slate-200 p-4 sm:p-5 flex flex-col gap-3 bg-white hover:border-blue-300 transition-all">
                   <div className="space-y-1.5 flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-md">{item.id}</span>
                       <span className="text-xs text-slate-400">{item.date}</span>
                       <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">{item.status}</span>
@@ -1747,8 +1761,8 @@ export default function VendorDashboardPage() {
                     {item.review && <p className="text-xs italic text-slate-600 bg-slate-50 p-2 rounded-xl mt-1">"{item.review}"</p>}
                   </div>
 
-                  <div className="flex sm:flex-col items-center sm:items-end justify-between gap-3 border-t sm:border-t-0 border-slate-100 pt-3 sm:pt-0 shrink-0">
-                    <div className="text-right">
+                  <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-100">
+                    <div>
                       <span className="text-xs text-slate-400 block font-semibold">Total Invoice</span>
                       <span className="text-lg font-extrabold text-slate-900">₹{typeof item.amount === 'number' ? item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : item.amount}</span>
                       <div className="text-amber-500 text-xs font-bold">{'★'.repeat(item.rating)}</div>
@@ -1756,10 +1770,11 @@ export default function VendorDashboardPage() {
 
                     <button
                       onClick={() => handleViewHistoryInvoice(item)}
-                      className="px-4 py-2 bg-[#061e38] hover:bg-[#0a2f57] text-white text-xs font-extrabold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                      className="px-4 py-2 bg-[#061e38] hover:bg-[#0a2f57] text-white text-xs font-extrabold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
                     >
                       <Eye className="w-3.5 h-3.5 text-orange-400" />
-                      View &amp; Download Invoice &rarr;
+                      <span className="hidden sm:inline">View &amp; Download Invoice &rarr;</span>
+                      <span className="sm:hidden">View Invoice</span>
                     </button>
                   </div>
                 </div>
@@ -1771,8 +1786,8 @@ export default function VendorDashboardPage() {
 
         {/* ── TAB 3: EARNINGS ── */}
         {activeTab === 'earnings' && (
-          <div className="space-y-6 no-print-bg">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="space-y-4 sm:space-y-6 no-print-bg">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm">
               <div>
                 <h2 className="text-xl font-extrabold text-slate-900">Earnings & Payouts</h2>
                 <p className="text-xs text-slate-500 mt-0.5">Manage your earnings, view history, and request payouts to your bank account.</p>
@@ -1780,7 +1795,7 @@ export default function VendorDashboardPage() {
               <button
                 onClick={handleRequestPayout}
                 disabled={payoutRequested || todayEarnings <= 0}
-                className={`px-6 py-2.5 rounded-xl text-sm font-extrabold flex items-center gap-2 transition-all shadow-md ${
+                className={`w-full sm:w-auto px-5 sm:px-6 py-2.5 rounded-xl text-sm font-extrabold flex items-center justify-center gap-2 transition-all shadow-md ${
                   payoutRequested 
                     ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
                     : todayEarnings > 0 
@@ -1793,31 +1808,31 @@ export default function VendorDashboardPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6">
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
                 <p className="text-xs font-bold text-slate-400 uppercase">Lifetime Earnings</p>
-                <p className="text-3xl font-extrabold text-slate-900 mt-1">₹1,48,200.00</p>
+                <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">₹1,48,200.00</p>
               </div>
-              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm relative overflow-hidden">
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm relative overflow-hidden">
                 {payoutRequested && (
                   <div className="absolute top-0 right-0 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-1 rounded-bl-lg">
                     PROCESSING
                   </div>
                 )}
                 <p className="text-xs font-bold text-slate-400 uppercase">Available Payout</p>
-                <p className={`text-3xl font-extrabold mt-1 ${payoutRequested ? 'text-emerald-600' : 'text-orange-600'}`}>
+                <p className={`text-2xl sm:text-3xl font-extrabold mt-1 ${payoutRequested ? 'text-emerald-600' : 'text-orange-600'}`}>
                   ₹{todayEarnings.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </p>
               </div>
-              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
                 <p className="text-xs font-bold text-slate-400 uppercase">Bank Account</p>
-                <p className="text-lg font-extrabold text-slate-900 mt-1">{vendorProfile.bankAccount}</p>
-                <p className="text-xs text-slate-500">{vendorProfile.ifsc}</p>
+                <p className="text-base sm:text-lg font-extrabold text-slate-900 mt-1 break-all">{vendorProfile.bankAccount}</p>
+                <p className="text-xs text-slate-500 mt-0.5">{vendorProfile.ifsc}</p>
               </div>
             </div>
 
             {/* Payout History / Info */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6">
               <h3 className="text-base font-extrabold text-slate-900 mb-4">Recent Payouts</h3>
               <div className="space-y-4">
                 {payoutRequested && (
@@ -1876,56 +1891,165 @@ export default function VendorDashboardPage() {
 
         {/* ── TAB 4: PROFILE ── */}
         {activeTab === 'profile' && (
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4 no-print-bg">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-lg font-extrabold text-slate-900">Vendor Credentials</h3>
+          <div className="space-y-4 sm:space-y-5 no-print-bg">
+
+            {/* Vendor Hero Card */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              {/* Cover Banner */}
+              <div className="h-20 sm:h-28 bg-gradient-to-r from-[#061e38] via-[#0a2f57] to-[#061e38] relative">
+                <div className="absolute bottom-0 right-0 opacity-10">
+                  <Wrench className="w-32 h-32 text-white rotate-12 translate-x-4 translate-y-4" />
+                </div>
+              </div>
+
+              <div className="px-4 sm:px-6 pb-5">
+                {/* Avatar + Edit Button Row */}
+                <div className="flex items-end justify-between -mt-8 mb-4">
+                  <img
+                    src="https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=250&q=80"
+                    alt={vendorProfile.name}
+                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover ring-4 ring-white shadow-lg"
+                  />
+                  {!isEditingProfile ? (
+                    <button
+                      onClick={() => { setEditProfileForm(vendorProfile); setIsEditingProfile(true); }}
+                      className="px-3 sm:px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 border border-slate-200"
+                    >
+                      <span>✎</span> Edit Profile
+                    </button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setIsEditingProfile(false)}
+                        className="px-3 py-1.5 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl transition-colors border border-slate-200"
+                      >Cancel</button>
+                      <button
+                        onClick={() => { setVendorProfile(editProfileForm); setIsEditingProfile(false); showToast('Profile updated successfully!', 'success'); }}
+                        className="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 shadow-sm"
+                      >
+                        <Check className="w-3.5 h-3.5" /> Save
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Name & Title */}
+                <div className="mb-4">
+                  <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">{vendorProfile.name}</h2>
+                  <p className="text-sm text-slate-500 font-medium">{vendorProfile.title}</p>
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    <span className="flex items-center gap-1 text-xs font-bold text-slate-600">
+                      <MapPin className="w-3.5 h-3.5 text-orange-500" />
+                      {vendorProfile.city}
+                    </span>
+                    <span className="text-slate-300">•</span>
+                    <span className="text-xs font-bold text-slate-600">ID: {vendorProfile.vendorId}</span>
+                  </div>
+                </div>
+
+                {/* Stats Row */}
+                <div className="grid grid-cols-3 gap-1.5 sm:gap-4 mb-4">
+                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-2 sm:p-3 text-center">
+                    <p className="text-sm sm:text-xl font-extrabold text-slate-900">{rating}</p>
+                    <p className="text-[9px] sm:text-xs text-slate-500 font-semibold mt-0.5">Rating</p>
+                  </div>
+                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-2 sm:p-3 text-center">
+                    <p className="text-sm sm:text-xl font-extrabold text-slate-900">{totalJobsDone}</p>
+                    <p className="text-[9px] sm:text-xs text-slate-500 font-semibold mt-0.5">Jobs Done</p>
+                  </div>
+                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-2 sm:p-3 text-center">
+                    <p className="text-sm sm:text-xl font-extrabold text-slate-900">{vendorProfile.serviceRadius}km</p>
+                    <p className="text-[9px] sm:text-xs text-slate-500 font-semibold mt-0.5">Radius</p>
+                  </div>
+                </div>
+
+                {/* NABL Badge */}
+                <div className="flex flex-wrap items-center gap-2 mb-4">
+                  <div className="flex items-center gap-2 bg-[#061e38] text-white px-3 py-1.5 rounded-xl">
+                    <Award className="w-4 h-4 text-orange-400 shrink-0" />
+                    <span className="text-xs font-extrabold">NABL Verified</span>
+                    <span className="text-orange-400 text-[10px] font-bold bg-white/10 px-1.5 py-0.5 rounded-md">ISO</span>
+                  </div>
+                  <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+                    {vendorProfile.nablId}
+                  </span>
+                </div>
+
+                {/* Appliances Served */}
+                <div>
+                  <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2">Appliances Served</p>
+                  <div className="flex flex-wrap gap-2">
+                    {vendorProfile.appliancesServed.map((appliance, i) => (
+                      <span key={i} className="text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                        {appliance}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Credentials & Banking Card */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6">
+              <h3 className="text-sm font-extrabold text-slate-900 mb-4 flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-slate-600" />
+                Credentials &amp; Banking
+              </h3>
+
               {!isEditingProfile ? (
-                <button onClick={() => { setEditProfileForm(vendorProfile); setIsEditingProfile(true); }} className="px-4 py-1.5 bg-slate-100 text-slate-600 hover:text-slate-900 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5">
-                  <span className="w-3 h-3">✎</span> Edit Profile
-                </button>
+                <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 gap-2.5 sm:gap-4">
+                  {[
+                    { label: 'Full Name', value: vendorProfile.name },
+                    { label: 'Phone', value: vendorProfile.phone },
+                    { label: 'Email', value: vendorProfile.email },
+                    { label: 'Vendor UPI ID', value: vendorProfile.upiId },
+                    { label: 'Bank Account', value: vendorProfile.bankAccount },
+                    { label: 'Bank IFSC', value: vendorProfile.ifsc },
+                    { label: 'Service City', value: vendorProfile.city },
+                    { label: 'Service Address', value: vendorProfile.address },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 sm:p-3">
+                      <p className="text-[9px] sm:text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-0.5 sm:mb-1">{label}</p>
+                      <p className="text-xs sm:text-sm font-semibold text-slate-800 break-words">{value}</p>
+                    </div>
+                  ))}
+                </div>
               ) : (
-                <div className="flex gap-2">
-                  <button onClick={() => setIsEditingProfile(false)} className="px-4 py-1.5 bg-slate-100 text-slate-600 font-bold text-xs rounded-lg transition-colors">Cancel</button>
-                  <button onClick={() => { setVendorProfile(editProfileForm); setIsEditingProfile(false); showToast('Profile updated successfully!', 'success'); }} className="px-4 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5">
-                    <Check className="w-3.5 h-3.5" /> Save Changes
-                  </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  {[
+                    { label: 'Full Name', field: 'name', type: 'text' },
+                    { label: 'Phone', field: 'phone', type: 'tel' },
+                    { label: 'Vendor UPI ID', field: 'upiId', type: 'text' },
+                    { label: 'Bank Account', field: 'bankAccount', type: 'text' },
+                    { label: 'Bank IFSC', field: 'ifsc', type: 'text' },
+                    { label: 'City', field: 'city', type: 'text' },
+                  ].map(({ label, field, type }) => (
+                    <div key={field}>
+                      <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-1.5">{label}</label>
+                      <input
+                        type={type}
+                        value={editProfileForm[field]}
+                        onChange={e => setEditProfileForm({...editProfileForm, [field]: e.target.value})}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                  ))}
+                  <div className="sm:col-span-2 flex justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      onClick={() => setIsEditingProfile(false)}
+                      className="px-4 py-2 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl transition-colors border border-slate-200"
+                    >Cancel</button>
+                    <button
+                      onClick={() => { setVendorProfile(editProfileForm); setIsEditingProfile(false); showToast('Profile updated successfully!', 'success'); }}
+                      className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs rounded-xl transition-colors shadow-sm flex items-center gap-1.5"
+                    >
+                      <Check className="w-3.5 h-3.5" /> Save Changes
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
-            
-            {!isEditingProfile ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
-                <div><strong className="text-slate-400 uppercase text-[10px] tracking-wider block mb-1">Name:</strong> <span className="font-semibold text-slate-800">{vendorProfile.name}</span></div>
-                <div><strong className="text-slate-400 uppercase text-[10px] tracking-wider block mb-1">Phone:</strong> <span className="font-semibold text-slate-800">{vendorProfile.phone}</span></div>
-                <div><strong className="text-slate-400 uppercase text-[10px] tracking-wider block mb-1">Vendor UPI ID:</strong> <span className="font-semibold text-slate-800">{vendorProfile.upiId}</span></div>
-                <div><strong className="text-slate-400 uppercase text-[10px] tracking-wider block mb-1">Bank Account:</strong> <span className="font-semibold text-slate-800">{vendorProfile.bankAccount}</span></div>
-                <div><strong className="text-slate-400 uppercase text-[10px] tracking-wider block mb-1">Bank IFSC:</strong> <span className="font-semibold text-slate-800">{vendorProfile.ifsc}</span></div>
-                <div><strong className="text-slate-400 uppercase text-[10px] tracking-wider block mb-1">NABL Certification:</strong> <span className="font-semibold text-slate-800">{vendorProfile.nablId}</span></div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Name</label>
-                  <input type="text" value={editProfileForm.name} onChange={e => setEditProfileForm({...editProfileForm, name: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Phone</label>
-                  <input type="text" value={editProfileForm.phone} onChange={e => setEditProfileForm({...editProfileForm, phone: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Vendor UPI ID</label>
-                  <input type="text" value={editProfileForm.upiId} onChange={e => setEditProfileForm({...editProfileForm, upiId: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Bank Account</label>
-                  <input type="text" value={editProfileForm.bankAccount} onChange={e => setEditProfileForm({...editProfileForm, bankAccount: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Bank IFSC</label>
-                  <input type="text" value={editProfileForm.ifsc} onChange={e => setEditProfileForm({...editProfileForm, ifsc: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500" />
-                </div>
-              </div>
-            )}
+
           </div>
         )}
 
