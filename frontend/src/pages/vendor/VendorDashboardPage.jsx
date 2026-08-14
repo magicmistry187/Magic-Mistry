@@ -1904,7 +1904,7 @@ export default function VendorDashboardPage() {
 
               <div className="px-4 sm:px-6 pb-5">
                 {/* Avatar + Edit Button Row */}
-                <div className="flex items-end justify-between -mt-8 mb-4">
+                <div className="flex items-end justify-between -mt-8 mb-4 relative z-10">
                   <img
                     src="https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=250&q=80"
                     alt={vendorProfile.name}
