@@ -9,6 +9,7 @@ import AdminViewCredsModal from '../../components/dashboard/admin/AdminViewCreds
 import AdminApplicationModal from '../../components/dashboard/admin/AdminApplicationModal';
 import AdminDispatchModal from '../../components/dashboard/admin/AdminDispatchModal';
 import AdminWorkReportModal from '../../components/dashboard/admin/AdminWorkReportModal';
+import AdminExportModal from '../../components/dashboard/admin/AdminExportModal';
 import {
   LayoutDashboard, Users, FileText, UserPlus, TrendingUp, Settings,
   Package, AlertTriangle, Truck, DollarSign, Search, ChevronDown,
@@ -222,8 +223,6 @@ export default function AdminDashboardPage() {
 
   // Data states
   const [inventoryList, setInventoryList] = useState(INITIAL_INVENTORY);
-  const [invFromDate, setInvFromDate] = useState('');
-  const [invToDate, setInvToDate] = useState('');
 
   const [applicationsList, setApplicationsList] = useState(INITIAL_APPLICATIONS);
   const [dispatchQueue, setDispatchQueue] = useState(INITIAL_DISPATCH_QUEUE);
@@ -242,16 +241,9 @@ export default function AdminDashboardPage() {
 
   // Work History Pagination & Filters
   const [historyPage, setHistoryPage] = useState(1);
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
   const [workHistory, setWorkHistory] = useState(INITIAL_WORK_HISTORY);
   
-  const filteredHistory = workHistory.filter(item => {
-    const itemDate = new Date(item.dateCompleted);
-    const start = fromDate ? new Date(fromDate) : new Date('2000-01-01');
-    const end = toDate ? new Date(toDate) : new Date('2100-01-01');
-    return itemDate >= start && itemDate <= end;
-  });
+  const filteredHistory = workHistory;
 
   const historyItemsPerPage = 5;
   const historyTotalPages = Math.ceil(filteredHistory.length / historyItemsPerPage) || 1;
@@ -298,6 +290,10 @@ export default function AdminDashboardPage() {
   // "View Vendor ID & Pass" modal
   const [isViewCredsModalOpen, setIsViewCredsModalOpen] = useState(false);
   const [viewingCreds, setViewingCreds] = useState(null);
+
+  // Export Modal State
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportType, setExportType] = useState(null); // 'history', 'inventory', 'payment'
 
   // Dispatch Modal state
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
@@ -380,7 +376,14 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = (exportFrom, exportTo) => {
+    const dataToExport = workHistory.filter(item => {
+      const itemDate = new Date(item.dateCompleted);
+      const start = exportFrom ? new Date(exportFrom) : new Date('2000-01-01');
+      const end = exportTo ? new Date(exportTo) : new Date('2100-01-01');
+      return itemDate >= start && itemDate <= end;
+    });
+
     const htmlString = `
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
       <head>
@@ -411,7 +414,7 @@ export default function AdminDashboardPage() {
             <th>DATE COMPLETED</th>
             <th>STATUS</th>
           </tr>
-          ${filteredHistory.map(item => `
+          ${dataToExport.map(item => `
             <tr>
               <td style="font-weight: bold;">${item.id}</td>
               <td>${item.appliance}</td>
@@ -438,7 +441,16 @@ export default function AdminDashboardPage() {
     showToast('Work history Excel file downloaded!');
   };
 
-  const handleExportInventoryExcel = () => {
+  const handleExportInventoryExcel = (exportFrom, exportTo) => {
+    // We can filter inventoryList by lastRestocked
+    const dataToExport = inventoryList.filter(item => {
+      if (!item.lastRestocked) return true; // if no date, include it or not based on requirements
+      const itemDate = new Date(item.lastRestocked);
+      const start = exportFrom ? new Date(exportFrom) : new Date('2000-01-01');
+      const end = exportTo ? new Date(exportTo) : new Date('2100-01-01');
+      return itemDate >= start && itemDate <= end;
+    });
+
     const htmlString = `
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
       <head>
@@ -471,7 +483,7 @@ export default function AdminDashboardPage() {
             <th>UNIT PRICE</th>
             <th>LAST RESTOCKED</th>
           </tr>
-          ${filteredInventory.map(item => {
+          ${dataToExport.map(item => {
             let statusClass = 'status-healthy';
             if (item.stockLevel === 'Out of Stock') statusClass = 'status-out';
             else if (item.stockLevel === 'Low Stock') statusClass = 'status-low';
@@ -535,15 +547,10 @@ export default function AdminDashboardPage() {
 
   // Filtered inventory list
   const filteredInventory = inventoryList.filter(item => {
-    const itemDate = new Date(item.lastUpdated);
-    const start = invFromDate ? new Date(invFromDate) : new Date('2000-01-01');
-    const end = invToDate ? new Date(invToDate) : new Date('2100-01-01');
-    
-    const matchesDate = itemDate >= start && itemDate <= end;
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'All Categories' || item.category === selectedCategory;
     const matchesStatus = selectedStatus === 'All Status' || item.stockLevel === selectedStatus;
-    return matchesDate && matchesSearch && matchesCategory && matchesStatus;
+    return matchesSearch && matchesCategory && matchesStatus;
   });
 
   // Sidebar navigation menu items (Exact match to reference screenshots)
@@ -904,26 +911,12 @@ export default function AdminDashboardPage() {
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-3 shrink-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold text-slate-500">From</span>
-                          <input 
-                            type="date" 
-                            value={invFromDate}
-                            onChange={(e) => setInvFromDate(e.target.value)}
-                            className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-orange-500 outline-none shadow-xs" 
-                          />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold text-slate-500">To</span>
-                          <input 
-                            type="date" 
-                            value={invToDate}
-                            onChange={(e) => setInvToDate(e.target.value)}
-                            className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-orange-500 outline-none shadow-xs" 
-                          />
-                        </div>
+
                         <button
-                          onClick={handleExportInventoryExcel}
+                          onClick={() => {
+                            setExportType('inventory');
+                            setIsExportModalOpen(true);
+                          }}
                           className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-extrabold text-xs rounded-xl shadow-xs hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
                         >
                           <Download className="w-4 h-4 text-slate-500" /> Export Report
@@ -1287,7 +1280,12 @@ export default function AdminDashboardPage() {
                         <p className="text-slate-500 text-xs sm:text-sm mt-1 font-medium">Review and process payout requests from vendors.</p>
                       </div>
                       <div className="flex items-center gap-3">
-                        <button className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-extrabold text-xs rounded-xl shadow-xs hover:bg-slate-50 transition-colors flex items-center gap-2">
+                        <button 
+                          onClick={() => {
+                            setExportType('payment');
+                            setIsExportModalOpen(true);
+                          }}
+                          className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-extrabold text-xs rounded-xl shadow-xs hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer">
                           <Download className="w-4 h-4 text-slate-500" /> Export Records
                         </button>
                       </div>
@@ -1763,26 +1761,12 @@ export default function AdminDashboardPage() {
                              <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Work Done & Full History
                           </h3>
                           <div className="flex flex-wrap items-center gap-3">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-semibold text-slate-500">From</span>
-                              <input 
-                                type="date" 
-                                value={fromDate}
-                                onChange={(e) => setFromDate(e.target.value)}
-                                className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:ring-2 focus:ring-emerald-500 outline-none" 
-                              />
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-semibold text-slate-500">To</span>
-                              <input 
-                                type="date" 
-                                value={toDate}
-                                onChange={(e) => setToDate(e.target.value)}
-                                className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:ring-2 focus:ring-emerald-500 outline-none" 
-                              />
-                            </div>
+
                             <button 
-                              onClick={handleExportExcel}
+                              onClick={() => {
+                                setExportType('history');
+                                setIsExportModalOpen(true);
+                              }}
                               className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 flex items-center gap-2 cursor-pointer transition-colors"
                             >
                               <Download className="w-3.5 h-3.5" />
@@ -1974,6 +1958,22 @@ export default function AdminDashboardPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <AdminExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        title={exportType === 'inventory' ? 'Export Inventory Report' : exportType === 'payment' ? 'Export Payment Records' : 'Export Work History'}
+        onExport={(fromDate, toDate) => {
+          if (exportType === 'inventory') {
+            handleExportInventoryExcel(fromDate, toDate);
+          } else if (exportType === 'history') {
+            handleExportExcel(fromDate, toDate);
+          } else if (exportType === 'payment') {
+            showToast('Payment records exported successfully!');
+          }
+          setIsExportModalOpen(false);
+        }}
+      />
 
       {/* Footer Included at Bottom */}
       <Footer />
