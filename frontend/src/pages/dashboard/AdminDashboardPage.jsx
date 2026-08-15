@@ -7,6 +7,8 @@ import AdminRestockModal from '../../components/dashboard/admin/AdminRestockModa
 import AdminCredsSuccessModal from '../../components/dashboard/admin/AdminCredsSuccessModal';
 import AdminViewCredsModal from '../../components/dashboard/admin/AdminViewCredsModal';
 import AdminApplicationModal from '../../components/dashboard/admin/AdminApplicationModal';
+import AdminDispatchModal from '../../components/dashboard/admin/AdminDispatchModal';
+import AdminWorkReportModal from '../../components/dashboard/admin/AdminWorkReportModal';
 import {
   LayoutDashboard, Users, FileText, UserPlus, TrendingUp, Settings,
   Package, AlertTriangle, Truck, DollarSign, Search, ChevronDown,
@@ -161,6 +163,18 @@ const INITIAL_DISPATCH_QUEUE = [
   { id: '#FX-8079', appliance: 'Whirlpool AC', applianceIcon: Snowflake, customer: 'William Davis', technician: 'Mike R.', technicianAvatar: 'MR', status: 'Assigned' },
 ];
 
+// ─── Initial Work History Data ───────────────────────────────────────────────
+const INITIAL_WORK_HISTORY = [
+  { id: '#FX-8002', appliance: 'LG Split AC', customer: 'Amit Kumar', technician: 'Raju M.', dateCompleted: '2026-08-12', status: 'Completed' },
+  { id: '#FX-8001', appliance: 'Samsung TV', customer: 'Priya Das', technician: 'Mohan S.', dateCompleted: '2026-08-10', status: 'Completed' },
+  { id: '#FX-8000', appliance: 'Whirlpool Fridge', customer: 'Rohan Sharma', technician: 'Vijay T.', dateCompleted: '2026-08-09', status: 'Completed' },
+  { id: '#FX-7999', appliance: 'Bosch Washer', customer: 'Sneha Gupta', technician: 'Amit R.', dateCompleted: '2026-08-08', status: 'Completed' },
+  { id: '#FX-7998', appliance: 'Dyson Vacuum', customer: 'Karan Patel', technician: 'Rahul K.', dateCompleted: '2026-08-08', status: 'Cancelled' },
+  { id: '#FX-7997', appliance: 'Sony TV', customer: 'Neha Singh', technician: 'Raju M.', dateCompleted: '2026-08-07', status: 'Completed' },
+  { id: '#FX-7996', appliance: 'LG AC', customer: 'Vikas Jain', technician: 'Mohan S.', dateCompleted: '2026-08-07', status: 'Completed' },
+  { id: '#FX-7995', appliance: 'Samsung Microwave', customer: 'Anjali Desai', technician: 'Vijay T.', dateCompleted: '2026-08-06', status: 'Completed' },
+];
+
 // ─── Initial Vendor Approvals Summary ────────────────────────────────────────
 const INITIAL_VENDOR_APPROVALS = [
   { id: 'V-1', name: 'Cooling Experts Co.', applied: 'Applied 2 hours ago', tags: ['AC Repair', 'Refrigeration'], icon: Store },
@@ -222,6 +236,23 @@ export default function AdminDashboardPage() {
   const [dispatchPage, setDispatchPage] = useState(1);
   const dispatchItemsPerPage = 4;
   const dispatchTotalPages = Math.ceil(dispatchQueue.length / dispatchItemsPerPage);
+
+  // Work History Pagination & Filters
+  const [historyPage, setHistoryPage] = useState(1);
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [workHistory, setWorkHistory] = useState(INITIAL_WORK_HISTORY);
+  
+  const filteredHistory = workHistory.filter(item => {
+    const itemDate = new Date(item.dateCompleted);
+    const start = fromDate ? new Date(fromDate) : new Date('2000-01-01');
+    const end = toDate ? new Date(toDate) : new Date('2100-01-01');
+    return itemDate >= start && itemDate <= end;
+  });
+
+  const historyItemsPerPage = 5;
+  const historyTotalPages = Math.ceil(filteredHistory.length / historyItemsPerPage) || 1;
+  const paginatedHistory = filteredHistory.slice((historyPage - 1) * historyItemsPerPage, historyPage * historyItemsPerPage);
   const paginatedDispatch = dispatchQueue.slice((dispatchPage - 1) * dispatchItemsPerPage, dispatchPage * dispatchItemsPerPage);
 
   // Restock modal state (Screenshot 2)
@@ -264,6 +295,14 @@ export default function AdminDashboardPage() {
   // "View Vendor ID & Pass" modal
   const [isViewCredsModalOpen, setIsViewCredsModalOpen] = useState(false);
   const [viewingCreds, setViewingCreds] = useState(null);
+
+  // Dispatch Modal state
+  const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
+  const [selectedDispatchItem, setSelectedDispatchItem] = useState(null);
+
+  // Work Report Modal state
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [selectedReportItem, setSelectedReportItem] = useState(null);
 
   // Toast notification state
   const [toastMessage, setToastMessage] = useState(null);
@@ -338,6 +377,30 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleExportExcel = () => {
+    const headers = ['REQ ID', 'APPLIANCE', 'CUSTOMER', 'TECHNICIAN', 'DATE COMPLETED', 'STATUS'];
+    const csvRows = filteredHistory.map(item => {
+      return [
+        item.id,
+        `"${item.appliance}"`,
+        `"${item.customer}"`,
+        `"${item.technician}"`,
+        item.dateCompleted,
+        item.status
+      ].join(',');
+    });
+    const csvString = [headers.join(','), ...csvRows].join('\n');
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `work_history_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Work history downloaded successfully!');
+  };
+
   // Generate Credentials Submit — saves per-vendor, marks app Approved
   const handleGenerateCredentials = (e) => {
     e.preventDefault();
@@ -378,6 +441,7 @@ export default function AdminDashboardPage() {
   // Sidebar navigation menu items (Exact match to reference screenshots)
   const sidebarNavItems = [
     { id: 'overview',     label: 'Dashboard Overview', icon: LayoutDashboard },
+    { id: 'work-history', label: 'Work History',       icon: Clock },
     { id: 'inventory',    label: 'Inventory Management',icon: Package },
     { id: 'users',        label: 'User Management',    icon: Users },
     { id: 'applications', label: 'Vendor Applications', icon: FileText, badge: pendingApplicationsCount > 0 ? pendingApplicationsCount.toString() : null },
@@ -532,13 +596,21 @@ export default function AdminDashboardPage() {
                         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm flex flex-col h-full">
                           <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <h2 className="text-lg font-extrabold text-[#02182e]">Centralized Dispatch Queue</h2>
-                            <div className="relative">
-                              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                              <input
-                                type="text"
-                                placeholder="Search ID, Customer..."
-                                className="w-full sm:w-64 pl-9 pr-3 py-2 bg-slate-50 rounded-lg border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
-                              />
+                            <div className="flex flex-col sm:flex-row items-center gap-3">
+                              <button
+                                onClick={() => setActiveTab('work-history')}
+                                className="w-full sm:w-auto text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-2 rounded-lg transition-colors cursor-pointer text-center border border-blue-100"
+                              >
+                                View Full Work History
+                              </button>
+                              <div className="relative w-full sm:w-auto">
+                                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                <input
+                                  type="text"
+                                  placeholder="Search ID, Customer..."
+                                  className="w-full sm:w-56 pl-9 pr-3 py-2 bg-slate-50 rounded-lg border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
+                                />
+                              </div>
                             </div>
                           </div>
                           
@@ -590,10 +662,11 @@ export default function AdminDashboardPage() {
                                       </span>
                                     </td>
                                     <td className="py-4 px-5 text-right">
-                                      <button className={`text-xs font-bold ${
-                                        item.status === 'Awaiting Tech' ? 'text-slate-700 hover:text-slate-900' : 'text-[#02182e] hover:text-[#082848]'
-                                      }`}>
-                                        {item.status === 'Awaiting Tech' ? 'Assign' : 'View'}
+                                      <button 
+                                        onClick={() => { setSelectedDispatchItem(item); setIsDispatchModalOpen(true); }}
+                                        className="text-xs font-bold cursor-pointer text-[#02182e] hover:text-[#082848]"
+                                      >
+                                        View
                                       </button>
                                     </td>
                                   </tr>
@@ -1495,6 +1568,195 @@ export default function AdminDashboardPage() {
                   </motion.div>
                 )}
 
+                {/* 9. WORK HISTORY */}
+                {activeTab === 'work-history' && (
+                  <motion.div
+                    key="work-history"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="space-y-6"
+                  >
+                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                      <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                        <div>
+                          <h2 className="text-xl font-extrabold text-[#02182e]">Work History & Dispatches</h2>
+                          <p className="text-xs font-semibold text-slate-500 mt-1">Track ongoing and completed service requests.</p>
+                        </div>
+                      </div>
+
+                      {/* Current Work */}
+                      <div className="p-5 border-b border-slate-100">
+                        <h3 className="text-sm font-extrabold text-[#02182e] mb-4 flex items-center gap-2">
+                           <Clock className="w-4 h-4 text-orange-500" /> Current Work (In Progress)
+                        </h3>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs border-collapse min-w-[700px]">
+                            <thead>
+                              <tr className="bg-slate-50/80 text-slate-500 uppercase font-extrabold tracking-wider border-b border-slate-100">
+                                <th className="py-3 px-5">REQ ID</th>
+                                <th className="py-3 px-4">APPLIANCE</th>
+                                <th className="py-3 px-4">CUSTOMER</th>
+                                <th className="py-3 px-4">TECHNICIAN</th>
+                                <th className="py-3 px-4">STATUS</th>
+                                <th className="py-3 px-5 text-right">ACTION</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {dispatchQueue.filter(item => item.status === 'Assigned' || item.status === 'Under Diagnosis').map(item => (
+                                <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                                  <td className="py-4 px-5 font-bold text-slate-600">{item.id}</td>
+                                  <td className="py-4 px-4 font-bold text-slate-800">{item.appliance}</td>
+                                  <td className="py-4 px-4 font-semibold text-slate-700">{item.customer}</td>
+                                  <td className="py-4 px-4 font-semibold text-slate-700">{item.technician}</td>
+                                  <td className="py-4 px-4">
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100/80 text-blue-800">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                      {item.status}
+                                    </span>
+                                  </td>
+                                  <td className="py-4 px-5 text-right">
+                                    <button 
+                                      onClick={() => { setSelectedDispatchItem(item); setIsDispatchModalOpen(true); }}
+                                      className="text-xs font-bold cursor-pointer text-[#02182e] hover:text-[#082848]"
+                                    >
+                                      View
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Work Done / Full History */}
+                      <div className="p-5">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                          <h3 className="text-sm font-extrabold text-[#02182e] flex items-center gap-2">
+                             <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Work Done & Full History
+                          </h3>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-slate-500">From</span>
+                              <input 
+                                type="date" 
+                                value={fromDate}
+                                onChange={(e) => setFromDate(e.target.value)}
+                                className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:ring-2 focus:ring-emerald-500 outline-none" 
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-slate-500">To</span>
+                              <input 
+                                type="date" 
+                                value={toDate}
+                                onChange={(e) => setToDate(e.target.value)}
+                                className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:ring-2 focus:ring-emerald-500 outline-none" 
+                              />
+                            </div>
+                            <button 
+                              onClick={handleExportExcel}
+                              className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 flex items-center gap-2 cursor-pointer transition-colors"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              Export Excel
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs border-collapse min-w-[700px]">
+                            <thead>
+                              <tr className="bg-slate-50/80 text-slate-500 uppercase font-extrabold tracking-wider border-b border-slate-100">
+                                <th className="py-3 px-5">REQ ID</th>
+                                <th className="py-3 px-4">APPLIANCE</th>
+                                <th className="py-3 px-4">CUSTOMER</th>
+                                <th className="py-3 px-4">TECHNICIAN</th>
+                                <th className="py-3 px-4">DATE COMPLETED</th>
+                                <th className="py-3 px-4">STATUS</th>
+                                <th className="py-3 px-5 text-right">ACTION</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {paginatedHistory.length > 0 ? paginatedHistory.map(item => (
+                                <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                                  <td className="py-4 px-5 font-bold text-slate-600">{item.id}</td>
+                                  <td className="py-4 px-4 font-bold text-slate-800">{item.appliance}</td>
+                                  <td className="py-4 px-4 font-semibold text-slate-700">{item.customer}</td>
+                                  <td className="py-4 px-4 font-semibold text-slate-700">{item.technician}</td>
+                                  <td className="py-4 px-4 font-semibold text-slate-700">{item.dateCompleted}</td>
+                                  <td className="py-4 px-4">
+                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                                      item.status === 'Completed' ? 'bg-emerald-100/80 text-emerald-800' : 'bg-red-100/80 text-red-800'
+                                    }`}>
+                                      <span className={`w-1.5 h-1.5 rounded-full ${item.status === 'Completed' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                                      {item.status}
+                                    </span>
+                                  </td>
+                                  <td className="py-4 px-5 text-right">
+                                    <button 
+                                      onClick={() => { setSelectedReportItem(item); setIsReportModalOpen(true); }}
+                                      className="text-xs font-bold cursor-pointer text-slate-400 hover:text-slate-600"
+                                    >
+                                      View Report
+                                    </button>
+                                  </td>
+                                </tr>
+                              )) : (
+                                <tr>
+                                  <td colSpan="7" className="py-8 text-center text-slate-500 font-semibold">
+                                    No records found for the selected dates.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Pagination */}
+                        <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-semibold text-slate-500">
+                          <span>Showing {filteredHistory.length > 0 ? ((historyPage - 1) * historyItemsPerPage) + 1 : 0} to {Math.min(historyPage * historyItemsPerPage, filteredHistory.length)} of {filteredHistory.length} results</span>
+                          
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                              disabled={historyPage === 1}
+                              className={`px-3 py-1.5 rounded-lg border border-slate-200 transition-colors ${historyPage === 1 ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : 'hover:bg-slate-50 text-slate-700 cursor-pointer'}`}
+                            >
+                              Prev
+                            </button>
+                            
+                            <div className="flex items-center gap-1">
+                              {[...Array(historyTotalPages)].map((_, i) => (
+                                <button
+                                  key={i}
+                                  onClick={() => setHistoryPage(i + 1)}
+                                  className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+                                    historyPage === i + 1 
+                                      ? 'bg-[#02182e] text-white font-bold' 
+                                      : 'hover:bg-slate-100 text-slate-600 cursor-pointer'
+                                  }`}
+                                >
+                                  {i + 1}
+                                </button>
+                              ))}
+                            </div>
+
+                            <button
+                              onClick={() => setHistoryPage(p => Math.min(historyTotalPages, p + 1))}
+                              disabled={historyPage === historyTotalPages}
+                              className={`px-3 py-1.5 rounded-lg border border-slate-200 transition-colors ${historyPage === historyTotalPages ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : 'hover:bg-slate-50 text-slate-700 cursor-pointer'}`}
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
               </AnimatePresence>
             </main>
           </div>
@@ -1556,6 +1818,20 @@ export default function AdminDashboardPage() {
         onReject={handleRejectApp}
         onApprove={handleApproveNavigate}
         StockLevelBadge={StockLevelBadge}
+      />
+
+      {/* 5. Dispatch Queue View Modal */}
+      <AdminDispatchModal
+        isOpen={isDispatchModalOpen}
+        onClose={() => setIsDispatchModalOpen(false)}
+        dispatchItem={selectedDispatchItem}
+      />
+
+      {/* 6. Work Report Modal */}
+      <AdminWorkReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        reportItem={selectedReportItem}
       />
 
       {/* Floating Toast Notification */}
