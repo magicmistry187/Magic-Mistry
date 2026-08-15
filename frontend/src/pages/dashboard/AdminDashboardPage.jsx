@@ -435,6 +435,72 @@ export default function AdminDashboardPage() {
     showToast('Work history Excel file downloaded!');
   };
 
+  const handleExportInventoryExcel = () => {
+    const htmlString = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          table { border-collapse: collapse; font-family: 'Segoe UI', Arial, sans-serif; }
+          th { background-color: #02182e; color: #ffffff; font-weight: bold; text-align: left; padding: 12px; border: 1px solid #cbd5e1; font-size: 14px; }
+          td { padding: 10px; border: 1px solid #cbd5e1; color: #334155; font-size: 13px; }
+          .title { font-size: 20px; font-weight: bold; color: #02182e; padding-bottom: 5px; border: none; }
+          .subtitle { font-size: 12px; color: #64748b; padding-bottom: 15px; border: none; }
+          .status-out { color: #dc2626; font-weight: bold; }
+          .status-low { color: #d97706; font-weight: bold; }
+          .status-healthy { color: #059669; font-weight: bold; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <tr>
+            <td colspan="7" class="title">Magic Mistry - Inventory Status Report</td>
+          </tr>
+          <tr>
+            <td colspan="7" class="subtitle">Generated on: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</td>
+          </tr>
+          <tr>
+            <th>SKU ID</th>
+            <th>ITEM NAME</th>
+            <th>CATEGORY</th>
+            <th>STOCK LEVEL</th>
+            <th>CURRENT STOCK</th>
+            <th>UNIT PRICE</th>
+            <th>LAST RESTOCKED</th>
+          </tr>
+          ${inventoryList.map(item => {
+            let statusClass = 'status-healthy';
+            if (item.stockLevel === 'Out of Stock') statusClass = 'status-out';
+            else if (item.stockLevel === 'Low Stock') statusClass = 'status-low';
+            
+            return `
+            <tr>
+              <td style="font-weight: bold;">${item.id}</td>
+              <td>${item.name}</td>
+              <td>${item.category}</td>
+              <td class="${statusClass}">${item.stockLevel}</td>
+              <td>${item.stockCount}</td>
+              <td>$${item.unitPrice.toFixed(2)}</td>
+              <td>${item.lastUpdated}</td>
+            </tr>
+          `}).join('')}
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([htmlString], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `MagicMistry_Inventory_${new Date().toISOString().split('T')[0]}.xls`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    showToast('Inventory Excel file downloaded!');
+  };
+
   // Generate Credentials Submit — saves per-vendor, marks app Approved
   const handleGenerateCredentials = (e) => {
     e.preventDefault();
@@ -831,7 +897,7 @@ export default function AdminDashboardPage() {
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
                         <button
-                          onClick={() => showToast('Report exported successfully!')}
+                          onClick={handleExportInventoryExcel}
                           className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-extrabold text-xs rounded-xl shadow-xs hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
                         >
                           <Download className="w-4 h-4 text-slate-500" /> Export Report
