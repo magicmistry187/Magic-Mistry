@@ -222,6 +222,9 @@ export default function AdminDashboardPage() {
 
   // Data states
   const [inventoryList, setInventoryList] = useState(INITIAL_INVENTORY);
+  const [invFromDate, setInvFromDate] = useState('');
+  const [invToDate, setInvToDate] = useState('');
+
   const [applicationsList, setApplicationsList] = useState(INITIAL_APPLICATIONS);
   const [dispatchQueue, setDispatchQueue] = useState(INITIAL_DISPATCH_QUEUE);
   const [vendorApprovals, setVendorApprovals] = useState(INITIAL_VENDOR_APPROVALS);
@@ -468,7 +471,7 @@ export default function AdminDashboardPage() {
             <th>UNIT PRICE</th>
             <th>LAST RESTOCKED</th>
           </tr>
-          ${inventoryList.map(item => {
+          ${filteredInventory.map(item => {
             let statusClass = 'status-healthy';
             if (item.stockLevel === 'Out of Stock') statusClass = 'status-out';
             else if (item.stockLevel === 'Low Stock') statusClass = 'status-low';
@@ -532,10 +535,15 @@ export default function AdminDashboardPage() {
 
   // Filtered inventory list
   const filteredInventory = inventoryList.filter(item => {
+    const itemDate = new Date(item.lastUpdated);
+    const start = invFromDate ? new Date(invFromDate) : new Date('2000-01-01');
+    const end = invToDate ? new Date(invToDate) : new Date('2100-01-01');
+    
+    const matchesDate = itemDate >= start && itemDate <= end;
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'All Categories' || item.category === selectedCategory;
     const matchesStatus = selectedStatus === 'All Status' || item.stockLevel === selectedStatus;
-    return matchesSearch && matchesCategory && matchesStatus;
+    return matchesDate && matchesSearch && matchesCategory && matchesStatus;
   });
 
   // Sidebar navigation menu items (Exact match to reference screenshots)
@@ -895,7 +903,25 @@ export default function AdminDashboardPage() {
                           Manage spare parts, equipment, and stock levels.
                         </p>
                       </div>
-                      <div className="flex items-center gap-3 shrink-0">
+                      <div className="flex flex-wrap items-center gap-3 shrink-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-slate-500">From</span>
+                          <input 
+                            type="date" 
+                            value={invFromDate}
+                            onChange={(e) => setInvFromDate(e.target.value)}
+                            className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-orange-500 outline-none shadow-xs" 
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-slate-500">To</span>
+                          <input 
+                            type="date" 
+                            value={invToDate}
+                            onChange={(e) => setInvToDate(e.target.value)}
+                            className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-orange-500 outline-none shadow-xs" 
+                          />
+                        </div>
                         <button
                           onClick={handleExportInventoryExcel}
                           className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-extrabold text-xs rounded-xl shadow-xs hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
