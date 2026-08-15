@@ -73,6 +73,12 @@ const vendorProfileSchema = new mongoose.Schema({
     min: 0,
   },
 
+   status: {
+      type: String,
+      enum: ['active', 'blocked'],
+      default: 'active',
+    },
+
   // Payment details
   vendorUpiId: {
     type: String,
@@ -122,4 +128,4 @@ const vendorProfileSchema = new mongoose.Schema({
     timestamps: true,
   });
 
-  module.exports = mongoose.model('Vendor', vendorProfileSchema);
+  module.exports = mongoose.model('VendorProfile', vendorProfileSchema);

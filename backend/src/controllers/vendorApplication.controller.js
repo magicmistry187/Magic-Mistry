@@ -1,5 +1,6 @@
 const VendorApplication = require('../models/vendorApplication.model');
 const User = require('../models/user.model');
+const Vendor = require('../models/vendorProfile.model');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 
@@ -204,18 +205,55 @@ const approveVendorApplication = async (req, res) => {
     const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
 
     // 7. Create vendor account
-    const vendor = await User.create({
+    const user = await User.create({
       fullName: application.fullName,
       email: application.email,
       phoneNumber: application.phoneNumber,
-
       password: hashedPassword,
+      role: 'vendor',
+      authProviders: ['email'],
+    });
+
+    const vendor = await Vendor.create({
+      user: user._id,
 
       vendorId,
-      role: 'vendor',
 
-      isApproved: true,
+      professionalTitle: application.specialOption,
+
+      serviceType: application.serviceType,
+
+      experience: Number(application.experience),
+
+      experienceDescription: application.experienceDescription,
+
+      serviceAddress: application.city,
+
       status: 'active',
+
+      profilePhoto: null,
+
+      appliancesServed: [],
+
+      serviceRadius: 0,
+
+      rating: 0,
+
+      jobsCompleted: 0,
+
+      vendorUpiId: null,
+
+      bankDetails: {
+        bankName: null,
+        accountNumber: null,
+        ifsc: null,
+      },
+
+      certification: {
+        name: null,
+        certificationId: null,
+        verified: false,
+      },
     });
 
     // 8. Update application

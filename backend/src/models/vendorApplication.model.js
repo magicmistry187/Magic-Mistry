@@ -48,9 +48,9 @@ const vendorApplicationSchema = new mongoose.Schema(
     },
 
     experience: {
-      type: String,
-      required: true,
-      trim: true,
+      type: Number,
+      default: 0,
+      min: 0,
     },
 
     experienceDescription: {
@@ -64,8 +64,8 @@ const vendorApplicationSchema = new mongoose.Schema(
       {
         type: {
           type: String,
-        //   enum: ['Aadhaar', 'Skill Badge', 'Other'],
-        required:true,
+          //   enum: ['Aadhaar', 'Skill Badge', 'Other'],
+          required: true,
         },
 
         url: {
@@ -95,21 +95,16 @@ const vendorApplicationSchema = new mongoose.Schema(
       default: null,
     },
 
-   
-
     // Created after approval
     vendor: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: 'Vendor',
       default: null,
     },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
-module.exports = mongoose.model(
-  'VendorApplication',
-  vendorApplicationSchema
-);
+module.exports = mongoose.model('VendorApplication', vendorApplicationSchema);

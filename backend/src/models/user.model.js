@@ -41,11 +41,11 @@ const userSchema = new mongoose.Schema(
     // },
 
     // when vendor is blocked by admin, he cannot login to the system.
-    status: {
-      type: String,
-      enum: ['active', 'blocked'],
-      default: 'active',
-    },
+    // status: {
+    //   type: String,
+    //   enum: ['active', 'blocked'],
+    //   default: 'active',
+    // },
 
     googleId: {
       type: String,
