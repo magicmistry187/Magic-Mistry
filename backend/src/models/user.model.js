@@ -35,10 +35,10 @@ const userSchema = new mongoose.Schema(
     },
 
     // Admin approval for vendors
-    isApproved: {
-      type: Boolean,
-      default: false,
-    },
+    // isApproved: {
+    //   type: Boolean,
+    //   default: false,
+    // },
 
     // when vendor is blocked by admin, he cannot login to the system.
     status: {
