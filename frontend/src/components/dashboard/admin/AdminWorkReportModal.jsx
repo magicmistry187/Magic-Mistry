@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { X, CheckCircle2, FileText, Camera, Clock, User, Phone, MapPin } from 'lucide-react';
+import { X, CheckCircle2, FileText, Camera, Clock, User, Phone, MapPin, Wrench, CreditCard, IndianRupee } from 'lucide-react';
 
 export default function AdminWorkReportModal({ isOpen, onClose, reportItem }) {
   if (!isOpen || !reportItem) return null;
@@ -12,6 +12,21 @@ export default function AdminWorkReportModal({ isOpen, onClose, reportItem }) {
     { title: 'Testing & Calibration', desc: 'Ran a full diagnostic cycle to ensure stability.' },
     { title: 'Cleanup', desc: 'Cleaned the appliance exterior and workspace.' },
   ];
+
+  const partsUsed = [
+    { name: 'OEM Drum Seal (Part #DS-8092)', qty: 1, price: '₹450' },
+    { name: 'High-Temp Lubricant', qty: 1, price: '₹120' }
+  ];
+
+  const paymentDetails = {
+    serviceCharge: '₹299',
+    partsTotal: '₹570',
+    tax: '₹45',
+    total: '₹914',
+    method: 'UPI (PhonePe)',
+    status: 'Paid',
+    transactionId: 'TXN89283910'
+  };
 
   const photos = [
     'https://images.unsplash.com/photo-1581092921461-7031e4bfb83e?auto=format&fit=crop&q=80&w=400',
@@ -119,6 +134,44 @@ export default function AdminWorkReportModal({ isOpen, onClose, reportItem }) {
                   Customer reported a loud noise during the spin cycle. Found the drum seal completely worn out. Replaced it with an OEM part. Tested for 20 minutes across different loads, no abnormal noise detected. Cleaned the surrounding area.
                 </p>
               </div>
+
+              {/* Parts & Spares Used */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Wrench className="w-5 h-5 text-slate-600" />
+                    <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">Parts & Spares Used</h3>
+                  </div>
+                  <span className="text-xs font-extrabold text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+                    {partsUsed.length} Items
+                  </span>
+                </div>
+                
+                {partsUsed.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-500 font-extrabold uppercase text-[10px] tracking-wider">
+                          <th className="py-2.5 px-4 rounded-l-lg">Part Name / Desc</th>
+                          <th className="py-2.5 px-4 text-center">Qty</th>
+                          <th className="py-2.5 px-4 text-right rounded-r-lg">Price</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {partsUsed.map((part, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="py-3 px-4 font-bold text-slate-800">{part.name}</td>
+                            <td className="py-3 px-4 text-center font-bold text-slate-600">{part.qty}</td>
+                            <td className="py-3 px-4 text-right font-bold text-slate-800">{part.price}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500 italic">No spare parts were used for this service.</p>
+                )}
+              </div>
             </div>
 
             {/* Right Column (4 Cols): Documentation & Customer */}
@@ -170,6 +223,45 @@ export default function AdminWorkReportModal({ isOpen, onClose, reportItem }) {
                   </div>
                 </div>
               </div>
+
+              {/* Payment Summary */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-slate-700" />
+                    <h3 className="text-base font-extrabold text-slate-900 tracking-tight">Payment Summary</h3>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded uppercase tracking-wider">
+                    {paymentDetails.status}
+                  </span>
+                </div>
+
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between items-center text-slate-600 font-semibold">
+                    <span>Service Charge</span>
+                    <span>{paymentDetails.serviceCharge}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-600 font-semibold">
+                    <span>Parts / Spares</span>
+                    <span>{paymentDetails.partsTotal}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-600 font-semibold">
+                    <span>Tax & Fees</span>
+                    <span>{paymentDetails.tax}</span>
+                  </div>
+                  
+                  <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
+                    <span className="font-extrabold text-slate-900">Total Paid</span>
+                    <span className="text-lg font-extrabold text-emerald-600 flex items-center">{paymentDetails.total}</span>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 mt-2">
+                   <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider mb-1">Payment Method & TXN</p>
+                   <p className="text-xs font-bold text-slate-700">{paymentDetails.method} &bull; {paymentDetails.transactionId}</p>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
