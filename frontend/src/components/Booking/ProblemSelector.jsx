@@ -1,7 +1,8 @@
 import { useBooking } from '../../components/Booking/BookingContext';
+import { ChevronRight } from 'lucide-react';
 
 export default function ProblemSelector() {
-  const { bookingState, updateBooking } = useBooking();
+  const { bookingState, updateBooking, scrollToNextStep } = useBooking();
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
@@ -33,6 +34,17 @@ export default function ProblemSelector() {
         <p className="text-[11px] text-slate-400 mt-1">
           ✓ You can leave this blank — our technician will assess on arrival.
         </p>
+      </div>
+
+      <div className="flex justify-end pt-2">
+        <button
+          onClick={() => {
+            if (scrollToNextStep) scrollToNextStep('step-schedule-form');
+          }}
+          className="px-6 py-2.5 rounded-xl font-bold transition-all duration-300 shadow-sm flex items-center gap-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-500/25 hover:shadow-lg hover:-translate-y-0.5 cursor-pointer"
+        >
+          Continue <ChevronRight className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );

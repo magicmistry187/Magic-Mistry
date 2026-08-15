@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useBooking } from '../../components/Booking/BookingContext';
 import { Clock, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 
@@ -192,7 +193,16 @@ export default function ScheduleForm() {
       </div>
 
       {/* ── TIME SLOTS ──────────────────────────────── */}
-      <div className="relative z-10">
+      <AnimatePresence mode="wait">
+        {selectedIso && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="overflow-hidden relative z-10"
+          >
+            <div className="pt-2">
         <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">
           <Clock className="w-4 h-4 text-indigo-500" /> Preferred Time Slot
         </label>
@@ -214,7 +224,10 @@ export default function ScheduleForm() {
             </button>
           ))}
         </div>
-      </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

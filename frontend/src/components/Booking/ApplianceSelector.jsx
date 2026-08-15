@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useBooking, APPLIANCE_SUB_SERVICES } from './BookingContext';
 import { Lock, Unlock, CheckCircle2, ChevronRight } from 'lucide-react';
 import ApplianceIcon from '../common/ApplianceIcon';
@@ -110,9 +111,17 @@ export default function ApplianceSelector() {
         })}
       </div>
 
-      {/* Sub-Services & Price Table — only shown after a category is selected */}
-      {currentCatData ? (
-        <div className="bg-slate-50/50 p-6 md:p-8 rounded-3xl border border-slate-200 space-y-6 relative overflow-hidden">
+      <AnimatePresence mode="wait">
+        {currentCatData ? (
+          <motion.div 
+            key="subservices"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="overflow-hidden"
+          >
+            <div className="bg-slate-50/50 p-6 md:p-8 rounded-3xl border border-slate-200 space-y-6 relative">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200/80 gap-3">
             <div className="flex items-center gap-4">
               <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
@@ -185,12 +194,22 @@ export default function ApplianceSelector() {
               Continue to Details <ChevronRight className="w-4 h-4" />
             </button>
           </div>
-        </div>
-      ) : (
-        <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300 text-slate-500">
-          <p className="text-xs font-semibold">Select any category above to view available repair packages.</p>
-        </div>
-      )}
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div 
+            key="empty"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300 text-slate-500">
+              <p className="text-xs font-semibold">Select any category above to view available repair packages.</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

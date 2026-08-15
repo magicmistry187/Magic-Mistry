@@ -3,6 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
+import AdminRestockModal from '../../components/dashboard/admin/AdminRestockModal';
+import AdminCredsSuccessModal from '../../components/dashboard/admin/AdminCredsSuccessModal';
+import AdminViewCredsModal from '../../components/dashboard/admin/AdminViewCredsModal';
+import AdminApplicationModal from '../../components/dashboard/admin/AdminApplicationModal';
 import {
   LayoutDashboard, Users, FileText, UserPlus, TrendingUp, Settings,
   Package, AlertTriangle, Truck, DollarSign, Search, ChevronDown,
@@ -171,7 +175,7 @@ const INITIAL_PAYMENT_REQUESTS = [
 ];
 
 // ─── Stock Level Pill Badge (Exact match to Screenshot 1 & 3) ───────────────
-const StockLevelBadge = ({ level, count }) => {
+export const StockLevelBadge = ({ level, count }) => {
   if (level === 'In Stock' || level === 'Approved' || level === 'Active' || level === 'Verified') {
     return (
       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100/90 text-emerald-800 border border-emerald-200">
@@ -1500,566 +1504,59 @@ export default function AdminDashboardPage() {
       {/* ── MODALS (High Z-Index overlays z-[9999]) ─────────────────────────── */}
 
       {/* 1. Restock Inventory Modal (Exact Match to Screenshot 2) */}
-      <AnimatePresence>
-        {isRestockModalOpen && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white rounded-3xl max-w-xl w-full border border-slate-200 shadow-2xl overflow-hidden my-8"
-            >
-              {/* Modal Header */}
-              <div className="p-6 border-b border-slate-100 flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2 text-[#02182e] font-black text-xl">
-                    <Truck className="w-5 h-5 text-amber-600" />
-                    <span>Restock Inventory</span>
-                  </div>
-                  <p className="text-xs font-medium text-slate-500 mt-1">
-                    {selectedItem ? `${selectedItem.name} - SKU: ${selectedItem.sku}` : 'AC Compressor (2 Ton) - SKU: ACC-2T-X9'}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setIsRestockModalOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Modal Body */}
-              <div className="p-6 space-y-5">
-
-                {/* Current Stock Banner */}
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-[#02182e] text-white flex items-center justify-center">
-                      <Package className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">CURRENT STOCK</p>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-2xl font-black text-slate-900">
-                          {selectedItem ? selectedItem.stockCount : 45}
-                        </span>
-                        <span className="text-xs font-semibold text-slate-500">units</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right space-y-1">
-                    <p className="text-[10px] font-bold text-slate-400">Reorder Point: 20</p>
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-slate-900 text-white">
-                      <Check className="w-3 h-3 text-emerald-400" /> Stock Level Healthy
-                    </span>
-                  </div>
-                </div>
-
-                {/* Form Inputs Grid */}
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Quantity to Add *</label>
-                    <div className="relative">
-                      <Plus className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="number"
-                        value={restockQty}
-                        onChange={(e) => setRestockQty(e.target.value)}
-                        placeholder="e.g. 50"
-                        className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Purchase Price per Unit *</label>
-                    <div className="relative">
-                      <span className="text-xs font-bold text-slate-400 absolute left-3 top-1/2 -translate-y-1/2">$</span>
-                      <input
-                        type="number"
-                        value={purchasePrice}
-                        onChange={(e) => setPurchasePrice(e.target.value)}
-                        placeholder="0.00"
-                        className="w-full pl-7 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Restock Date *</label>
-                    <div className="relative">
-                      <Clock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="date"
-                        value={restockDate}
-                        onChange={(e) => setRestockDate(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Supplier</label>
-                    <div className="relative">
-                      <Truck className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                      <select
-                        value={selectedSupplier}
-                        onChange={(e) => setSelectedSupplier(e.target.value)}
-                        className="w-full appearance-none pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500"
-                      >
-                        <option value="">Select Supplier...</option>
-                        <option value="BlueStar Components">BlueStar Components</option>
-                        <option value="LG Electronics">LG Electronics</option>
-                        <option value="Havells India">Havells India</option>
-                      </select>
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Notes (Optional)</label>
-                  <textarea
-                    rows={2}
-                    value={restockNotes}
-                    onChange={(e) => setRestockNotes(e.target.value)}
-                    placeholder="Add any details about this restock order..."
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                </div>
-
-                {/* Projected Total Banner */}
-                <div className="p-3 bg-slate-50 rounded-xl border border-dashed border-slate-300 flex items-center justify-between text-xs font-bold text-slate-700">
-                  <span className="flex items-center gap-1.5"><TrendingUp className="w-4 h-4 text-slate-400" /> Projected Total Stock:</span>
-                  <span className="text-lg font-black text-slate-900">
-                    {(selectedItem ? selectedItem.stockCount : 45) + Number(restockQty || 0)}
-                  </span>
-                </div>
-
-              </div>
-
-              {/* Modal Footer */}
-              <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
-                <button
-                  onClick={() => setIsRestockModalOpen(false)}
-                  className="px-5 py-2.5 border border-slate-300 text-slate-700 font-extrabold text-xs rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmRestock}
-                  className="px-5 py-2.5 bg-[#02182e] hover:bg-[#082848] text-white font-extrabold text-xs rounded-xl shadow-md transition-colors flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Check className="w-4 h-4 text-emerald-400" /> Confirm Restock
-                </button>
-              </div>
-
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
+      <AdminRestockModal
+        isOpen={isRestockModalOpen}
+        onClose={() => setIsRestockModalOpen(false)}
+        selectedItem={selectedItem}
+        restockQty={restockQty}
+        setRestockQty={setRestockQty}
+        purchasePrice={purchasePrice}
+        setPurchasePrice={setPurchasePrice}
+        restockDate={restockDate}
+        setRestockDate={setRestockDate}
+        selectedSupplier={selectedSupplier}
+        setSelectedSupplier={setSelectedSupplier}
+        restockNotes={restockNotes}
+        setRestockNotes={setRestockNotes}
+        onConfirm={handleConfirmRestock}
+      />
 
       {/* 2. Vendor Credentials Created Success Modal */}
-      <AnimatePresence>
-        {isCredentialSuccessOpen && generatedCreds && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white rounded-3xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden p-6 sm:p-8 space-y-6 text-center my-8"
-            >
-              {/* Checkmark Icon Header */}
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
-                <Check className="w-8 h-8 stroke-[3]" />
-              </div>
-
-              <div>
-                <h3 className="text-2xl font-black text-[#02182e]">Vendor Credentials Created!</h3>
-                <p className="text-xs text-slate-500 font-medium mt-1">
-                  The account for <span className="font-bold text-slate-800">{generatedCreds.name}</span> is now active and ready for dispatch.
-                </p>
-              </div>
-
-              {/* Copyable Fields */}
-              <div className="space-y-3 text-left">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-400 uppercase">Vendor ID (Login Email)</label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <input
-                      type="text"
-                      readOnly
-                      value={generatedCreds.id}
-                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800"
-                    />
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(generatedCreds.id);
-                        showToast('Vendor ID copied to clipboard!');
-                      }}
-                      className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shrink-0"
-                    >
-                      <Copy className="w-4 h-4 text-slate-600" />
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-400 uppercase">Temporary Password (Backend-Generated)</label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <input
-                      type="text"
-                      readOnly
-                      value={generatedCreds.tempPassword}
-                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800"
-                    />
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(generatedCreds.tempPassword);
-                        showToast('Password copied!');
-                      }}
-                      className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shrink-0"
-                    >
-                      <Copy className="w-4 h-4 text-slate-600" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Security Alert Box */}
-              <div className="bg-rose-50 p-4 rounded-2xl border border-rose-200 text-left flex items-start gap-3">
-                <Shield className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-                <p className="text-xs text-rose-800 font-semibold leading-relaxed">
-                  Security: This password is shown only once. Share it with the vendor immediately. It expires in 24 hours.
-                </p>
-              </div>
-
-              {/* Modal Buttons */}
-              <div className="grid sm:grid-cols-2 gap-3 pt-2">
-                <button
-                  onClick={() => {
-                    showToast('Share email link generated!');
-                    setIsCredentialSuccessOpen(false);
-                  }}
-                  className="py-3 bg-[#02182e] hover:bg-[#082848] text-white font-extrabold text-xs rounded-xl shadow transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <Mail className="w-4 h-4" /> Share via Email
-                </button>
-                <button
-                  onClick={() => {
-                    setIsCredentialSuccessOpen(false);
-                    setActiveTab('applications');
-                  }}
-                  className="py-3 border border-slate-300 hover:bg-slate-50 text-slate-800 font-extrabold text-xs rounded-xl transition-colors cursor-pointer"
-                >
-                  Go to Vendor List
-                </button>
-              </div>
-
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <AdminCredsSuccessModal
+        isOpen={isCredentialSuccessOpen}
+        onClose={() => setIsCredentialSuccessOpen(false)}
+        generatedCreds={generatedCreds}
+        showToast={showToast}
+        onShare={() => {
+          showToast('Share email link generated!');
+          setIsCredentialSuccessOpen(false);
+        }}
+        onGoToVendorList={() => {
+          setIsCredentialSuccessOpen(false);
+          setActiveTab('applications');
+        }}
+      />
 
       {/* 4. View Vendor ID & Pass Modal (re-viewable after generation) */}
-      <AnimatePresence>
-        {isViewCredsModalOpen && viewingCreds && (
-          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white rounded-3xl max-w-md w-full border border-slate-200 shadow-2xl p-6 sm:p-8 space-y-5 my-8"
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center">
-                    <ShieldCheck className="w-5 h-5 text-emerald-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-extrabold text-[#02182e]">Vendor Credentials</h3>
-                    <p className="text-[11px] text-slate-500 font-medium mt-0.5">{viewingCreds.name}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setIsViewCredsModalOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Approved badge */}
-              <div className="flex items-center gap-2 px-3 py-2.5 bg-emerald-50 rounded-xl border border-emerald-200">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span className="text-xs font-bold text-emerald-800">Vendor is Approved — ID & password have been generated.</span>
-              </div>
-
-              {/* Copyable Fields */}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5">Vendor Login ID (Email)</label>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl">
-                      <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span className="text-xs font-bold text-slate-800 truncate">{viewingCreds.id}</span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(viewingCreds.id);
-                        showToast('Vendor ID copied!');
-                      }}
-                      className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shrink-0"
-                    >
-                      <Copy className="w-4 h-4 text-slate-600" />
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5">Temporary Password</label>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl">
-                      <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span className="text-xs font-mono font-bold text-slate-800 truncate">{viewingCreds.tempPassword}</span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(viewingCreds.tempPassword);
-                        showToast('Password copied!');
-                      }}
-                      className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shrink-0"
-                    >
-                      <Copy className="w-4 h-4 text-slate-600" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Warning */}
-              <div className="flex items-start gap-2.5 px-4 py-3 bg-amber-50 rounded-xl border border-amber-200">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <p className="text-[11px] text-amber-800 font-semibold leading-relaxed">
-                  Ensure the vendor has changed their temporary password. If not, the password can be reset from the vendor portal.
-                </p>
-              </div>
-
-              <button
-                onClick={() => setIsViewCredsModalOpen(false)}
-                className="w-full py-3 bg-[#02182e] hover:bg-[#082848] text-white font-extrabold text-xs rounded-xl shadow transition-colors cursor-pointer"
-              >
-                Done
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
+      <AdminViewCredsModal
+        isOpen={isViewCredsModalOpen}
+        onClose={() => setIsViewCredsModalOpen(false)}
+        viewingCreds={viewingCreds}
+        showToast={showToast}
+      />
 
       {/* 3. Vendor Application Form Details Modal (High Z-index z-[9999]) */}
-      <AnimatePresence>
-        {isApplicationModalOpen && selectedApplication && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white rounded-3xl max-w-3xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-8"
-            >
-              {/* Modal Header */}
-              <div className="p-6 border-b border-slate-100 flex items-start justify-between bg-gradient-to-r from-[#02182e] to-[#09223e] text-white shrink-0">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-orange-500/20 border border-orange-500/30 text-orange-400 flex items-center justify-center text-xl font-bold shrink-0">
-                    <FileCheck className="w-6 h-6 text-orange-400" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-xl font-extrabold tracking-tight">Vendor Application Form Details</h3>
-                      <span className="px-2.5 py-0.5 bg-orange-500 text-white text-[11px] font-black rounded-full uppercase tracking-wider">
-                        {selectedApplication.id}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-300 font-medium mt-0.5">
-                      Submitted by <span className="font-bold text-white">{selectedApplication.name}</span> on {selectedApplication.date || 'Oct 24, 2026'}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsApplicationModalOpen(false)}
-                  className="p-1.5 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Modal Body - Scrollable Form Structure */}
-              <div className="p-6 space-y-6 overflow-y-auto bg-slate-50/50 flex-1">
-
-                {/* Status Bar */}
-                <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between flex-wrap gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-500">Application Status:</span>
-                    <StockLevelBadge level={selectedApplication.status} />
-                  </div>
-                  <div className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-orange-500" /> Registered Service Partner Request
-                  </div>
-                </div>
-
-                {/* Section 1: Personal Information */}
-                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-                  <div className="flex items-center gap-2 text-[#02182e] font-extrabold text-sm pb-2 border-b border-slate-100">
-                    <User className="w-4 h-4 text-orange-500" />
-                    <span>Section 1: Personal Information</span>
-                  </div>
-
-                  <div className="grid sm:grid-cols-2 gap-4 text-xs">
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Full Name</span>
-                      <p className="font-bold text-slate-900 text-sm">{selectedApplication.name}</p>
-                    </div>
-
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Email Address</span>
-                      <p className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
-                        <Mail className="w-3.5 h-3.5 text-slate-400" /> {selectedApplication.email}
-                      </p>
-                    </div>
-
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Phone Number</span>
-                      <p className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
-                        <Phone className="w-3.5 h-3.5 text-slate-400" /> {selectedApplication.phone}
-                      </p>
-                    </div>
-
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">City / Operating Location</span>
-                      <p className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-slate-400" /> {selectedApplication.city}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Section 2: Work & Service Details */}
-                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-                  <div className="flex items-center gap-2 text-[#02182e] font-extrabold text-sm pb-2 border-b border-slate-100">
-                    <Briefcase className="w-4 h-4 text-orange-500" />
-                    <span>Section 2: Work & Service Expertise</span>
-                  </div>
-
-                  <div className="grid sm:grid-cols-2 gap-4 text-xs">
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Primary Specialization</span>
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-50 text-orange-700 font-extrabold rounded-xl border border-orange-200 mt-1">
-                        <Wrench className="w-3.5 h-3.5" /> {selectedApplication.service}
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Years of Experience</span>
-                      <p className="font-extrabold text-slate-900 text-sm mt-1">{selectedApplication.experience || '5+ Years'}</p>
-                    </div>
-                  </div>
-
-                  <div className="pt-2">
-                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Vendor Bio & Background</span>
-                    <div className="mt-1.5 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 leading-relaxed">
-                      "{selectedApplication.notes || 'Experienced technician applying for Magic Mistry dispatch service.'}"
-                    </div>
-                  </div>
-                </div>
-
-                {/* Section 3: Submitted Verification Documents */}
-                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-                  <div className="flex items-center gap-2 text-[#02182e] font-extrabold text-sm pb-2 border-b border-slate-100">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                    <span>Section 3: Identity & Verification Proofs</span>
-                  </div>
-
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    {(selectedApplication.docs || ['Govt Photo ID', 'Trade License Cert', 'Background Verification']).map((doc, idx) => (
-                      <div key={idx} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                          <FileCheck className="w-4 h-4 text-emerald-600" />
-                          <span className="text-xs font-extrabold text-slate-800">{doc}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            showToast(`Opening ${doc}...`);
-                            // In a real app, this would be the actual file URL
-                            window.open('https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank');
-                          }}
-                          className="text-[11px] font-extrabold text-[#FF6B00] hover:underline flex items-center gap-1 cursor-pointer"
-                        >
-                          View <ExternalLink className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center gap-2 text-xs font-bold text-emerald-800">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>Applicant agreed to Magic Mistry Code of Conduct & Background Checks.</span>
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Modal Footer Controls */}
-              <div className="p-6 bg-white border-t border-slate-100 flex items-center justify-between gap-3 shrink-0 flex-wrap gap-y-3">
-                <button
-                  type="button"
-                  onClick={() => setIsApplicationModalOpen(false)}
-                  className="px-5 py-2.5 border border-slate-300 text-slate-700 font-extrabold text-xs rounded-xl hover:bg-slate-50 transition-colors cursor-pointer"
-                >
-                  Close
-                </button>
-                <div className="flex items-center gap-2 flex-wrap">
-
-                  {/* View Vendor ID & Pass — shown when ID already generated */}
-                  {vendorCredentials[selectedApplication.id] && (
-                    <button
-                      type="button"
-                      onClick={() => handleViewVendorCreds(selectedApplication.id)}
-                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-colors flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <ShieldCheck className="w-4 h-4" /> View Vendor ID & Pass
-                    </button>
-                  )}
-
-                  {/* Approve / Reject — only if Pending AND no ID generated yet */}
-                  {selectedApplication.status === 'Pending' && !vendorCredentials[selectedApplication.id] && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => handleRejectApp(selectedApplication.id)}
-                        className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <UserX className="w-4 h-4" /> Reject Application
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleApproveNavigate(selectedApplication)}
-                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-colors flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <UserCheck className="w-4 h-4" /> Approve & Create Vendor ID
-                      </button>
-                    </>
-                  )}
-
-                </div>
-              </div>
-
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <AdminApplicationModal
+        isOpen={isApplicationModalOpen}
+        onClose={() => setIsApplicationModalOpen(false)}
+        selectedApplication={selectedApplication}
+        vendorCredentials={vendorCredentials}
+        showToast={showToast}
+        onViewVendorCreds={handleViewVendorCreds}
+        onReject={handleRejectApp}
+        onApprove={handleApproveNavigate}
+        StockLevelBadge={StockLevelBadge}
+      />
 
       {/* Floating Toast Notification */}
       <AnimatePresence>

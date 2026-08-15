@@ -20,7 +20,8 @@ const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPasswordPage'))
 const FaqPage = lazy(() => import('./pages/faq/FaqPage'));
 const BecomeAVendorPage = lazy(() => import('./pages/vendor/BecomeAVendorPage'));
 const VendorApplyPage = lazy(() => import('./pages/vendor/VendorApplyPage'));
-const VendorDashboardPage = lazy(() => import('./pages/vendor/VendorDashboardPage'));
+const VendorDashboardPage = lazy(() => import('./pages/dashboard/VendorDashboardPage'));
+const PricingPage = lazy(() => import('./pages/pricing/PricingPage'));
 
 export default function App() {
   return (
@@ -33,6 +34,7 @@ export default function App() {
           
           <Route path="/booking" element={<BookingPage />} />
           <Route path="/booking/confirmation" element={<BookingConfirmation />} />
+          <Route path="/pricing" element={<PricingPage />} />
 
           {/* Authentication Pages */}
           <Route path="/login" element={<LoginPage />} />

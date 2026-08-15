@@ -16,10 +16,10 @@ import {
 } from 'lucide-react';
 
 // ── User Dashboard Components (renamed with User__ prefix for clarity) ───────
-import UserTechnicianMapModal from '../../components/dashboard/UserTechnicianMapModal';
-import UserInvoiceModal       from '../../components/dashboard/UserInvoiceModal';
-import UserAddressModal        from '../../components/dashboard/UserAddressModal';
-import UserRatingModal         from '../../components/dashboard/UserRatingModal';
+import UserTechnicianMapModal from '../../components/dashboard/user/UserTechnicianMapModal';
+import UserInvoiceModal       from '../../components/dashboard/user/UserInvoiceModal';
+import UserAddressModal        from '../../components/dashboard/user/UserAddressModal';
+import UserRatingModal         from '../../components/dashboard/user/UserRatingModal';
 import LocationSelectorModal   from '../../components/common/LocationSelectorModal';
 import ApplianceIcon           from '../../components/common/ApplianceIcon';
 

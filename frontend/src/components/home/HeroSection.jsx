@@ -108,12 +108,7 @@ const HeroSection = () => {
               </button>
               <button 
                 onClick={() => {
-                  const servicesElem = document.getElementById('services');
-                  if (servicesElem) {
-                    servicesElem.scrollIntoView({ behavior: 'smooth' });
-                  } else {
-                    navigate('/booking');
-                  }
+                  navigate('/pricing');
                 }}
                 className="flex items-center gap-2 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-[#0B1E40] px-8 py-4 rounded-full font-semibold transition-all cursor-pointer"
               >

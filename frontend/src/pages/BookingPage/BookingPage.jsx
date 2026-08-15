@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation, Link, useNavigate } from 'react-router-dom';
+import React from 'react';
+import { useLocation } from 'react-router-dom';
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
 import { BookingProvider } from '../../components/Booking/BookingContext';
@@ -11,24 +11,12 @@ import ApplianceImageUploader from '../../components/Booking/ApplianceImageUploa
 import BookingSummary from '../../components/Booking/BookingSummary';
 import PricingTransparency from '../../components/Booking/PricingTransparency';
 import PaymentMethod from '../../components/Booking/PaymentMethod';
-import LoginRequiredModal from '../../components/auth/LoginRequiredModal';
-import { useAuth } from '../../context/AuthContext';
 
 export default function BookingPage() {
   const location = useLocation();
-  const navigate = useNavigate();
-  const { isLoggedIn } = useAuth();
-  const [showLoginModal, setShowLoginModal] = useState(false);
 
   // Intercept the state passed from navigate('/booking', { state: { appliance: {...} } })
   const initialAppliance = location.state?.appliance || null;
-
-  // Auto-show login required modal if user accesses booking while unauthenticated
-  // useEffect(() => {
-  //   if (!isLoggedIn) {
-  //     setShowLoginModal(true);
-  //   }
-  // }, [isLoggedIn]);
 
   return (
     <BookingProvider initialAppliance={initialAppliance}>
@@ -48,29 +36,6 @@ export default function BookingPage() {
             </p>
           </div>
 
-          {/* Unauthenticated Guest Warning Banner */}
-          {!isLoggedIn && (
-            <div className="mb-8 p-5 bg-gradient-to-r from-amber-50 to-orange-50/30 border border-amber-200/60 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 shadow-sm">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center text-2xl shrink-0 shadow-inner border border-amber-200/50">
-                  🔒
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-amber-900">Login Required to Confirm</h3>
-                  <p className="text-sm text-amber-700/90 mt-1 leading-relaxed font-medium">
-                    You can configure your repair preferences below, but logging in is required to submit your booking.
-                  </p>
-                </div>
-              </div>
-              <Link
-                to="/login"
-                state={{ from: '/booking', reason: 'A user cannot make a booking until they log in.' }}
-                className="shrink-0 bg-gradient-to-r from-[#0B1E40] to-indigo-900 hover:from-indigo-900 hover:to-[#0B1E40] text-white font-bold text-sm px-6 py-3 rounded-xl transition-all duration-300 shadow-md shadow-indigo-900/20 hover:shadow-lg hover:-translate-y-0.5"
-              >
-                Log In / Sign Up
-              </Link>
-            </div>
-          )}
 
           {/* Main Layout Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
@@ -124,11 +89,6 @@ export default function BookingPage() {
         <Footer />
       </div>
 
-      <LoginRequiredModal
-        isOpen={showLoginModal}
-        onClose={() => setShowLoginModal(false)}
-        appliance={initialAppliance}
-      />
     </BookingProvider>
   );
 }

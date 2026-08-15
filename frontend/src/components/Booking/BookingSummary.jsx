@@ -4,6 +4,7 @@ import { createBookingApi } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
 import { Info, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
+import LoginRequiredModal from '../auth/LoginRequiredModal';
 
 /* West Bengal keywords — same list as AddressForm */
 const WB_KEYWORDS = [
@@ -53,16 +54,18 @@ export default function BookingSummary() {
   const navigate = useNavigate();
   const [errors, setErrors] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const { basePrice, total } = bookingState.priceInfo;
 
   const handleBookingSubmit = async () => {
-    const errs = [];
-
-    // Auth check — redirect to login if not logged in
+    // Auth check — show modal if not logged in
     if (!isLoggedIn || !token) {
-      errs.push('A user cannot make a booking until they log in.');
+      setShowLoginModal(true);
+      return;
     }
+
+    const errs = [];
 
     if (!bookingState.serviceId && !bookingState.serviceName)
       errs.push('Please select an appliance.');
@@ -79,13 +82,6 @@ export default function BookingSummary() {
     if (errs.length) {
       setErrors(errs);
       document.getElementById('summary-errors')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-      // Redirect to login if unauthenticated
-      if (!isLoggedIn || !token) {
-        setTimeout(() => {
-          navigate('/login', { state: { from: '/booking', reason: 'A user cannot make a booking until they log in.' } });
-        }, 1200);
-      }
       return;
     }
 
@@ -345,6 +341,12 @@ export default function BookingSummary() {
       <div className="text-center mt-4 text-xs text-slate-400 flex items-center justify-center gap-1">
         🔒 Pay after service — Cash / UPI only
       </div>
+
+      <LoginRequiredModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        appliance={{ name: bookingState.serviceName || 'Appliance Repair' }}
+      />
     </div>
   );
 }
