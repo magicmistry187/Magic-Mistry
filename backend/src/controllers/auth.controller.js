@@ -76,7 +76,7 @@ async function sendOtp(req, res) {
     });
 
     const emailBody = userVerification(otp);
-    await sendEmail(email, "Magic Mistry OTP Verification", emailBody);
+
 
     return res.status(200).json({
       success: true,
@@ -157,7 +157,7 @@ async function signup(req, res) {
       password: hashedPassword,
       phoneNumber,
       authProviders: ["email"],
-      role: "admin", // Default role is 'user' if not provided
+      // role: "admin", // Default role is 'user' if not provided
     });
 
     const token = generateToken(user);
@@ -184,7 +184,7 @@ async function signup(req, res) {
 // login
 async function login(req, res) {
   try {
-    console.log("Login controller");
+    // console.log("Login controller");
     const { email, password } = req.body;
 
     // Validate input
@@ -246,7 +246,7 @@ async function login(req, res) {
     }
 
     const token = generateToken(user);
-    console.log("Token generated:", token);
+    // console.log("Token generated:", token);
 
     // Remove password before sending response
     const userData = user.toObject();
@@ -330,14 +330,14 @@ async function googleLogin(req, res) {
           googleId,
           authProviders: ["google"],
           isEmailVerified: true,
-          // role: "vendor",
+         
         });
       }
     }
 
     const token = generateToken(user);
-    console.log("Google login successful. Token generated:", token);
-    console.log("User details:", user);
+    // console.log("Google login successful. Token generated:", token);
+    // console.log("User details:", user);
 
     return res
       .cookie("token", token, {
