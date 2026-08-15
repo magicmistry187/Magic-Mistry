@@ -69,16 +69,23 @@ frontend/
 │   │   ├── Booking/            # Booking components (ApplianceSelector, AddressForm,
 │   │   │                       # ScheduleForm, PaymentMethod, PricingTransparency,
 │   │   │                       # BookingSummary, ProblemSelector, BookingContext)
-│   │   ├── common/             # Global layout & shared UI (Navbar, Footer, PageLoader, ScrollToTop)
-│   │   └── home/               # Home page sections (HeroSection, ServiceCategories, HowItWorks)
+│   │   ├── common/             # Global layout & shared UI (Navbar, Footer, PageLoader)
+│   │   ├── dashboard/          # Dashboard components categorized by role
+│   │   │   ├── admin/          # Admin modals (AdminApplicationModal, AdminRestockModal, etc.)
+│   │   │   ├── user/           # User modals (UserAddressModal, UserInvoiceModal, etc.)
+│   │   │   └── vendor/         # Vendor modals (VendorPayoutModal, VendorTaxInvoiceModal)
+│   │   └── home/               # Home page sections (HeroSection, ServiceCategories)
 │   ├── context/                # Global Context providers (AuthContext, etc.)
 │   ├── pages/                  # Route page views (Pages only)
 │   │   ├── aboutus/            # AboutPage.jsx
 │   │   ├── auth/               # LoginPage.jsx
 │   │   ├── BookingPage/        # BookingPage.jsx, BookingConfirmation.jsx
 │   │   ├── contactus/          # ContactPage.jsx
-│   │   ├── dashboard/          # DashboardPage.jsx
+│   │   ├── dashboard/          # Unified dashboards (AdminDashboardPage, UserDashboardPage, VendorDashboardPage)
+│   │   ├── faq/                # FaqPage.jsx
 │   │   ├── home/               # HomePage.jsx
+│   │   ├── pricing/            # PricingPage.jsx
+│   │   ├── vendor/             # VendorApplyPage.jsx, BecomeAVendorPage.jsx
 │   │   └── term & policy/      # TermsAndConditions.jsx, PrivacyPolicy.jsx
 │   ├── services/               # API service layer and Axios instances
 │   ├── App.jsx                 # Main application routes
