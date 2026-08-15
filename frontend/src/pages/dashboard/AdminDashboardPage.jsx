@@ -378,27 +378,61 @@ export default function AdminDashboardPage() {
   };
 
   const handleExportExcel = () => {
-    const headers = ['REQ ID', 'APPLIANCE', 'CUSTOMER', 'TECHNICIAN', 'DATE COMPLETED', 'STATUS'];
-    const csvRows = filteredHistory.map(item => {
-      return [
-        item.id,
-        `"${item.appliance}"`,
-        `"${item.customer}"`,
-        `"${item.technician}"`,
-        item.dateCompleted,
-        item.status
-      ].join(',');
-    });
-    const csvString = [headers.join(','), ...csvRows].join('\n');
-    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const htmlString = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          table { border-collapse: collapse; font-family: 'Segoe UI', Arial, sans-serif; }
+          th { background-color: #02182e; color: #ffffff; font-weight: bold; text-align: left; padding: 12px; border: 1px solid #cbd5e1; font-size: 14px; }
+          td { padding: 10px; border: 1px solid #cbd5e1; color: #334155; font-size: 13px; }
+          .title { font-size: 20px; font-weight: bold; color: #02182e; padding-bottom: 5px; border: none; }
+          .subtitle { font-size: 12px; color: #64748b; padding-bottom: 15px; border: none; }
+          .status-completed { color: #059669; font-weight: bold; }
+          .status-other { color: #dc2626; font-weight: bold; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <tr>
+            <td colspan="6" class="title">Magic Mistry - Work History Report</td>
+          </tr>
+          <tr>
+            <td colspan="6" class="subtitle">Generated on: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</td>
+          </tr>
+          <tr>
+            <th>REQ ID</th>
+            <th>APPLIANCE</th>
+            <th>CUSTOMER</th>
+            <th>TECHNICIAN</th>
+            <th>DATE COMPLETED</th>
+            <th>STATUS</th>
+          </tr>
+          ${filteredHistory.map(item => `
+            <tr>
+              <td style="font-weight: bold;">${item.id}</td>
+              <td>${item.appliance}</td>
+              <td>${item.customer}</td>
+              <td>${item.technician}</td>
+              <td>${item.dateCompleted}</td>
+              <td class="${item.status === 'Completed' ? 'status-completed' : 'status-other'}">${item.status}</td>
+            </tr>
+          `).join('')}
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([htmlString], { type: 'application/vnd.ms-excel' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `work_history_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', \`MagicMistry_WorkHistory_\${new Date().toISOString().split('T')[0]}.xls\`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast('Work history downloaded successfully!');
+    
+    showToast('Work history Excel file downloaded!');
   };
 
   // Generate Credentials Submit — saves per-vendor, marks app Approved
