@@ -46,10 +46,12 @@ const authRoutes = require('./routes/auth.routes');
 const bookingRoutes = require('./routes/booking.routes');
 const addressRoutes = require('./routes/address.routes');
 const vendorApplicationRoutes = require('./routes/vendorApplication.routes');
+const vendorRoutes = require('./routes/vendor.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/booking', bookingRoutes);
 app.use('/api/address', addressRoutes);
 app.use('/api/vendor-application', vendorApplicationRoutes);
+app.use('/api/vendor', vendorRoutes);
 
 module.exports = app;

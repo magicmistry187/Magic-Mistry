@@ -34,19 +34,25 @@ const userSchema = new mongoose.Schema(
       default: 'customer',
     },
 
-    // Admin approval for vendors
-    // isApproved: {
-    //   type: Boolean,
-    //   default: false,
-    // },
+    //Admin approval for vendors
+    isApproved: {
+      type: Boolean,
+      default: false,
+    },
 
-    // when vendor is blocked by admin, he cannot login to the system.
-    // status: {
-    //   type: String,
-    //   enum: ['active', 'blocked'],
-    //   default: 'active',
-    // },
+    //when vendor is blocked by admin, he cannot login to the system.
+    status: {
+      type: String,
+      enum: ['active', 'blocked'],
+      default: 'active',
+    },
 
+    vendorId: {
+      type: String,
+      // required: true,
+      unique: true,
+      trim: true,
+    },
     googleId: {
       type: String,
       unique: true,

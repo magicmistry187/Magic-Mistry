@@ -159,6 +159,7 @@ const getVendorApplicationById = async (req, res) => {
 
 const approveVendorApplication = async (req, res) => {
   try {
+    console.log('Approving vendor application...');
     const { applicationId } = req.params;
 
     // 1. Find the application
@@ -212,12 +213,15 @@ const approveVendorApplication = async (req, res) => {
       password: hashedPassword,
       role: 'vendor',
       authProviders: ['email'],
+      status: 'active',
+      isApproved: true,
+      vendorId,
     });
 
     const vendor = await Vendor.create({
       user: user._id,
 
-      vendorId,
+      // vendorId,
 
       professionalTitle: application.specialOption,
 
@@ -229,7 +233,7 @@ const approveVendorApplication = async (req, res) => {
 
       serviceAddress: application.city,
 
-      status: 'active',
+      // status: 'active',
 
       profilePhoto: null,
 
