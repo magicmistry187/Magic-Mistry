@@ -165,6 +165,8 @@ export default function AddressForm() {
 
           const fullAddress = parts.length ? parts.join(', ') : data.display_name;
           updateBooking('address', fullAddress);
+          updateBooking('latitude', coords.latitude);
+          updateBooking('longitude', coords.longitude);
           // ── CONNECTION: pass GPS coords to AuthContext so it can sync to backend ──
           // updateLocation(str, coords) → AuthContext → createAddressApi → POST /api/address
           updateLocation(fullAddress, { lat: coords.latitude, lng: coords.longitude });

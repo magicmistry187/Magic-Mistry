@@ -237,6 +237,8 @@ export const BookingProvider = ({ children, initialAppliance = null }) => {
     date: '',
     timeSlot: '',
     address: savedLocation,
+    latitude: null,
+    longitude: null,
     paymentMethod: 'cash',
     images: [],
     imageFile: null,

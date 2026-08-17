@@ -50,7 +50,7 @@ const isWestBengalAddress = (addr) => {
 
 export default function BookingSummary() {
   const { bookingState } = useBooking();
-  const { isLoggedIn, token } = useAuth();
+  const { user, isLoggedIn, token } = useAuth();
   const navigate = useNavigate();
   const [errors, setErrors] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -101,6 +101,19 @@ export default function BookingSummary() {
       formData.append('address', bookingState.address);
       formData.append('serviceDate', bookingState.date);
       formData.append('timeSlot', bookingState.timeSlot);
+
+      const savedLat = localStorage.getItem('mm_lat');
+      const savedLng = localStorage.getItem('mm_lng');
+      const lat = bookingState.latitude || user?.latitude || savedLat;
+      const lng = bookingState.longitude || user?.longitude || savedLng;
+
+      if (lat && lng) {
+        formData.append('latitude', lat);
+        formData.append('longitude', lng);
+        console.log(`[Magic Mistry Booking] 📍 Sending booking request with coordinates - Latitude: ${lat}, Longitude: ${lng}`);
+      } else {
+        console.log(`[Magic Mistry Booking] ⏭️ Sending booking request without coordinates.`);
+      }
 
       if (bookingState.imageFile) {
         formData.append('image', bookingState.imageFile);
