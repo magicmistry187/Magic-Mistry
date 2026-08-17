@@ -113,6 +113,8 @@ export default function AddressForm() {
   const handleAddressBlur = () => {
     const addr = bookingState.address.trim();
     if (!addr) return; // empty — let submit handle it
+    /*
+    // Commented out: West Bengal boundary restriction
     if (!isWestBengalAddress(addr)) {
       setAddrError('');
       setOutOfArea({ city: '', state: '' });
@@ -120,6 +122,8 @@ export default function AddressForm() {
     } else {
       setAddrError('');
     }
+    */
+    setAddrError('');
   };
 
   /* ── Geolocation → reverse-geocode ─────────────── */
@@ -135,6 +139,7 @@ export default function AddressForm() {
     navigator.geolocation.getCurrentPosition(
       async ({ coords }) => {
         try {
+          console.log(`[GeoLocation] Browser returned coords: Lat ${coords.latitude}, Lng ${coords.longitude}`);
           const res = await fetch(
             `https://nominatim.openstreetmap.org/reverse?lat=${coords.latitude}&lon=${coords.longitude}&format=json&addressdetails=1`,
             { headers: { 'Accept-Language': 'en' } }
@@ -142,6 +147,8 @@ export default function AddressForm() {
           const data = await res.json();
           const a = data.address || {};
 
+          /*
+          // Commented out: West Bengal boundary restriction
           const detectedState = (a.state || '').toLowerCase();
           const isWB = detectedState.includes('west bengal');
 
@@ -153,6 +160,7 @@ export default function AddressForm() {
             });
             return;
           }
+          */
 
           const parts = [
             a.house_number,
@@ -240,11 +248,13 @@ export default function AddressForm() {
           </div>
         )}
 
-        {/* Service area notice */}
+        {/* Service area notice - commented out for allowing other locations */}
+        {/*
         <div className="flex items-center gap-2 mb-3 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-xs text-blue-700">
           <MapPin className="w-3.5 h-3.5 flex-shrink-0 text-blue-500" />
           <span>We currently serve only <strong>West Bengal</strong>. Please enter a West Bengal address.</span>
         </div>
+        */}
 
         {/* Divider */}
         <div className="flex items-center gap-3 mb-4">
