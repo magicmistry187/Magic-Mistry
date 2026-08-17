@@ -185,7 +185,7 @@ export default function AddressForm() {
             : 'Unable to retrieve your location. Please enter manually.'
         );
       },
-      { timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 

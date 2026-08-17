@@ -54,9 +54,16 @@ export default function LocationSelectorModal({ isOpen, onClose }) {
           const data = await res.json();
           const a = data.address || {};
 
-          const city = a.city || a.town || a.village || a.county || '';
-          const state = a.state || '';
-          const detectedStr = [city, state].filter(Boolean).join(', ') || data.display_name;
+          const parts = [
+            a.house_number,
+            a.road || a.pedestrian || a.footway,
+            a.neighbourhood || a.suburb,
+            a.city || a.town || a.village || a.county,
+            a.state,
+            a.postcode,
+          ].filter(Boolean);
+
+          const detectedStr = parts.length ? parts.join(', ') : data.display_name;
 
           // ── CONNECTION: pass GPS coords so AuthContext can sync to backend ──
           // updateLocation(str, coords) → AuthContext → createAddressApi → POST /api/address
@@ -76,7 +83,7 @@ export default function LocationSelectorModal({ isOpen, onClose }) {
             : 'Unable to detect position.'
         );
       },
-      { timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 
