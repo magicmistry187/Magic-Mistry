@@ -85,12 +85,12 @@ export default function AdminViewCredsModal({
             </div>
 
             {/* Warning */}
-            <div className="flex items-start gap-2.5 px-4 py-3 bg-amber-50 rounded-xl border border-amber-200">
+            {/* <div className="flex items-start gap-2.5 px-4 py-3 bg-amber-50 rounded-xl border border-amber-200">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <p className="text-[11px] text-amber-800 font-semibold leading-relaxed">
                 Ensure the vendor has changed their temporary password. If not, the password can be reset from the vendor portal.
               </p>
-            </div>
+            </div> */}
 
             <button
               onClick={onClose}

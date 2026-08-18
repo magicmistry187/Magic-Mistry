@@ -9,12 +9,11 @@ const vendorProfileSchema = new mongoose.Schema({
     unique: true,
   },
 
-  // vendorId: {
-  //   type: String,
-  //   required: true,
-  //   unique: true,
-  //   trim: true,
-  // },
+  vendorId: {
+    type: String,
+    sparse: true,
+    trim: true,
+  },
   profilePhoto: {
     type: String,
     default: null,

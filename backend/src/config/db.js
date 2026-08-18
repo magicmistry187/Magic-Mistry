@@ -12,6 +12,13 @@ async function connectDB() {
       'mongodb://127.0.0.1:27017/magic_mistry';
     await mongoose.connect(dbURI);
     console.log('Connected to MongoDB');
+
+    // Clean up stale legacy index on vendorprofiles if present
+    try {
+      await mongoose.connection.collection('vendorprofiles').dropIndex('vendorId_1');
+    } catch (e) {
+      // Stale index does not exist or already dropped
+    }
   } catch (err) {
     console.error('Error connecting to MongoDB:', err.message);
   }

@@ -239,16 +239,20 @@ export default function VendorApplyPage() {
       if (!form.serviceType) e.serviceType = 'Please select a service type.';
       if (!form.experience)  e.experience  = 'Please select your experience level.';
       if (!form.about.trim() || form.about.trim().split(/\s+/).length < 5) e.about = 'Please write at least a few words about yourself.';
-      const isPdf = (file) => file && (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'));
+      const isPdfOrImage = (file) =>
+        file &&
+        (file.type === 'application/pdf' ||
+          file.type.startsWith('image/') ||
+          /\.(pdf|jpg|jpeg|png|webp)$/i.test(file.name));
 
       if (!form.photo) e.photo = 'Photo is required.';
-      else if (!isPdf(form.photo)) e.photo = 'Only PDF files are allowed.';
+      else if (!isPdfOrImage(form.photo)) e.photo = 'Upload a valid image (JPG, PNG) or PDF.';
 
       if (!form.aadhar) e.aadhar = 'Aadhar upload is required.';
-      else if (!isPdf(form.aadhar)) e.aadhar = 'Only PDF files are allowed.';
+      else if (!isPdfOrImage(form.aadhar)) e.aadhar = 'Only PDF or image files are allowed.';
 
       if (!form.resume) e.resume = 'Resume is required.';
-      else if (!isPdf(form.resume)) e.resume = 'Only PDF files are allowed.';
+      else if (!isPdfOrImage(form.resume)) e.resume = 'Only PDF or image files are allowed.';
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -630,9 +634,10 @@ export default function VendorApplyPage() {
                         </label>
                       </motion.div>
                       {errors.agreed && (
-                        <p className="text-xs text-red-500 flex items-center gap-1 -mt-3">
-                          <AlertCircle className="w-3.5 h-3.5" />{errors.agreed}
-                        </p>
+                        <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5 text-xs text-red-700 font-semibold">
+                          <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                          <span>{errors.agreed}</span>
+                        </div>
                       )}
                     </motion.div>
                   </motion.div>

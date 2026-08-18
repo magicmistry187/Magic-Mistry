@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-// ── CONNECTION: Import address API to persist detected location to backend ───
-// addressAPI.js → apiConnector → POST /api/address (address.controller.js)
 import { createAddressApi } from '../services/operations/addressAPI';
+import { updateUserLocationApi, getUserProfileApi } from '../services/operations/authAPI';
 
 const AuthContext = createContext(null);
 
@@ -9,53 +8,62 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loading, setLoading] = useState(true); // prevent flash before rehydrate
+  const [loading, setLoading] = useState(true);
   const [location, setLocation] = useState('Set Your Location');
 
-  // Rehydrate session from localStorage on app startup
+  // Rehydrate session from localStorage and backend on startup
   useEffect(() => {
-    try {
-      const storedToken    = localStorage.getItem('mm_token');
-      const storedUser     = localStorage.getItem('mm_user');
-      const storedLocation = localStorage.getItem('mm_location');
+    const initAuth = async () => {
+      try {
+        const storedToken    = localStorage.getItem('mm_token');
+        const storedUser     = localStorage.getItem('mm_user');
+        const storedLocation = localStorage.getItem('mm_location');
 
-      // Clean up the old hardcoded 'Kolkata, West Bengal' fallback that was
-      // baked in by a previous bug — reset it so user can set their real location
-      const STALE_DEFAULT = 'Kolkata, West Bengal';
+        if (storedToken && storedUser) {
+          setToken(storedToken);
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+          setIsLoggedIn(true);
 
-      if (storedToken && storedUser) {
-        setToken(storedToken);
-        const parsedUser = JSON.parse(storedUser);
+          const resolvedLoc =
+            parsedUser.location ||
+            storedLocation ||
+            'Set Your Location';
 
-        // If the stored location is the stale hardcoded default, clear it
-        if (parsedUser.location === STALE_DEFAULT) {
-          parsedUser.location = '';
-          localStorage.setItem('mm_user', JSON.stringify(parsedUser));
+          setLocation(resolvedLoc);
+
+          // Rehydrate fresh profile data from backend
+          try {
+            const profileRes = await getUserProfileApi(storedToken);
+            if (profileRes.success && profileRes.user) {
+              const freshUser = { ...parsedUser, ...profileRes.user };
+              setUser(freshUser);
+              localStorage.setItem('mm_user', JSON.stringify(freshUser));
+              if (freshUser.location) {
+                setLocation(freshUser.location);
+                localStorage.setItem('mm_location', freshUser.location);
+              }
+              if (freshUser.latitude && freshUser.longitude) {
+                localStorage.setItem('mm_lat', freshUser.latitude);
+                localStorage.setItem('mm_lng', freshUser.longitude);
+              }
+            }
+          } catch (profileErr) {
+            console.warn('[Magic Mistry] Profile sync on load error:', profileErr);
+          }
+        } else {
+          setLocation(storedLocation || 'Set Your Location');
         }
-        if (storedLocation === STALE_DEFAULT) {
-          localStorage.removeItem('mm_location');
-        }
-
-        setUser(parsedUser);
-        setIsLoggedIn(true);
-
-        // Resolve display location
-        const resolvedLoc =
-          (parsedUser.location && parsedUser.location !== STALE_DEFAULT ? parsedUser.location : null) ||
-          (storedLocation && storedLocation !== STALE_DEFAULT ? storedLocation : null) ||
-          'Set Your Location';
-
-        setLocation(resolvedLoc);
-      } else {
+      } catch {
+        localStorage.removeItem('mm_token');
+        localStorage.removeItem('mm_user');
         setLocation('Set Your Location');
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      localStorage.removeItem('mm_token');
-      localStorage.removeItem('mm_user');
-      setLocation('Set Your Location');
-    } finally {
-      setLoading(false);
-    }
+    };
+
+    initAuth();
   }, []);
 
   const login = (userData, authToken) => {
@@ -153,76 +161,48 @@ export function AuthProvider({ children }) {
       localStorage.setItem('mm_user', JSON.stringify(updatedUser));
     }
 
-    // ── CONNECTION TO BACKEND ──────────────────────────────────────────────
-    // 2. If user is logged in AND we have GPS coords, persist a full address
-    //    record to the backend so it is accessible on other devices / sessions.
-    //    This connects the LocationSelectorModal / AddressForm GPS flow to the
-    //    backend address.controller.js → createAddress endpoint.
-    if (!geoCoords?.lat || !geoCoords?.lng) {
-      console.log(
-        '%c[Magic Mistry] ⏭️ Skipping backend sync — no GPS coords (city list or manual entry)',
-        'color: #94a3b8;'
-      );
-    } else if (!isLoggedIn || !token) {
-      console.log(
-        '%c[Magic Mistry] ⏭️ Skipping backend sync — user not logged in',
-        'color: #94a3b8;'
-      );
+    // ── ALWAYS PERSIST TO USER RECORD IN BACKEND IF LOGGED IN ─────────────
+    if (token) {
+      updateUserLocationApi(
+        {
+          location: newLocation,
+          latitude: geoCoords?.lat ?? null,
+          longitude: geoCoords?.lng ?? null,
+        },
+        token
+      ).then((res) => {
+        if (res.success && res.user) {
+          console.log('[Magic Mistry] ✅ User location persisted to MongoDB:', res.user.location);
+        }
+      }).catch((err) => {
+        console.warn('[Magic Mistry] ❌ Failed to persist user location to backend:', err);
+      });
     }
 
-    if (isLoggedIn && token && geoCoords?.lat && geoCoords?.lng) {
+    // ── If GPS coords are provided, also persist address record ─────────────
+    if (token && geoCoords?.lat && geoCoords?.lng) {
       try {
         const payload = {
           addressType: 'Home',
-          // Backend requires house, street, city, state, pincode, location
-          // We use the human-readable string as the street field when GPS is used
-          house: '-',                       // placeholder — user can edit via saved addresses
-          street: newLocation,              // full reverse-geocoded string
+          house: 'Current Location',
+          street: newLocation,
           city: newLocation.split(',')[0] || newLocation,
-          state: 'West Bengal',             // service area constraint
-          pincode: '000000',                // placeholder — not available from reverse-geocode
-          isDefault: false,
-          // GeoJSON Point — required by address.model.js for 2dsphere index
+          state: 'West Bengal',
+          pincode: '000000',
+          isDefault: true,
           location: {
             type: 'Point',
-            coordinates: [geoCoords.lng, geoCoords.lat], // [longitude, latitude]
+            coordinates: [geoCoords.lng, geoCoords.lat],
           },
         };
 
-        // ── CONSOLE LOG: About to hit the backend ─────────────────────────
-        console.log(
-          '%c[Magic Mistry] 🚀 Sending location to backend...',
-          'color: #3b82f6; font-weight: bold;'
-        );
-        console.log('  Location string :', newLocation);
-        console.log('  GPS Coordinates :', `lat=${geoCoords.lat}, lng=${geoCoords.lng}`);
-        console.log('  Endpoint        :', 'POST /api/address');
-        console.log('  Payload         :', payload);
-
-        // Fire-and-forget: non-blocking, errors logged but don't break UI
         createAddressApi(payload, token).then((result) => {
-          if (!result.success) {
-            console.warn(
-              '%c[Magic Mistry] ❌ Location NOT saved to backend:',
-              'color: #ef4444; font-weight: bold;',
-              result.message
-            );
-          } else {
-            console.log(
-              '%c[Magic Mistry] ✅ Location sent to backend successfully!',
-              'color: #22c55e; font-weight: bold;'
-            );
-            console.log('  Location saved :', newLocation);
-            console.log('  Backend DB _id :', result.address?._id);
+          if (result.success) {
+            console.log('[Magic Mistry] ✅ GPS Address record created in backend:', result.address?._id);
           }
         });
       } catch (err) {
-        // Background sync failure — don't block the user
-        console.warn(
-          '%c[Magic Mistry] ❌ Unexpected error syncing location to backend:',
-          'color: #ef4444; font-weight: bold;',
-          err
-        );
+        console.warn('[Magic Mistry] GPS address record error:', err);
       }
     }
   };

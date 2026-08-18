@@ -172,3 +172,59 @@ export async function forgotPassword({ resetToken, newPassword }) {
     };
   }
 }
+
+export async function updateUserLocationApi(locationData, token) {
+  try {
+    const res = await apiConnector(
+      "PUT",
+      BASE_URL + "/auth/update-location",
+      locationData,
+      {
+        Authorization: `Bearer ${token}`,
+      }
+    );
+    console.log("UPDATE USER LOCATION RESPONSE ........", res.data);
+    if (!res.data?.success) {
+      throw new Error(res.data?.message || "Failed to update location");
+    }
+
+    return {
+      success: true,
+      message: res.data.message || "Location updated successfully",
+      user: res.data.user,
+    };
+  } catch (err) {
+    console.log("UPDATE USER LOCATION ERROR .......", err);
+    return {
+      success: false,
+      message: err.response?.data?.message || err.message || "Failed to update location",
+    };
+  }
+}
+
+export async function getUserProfileApi(token) {
+  try {
+    const res = await apiConnector(
+      "GET",
+      BASE_URL + "/auth/profile",
+      null,
+      {
+        Authorization: `Bearer ${token}`,
+      }
+    );
+    if (!res.data?.success) {
+      throw new Error(res.data?.message || "Failed to fetch profile");
+    }
+
+    return {
+      success: true,
+      user: res.data.user,
+    };
+  } catch (err) {
+    console.log("GET USER PROFILE ERROR .......", err);
+    return {
+      success: false,
+      message: err.response?.data?.message || err.message || "Failed to fetch profile",
+    };
+  }
+}

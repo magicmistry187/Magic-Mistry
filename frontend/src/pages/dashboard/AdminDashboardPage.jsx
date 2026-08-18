@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -13,6 +13,7 @@ import AdminApplicationModal from '../../components/dashboard/admin/AdminApplica
 import AdminDispatchModal from '../../components/dashboard/admin/AdminDispatchModal';
 import AdminWorkReportModal from '../../components/dashboard/admin/AdminWorkReportModal';
 import AdminExportModal from '../../components/dashboard/admin/AdminExportModal';
+import AdminEditUserModal from '../../components/dashboard/admin/AdminEditUserModal';
 import {
   LayoutDashboard, Users, FileText, UserPlus, TrendingUp, Settings,
   Package, AlertTriangle, Truck, DollarSign, Search, ChevronDown,
@@ -20,13 +21,34 @@ import {
   Copy, Download, Filter, RefreshCw, LogOut, ChevronRight, Eye,
   CheckCircle2, AlertCircle, Wrench, IndianRupee, ArrowUpRight,
   FileCheck, UserCheck, UserX, ExternalLink, Briefcase, MapPin, Phone, User,
-  Snowflake, Droplets, Store, Star, BadgeCheck, BadgeIcon, Contact
+  Snowflake, Droplets, Store, Star, BadgeCheck, BadgeIcon, Contact, Ban, UserMinus
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { approveVendorApplication, getAllVendorApplications, rejectVendorApplication, createVendorByAdminApi } from '../../services/api';
 import { getAdminBookingsApi } from '../../services/operations/bookingAPI';
 
-// ─── Initial Inventory Data (Exact match to Reference Screenshots) ───────────
+// ─── Service Specializations (Exact match to Vendor Application Categories) ──
+export const SERVICE_SPECIALIZATIONS = [
+  'AC Repair',
+  'Refrigerator Repair',
+  'Washing Machine Repair',
+  'Microwave Repair',
+  'Mixer Grinder Repair',
+  'Pump Motor Repair',
+  'Air Cooler Repair',
+  'Induction Cooktop Repair',
+  'Stabilizer Repair',
+  'Press Iron Repair',
+  'TV Repair',
+  'Ceiling Fan Repair',
+  'Geyser Repair',
+  'Wiring / Switch Board',
+  'Other Appliances',
+  'HVAC Specialist',
+  'Appliance Expert',
+  'Electrical Repair',
+  'Plumbing Engineer',
+];
 const INITIAL_INVENTORY = [
   {
     id: '#INV-0842',
@@ -93,13 +115,8 @@ const INITIAL_INVENTORY = [
 // ─── Initial Vendor Applications Data ───────────────────────────────────────
 const INITIAL_APPLICATIONS = [];
 
-// ─── Initial Users Data ──────────────────────────────────────────────────────
-const INITIAL_USERS = [
-  { id: 'USR-101', name: 'Rahul Sharma', email: 'rahul.s@gmail.com', role: 'Customer', status: 'Active', bookings: 8, joined: 'Jan 2024' },
-  { id: 'USR-102', name: 'Priya Patel', email: 'priya.p@outlook.com', role: 'Customer', status: 'Active', bookings: 14, joined: 'Mar 2024' },
-  { id: 'USR-103', name: 'Suresh Kumar', email: 'suresh.k@vendor.magicmistry.com', role: 'Technician', status: 'Verified', bookings: 142, joined: 'Nov 2023' },
-  { id: 'USR-104', name: 'Ankit Sharma', email: 'ankit.s@vendor.magicmistry.com', role: 'Technician', status: 'Verified', bookings: 98, joined: 'Feb 2024' },
-];
+// ─── Initial Users Data (Populated dynamically from backend) ─────────────────
+const INITIAL_USERS = [];
 
 // ─── Initial Dispatch Queue Data ─────────────────────────────────────────────
 const INITIAL_DISPATCH_QUEUE = [
@@ -182,7 +199,7 @@ export const StockLevelBadge = ({ level, count }) => {
       </span>
     );
   }
-  if (level === 'Low Stock' || level === 'Pending' || level === 'Reviewing') {
+  if (level === 'Low Stock' || level === 'Pending' || level === 'Reviewing' || level === 'Suspended') {
     return (
       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100/90 text-amber-800 border border-amber-200">
         <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
@@ -193,7 +210,7 @@ export const StockLevelBadge = ({ level, count }) => {
   return (
     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100/90 text-rose-800 border border-rose-200">
       <span className="w-2 h-2 rounded-full bg-rose-500" />
-      {level} {count !== undefined ? `(${count})` : ''}
+      {level || 'Blocked'} {count !== undefined ? `(${count})` : ''}
     </span>
   );
 };
@@ -212,39 +229,58 @@ export default function AdminDashboardPage() {
   const [dispatchQueue, setDispatchQueue] = useState(INITIAL_DISPATCH_QUEUE);
   const [workHistory, setWorkHistory] = useState(INITIAL_WORK_HISTORY);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (token) {
-        const resApps = await getAllVendorApplications(token);
-        if (resApps.success && resApps.applications) {
-          setApplicationsList(resApps.applications.map(app => ({
-            ...app,
-            id: app.applicationId,
-            date: new Date(app.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-            name: app.fullName,
-            service: app.serviceType,
-            phone: app.phoneNumber
-          })));
-        }
-
-        const resBookings = await getAdminBookingsApi(token);
-        if (resBookings.success && resBookings.bookings) {
-          const formatted = resBookings.bookings.map(b => ({
-            id: b._id,
-            appliance: b.appliance,
-            customer: b.customer?.fullName || 'Unknown',
-            technician: b.vendor?.fullName || 'Unassigned',
-            technicianAvatar: b.vendor ? b.vendor.fullName.substring(0, 2).toUpperCase() : '',
-            status: b.bookingStatus,
-            dateCompleted: b.bookingStatus === 'Completed' ? new Date(b.updatedAt).toLocaleDateString('en-US') : null,
-          }));
-          setDispatchQueue(formatted.filter(b => b.status !== 'Completed' && b.status !== 'Cancelled' && b.status !== 'Closed'));
-          setWorkHistory(formatted.filter(b => b.status === 'Completed' || b.status === 'Cancelled' || b.status === 'Closed'));
-        }
+  const fetchApplications = useCallback(async () => {
+    if (!token) return;
+    try {
+      const resApps = await getAllVendorApplications(token);
+      if (resApps.success && resApps.applications) {
+        setApplicationsList(resApps.applications.map(app => ({
+          ...app,
+          id: app.applicationId || app._id,
+          date: new Date(app.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          name: app.fullName,
+          service: app.serviceType,
+          phone: app.phoneNumber
+        })));
       }
-    };
-    fetchData();
+    } catch (e) {
+      console.error('Error fetching applications:', e);
+    }
   }, [token]);
+
+  const fetchBookings = useCallback(async () => {
+    if (!token) return;
+    try {
+      const resBookings = await getAdminBookingsApi(token);
+      if (resBookings.success && resBookings.bookings) {
+        const formatted = resBookings.bookings.map(b => ({
+          id: b._id,
+          appliance: b.appliance,
+          customer: b.customer?.fullName || 'Unknown',
+          technician: b.vendor?.fullName || 'Unassigned',
+          technicianAvatar: b.vendor ? b.vendor.fullName.substring(0, 2).toUpperCase() : '',
+          status: b.bookingStatus,
+          dateCompleted: b.bookingStatus === 'Completed' ? new Date(b.updatedAt).toLocaleDateString('en-US') : null,
+        }));
+        setDispatchQueue(formatted.filter(b => b.status !== 'Completed' && b.status !== 'Cancelled' && b.status !== 'Closed'));
+        setWorkHistory(formatted.filter(b => b.status === 'Completed' || b.status === 'Cancelled' || b.status === 'Closed'));
+      }
+    } catch (e) {
+      console.error('Error fetching bookings:', e);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchApplications();
+    fetchBookings();
+  }, [fetchApplications, fetchBookings]);
+
+  // Keep applications table synchronized whenever switching to applications tab
+  useEffect(() => {
+    if (activeTab === 'applications') {
+      fetchApplications();
+    }
+  }, [activeTab, fetchApplications]);
   const [vendorApprovals, setVendorApprovals] = useState(INITIAL_VENDOR_APPROVALS);
   const [paymentRequests, setPaymentRequests] = useState(INITIAL_PAYMENT_REQUESTS);
   const [searchTerm, setSearchTerm] = useState('');
@@ -278,6 +314,146 @@ export default function AdminDashboardPage() {
   const [selectedSupplier, setSelectedSupplier] = useState('');
   const [restockNotes, setRestockNotes] = useState('');
 
+  // User & Partner Management State
+  const [usersList, setUsersList] = useState(INITIAL_USERS);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState('All');
+  const [userStatusFilter, setUserStatusFilter] = useState('All');
+  const [editingUser, setEditingUser] = useState(null);
+  const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false);
+
+  // Sync users and vendors from live backend data (Vendor Applications & Bookings)
+  const syncUsersAndVendorsFromBackend = useCallback(() => {
+    let savedStatuses = {};
+    try {
+      savedStatuses = JSON.parse(localStorage.getItem('mm_user_statuses') || '{}');
+    } catch {
+      savedStatuses = {};
+    }
+
+    // 1. Build map of existing users directly from live backend records
+    const userMap = new Map();
+
+    // 2. Add all Vendors from applicationsList (Live backend data)
+    applicationsList.forEach((app) => {
+      const emailKey = (app.email || '').toLowerCase();
+      if (!emailKey) return;
+
+      const vendorId = app.vendorId || app.applicationId || app.id || app._id;
+      const overrideStatus = savedStatuses[vendorId] || savedStatuses[emailKey] || (app.status === 'Approved' ? 'Active' : app.status === 'Rejected' ? 'Blocked' : 'Pending');
+
+      // Count bookings for this vendor
+      const techBookingsCount = (dispatchQueue.concat(workHistory)).filter(
+        (b) => (b.technician && b.technician.toLowerCase() === (app.fullName || '').toLowerCase()) ||
+               (b.technicianAvatar && b.technicianAvatar === (app.fullName || '').substring(0, 2).toUpperCase())
+      ).length;
+
+      const existing = userMap.get(emailKey);
+      userMap.set(emailKey, {
+        id: vendorId,
+        name: app.fullName || existing?.name || 'Technician Partner',
+        email: app.email,
+        phone: app.phoneNumber || app.phone || existing?.phone || '',
+        role: 'Technician',
+        status: overrideStatus,
+        bookings: Math.max(techBookingsCount, existing?.bookings || 0),
+        joined: app.createdAt ? new Date(app.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : existing?.joined || 'Recently',
+        serviceType: app.serviceType || app.specialization || '',
+      });
+    });
+
+    // 3. Add all Customers from live dispatchQueue and workHistory (Backend data)
+    dispatchQueue.concat(workHistory).forEach((booking) => {
+      if (booking.customer && booking.customer !== 'Unknown' && booking.customer !== '-') {
+        const customerName = booking.customer;
+        const pseudoEmail = (booking.rawBooking?.customer?.email) || (customerName.toLowerCase().replace(/\s+/g, '.') + '@customer.magicmistry.com');
+        const emailKey = pseudoEmail.toLowerCase();
+
+        const custId = booking.rawBooking?.customer?._id
+          ? 'USR-' + String(booking.rawBooking.customer._id).slice(-4).toUpperCase()
+          : 'USR-' + (100 + userMap.size + 1);
+
+        const overrideStatus = savedStatuses[custId] || savedStatuses[emailKey] || 'Active';
+
+        if (!userMap.has(emailKey)) {
+          userMap.set(emailKey, {
+            id: custId,
+            name: customerName,
+            email: pseudoEmail,
+            phone: booking.rawBooking?.customer?.phoneNumber || '+91 98' + Math.floor(10000000 + Math.random() * 90000000),
+            role: 'Customer',
+            status: overrideStatus,
+            bookings: 1,
+            joined: 'Recently',
+          });
+        } else {
+          const u = userMap.get(emailKey);
+          if (u.role === 'Customer') {
+            u.bookings = (u.bookings || 0) + 1;
+          }
+        }
+      }
+    });
+
+    const combined = Array.from(userMap.values());
+    setUsersList(combined);
+  }, [applicationsList, dispatchQueue, workHistory]);
+
+  // Sync users whenever applications or bookings update or tab is opened
+  useEffect(() => {
+    syncUsersAndVendorsFromBackend();
+  }, [syncUsersAndVendorsFromBackend, activeTab]);
+
+  const handleEditUserProfile = (userItem) => {
+    setEditingUser(userItem);
+    setIsEditUserModalOpen(true);
+  };
+
+  const handleSaveEditedUser = (updatedUser) => {
+    // 1. Update state
+    setUsersList((prev) =>
+      prev.map((u) => (u.id === updatedUser.id ? { ...u, ...updatedUser } : u))
+    );
+
+    // 2. Persist status override to localStorage so it stays permanent
+    try {
+      const savedStatuses = JSON.parse(localStorage.getItem('mm_user_statuses') || '{}');
+      if (updatedUser.id) savedStatuses[updatedUser.id] = updatedUser.status;
+      if (updatedUser.email) savedStatuses[updatedUser.email.toLowerCase()] = updatedUser.status;
+      localStorage.setItem('mm_user_statuses', JSON.stringify(savedStatuses));
+    } catch (e) {
+      console.warn('LocalStorage save error:', e);
+    }
+
+    showToast(`Updated profile for ${updatedUser.name || updatedUser.fullName} (Status: ${updatedUser.status})`);
+  };
+
+  const handleQuickStatusChange = (userId, newStatus) => {
+    // 1. Update state
+    setUsersList((prev) =>
+      prev.map((u) => {
+        if (u.id === userId) {
+          return { ...u, status: newStatus };
+        }
+        return u;
+      })
+    );
+
+    // 2. Persist status override to localStorage so it stays permanent
+    try {
+      const target = usersList.find((u) => u.id === userId);
+      const savedStatuses = JSON.parse(localStorage.getItem('mm_user_statuses') || '{}');
+      if (userId) savedStatuses[userId] = newStatus;
+      if (target?.email) savedStatuses[target.email.toLowerCase()] = newStatus;
+      localStorage.setItem('mm_user_statuses', JSON.stringify(savedStatuses));
+    } catch (e) {
+      console.warn('LocalStorage save error:', e);
+    }
+
+    const target = usersList.find((u) => u.id === userId);
+    showToast(`${target?.name || 'User'} status updated to ${newStatus}`);
+  };
+
   // Vendor Account Creation Form state (Screenshot 5)
   const [vendorForm, setVendorForm] = useState({
     fullName: '',
@@ -286,6 +462,7 @@ export default function AdminDashboardPage() {
     specialization: '',
     serviceArea: ''
   });
+  const [vendorFormError, setVendorFormError] = useState(null);
 
   // Credentials Success Modal state (Screenshot 4)
   const [isCredentialSuccessOpen, setIsCredentialSuccessOpen] = useState(false);
@@ -301,6 +478,61 @@ export default function AdminDashboardPage() {
       appId: 'APP-903',
     },
   });
+
+  // Real-time duplicate vendor check (Email and Phone/Mobile Number)
+  const existingVendorMatch = useMemo(() => {
+    const cleanEmail = (vendorForm.email || '').trim().toLowerCase();
+    const cleanPhone = (vendorForm.phone || '').replace(/\D/g, '');
+
+    if (!cleanEmail && (!cleanPhone || cleanPhone.length < 5)) return null;
+
+    // 1. Check in applicationsList
+    for (const app of applicationsList) {
+      const appId = app.id || app.applicationId || app._id;
+      // If approving this exact application, don't flag itself
+      if (vendorForm.appId && (appId === vendorForm.appId || app.applicationId === vendorForm.appId)) continue;
+
+      const appEmail = (app.email || '').trim().toLowerCase();
+      const appPhone = (app.phoneNumber || app.phone || '').replace(/\D/g, '');
+
+      const emailMatches = Boolean(cleanEmail && appEmail && cleanEmail === appEmail);
+      const phoneMatches = Boolean(cleanPhone && appPhone && cleanPhone.length >= 10 && appPhone.slice(-10) === cleanPhone.slice(-10));
+
+      if (emailMatches || phoneMatches) {
+        if (app.status === 'Approved' || vendorCredentials[appId]) {
+          return {
+            field: emailMatches ? 'Email Address' : 'Mobile Number',
+            fieldKey: emailMatches ? 'email' : 'phone',
+            matchedValue: emailMatches ? vendorForm.email : vendorForm.phone,
+            name: app.fullName || app.name || 'Registered Vendor',
+            vendorId: vendorCredentials[appId]?.id || app.vendorId || appId,
+          };
+        }
+      }
+    }
+
+    // 2. Check in usersList
+    for (const u of usersList) {
+      if (u.role !== 'Technician' && u.role !== 'Vendor') continue;
+      const uEmail = (u.email || '').trim().toLowerCase();
+      const uPhone = (u.phone || '').replace(/\D/g, '');
+
+      const emailMatches = Boolean(cleanEmail && uEmail && cleanEmail === uEmail);
+      const phoneMatches = Boolean(cleanPhone && uPhone && cleanPhone.length >= 10 && uPhone.slice(-10) === cleanPhone.slice(-10));
+
+      if (emailMatches || phoneMatches) {
+        return {
+          field: emailMatches ? 'Email Address' : 'Mobile Number',
+          fieldKey: emailMatches ? 'email' : 'phone',
+          matchedValue: emailMatches ? vendorForm.email : vendorForm.phone,
+          name: u.name,
+          vendorId: u.id,
+        };
+      }
+    }
+
+    return null;
+  }, [vendorForm.email, vendorForm.phone, vendorForm.appId, applicationsList, usersList, vendorCredentials]);
 
   // Vendor Application View Details Modal State
   const [isApplicationModalOpen, setIsApplicationModalOpen] = useState(false);
@@ -369,9 +601,16 @@ export default function AdminDashboardPage() {
     try {
       const res = await rejectVendorApplication(appId, token);
       if (res.success) {
-        setApplicationsList(prev => prev.map(a => a.id === appId ? { ...a, status: 'Rejected' } : a));
+        setApplicationsList(prev =>
+          prev.map(a =>
+            a.id === appId || a.applicationId === appId || a._id === appId
+              ? { ...a, status: 'Rejected' }
+              : a
+          )
+        );
         setIsApplicationModalOpen(false);
-        showToast(`Application ${appId} rejected.`);
+        showToast(`Application rejected.`);
+        fetchApplications();
       } else {
         showToast(res.message || 'Failed to reject application');
       }
@@ -380,19 +619,41 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // ── Vendor Form Reset & Autofill Helpers ─────────────────────────────────────
+  const resetVendorForm = () => {
+    setVendorForm({
+      fullName: '',
+      email: '',
+      phone: '',
+      specialization: '',
+      serviceArea: '',
+      appId: null,
+    });
+    setVendorFormError(null);
+  };
+
+  const autofillVendorForm = (app) => {
+    if (!app) {
+      resetVendorForm();
+      return;
+    }
+    setVendorFormError(null);
+    setVendorForm({
+      fullName: app.name || app.fullName || '',
+      email: app.email || '',
+      phone: app.phone || app.phoneNumber || '',
+      specialization: app.service || app.serviceType || app.specialOption || '',
+      serviceArea: app.city || app.serviceAddress || '',
+      appId: app.id || app.applicationId || app._id || null,
+    });
+    setActiveTab('id-creation');
+    showToast(`Autofilled details for ${app.name || app.fullName || 'Vendor'}`);
+  };
+
   // Clicking "Approve" — navigates to ID Creation tab (pre-filled), status stays Pending
   const handleApproveNavigate = (app) => {
     setIsApplicationModalOpen(false);
-    setVendorForm({
-      fullName: app.name,
-      email: app.email,
-      phone: app.phone || '',
-      specialization: app.service || '',
-      serviceArea: app.city || '',
-      appId: app.id,         // track which app this is for
-    });
-    setActiveTab('id-creation');
-    showToast(`Fill in details and generate ID for ${app.name}`);
+    autofillVendorForm(app);
   };
 
   // Open "View Vendor ID & Pass" modal
@@ -569,8 +830,16 @@ export default function AdminDashboardPage() {
   // Generate Credentials Submit — saves per-vendor, marks app Approved
   const handleGenerateCredentials = async (e) => {
     e.preventDefault();
+    setVendorFormError(null);
     if (!vendorForm.fullName || !vendorForm.email) {
       showToast('Please provide full name and email address.');
+      return;
+    }
+
+    if (existingVendorMatch) {
+      const errMsg = `Vendor already exists with this ${existingVendorMatch.field} (${existingVendorMatch.matchedValue}) with Vendor ID: ${existingVendorMatch.vendorId}. Cannot generate a duplicate ID.`;
+      setVendorFormError(errMsg);
+      showToast(errMsg);
       return;
     }
 
@@ -588,14 +857,25 @@ export default function AdminDashboardPage() {
           setGeneratedCreds(creds);
           setVendorCredentials(prev => ({ ...prev, [vendorForm.appId]: creds }));
           setApplicationsList(prev =>
-            prev.map(a => a.id === vendorForm.appId ? { ...a, status: 'Approved' } : a)
+            prev.map(a =>
+              (a.id === vendorForm.appId ||
+               a.applicationId === vendorForm.appId ||
+               a._id === vendorForm.appId ||
+               (a.email && vendorForm.email && a.email.toLowerCase() === vendorForm.email.toLowerCase()))
+                ? { ...a, status: 'Approved' }
+                : a
+            )
           );
           setIsCredentialSuccessOpen(true);
           showToast('Vendor credentials generated successfully!');
+          fetchApplications();
+          resetVendorForm();
         } else {
+          setVendorFormError(res.message || 'Failed to approve application');
           showToast(res.message || 'Failed to approve application');
         }
       } catch (err) {
+        setVendorFormError('Error approving application');
         showToast('Error approving application');
       }
     } else {
@@ -612,10 +892,13 @@ export default function AdminDashboardPage() {
           setGeneratedCreds(creds);
           setIsCredentialSuccessOpen(true);
           showToast('Vendor credentials generated successfully!');
+          resetVendorForm();
         } else {
+          setVendorFormError(res.message || 'Failed to create vendor credentials');
           showToast(res.message || 'Failed to create vendor credentials');
         }
       } catch (err) {
+        setVendorFormError('Error creating vendor credentials');
         showToast('Error creating vendor credentials');
       }
     }
@@ -1529,9 +1812,20 @@ export default function AdminDashboardPage() {
 
                     {/* Vendor Information Form (Exact match to Screenshot 5) */}
                     <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-6">
-                      <div className="flex items-center gap-2 text-[#02182e] font-black text-lg pb-4 border-b border-slate-100">
-                        <Wrench className="w-5 h-5 text-amber-600" />
-                        <span>Vendor Information</span>
+                      <div className="flex items-center justify-between pb-4 border-b border-slate-100 flex-wrap gap-2">
+                        <div className="flex items-center gap-2 text-[#02182e] font-black text-lg">
+                          <Wrench className="w-5 h-5 text-amber-600" />
+                          <span>Vendor Information</span>
+                        </div>
+                        {(vendorForm.fullName || vendorForm.email || vendorForm.appId) && (
+                          <button
+                            type="button"
+                            onClick={resetVendorForm}
+                            className="text-xs font-extrabold text-slate-500 hover:text-rose-600 hover:bg-rose-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                          >
+                            ✕ Clear Fields
+                          </button>
+                        )}
                       </div>
 
                       <form onSubmit={handleGenerateCredentials} className="space-y-5">
@@ -1554,10 +1848,23 @@ export default function AdminDashboardPage() {
                               type="email"
                               required
                               value={vendorForm.email}
-                              onChange={(e) => setVendorForm({ ...vendorForm, email: e.target.value })}
+                              onChange={(e) => {
+                                setVendorForm({ ...vendorForm, email: e.target.value });
+                                if (vendorFormError) setVendorFormError(null);
+                              }}
                               placeholder="robert.s@hvac-pros.com"
-                              className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500"
+                              className={`w-full px-4 py-3 bg-slate-50 rounded-xl border text-xs font-semibold focus:outline-none focus:ring-2 ${
+                                existingVendorMatch?.fieldKey === 'email'
+                                  ? 'border-rose-400 focus:ring-rose-500 bg-rose-50/40 text-rose-900'
+                                  : 'border-slate-200 focus:ring-orange-500'
+                              }`}
                             />
+                            {existingVendorMatch?.fieldKey === 'email' && (
+                              <p className="text-[11px] text-rose-600 font-extrabold mt-1.5 flex items-center gap-1">
+                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                Vendor already exists with this email (Vendor ID: {existingVendorMatch.vendorId})
+                              </p>
+                            )}
                           </div>
 
                           <div>
@@ -1565,10 +1872,23 @@ export default function AdminDashboardPage() {
                             <input
                               type="text"
                               value={vendorForm.phone}
-                              onChange={(e) => setVendorForm({ ...vendorForm, phone: e.target.value })}
+                              onChange={(e) => {
+                                setVendorForm({ ...vendorForm, phone: e.target.value });
+                                if (vendorFormError) setVendorFormError(null);
+                              }}
                               placeholder="+1 (555) 000-0000"
-                              className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500"
+                              className={`w-full px-4 py-3 bg-slate-50 rounded-xl border text-xs font-semibold focus:outline-none focus:ring-2 ${
+                                existingVendorMatch?.fieldKey === 'phone'
+                                  ? 'border-rose-400 focus:ring-rose-500 bg-rose-50/40 text-rose-900'
+                                  : 'border-slate-200 focus:ring-orange-500'
+                              }`}
                             />
+                            {existingVendorMatch?.fieldKey === 'phone' && (
+                              <p className="text-[11px] text-rose-600 font-extrabold mt-1.5 flex items-center gap-1">
+                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                Vendor already exists with this phone number (Vendor ID: {existingVendorMatch.vendorId})
+                              </p>
+                            )}
                           </div>
 
                           <div>
@@ -1579,11 +1899,15 @@ export default function AdminDashboardPage() {
                                 onChange={(e) => setVendorForm({ ...vendorForm, specialization: e.target.value })}
                                 className="w-full appearance-none px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500"
                               >
-                                <option value="">Select Category</option>
-                                <option value="HVAC Specialist">HVAC Specialist</option>
-                                <option value="Appliance Expert">Appliance Expert</option>
-                                <option value="Electrical Repair">Electrical Repair</option>
-                                <option value="Plumbing Engineer">Plumbing Engineer</option>
+                                <option value="">Select Specialization / Service Category</option>
+                                {vendorForm.specialization && !SERVICE_SPECIALIZATIONS.includes(vendorForm.specialization) && (
+                                  <option value={vendorForm.specialization}>{vendorForm.specialization}</option>
+                                )}
+                                {SERVICE_SPECIALIZATIONS.map((spec) => (
+                                  <option key={spec} value={spec}>
+                                    {spec}
+                                  </option>
+                                ))}
                               </select>
                               <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                             </div>
@@ -1601,12 +1925,37 @@ export default function AdminDashboardPage() {
                           />
                         </div>
 
+                        {existingVendorMatch && (
+                          <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 text-rose-800 text-xs font-bold">
+                            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-extrabold text-rose-900">Vendor Already Exists</p>
+                              <p className="text-[11px] text-rose-700 mt-0.5">
+                                A vendor account ({existingVendorMatch.name}) is already registered with this {existingVendorMatch.field} ({existingVendorMatch.matchedValue}) with <span className="font-extrabold text-rose-900">Vendor ID: {existingVendorMatch.vendorId}</span>. A new ID cannot be generated.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {vendorFormError && !existingVendorMatch && (
+                          <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-rose-800 text-xs font-bold">
+                            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+                            <span>{vendorFormError}</span>
+                          </div>
+                        )}
+
                         <div className="flex justify-end pt-2">
                           <button
                             type="submit"
-                            className="px-6 py-3 bg-gradient-to-r from-amber-700 to-orange-700 text-white font-extrabold text-xs rounded-xl shadow-lg hover:from-amber-800 hover:to-orange-800 transition-all flex items-center gap-2 cursor-pointer"
+                            disabled={Boolean(existingVendorMatch)}
+                            className={`px-6 py-3 font-extrabold text-xs rounded-xl shadow-lg transition-all flex items-center gap-2 ${
+                              existingVendorMatch
+                                ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none border border-slate-300'
+                                : 'bg-gradient-to-r from-amber-700 to-orange-700 hover:from-amber-800 hover:to-orange-800 text-white cursor-pointer'
+                            }`}
                           >
-                            <Lock className="w-4 h-4" /> Generate Credentials
+                            <Lock className="w-4 h-4" />
+                            {existingVendorMatch ? 'Vendor Already Exists (ID Blocked)' : 'Generate Credentials'}
                           </button>
                         </div>
                       </form>
@@ -1651,16 +2000,95 @@ export default function AdminDashboardPage() {
                   >
                     <div>
                       <h1 className="text-3xl font-extrabold text-slate-900">User & Partner Management</h1>
-                      <p className="text-slate-500 text-sm mt-1">Manage active customers and verified technician profiles.</p>
+                      <p className="text-slate-500 text-sm mt-1">Manage active customers, technician partners, status (Active, Blocked, Suspended), and profile access.</p>
                     </div>
 
+                    {/* KPI Quick Counter Cards */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Accounts</div>
+                        <div className="text-2xl font-black text-slate-900 mt-1">{usersList.length}</div>
+                      </div>
+                      <div className="bg-white p-4 rounded-2xl border border-emerald-100 bg-emerald-50/20 shadow-sm">
+                        <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">Active Users</div>
+                        <div className="text-2xl font-black text-emerald-600 mt-1">
+                          {usersList.filter((u) => u.status?.toLowerCase() === 'active' || u.status?.toLowerCase() === 'verified').length}
+                        </div>
+                      </div>
+                      <div className="bg-white p-4 rounded-2xl border border-amber-100 bg-amber-50/20 shadow-sm">
+                        <div className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">Suspended</div>
+                        <div className="text-2xl font-black text-amber-600 mt-1">
+                          {usersList.filter((u) => u.status?.toLowerCase() === 'suspended').length}
+                        </div>
+                      </div>
+                      <div className="bg-white p-4 rounded-2xl border border-rose-100 bg-rose-50/20 shadow-sm">
+                        <div className="text-[11px] font-bold text-rose-700 uppercase tracking-wider">Blocked</div>
+                        <div className="text-2xl font-black text-rose-600 mt-1">
+                          {usersList.filter((u) => u.status?.toLowerCase() === 'blocked').length}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Search & Filter Toolbar */}
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+                      <div className="relative flex-1 w-full">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input
+                          type="text"
+                          value={userSearchTerm}
+                          onChange={(e) => setUserSearchTerm(e.target.value)}
+                          placeholder="Search by name, email, or user ID..."
+                          className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                        {/* Role Filter */}
+                        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                          {['All', 'Customer', 'Technician'].map((role) => (
+                            <button
+                              key={role}
+                              type="button"
+                              onClick={() => setUserRoleFilter(role)}
+                              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                                userRoleFilter === role
+                                  ? 'bg-white text-slate-900 shadow-sm'
+                                  : 'text-slate-500 hover:text-slate-900'
+                              }`}
+                            >
+                              {role}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Status Filter */}
+                        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                          {['All', 'Active', 'Suspended', 'Blocked'].map((st) => (
+                            <button
+                              key={st}
+                              type="button"
+                              onClick={() => setUserStatusFilter(st)}
+                              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                                userStatusFilter === st
+                                  ? 'bg-white text-slate-900 shadow-sm'
+                                  : 'text-slate-500 hover:text-slate-900'
+                              }`}
+                            >
+                              {st}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Users Table */}
                     <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
                       <div className="overflow-x-auto">
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
                             <tr className="bg-slate-50 text-slate-500 uppercase font-extrabold border-b border-slate-100">
                               <th className="py-4 px-6">USER ID</th>
-                              <th className="py-4 px-4">NAME</th>
+                              <th className="py-4 px-4">NAME & CONTACT</th>
                               <th className="py-4 px-4">ROLE</th>
                               <th className="py-4 px-4">TOTAL BOOKINGS</th>
                               <th className="py-4 px-4">STATUS</th>
@@ -1668,25 +2096,158 @@ export default function AdminDashboardPage() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {INITIAL_USERS.map((usr) => (
-                              <tr key={usr.id} className="hover:bg-slate-50">
-                                <td className="py-4 px-6 font-bold text-slate-900">{usr.id}</td>
-                                <td className="py-4 px-4 font-bold text-slate-800">
-                                  <div>{usr.name}</div>
-                                  <div className="text-[11px] text-slate-400 font-normal">{usr.email}</div>
-                                </td>
-                                <td className="py-4 px-4 font-semibold text-slate-600">{usr.role}</td>
-                                <td className="py-4 px-4 font-black text-slate-900">{usr.bookings}</td>
-                                <td className="py-4 px-4">
-                                  <StockLevelBadge level={usr.status} />
-                                </td>
-                                <td className="py-4 px-6 text-right">
-                                  <button onClick={() => showToast(`Managing ${usr.name}`)} className="px-3 py-1.5 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-800 cursor-pointer">
-                                    Edit Profile
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
+                            {(() => {
+                              const filtered = usersList.filter((usr) => {
+                                const matchesSearch =
+                                  (usr.name && usr.name.toLowerCase().includes(userSearchTerm.toLowerCase())) ||
+                                  (usr.email && usr.email.toLowerCase().includes(userSearchTerm.toLowerCase())) ||
+                                  (usr.id && String(usr.id).toLowerCase().includes(userSearchTerm.toLowerCase()));
+
+                                const matchesRole =
+                                  userRoleFilter === 'All' ||
+                                  usr.role.toLowerCase() === userRoleFilter.toLowerCase();
+
+                                const matchesStatus =
+                                  userStatusFilter === 'All' ||
+                                  usr.status.toLowerCase() === userStatusFilter.toLowerCase();
+
+                                return matchesSearch && matchesRole && matchesStatus;
+                              });
+
+                              if (filtered.length === 0) {
+                                return (
+                                  <tr>
+                                    <td colSpan="6" className="py-16 text-center text-slate-400">
+                                      <div className="flex flex-col items-center justify-center gap-2">
+                                        <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-1">
+                                          <Users className="w-6 h-6" />
+                                        </div>
+                                        <p className="font-extrabold text-sm text-slate-700">No original users or partners found</p>
+                                        <p className="text-xs text-slate-400 max-w-sm">
+                                          {usersList.length === 0
+                                            ? 'Newly registered customers, applied technicians, and approved vendors from the database will appear here automatically.'
+                                            : 'No users match your current search or filter criteria. Try adjusting the filters above.'}
+                                        </p>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              }
+
+                              return filtered.map((usr) => {
+                                const st = usr.status?.toLowerCase();
+                                const isBlocked = st === 'blocked';
+                                const isSuspended = st === 'suspended';
+                                const isActive = st === 'active' || st === 'verified';
+
+                                return (
+                                  <tr key={usr.id} className="hover:bg-slate-50 transition-colors">
+                                    <td className="py-4 px-6 font-bold text-slate-900 font-mono">
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px]">
+                                          {usr.name ? usr.name.substring(0, 2).toUpperCase() : 'US'}
+                                        </div>
+                                        <div>
+                                          <div>{usr.id}</div>
+                                          <div className="text-[10px] text-slate-400 font-normal">{usr.joined || 'Member'}</div>
+                                        </div>
+                                      </div>
+                                    </td>
+                                    <td className="py-4 px-4 font-bold text-slate-800">
+                                      <div>{usr.name}</div>
+                                      <div className="text-[11px] text-slate-400 font-normal flex items-center gap-2">
+                                        <span>{usr.email}</span>
+                                        {usr.phone && <span>• {usr.phone}</span>}
+                                      </div>
+                                    </td>
+                                    <td className="py-4 px-4">
+                                      <span
+                                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
+                                          usr.role === 'Technician' || usr.role === 'vendor'
+                                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                            : usr.role === 'Admin'
+                                            ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                            : 'bg-slate-100 text-slate-700 border border-slate-200'
+                                        }`}
+                                      >
+                                        {usr.role}
+                                      </span>
+                                    </td>
+                                    <td className="py-4 px-4 font-black text-slate-900">{usr.bookings ?? 0}</td>
+                                    <td className="py-4 px-4">
+                                      <StockLevelBadge level={usr.status} />
+                                    </td>
+                                    <td className="py-4 px-6 text-right">
+                                      <div className="flex items-center justify-end gap-2">
+                                        {/* Quick status toggle buttons */}
+                                        {isActive && (
+                                          <>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleQuickStatusChange(usr.id, 'Suspended')}
+                                              className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg border border-amber-200 text-[11px] font-bold transition-colors cursor-pointer"
+                                              title="Suspend Account"
+                                            >
+                                              Suspend
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleQuickStatusChange(usr.id, 'Blocked')}
+                                              className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg border border-rose-200 text-[11px] font-bold transition-colors cursor-pointer"
+                                              title="Block Account"
+                                            >
+                                              Block
+                                            </button>
+                                          </>
+                                        )}
+
+                                        {isSuspended && (
+                                          <>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleQuickStatusChange(usr.id, 'Active')}
+                                              className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg border border-emerald-200 text-[11px] font-bold transition-colors cursor-pointer"
+                                              title="Activate / Unsuspend Account"
+                                            >
+                                              Activate
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleQuickStatusChange(usr.id, 'Blocked')}
+                                              className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg border border-rose-200 text-[11px] font-bold transition-colors cursor-pointer"
+                                              title="Block Account"
+                                            >
+                                              Block
+                                            </button>
+                                          </>
+                                        )}
+
+                                        {isBlocked && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleQuickStatusChange(usr.id, 'Active')}
+                                            className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg border border-emerald-200 text-[11px] font-bold transition-colors cursor-pointer"
+                                            title="Unblock Account"
+                                          >
+                                            Unblock
+                                          </button>
+                                        )}
+
+                                        {/* Edit Profile Button */}
+                                        <button
+                                          type="button"
+                                          onClick={() => handleEditUserProfile(usr)}
+                                          className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                                        >
+                                          <Edit3 className="w-3.5 h-3.5 text-orange-400" />
+                                          Edit Profile
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              });
+                            })()}
                           </tbody>
                         </table>
                       </div>
@@ -2135,6 +2696,14 @@ export default function AdminDashboardPage() {
         onReject={handleRejectApp}
         onApprove={handleApproveNavigate}
         StockLevelBadge={StockLevelBadge}
+      />
+
+      {/* User & Partner Edit Profile Modal (Block, Unblock, Suspend) */}
+      <AdminEditUserModal
+        isOpen={isEditUserModalOpen}
+        onClose={() => setIsEditUserModalOpen(false)}
+        user={editingUser}
+        onSave={handleSaveEditedUser}
       />
 
       {/* 5. Dispatch Queue View Modal */}

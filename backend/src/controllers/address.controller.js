@@ -1,10 +1,12 @@
 const Address = require('../models/address.model');
+const User = require('../models/user.model');
 
 exports.createAddress = async (req, res) => {
   try {
     const {
       addressType,
       house,
+      flat,
       street,
       landmark,
       city,
@@ -12,21 +14,39 @@ exports.createAddress = async (req, res) => {
       country,
       pincode,
       location,
+      latitude,
+      longitude,
+      lat,
+      lng,
       isDefault,
     } = req.body;
 
-    if (!house || !street || !city || !state || !pincode || !location) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide all required fields.',
-      });
+    const houseVal = (house || flat || street || 'Home').trim();
+    const streetVal = (street || houseVal || 'Area').trim();
+    const cityVal = (city || 'Kolkata').trim();
+    const stateVal = (state || 'West Bengal').trim();
+    const pincodeVal = (pincode || '000000').trim();
+
+    // Parse coordinates
+    let coords = [88.3639, 22.5726]; // default Kolkata lng, lat
+    if (location && Array.isArray(location.coordinates) && location.coordinates.length === 2) {
+      coords = [Number(location.coordinates[0]), Number(location.coordinates[1])];
+    } else if (longitude !== undefined && latitude !== undefined) {
+      coords = [Number(longitude), Number(latitude)];
+    } else if (lng !== undefined && lat !== undefined) {
+      coords = [Number(lng), Number(lat)];
     }
+
+    const geoPoint = {
+      type: 'Point',
+      coordinates: coords,
+    };
 
     const addressCount = await Address.countDocuments({
       user: req.user.id,
     });
 
-    const makeDefault = addressCount === 0 ? true : isDefault;
+    const makeDefault = addressCount === 0 ? true : !!isDefault;
 
     if (makeDefault) {
       await Address.updateMany(
@@ -37,17 +57,29 @@ exports.createAddress = async (req, res) => {
 
     const address = await Address.create({
       user: req.user.id,
-      addressType,
-      house,
-      street,
-      landmark,
-      city,
-      state,
-      country,
-      pincode,
-      location,
+      addressType: addressType || 'Home',
+      house: houseVal,
+      street: streetVal,
+      landmark: (landmark || '').trim(),
+      city: cityVal,
+      state: stateVal,
+      country: (country || 'India').trim(),
+      pincode: pincodeVal,
+      location: geoPoint,
       isDefault: makeDefault,
     });
+
+    // If marked default, also sync user's active location on User model
+    if (makeDefault) {
+      const formattedLoc = [houseVal, streetVal, cityVal].filter(Boolean).join(', ');
+      await User.findByIdAndUpdate(req.user.id, {
+        $set: {
+          location: formattedLoc,
+          latitude: coords[1],
+          longitude: coords[0],
+        },
+      });
+    }
 
     return res.status(201).json({
       success: true,
@@ -60,7 +92,7 @@ exports.createAddress = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: 'Internal Server Error',
+      message: 'Failed to create address: ' + (error.message || error),
     });
   }
 };
@@ -133,6 +165,23 @@ exports.updateAddress = async (req, res) => {
       });
     }
 
+    const updatePayload = { ...req.body };
+    if (req.body.flat && !req.body.house) {
+      updatePayload.house = req.body.flat;
+    }
+
+    if (req.body.longitude !== undefined && req.body.latitude !== undefined) {
+      updatePayload.location = {
+        type: 'Point',
+        coordinates: [Number(req.body.longitude), Number(req.body.latitude)],
+      };
+    } else if (req.body.lng !== undefined && req.body.lat !== undefined) {
+      updatePayload.location = {
+        type: 'Point',
+        coordinates: [Number(req.body.lng), Number(req.body.lat)],
+      };
+    }
+
     if (req.body.isDefault) {
       await Address.updateMany(
         {
@@ -150,13 +199,25 @@ exports.updateAddress = async (req, res) => {
         user: req.user.id,
       },
       {
-        $set: req.body,
+        $set: updatePayload,
       },
       {
         new: true,
         runValidators: true,
       },
     );
+
+    if (updatedAddress && (updatedAddress.isDefault || req.body.isDefault)) {
+      const formattedLoc = [updatedAddress.house, updatedAddress.street, updatedAddress.city].filter(Boolean).join(', ');
+      await User.findByIdAndUpdate(req.user.id, {
+        $set: {
+          location: formattedLoc,
+          latitude: updatedAddress.location?.coordinates?.[1] || null,
+          longitude: updatedAddress.location?.coordinates?.[0] || null,
+        },
+      });
+    }
+
     return res.status(200).json({
       success: true,
       message: 'Address updated successfully.',

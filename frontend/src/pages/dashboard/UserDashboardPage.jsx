@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getMyBookingsApi, cancelBookingApi } from '../../services/api';
-import { getAddressesApi } from '../../services/operations/addressAPI';
+import { getAddressesApi, createAddressApi, updateAddressApi, deleteAddressApi } from '../../services/operations/addressAPI';
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
 import {
@@ -204,19 +203,70 @@ export default function UserDashboardPage() {
     setIsInvoiceOpen(true);
   };
 
-  const handleSaveAddress = (addressObj) => {
+  const handleSaveAddress = async (addressObj) => {
     const formattedStr = [addressObj.flat, addressObj.street, addressObj.landmark, addressObj.pincode].filter(Boolean).join(', ');
-    if (editingAddress) {
-      setAddresses(prev => prev.map(a => a.id === addressObj.id ? addressObj : a));
+    const payload = {
+      addressType: addressObj.type || 'Home',
+      house: addressObj.flat,
+      flat: addressObj.flat,
+      street: addressObj.street,
+      landmark: addressObj.landmark,
+      pincode: addressObj.pincode,
+      city: 'Kolkata',
+      state: 'West Bengal',
+      isDefault: true,
+    };
+
+    if (token) {
+      if (editingAddress && editingAddress.id) {
+        await updateAddressApi(editingAddress.id, payload, token);
+      } else {
+        await createAddressApi(payload, token);
+      }
+      const resAddrs = await getAddressesApi(token);
+      if (resAddrs.success && Array.isArray(resAddrs.addresses)) {
+        setAddresses(resAddrs.addresses.map(a => ({
+          id: a._id,
+          type: a.addressType || 'Home',
+          flat: a.house || '',
+          street: a.street || '',
+          landmark: a.landmark || '',
+          pincode: a.pincode || '',
+          isDefault: a.isDefault,
+        })));
+      }
     } else {
-      setAddresses(prev => [...prev, addressObj]);
+      if (editingAddress) {
+        setAddresses(prev => prev.map(a => a.id === addressObj.id ? addressObj : a));
+      } else {
+        setAddresses(prev => [...prev, addressObj]);
+      }
     }
-    // Update global location so Navbar and Booking pages update instantly
+
+    setEditingAddress(null);
     updateLocation(formattedStr);
   };
 
-  const handleDeleteAddress = (id) => {
-    setAddresses(prev => prev.filter(a => a.id !== id));
+  const handleDeleteAddress = async (id) => {
+    if (token) {
+      await deleteAddressApi(id, token);
+      const resAddrs = await getAddressesApi(token);
+      if (resAddrs.success && Array.isArray(resAddrs.addresses)) {
+        setAddresses(resAddrs.addresses.map(a => ({
+          id: a._id,
+          type: a.addressType || 'Home',
+          flat: a.house || '',
+          street: a.street || '',
+          landmark: a.landmark || '',
+          pincode: a.pincode || '',
+          isDefault: a.isDefault,
+        })));
+      } else {
+        setAddresses(prev => prev.filter(a => a.id !== id));
+      }
+    } else {
+      setAddresses(prev => prev.filter(a => a.id !== id));
+    }
   };
 
   const handleSubmitRating = ({ bookingId, rating, review }) => {

@@ -1,8 +1,11 @@
 const User = require('../models/user.model');
-const VendorProfile = require('../models/vendorProfile.model');
 const bcrypt = require("bcrypt");
-const crypto = require("crypto");
 const jwt = require('jsonwebtoken');
+const {
+  checkVendorExistsByEmail,
+  checkVendorExistsByEmailOrPhone,
+  createOrUpdateVendorAccount,
+} = require('../utils/vendor.utils');
 
 // VENDOR login
 exports.vendorLogin = async (req, res) => {
@@ -19,7 +22,11 @@ exports.vendorLogin = async (req, res) => {
 
     const vendor = await User.findOne({
       role: 'vendor',
-      $or: [{ vendorId: loginValue }, { email: loginValue.toLowerCase() }],
+      $or: [
+        { vendorId: loginValue.toUpperCase() },
+        { vendorId: loginValue },
+        { email: loginValue.toLowerCase() },
+      ],
     }).select('+password');
 
     if (!vendor) {
@@ -32,7 +39,14 @@ exports.vendorLogin = async (req, res) => {
     if (vendor.status === 'blocked') {
       return res.status(403).json({
         success: false,
-        message: 'Your vendor account has been blocked',
+        message: 'Your vendor account has been blocked by the administrator.',
+      });
+    }
+
+    if (vendor.status === 'suspended') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your vendor account has been suspended by the administrator.',
       });
     }
 
@@ -109,7 +123,7 @@ exports.vendorLogin = async (req, res) => {
   }
 };
 
-// Create or update vendor by Admin
+// Create vendor by Admin (Checks if vendor with same email already exists)
 exports.createVendorByAdmin = async (req, res) => {
   try {
     const { fullName, email, phoneNumber, specialization, serviceArea, experience } = req.body;
@@ -122,55 +136,32 @@ exports.createVendorByAdmin = async (req, res) => {
     }
 
     const trimmedEmail = email.toLowerCase().trim();
-    let user = await User.findOne({ email: trimmedEmail });
+    const cleanPhone = phoneNumber ? phoneNumber.trim() : '';
 
-    const vendorId = user?.vendorId || `FX-V-${Math.floor(1000 + Math.random() * 9000)}`;
-    const temporaryPassword = `FixIt_${new Date().getFullYear()}_!${crypto
-      .randomBytes(2)
-      .toString('hex')}`;
-    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
-
-    if (user) {
-      user.fullName = fullName.trim();
-      if (phoneNumber) user.phoneNumber = phoneNumber.trim();
-      user.role = 'vendor';
-      user.isApproved = true;
-      user.status = 'active';
-      user.vendorId = vendorId;
-      user.password = hashedPassword;
-      if (!user.authProviders.includes('email')) {
-        user.authProviders.push('email');
-      }
-      await user.save();
-    } else {
-      user = await User.create({
-        fullName: fullName.trim(),
-        email: trimmedEmail,
-        phoneNumber: phoneNumber ? phoneNumber.trim() : '',
-        password: hashedPassword,
-        role: 'vendor',
-        authProviders: ['email'],
-        status: 'active',
-        isApproved: true,
-        vendorId,
+    // Check if vendor already exists for this email OR phone number
+    const existingVendor = await checkVendorExistsByEmailOrPhone(trimmedEmail, cleanPhone);
+    if (existingVendor) {
+      const matchField =
+        existingVendor.email === trimmedEmail ? 'email address' : 'mobile number';
+      const matchedVal =
+        existingVendor.email === trimmedEmail ? trimmedEmail : cleanPhone;
+      return res.status(409).json({
+        success: false,
+        message: `A vendor account is already registered with this ${matchField} "${matchedVal}" (Vendor ID: ${existingVendor.vendorId || 'Assigned'}). A new ID cannot be generated.`,
+        vendorId: existingVendor.vendorId,
       });
     }
 
-    let vendorProfile = await VendorProfile.findOne({ user: user._id });
-    if (!vendorProfile) {
-      vendorProfile = await VendorProfile.create({
-        user: user._id,
-        professionalTitle: specialization || 'Service Technician',
-        serviceType: specialization || 'General',
-        experience: Number(experience) || 0,
-        experienceDescription: 'Vendor created by Admin',
-        serviceAddress: serviceArea || '',
-      });
-    } else {
-      if (specialization) vendorProfile.professionalTitle = specialization;
-      if (serviceArea) vendorProfile.serviceAddress = serviceArea;
-      await vendorProfile.save();
-    }
+    const { user, vendorId, temporaryPassword } = await createOrUpdateVendorAccount({
+      fullName,
+      email: trimmedEmail,
+      phoneNumber,
+      specialization,
+      serviceType: specialization,
+      experience,
+      experienceDescription: 'Vendor created by Admin',
+      serviceAddress: serviceArea,
+    });
 
     return res.status(200).json({
       success: true,
@@ -183,7 +174,7 @@ exports.createVendorByAdmin = async (req, res) => {
         role: user.role,
       },
       credentials: {
-        vendorId: user.vendorId,
+        vendorId,
         temporaryPassword,
       },
     });

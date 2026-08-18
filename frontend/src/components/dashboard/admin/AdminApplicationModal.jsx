@@ -111,20 +111,24 @@ export default function AdminApplicationModal({
                   <div className="space-y-1">
                     <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Primary Specialization</span>
                     <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-50 text-orange-700 font-extrabold rounded-xl border border-orange-200 mt-1">
-                      <Wrench className="w-3.5 h-3.5" /> {selectedApplication.service}
+                      <Wrench className="w-3.5 h-3.5" /> {selectedApplication.service || selectedApplication.serviceType || 'General'}
                     </div>
                   </div>
 
                   <div className="space-y-1">
                     <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Years of Experience</span>
-                    <p className="font-extrabold text-slate-900 text-sm mt-1">{selectedApplication.experience || '5+ Years'}</p>
+                    <p className="font-extrabold text-slate-900 text-sm mt-1">
+                      {selectedApplication.experience !== undefined && selectedApplication.experience !== null
+                        ? `${selectedApplication.experience} Year${Number(selectedApplication.experience) === 1 ? '' : 's'}`
+                        : '5+ Years'}
+                    </p>
                   </div>
                 </div>
 
                 <div className="pt-2">
                   <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Vendor Bio & Background</span>
                   <div className="mt-1.5 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 leading-relaxed">
-                    "{selectedApplication.notes || 'Experienced technician applying for Magic Mistry dispatch service.'}"
+                    "{selectedApplication.experienceDescription || selectedApplication.notes || 'Experienced technician applying for Magic Mistry dispatch service.'}"
                   </div>
                 </div>
               </div>
@@ -137,25 +141,46 @@ export default function AdminApplicationModal({
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-3">
-                  {(selectedApplication.docs || ['Govt Photo ID', 'Trade License Cert', 'Background Verification']).map((doc, idx) => (
-                    <div key={idx} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <FileCheck className="w-4 h-4 text-emerald-600" />
-                        <span className="text-xs font-extrabold text-slate-800">{doc}</span>
+                  {((selectedApplication.documents && selectedApplication.documents.length > 0)
+                    ? selectedApplication.documents
+                    : (selectedApplication.docs || ['Govt Photo ID', 'Trade License Cert', 'Background Verification'])
+                  ).map((doc, idx) => {
+                    const docName = typeof doc === 'object' ? (doc.fileName || doc.type || `Document ${idx + 1}`) : doc;
+                    const docUrl = typeof doc === 'object' ? doc.url : null;
+                    const isPdf = typeof docName === 'string' && docName.toLowerCase().endsWith('.pdf');
+
+                    return (
+                      <div key={idx} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <FileCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span className="text-xs font-extrabold text-slate-800 truncate" title={docName}>{docName}</span>
+                        </div>
+                        {docUrl ? (
+                          <a
+                            href={docUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] font-extrabold text-[#FF6B00] hover:underline flex items-center gap-1 cursor-pointer shrink-0"
+                            onClick={() => {
+                              showToast?.(`Opening ${docName}...`);
+                            }}
+                          >
+                            View {isPdf ? 'PDF' : 'Doc'} <ExternalLink className="w-3 h-3" />
+                          </a>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              showToast?.(`Document file not available`);
+                            }}
+                            className="text-[11px] font-extrabold text-slate-400 flex items-center gap-1 cursor-not-allowed shrink-0"
+                          >
+                            No File
+                          </button>
+                        )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          showToast(`Opening ${doc}...`);
-                          // In a real app, this would be the actual file URL
-                          window.open('https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank');
-                        }}
-                        className="text-[11px] font-extrabold text-[#FF6B00] hover:underline flex items-center gap-1 cursor-pointer"
-                      >
-                        View <ExternalLink className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center gap-2 text-xs font-bold text-emerald-800">

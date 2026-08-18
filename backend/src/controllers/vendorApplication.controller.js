@@ -1,10 +1,11 @@
+const mongoose = require('mongoose');
 const VendorApplication = require('../models/vendorApplication.model');
-const User = require('../models/user.model');
-const Vendor = require('../models/vendorProfile.model');
-const bcrypt = require('bcrypt');
-const crypto = require('crypto');
-
 const uploadImageToImageKit = require('../config/imagekit');
+const {
+  checkVendorExistsByEmail,
+  checkVendorExistsByEmailOrPhone,
+  createOrUpdateVendorAccount,
+} = require('../utils/vendor.utils');
 
 const createVendorApplication = async (req, res) => {
   try {
@@ -26,7 +27,9 @@ const createVendorApplication = async (req, res) => {
       !city ||
       !specialOption ||
       !serviceType ||
-      !experience ||
+      experience === undefined ||
+      experience === null ||
+      experience === '' ||
       !experienceDescription
     ) {
       return res.status(400).json({
@@ -35,16 +38,40 @@ const createVendorApplication = async (req, res) => {
       });
     }
 
-    // 2. Checking  application already existing or not
+    const trimmedEmail = email.toLowerCase().trim();
+    const cleanPhone = phoneNumber.trim();
+
+    // 1. Check if an active vendor already exists with this email OR phone
+    const existingVendor = await checkVendorExistsByEmailOrPhone(trimmedEmail, cleanPhone);
+    if (existingVendor) {
+      const matchField =
+        existingVendor.email === trimmedEmail ? 'email' : 'mobile number';
+      const matchedVal =
+        existingVendor.email === trimmedEmail ? trimmedEmail : cleanPhone;
+      return res.status(409).json({
+        success: false,
+        message: `A vendor account is already registered with this ${matchField} "${matchedVal}" (Vendor ID: ${existingVendor.vendorId || 'Assigned'}). Please log in directly.`,
+      });
+    }
+
+    // 2. Check if a pending or approved application already exists with this email or phone
     const existingApplication = await VendorApplication.findOne({
-      email: email.toLowerCase().trim(),
-      status: 'Pending',
+      $or: [
+        { email: trimmedEmail },
+        { phoneNumber: cleanPhone },
+      ],
+      status: { $in: ['Pending', 'Approved'] },
     });
 
     if (existingApplication) {
+      const isEmailMatch = existingApplication.email === trimmedEmail;
+      const statusMsg =
+        existingApplication.status === 'Pending'
+          ? `A pending vendor application already exists for this ${isEmailMatch ? 'email' : 'mobile number'} (Application ID: ${existingApplication.applicationId}).`
+          : `A vendor application for this ${isEmailMatch ? 'email' : 'mobile number'} has already been approved.`;
       return res.status(409).json({
         success: false,
-        message: 'You already have a pending vendor application.',
+        message: statusMsg,
       });
     }
 
@@ -132,7 +159,10 @@ const getVendorApplicationById = async (req, res) => {
     const { applicationId } = req.params;
 
     const application = await VendorApplication.findOne({
-      applicationId,
+      $or: [
+        { applicationId: applicationId },
+        ...(mongoose.isValidObjectId(applicationId) ? [{ _id: applicationId }] : []),
+      ],
     });
 
     if (!application) {
@@ -177,6 +207,13 @@ const approveVendorApplication = async (req, res) => {
       });
     }
 
+    if (application.status === 'Approved') {
+      return res.status(400).json({
+        success: false,
+        message: `This application (ID: ${application.applicationId}) has already been approved.`,
+      });
+    }
+
     if (application.status === 'Rejected') {
       return res.status(400).json({
         success: false,
@@ -184,91 +221,24 @@ const approveVendorApplication = async (req, res) => {
       });
     }
 
-    const trimmedEmail = application.email.toLowerCase().trim();
-
-    // 2. Find if user exists
-    let user = await User.findOne({
-      email: trimmedEmail,
+    // 2. Create/Update User & VendorProfile using shared utility
+    const { user, vendorProfile, vendorId, temporaryPassword } = await createOrUpdateVendorAccount({
+      fullName: application.fullName,
+      email: application.email,
+      phoneNumber: application.phoneNumber,
+      specialization: application.specialOption,
+      serviceType: application.serviceType,
+      experience: application.experience,
+      experienceDescription: application.experienceDescription,
+      serviceAddress: application.city,
     });
 
-    // 3. Generate credentials
-    const vendorId = user?.vendorId || `FX-V-${Math.floor(1000 + Math.random() * 9000)}`;
-    const temporaryPassword = `FixIt_${new Date().getFullYear()}_!${crypto
-      .randomBytes(2)
-      .toString('hex')}`;
-    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
-
-    if (user) {
-      // Update existing user to vendor role
-      user.fullName = application.fullName || user.fullName;
-      user.phoneNumber = application.phoneNumber || user.phoneNumber;
-      user.role = 'vendor';
-      user.isApproved = true;
-      user.status = 'active';
-      user.vendorId = vendorId;
-      user.password = hashedPassword;
-      if (!user.authProviders.includes('email')) {
-        user.authProviders.push('email');
-      }
-      await user.save();
-    } else {
-      // Create new vendor user
-      user = await User.create({
-        fullName: application.fullName.trim(),
-        email: trimmedEmail,
-        phoneNumber: application.phoneNumber ? application.phoneNumber.trim() : '',
-        password: hashedPassword,
-        role: 'vendor',
-        authProviders: ['email'],
-        status: 'active',
-        isApproved: true,
-        vendorId,
-      });
-    }
-
-    // 4. Create or update VendorProfile
-    let vendor = await Vendor.findOne({ user: user._id });
-
-    if (!vendor) {
-      vendor = await Vendor.create({
-        user: user._id,
-        professionalTitle: application.specialOption || 'Service Technician',
-        serviceType: application.serviceType || 'General',
-        experience: Number(application.experience) || 0,
-        experienceDescription: application.experienceDescription || 'Application Approved',
-        serviceAddress: application.city || '',
-        profilePhoto: null,
-        appliancesServed: [],
-        serviceRadius: 0,
-        rating: 0,
-        jobsCompleted: 0,
-        vendorUpiId: null,
-        bankDetails: {
-          bankName: null,
-          accountNumber: null,
-          ifsc: null,
-        },
-        certification: {
-          name: null,
-          certificationId: null,
-          verified: false,
-        },
-      });
-    } else {
-      vendor.professionalTitle = application.specialOption || vendor.professionalTitle;
-      vendor.serviceType = application.serviceType || vendor.serviceType;
-      vendor.experience = Number(application.experience) || vendor.experience;
-      vendor.experienceDescription = application.experienceDescription || vendor.experienceDescription;
-      vendor.serviceAddress = application.city || vendor.serviceAddress;
-      await vendor.save();
-    }
-
-    // 5. Update application
+    // 3. Update application
     application.status = 'Approved';
-    application.vendor = vendor._id;
+    application.vendor = vendorProfile._id;
     await application.save();
 
-    // 6. Send response with valid vendor credentials
+    // 4. Send response with valid vendor credentials
     return res.status(200).json({
       success: true,
       message: 'Vendor application approved and credentials generated successfully.',
@@ -304,7 +274,10 @@ const rejectVendorApplication = async (req, res) => {
 
     // Find the application
     const application = await VendorApplication.findOne({
-      applicationId,
+      $or: [
+        { applicationId: applicationId },
+        ...(mongoose.isValidObjectId(applicationId) ? [{ _id: applicationId }] : []),
+      ],
     });
 
     // Application not found
