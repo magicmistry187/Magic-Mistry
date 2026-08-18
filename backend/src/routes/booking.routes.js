@@ -17,13 +17,13 @@ router.post('/', auth, isCustomer, upload.single('image'), createBooking);
 
 router.get('/my-bookings', auth, isCustomer, getMyBookings);
 
-router.get('/:bookingId', auth, isCustomer, getBookingDetails);
-
-router.patch('/:bookingId/cancel', auth, isCustomer, cancelBooking);
-
 router.get('/admin/bookings', auth, isAdmin, getBookingsToAdmin);
 
 router.get('/vendor/bookings', auth, isVendor, getBookingsToVendor);
+
+router.patch('/:bookingId/cancel', auth, isCustomer, cancelBooking);
+
+router.get('/:bookingId', auth, getBookingDetails);
 
 module.exports = router;
 

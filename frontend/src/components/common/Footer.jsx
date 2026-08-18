@@ -165,11 +165,12 @@ const Footer = () => {
                 { name: "Contact Us", path: "/contact" },
                 { name: "FAQ / Help Center", path: "/faq" },
                 { name: "Become a Vendor", path: "/become-a-vendor" },
-                { name: "Vendor Dashboard", path: "/vendor-dashboard", isBadge: true, badgeText: "Demo" },
+                { name: "Vendor Login", path: "/login", state: { isVendorLogin: true } },
               ].map((link) => (
                 <li key={link.name}>
                   <Link
                     to={link.path}
+                    state={link.state}
                     className={`text-[13px] inline-flex items-center gap-1.5 transition-all duration-200 hover:translate-x-1 ${
                       link.isBadge 
                         ? 'text-orange-400 font-bold hover:text-orange-300' 

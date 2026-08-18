@@ -50,7 +50,7 @@ const isWestBengalAddress = (addr) => {
 
 export default function BookingSummary() {
   const { bookingState } = useBooking();
-  const { isLoggedIn, token } = useAuth();
+  const { user, isLoggedIn, token } = useAuth();
   const navigate = useNavigate();
   const [errors, setErrors] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -75,9 +75,12 @@ export default function BookingSummary() {
       errs.push('Please choose a time slot.');
     if (!bookingState.address.trim())
       errs.push('Please enter your service address.');
+    /*
+    // Commented out: West Bengal boundary restriction
     else if (!isWestBengalAddress(bookingState.address)) {
       errs.push('We only serve West Bengal. Please enter a valid West Bengal address.');
     }
+    */
 
     if (errs.length) {
       setErrors(errs);
@@ -101,6 +104,21 @@ export default function BookingSummary() {
       formData.append('address', bookingState.address);
       formData.append('serviceDate', bookingState.date);
       formData.append('timeSlot', bookingState.timeSlot);
+
+      const savedLat = localStorage.getItem('mm_lat');
+      const savedLng = localStorage.getItem('mm_lng');
+      const lat = bookingState.latitude ?? user?.latitude ?? savedLat ?? null;
+      const lng = bookingState.longitude ?? user?.longitude ?? savedLng ?? null;
+
+      // Send latitude and longitude (including null if not present)
+      formData.append('latitude', lat !== null && lat !== undefined ? lat : null);
+      formData.append('longitude', lng !== null && lng !== undefined ? lng : null);
+
+      if (lat && lng) {
+        console.log(`[Magic Mistry Booking] 📍 Sending booking request with coordinates - Latitude: ${lat}, Longitude: ${lng}`);
+      } else {
+        console.log(`[Magic Mistry Booking] 📍 Sending booking request with null coordinates - Latitude: ${lat}, Longitude: ${lng}`);
+      }
 
       if (bookingState.imageFile) {
         formData.append('image', bookingState.imageFile);

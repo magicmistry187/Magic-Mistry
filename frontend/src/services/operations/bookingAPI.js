@@ -114,3 +114,53 @@ export async function cancelBookingApi(bookingId, token) {
     };
   }
 }
+
+// Get Admin Bookings
+export async function getAdminBookingsApi(token) {
+  try {
+    const res = await apiConnector('GET', `${BASE_URL}/booking/admin/bookings`, null, {
+      Authorization: `Bearer ${token}`,
+    });
+
+    if (!res.data?.success) {
+      throw new Error(res.data?.message || 'Failed to fetch admin bookings');
+    }
+
+    return {
+      success: true,
+      bookings: res.data.bookings,
+      count: res.data.count,
+    };
+  } catch (error) {
+    console.error('Error fetching admin bookings:', error);
+    return {
+      success: false,
+      message: error.response?.data?.message || error.message || 'Failed to fetch admin bookings',
+    };
+  }
+}
+
+// Get Vendor Bookings
+export async function getVendorBookingsApi(token) {
+  try {
+    const res = await apiConnector('GET', `${BASE_URL}/booking/vendor/bookings`, null, {
+      Authorization: `Bearer ${token}`,
+    });
+
+    if (!res.data?.success) {
+      throw new Error(res.data?.message || 'Failed to fetch vendor bookings');
+    }
+
+    return {
+      success: true,
+      bookings: res.data.bookings,
+      count: res.data.count,
+    };
+  } catch (error) {
+    console.error('Error fetching vendor bookings:', error);
+    return {
+      success: false,
+      message: error.response?.data?.message || error.message || 'Failed to fetch vendor bookings',
+    };
+  }
+}

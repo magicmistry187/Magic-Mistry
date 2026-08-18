@@ -3,17 +3,19 @@ require('dotenv').config();
 const ImageKit = require('@imagekit/nodejs');
 
 const imagekit = new ImageKit({
-  privateKey: process.env.ImageKit_Pirvate_Key,
+  publicKey: (process.env.ImageKit_Public_Key || '').trim(),
+  privateKey: (process.env.ImageKit_Pirvate_Key || process.env.ImageKit_Private_Key || '').trim(),
+  urlEndpoint: `https://ik.imagekit.io/${(process.env.ImageKit_ID || '').trim()}`,
 });
 
-async function uploadImageToImageKit(buffer,fileName) {
-  // console.log("in the imagekit")
+async function uploadImageToImageKit(buffer, fileName) {
+  const fileToUpload = typeof buffer === 'string' ? buffer : buffer.toString('base64');
+  const safeFileName = fileName || `upload-${Date.now()}`;
   const result = await imagekit.files.upload({
-    file: buffer.toString('base64'),
-    fileName: fileName, 
+    file: fileToUpload,
+    fileName: safeFileName,
   });
 
-  // console.log("image result is", result)
   return result;
 }
 

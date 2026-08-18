@@ -1,9 +1,9 @@
 const nodemailer = require("nodemailer");
 
 const mailSender = async (email, title, body) => {
-  const mailUser = process.env.Mail_User || process.env.MAIL_USER;
-  const mailPass = process.env.Mail_Pass || process.env.MAIL_PASS;
-  const mailHost = process.env.Mail_Host || process.env.MAIL_HOST || "smtp.gmail.com";
+  const mailUser = (process.env.Mail_User || process.env.MAIL_USER || "").trim();
+  const mailPass = (process.env.Mail_Pass || process.env.MAIL_PASS || "").trim();
+  const mailHost = (process.env.Mail_Host || process.env.MAIL_HOST || "smtp.gmail.com").trim();
 
   if (!mailUser || !mailPass) {
     throw new Error("Mail_User or Mail_Pass not configured in .env");

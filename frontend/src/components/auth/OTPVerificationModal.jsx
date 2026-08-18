@@ -104,11 +104,12 @@ export default function OTPVerificationModal({ phoneNumber, email, onClose, form
   };
 
   const handleResendOtp = async () => {
-    if (!formData?.email) return;
+    const targetEmail = formData?.email || email;
+    if (!targetEmail) return;
     setIsResending(true);
     setResendMsg("");
     setApiError("");
-    const res = await sendOtp(formData.email);
+    const res = await sendOtp({ email: targetEmail, purpose: "signup" });
     setIsResending(false);
     if (res.success) {
       setResendMsg("OTP re-sent! Check your Gmail inbox.");

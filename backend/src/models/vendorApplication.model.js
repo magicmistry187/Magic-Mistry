@@ -95,10 +95,9 @@ const vendorApplicationSchema = new mongoose.Schema(
       default: null,
     },
 
-    // Created after approval
     vendor: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Vendor',
+      ref: 'VendorProfile',
       default: null,
     },
   },

@@ -71,10 +71,21 @@ export function AuthProvider({ children }) {
       (location !== 'Set Your Location' ? location : '') ||
       'Set Your Location'; // ← no hardcoded city fallback
 
+    const savedLat = localStorage.getItem('mm_lat');
+    const savedLng = localStorage.getItem('mm_lng');
+
     const updatedUser = {
       ...userData,
       location: userLoc,
     };
+
+    if (userData.latitude || savedLat) {
+      updatedUser.latitude = userData.latitude || savedLat;
+    }
+    if (userData.longitude || savedLng) {
+      updatedUser.longitude = userData.longitude || savedLng;
+    }
+
     setUser(updatedUser);
     setToken(authToken);
     setIsLoggedIn(true);
@@ -82,6 +93,10 @@ export function AuthProvider({ children }) {
     localStorage.setItem('mm_token', authToken);
     localStorage.setItem('mm_user', JSON.stringify(updatedUser));
     localStorage.setItem('mm_location', userLoc);
+    if (updatedUser.latitude && updatedUser.longitude) {
+      localStorage.setItem('mm_lat', updatedUser.latitude);
+      localStorage.setItem('mm_lng', updatedUser.longitude);
+    }
   };
 
   const logout = () => {
@@ -123,8 +138,17 @@ export function AuthProvider({ children }) {
     setLocation(newLocation);
     localStorage.setItem('mm_location', newLocation);
 
+    if (geoCoords?.lat && geoCoords?.lng) {
+      localStorage.setItem('mm_lat', geoCoords.lat);
+      localStorage.setItem('mm_lng', geoCoords.lng);
+    }
+
     if (user) {
       const updatedUser = { ...user, location: newLocation };
+      if (geoCoords?.lat && geoCoords?.lng) {
+        updatedUser.latitude = geoCoords.lat;
+        updatedUser.longitude = geoCoords.lng;
+      }
       setUser(updatedUser);
       localStorage.setItem('mm_user', JSON.stringify(updatedUser));
     }

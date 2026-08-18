@@ -3,7 +3,7 @@ const router = express.Router();
 
 
 
-// const { auth, isCustomer, isVendor, isAdmin, authorizeRoles } = require("../middleware/auth");
+const { auth } = require("../middleware/auth");
 const {
   signup,
   sendOtp,
@@ -17,10 +17,10 @@ const {
 
 /////////// api routes
 router.post('/signup', signup);
-router.post('/sendOtp',sendOtp)
-router.post('/login',login)
-router.post('/googleLogin',googleLogin)
-router.post('/changePassword', changePassword);
+router.post('/sendOtp', sendOtp);
+router.post('/login', login);
+router.post('/googleLogin', googleLogin);
+router.post('/changePassword', auth, changePassword);
 router.post('/forgotPassword/verifyOtp', verifyOtpForForgotPassword);
-router.post('/forgotPassword', forgotPassword );
+router.post('/forgotPassword', forgotPassword);
 module.exports = router;

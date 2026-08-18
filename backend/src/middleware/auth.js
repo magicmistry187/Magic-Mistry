@@ -8,9 +8,9 @@ exports.auth = async (req, res, next) => {
   // console.log("Cookies:", req.cookies);
   try {
 
-    // const token = req.cookies?.token 
     const token =
       req.cookies?.token ||
+      req.cookies?.vendorToken ||
       req.header("Authorization")?.replace("Bearer ", "");
 
     if (!token) {
@@ -21,8 +21,11 @@ exports.auth = async (req, res, next) => {
     }
 
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      req.user = decoded;
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || "secret");
+      req.user = {
+        ...decoded,
+        id: decoded.id || decoded.userId,
+      };
     } catch (err) {
       console.error("Token verification failed:", err.message);
 
