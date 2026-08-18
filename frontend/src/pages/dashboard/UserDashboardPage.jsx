@@ -12,7 +12,7 @@ import {
   Zap, Shield, User, Edit3, ToggleLeft, ToggleRight,
   Package, ArrowRight, Download, CreditCard, Navigation,
   Plus, Search, Filter, MessageSquare, Check, RefreshCw,
-  Home, Briefcase, Tag, Trash2, HelpCircle
+  Home, Briefcase, Tag, Trash2, HelpCircle, Camera, ShieldCheck, LocateFixed
 } from 'lucide-react';
 
 // ── User Dashboard Components (renamed with User__ prefix for clarity) ───────
@@ -166,6 +166,12 @@ export default function UserDashboardPage() {
   const [pushNotifs, setPushNotifs] = useState(true);
   const [whatsappNotifs, setWhatsappNotifs] = useState(true);
   const [emailNotifs, setEmailNotifs] = useState(false);
+  const [toastMessage, setToastMessage] = useState(null);
+
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
 
   const getInitials = () => {
     const name = user?.fullName || fullName;
@@ -366,13 +372,25 @@ export default function UserDashboardPage() {
                   className="space-y-8"
                 >
                   {/* Top Welcome Title Header */}
-                  <div>
-                    <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-                      Welcome back, {user?.fullName?.split(' ')[0] || 'Rahul'}.
-                    </h1>
-                    <p className="text-slate-500 text-sm mt-1">
-                      Here is a quick overview of your current services and saved appliances.
-                    </p>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+                        Welcome back, {user?.fullName?.split(' ')[0] || 'Rahul'}.
+                      </h1>
+                      <p className="text-slate-500 text-sm mt-1">
+                        Here is a quick overview of your current services and saved appliances.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsLocationSelectorOpen(true)}
+                      className="self-start sm:self-auto flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-orange-600 bg-white hover:bg-orange-50 px-3.5 py-2 rounded-2xl border border-slate-200 shadow-xs transition-colors cursor-pointer"
+                      title="Select or Change Location"
+                    >
+                      <MapPin className="w-4 h-4 text-orange-500" />
+                      <span>{location || 'Kolkata, West Bengal'}</span>
+                      <span className="text-[10px] text-orange-600 font-extrabold bg-orange-100 px-1.5 py-0.5 rounded">Change</span>
+                    </button>
                   </div>
 
                   {/* ─ RECENT / ACTIVE BOOKINGS SECTION ─ */}
@@ -1377,97 +1395,240 @@ export default function UserDashboardPage() {
                     <p className="text-slate-500 text-sm mt-1">Manage profile information, notifications, and security settings.</p>
                   </div>
 
-                  {/* Profile Form Card */}
-                  <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-sm space-y-6">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                      <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
-                        <User className="w-5 h-5 text-blue-600" /> Profile Information
-                      </h3>
-                      <button
-                        onClick={() => setIsEditingProfile(!isEditingProfile)}
-                        className="text-xs font-bold text-orange-600 hover:underline flex items-center gap-1"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" /> {isEditingProfile ? 'Cancel' : 'Edit Profile'}
-                      </button>
+                  {/* User Hero Card (Matching Vendor Hero Card) */}
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    {/* Cover Banner */}
+                    <div className="h-20 sm:h-28 bg-gradient-to-r from-[#061e38] via-[#0a2f57] to-[#061e38] relative">
+                      <div className="absolute bottom-0 right-0 opacity-10">
+                        <User className="w-32 h-32 text-white rotate-12 translate-x-4 translate-y-4" />
+                      </div>
                     </div>
 
-                    <div className="grid sm:grid-cols-2 gap-6 text-sm">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Full Name</label>
-                        {isEditingProfile ? (
+                    <div className="px-4 sm:px-6 pb-5">
+                      {/* Avatar + Edit Button Row */}
+                      <div className="flex items-end justify-between -mt-8 mb-4 relative z-10">
+                        <div className="flex items-end gap-3">
+                          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black text-xl sm:text-2xl flex items-center justify-center ring-4 ring-white shadow-lg">
+                            {getInitials()}
+                          </div>
+                        </div>
+
+                        {!isEditingProfile ? (
+                          <button
+                            onClick={() => setIsEditingProfile(true)}
+                            className="px-3 sm:px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 border border-slate-200 cursor-pointer"
+                          >
+                            <span>✎</span> Edit Profile
+                          </button>
+                        ) : (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setIsEditingProfile(false)}
+                              className="px-3 py-1.5 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl transition-colors border border-slate-200 cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => {
+                                setIsEditingProfile(false);
+                                showToast('Profile updated successfully!');
+                              }}
+                              className="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+                            >
+                              <Check className="w-3.5 h-3.5" /> Save
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Name & Title & Location Tag */}
+                      <div className="mb-4">
+                        <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">{fullName || 'Magic Mistry Customer'}</h2>
+                        <p className="text-sm text-slate-500 font-medium">{email || 'customer@magicmistry.com'}</p>
+                        
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                          <button
+                            type="button"
+                            onClick={() => setIsLocationSelectorOpen(true)}
+                            className="flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-orange-600 bg-slate-100 hover:bg-orange-50 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+                            title="Click to change location with popup"
+                          >
+                            <MapPin className="w-3.5 h-3.5 text-orange-500" />
+                            <span>{location || 'Kolkata, West Bengal'}</span>
+                            <span className="text-[10px] text-orange-600 font-extrabold bg-orange-100 px-1.5 py-0.5 rounded ml-0.5">Change</span>
+                          </button>
+                          <span className="text-slate-300">•</span>
+                          <span className="text-xs font-bold text-slate-600">Customer ID: USR-{String(user?._id || '101').slice(-4).toUpperCase()}</span>
+                        </div>
+                      </div>
+
+                      {/* Stats Row (Matching Vendor Profile) */}
+                      <div className="grid grid-cols-3 gap-1.5 sm:gap-4">
+                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-2 sm:p-3 text-center">
+                          <p className="text-sm sm:text-xl font-extrabold text-slate-900">{bookingsList.length}</p>
+                          <p className="text-[9px] sm:text-xs text-slate-500 font-semibold mt-0.5">Total Bookings</p>
+                        </div>
+                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-2 sm:p-3 text-center">
+                          <p className="text-sm sm:text-xl font-extrabold text-slate-900">
+                            {bookingsList.filter(b => b.status === 'In Progress' || b.status === 'Confirmed' || b.status === 'Pending').length}
+                          </p>
+                          <p className="text-[9px] sm:text-xs text-slate-500 font-semibold mt-0.5">Active Repairs</p>
+                        </div>
+                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-2 sm:p-3 text-center">
+                          <p className="text-sm sm:text-xl font-extrabold text-slate-900">{addresses.length}</p>
+                          <p className="text-[9px] sm:text-xs text-slate-500 font-semibold mt-0.5">Saved Addresses</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Profile Details & Location Card (Exact match to Vendor Credentials & Banking Card) */}
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6 space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                        <User className="w-4 h-4 text-slate-600" />
+                        Account &amp; Location Details
+                      </h3>
+                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center gap-1">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Verified Customer
+                      </span>
+                    </div>
+
+                    {!isEditingProfile ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-4">
+                        {[
+                          { label: 'Full Name', value: fullName || 'User' },
+                          { label: 'Phone Number', value: phone || 'Not provided' },
+                          { label: 'Email Address', value: email || 'user@example.com' },
+                          { label: 'Account Role', value: 'Customer (Verified)' },
+                        ].map(({ label, value }) => (
+                          <div key={label} className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 sm:p-3">
+                            <p className="text-[9px] sm:text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-0.5 sm:mb-1">{label}</p>
+                            <p className="text-xs sm:text-sm font-semibold text-slate-800 break-words">{value}</p>
+                          </div>
+                        ))}
+
+                        {/* Location Card with direct Popup trigger in View Mode */}
+                        <div className="sm:col-span-2 bg-slate-50 border border-slate-100 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="space-y-0.5">
+                            <p className="text-[9px] sm:text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                              Service / Primary Location
+                            </p>
+                            <p className="text-xs sm:text-sm font-semibold text-slate-800 flex items-center gap-1.5 break-words">
+                              <MapPin className="w-4 h-4 text-orange-500 shrink-0" />
+                              {location || 'Kolkata, West Bengal'}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsLocationSelectorOpen(true)}
+                            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+                          >
+                            <MapPin className="w-3.5 h-3.5 text-orange-400" />
+                            <span>Select Location Popup</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <div>
+                          <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-1.5">
+                            Full Name <span className="text-red-500">*</span>
+                          </label>
                           <input
                             type="text"
                             value={fullName}
                             onChange={(e) => setFullName(e.target.value)}
-                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
                           />
-                        ) : (
-                          <p className="font-bold text-slate-900 text-base">{fullName}</p>
-                        )}
-                      </div>
+                        </div>
 
-                      <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Email Address</label>
-                        {isEditingProfile ? (
+                        <div>
+                          <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-1.5">
+                            Email Address <span className="text-red-500">*</span>
+                          </label>
                           <input
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
                           />
-                        ) : (
-                          <p className="font-bold text-slate-900 text-base">{email}</p>
-                        )}
-                      </div>
+                        </div>
 
-                      <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Phone Number</label>
-                        {isEditingProfile ? (
+                        <div>
+                          <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-1.5">
+                            Phone Number <span className="text-red-500">*</span>
+                          </label>
                           <input
-                            type="text"
+                            type="tel"
                             value={phone}
                             onChange={(e) => setPhone(e.target.value)}
-                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
                           />
-                        ) : (
-                          <p className="font-bold text-slate-900 text-base">{phone}</p>
-                        )}
-                      </div>
+                        </div>
 
-                      <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Saved Primary Location</label>
-                        {isEditingProfile ? (
+                        <div>
+                          <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-1.5">
+                            Account Role
+                          </label>
                           <input
                             type="text"
-                            value={location}
-                            onChange={(e) => updateLocation(e.target.value)}
-                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            disabled
+                            value="Customer (Verified)"
+                            className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-bold text-slate-500 cursor-not-allowed"
                           />
-                        ) : (
-                          <p className="font-bold text-slate-900 text-base flex items-center gap-1.5">
-                            <MapPin className="w-4 h-4 text-orange-500 shrink-0" />
-                            {location || 'Bangalore, IN'}
+                        </div>
+
+                        {/* ── EXACT LOCATION INPUT FIELD WITH POPUP TRIGGER ── */}
+                        <div className="sm:col-span-2">
+                          <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-1.5">
+                            Service / Primary Location <span className="text-red-500">*</span>
+                          </label>
+                          <div className="relative flex items-center">
+                            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-orange-500 pointer-events-none">
+                              <MapPin className="w-4 h-4" />
+                            </div>
+                            <input
+                              type="text"
+                              value={location}
+                              onChange={(e) => updateLocation(e.target.value)}
+                              placeholder="e.g. Salt Lake, Kolkata, West Bengal"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-36 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setIsLocationSelectorOpen(true)}
+                              className="absolute right-1.5 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-lg transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                            >
+                              <MapPin className="w-3.5 h-3.5 text-orange-400" />
+                              <span>Select Location</span>
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-slate-400 font-medium mt-1.5 flex items-center gap-1">
+                            <LocateFixed className="w-3 h-3 text-orange-500 inline" />
+                            Type address or click <strong>"Select Location"</strong> to auto-detect GPS coordinates or select popular cities.
                           </p>
-                        )}
-                      </div>
+                        </div>
 
-                      <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Account Role</label>
-                        <p className="font-bold text-slate-900 text-base uppercase">Customer</p>
-                      </div>
-                    </div>
-
-                    {isEditingProfile && (
-                      <div className="pt-2">
-                        <button
-                          onClick={() => {
-                            setIsEditingProfile(false);
-                            alert('Profile updated successfully!');
-                          }}
-                          className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs rounded-2xl shadow-lg shadow-orange-200 transition-colors"
-                        >
-                          Save Changes
-                        </button>
+                        <div className="sm:col-span-2 flex justify-end gap-2 pt-2 border-t border-slate-100">
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingProfile(false)}
+                            className="px-4 py-2 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl transition-colors border border-slate-200 cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsEditingProfile(false);
+                              showToast('Profile updated successfully!');
+                            }}
+                            className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs rounded-xl transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Check className="w-3.5 h-3.5" /> Save Changes
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1539,6 +1700,22 @@ export default function UserDashboardPage() {
         onSubmitRating={handleSubmitRating}
       />
 
+      {/* ── FLOATING TOAST NOTIFICATION ── */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 30 }}
+            className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-slate-700 text-xs font-bold"
+          >
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{toastMessage}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Location Selector Popup Modal */}
       <LocationSelectorModal
         isOpen={isLocationSelectorOpen}
         onClose={() => setIsLocationSelectorOpen(false)}

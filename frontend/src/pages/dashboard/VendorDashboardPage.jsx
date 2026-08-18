@@ -15,9 +15,10 @@ import {
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
 import VendorPayoutModal from '../../components/dashboard/vendor/VendorPayoutModal';
+import VendorTaxInvoiceModal from '../../components/dashboard/vendor/VendorTaxInvoiceModal';
+import VendorAddressModal from '../../components/dashboard/vendor/VendorAddressModal';
 import { useAuth } from '../../context/AuthContext';
 import { getVendorBookingsApi } from '../../services/operations/bookingAPI';
-import VendorTaxInvoiceModal from '../../components/dashboard/vendor/VendorTaxInvoiceModal';
 
 // Predefined Indian Banks for Profile
 const INDIAN_BANKS = [
@@ -313,6 +314,13 @@ export default function VendorDashboardPage() {
   });
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editProfileForm, setEditProfileForm] = useState(vendorProfile);
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+
+  const handleSaveVendorAddress = (newAddress) => {
+    setVendorProfile((prev) => ({ ...prev, address: newAddress }));
+    setEditProfileForm((prev) => ({ ...prev, address: newAddress }));
+    showToast('Service address updated successfully!', 'success');
+  };
 
   // Timer Effect - interval created once when running, not recreated every second
   useEffect(() => {
@@ -2010,10 +2018,16 @@ export default function VendorDashboardPage() {
                   <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">{vendorProfile.name}</h2>
                   <p className="text-sm text-slate-500 font-medium">{vendorProfile.title}</p>
                   <div className="flex flex-wrap items-center gap-2 mt-2">
-                    <span className="flex items-center gap-1 text-xs font-bold text-slate-600">
+                    <button
+                      type="button"
+                      onClick={() => setIsAddressModalOpen(true)}
+                      className="flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-orange-600 bg-slate-100 hover:bg-orange-50 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+                      title="Click to update address via popup"
+                    >
                       <MapPin className="w-3.5 h-3.5 text-orange-500" />
-                      {vendorProfile.address}
-                    </span>
+                      <span>{vendorProfile.address}</span>
+                      <span className="text-[10px] text-orange-600 font-extrabold bg-orange-100 px-1.5 py-0.5 rounded ml-0.5">Change</span>
+                    </button>
                     <span className="text-slate-300">•</span>
                     <span className="text-xs font-bold text-slate-600">ID: {vendorProfile.vendorId}</span>
                   </div>
@@ -2107,13 +2121,33 @@ export default function VendorDashboardPage() {
                     { label: 'Bank Name', value: vendorProfile.bankName },
                     { label: 'Bank Account Number', value: vendorProfile.bankAccount },
                     { label: 'Bank IFSC', value: vendorProfile.ifsc },
-                    { label: 'Service Address', value: vendorProfile.address },
                   ].map(({ label, value }) => (
                     <div key={label} className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 sm:p-3">
                       <p className="text-[9px] sm:text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-0.5 sm:mb-1">{label}</p>
                       <p className="text-xs sm:text-sm font-semibold text-slate-800 break-words">{value}</p>
                     </div>
                   ))}
+
+                  {/* Service Address Card with direct Popup trigger in View Mode */}
+                  <div className="sm:col-span-2 bg-slate-50 border border-slate-100 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[9px] sm:text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-0.5 sm:mb-1">
+                        Service Address
+                      </p>
+                      <p className="text-xs sm:text-sm font-semibold text-slate-800 flex items-center gap-1.5 break-words">
+                        <MapPin className="w-4 h-4 text-orange-500 shrink-0" />
+                        {vendorProfile.address}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddressModalOpen(true)}
+                      className="px-3.5 py-2 bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+                    >
+                      <MapPin className="w-3.5 h-3.5" />
+                      <span>Update Address</span>
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -2124,7 +2158,6 @@ export default function VendorDashboardPage() {
                     { label: 'Bank Name', field: 'bankName', type: 'text' },
                     { label: 'Bank Account Number', field: 'bankAccount', type: 'text' },
                     { label: 'Bank IFSC', field: 'ifsc', type: 'text' },
-                    { label: 'Service Address', field: 'address', type: 'text' },
                   ].map(({ label, field, type }) => (
                     <div key={field}>
                       <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-1.5">
@@ -2151,14 +2184,45 @@ export default function VendorDashboardPage() {
                       )}
                     </div>
                   ))}
+
+                  {/* ── EXACT SERVICE ADDRESS INPUT FIELD WITH POPUP TRIGGER ── */}
+                  <div className="sm:col-span-2">
+                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-1.5">
+                      Service Address <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative flex items-center">
+                      <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-orange-500 pointer-events-none">
+                        <MapPin className="w-4 h-4" />
+                      </div>
+                      <input
+                        type="text"
+                        value={editProfileForm.address}
+                        onChange={e => setEditProfileForm({ ...editProfileForm, address: e.target.value })}
+                        placeholder="e.g. Flat 402, Green Valley Apartments, 10th Main Road, Indiranagar, 560038"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-36 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setIsAddressModalOpen(true)}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-lg transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                      >
+                        <MapPin className="w-3.5 h-3.5 text-orange-400" />
+                        <span>Address Popup</span>
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-slate-400 font-medium mt-1.5">
+                      Click <strong>"Address Popup"</strong> to enter Flat/Building, Street, Landmark, and Pincode via popup modal.
+                    </p>
+                  </div>
+
                   <div className="sm:col-span-2 flex justify-end gap-2 pt-2 border-t border-slate-100">
                     <button
                       onClick={() => setIsEditingProfile(false)}
-                      className="px-4 py-2 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl transition-colors border border-slate-200"
+                      className="px-4 py-2 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl transition-colors border border-slate-200 cursor-pointer"
                     >Cancel</button>
                     <button
                       onClick={() => { setVendorProfile(editProfileForm); setIsEditingProfile(false); showToast('Profile updated successfully!', 'success'); }}
-                      className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs rounded-xl transition-colors shadow-sm flex items-center gap-1.5"
+                      className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs rounded-xl transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
                     >
                       <Check className="w-3.5 h-3.5" /> Save Changes
                     </button>
@@ -2189,6 +2253,14 @@ export default function VendorDashboardPage() {
           generatedInvoiceData={generatedInvoiceData}
           handleSameTabPrintOrSavePDF={handleSameTabPrintOrSavePDF}
           handleCloseInvoiceModal={handleCloseInvoiceModal}
+        />
+
+        {/* ── VENDOR SERVICE ADDRESS MODAL (Exact match to screenshot) ── */}
+        <VendorAddressModal
+          isOpen={isAddressModalOpen}
+          onClose={() => setIsAddressModalOpen(false)}
+          onSave={handleSaveVendorAddress}
+          initialAddress={editProfileForm.address || vendorProfile.address}
         />
 
         {/* ── FLOATING TOAST NOTIFICATION ── */}
