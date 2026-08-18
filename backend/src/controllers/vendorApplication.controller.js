@@ -86,7 +86,7 @@ const createVendorApplication = async (req, res) => {
       specialOption: specialOption.trim(),
 
       serviceType: serviceType.trim(),
-      experience: experience.trim(),
+      experience: Number(experience),
       experienceDescription: experienceDescription.trim(),
 
       documents,
@@ -164,7 +164,10 @@ const approveVendorApplication = async (req, res) => {
 
     // 1. Find the application
     const application = await VendorApplication.findOne({
-      applicationId,
+      $or: [
+        { applicationId: applicationId },
+        ...(mongoose.isValidObjectId(applicationId) ? [{ _id: applicationId }] : []),
+      ],
     });
 
     if (!application) {
@@ -174,116 +177,112 @@ const approveVendorApplication = async (req, res) => {
       });
     }
 
-    // 2. Application must be pending
-    if (application.status !== 'Pending') {
+    if (application.status === 'Rejected') {
       return res.status(400).json({
         success: false,
-        message: `Application is already ${application.status}.`,
+        message: 'This application was rejected and cannot be approved.',
       });
     }
 
-    // 3. Check if user with this email already exists
-    const existingUser = await User.findOne({
-      email: application.email,
+    const trimmedEmail = application.email.toLowerCase().trim();
+
+    // 2. Find if user exists
+    let user = await User.findOne({
+      email: trimmedEmail,
     });
 
-    if (existingUser) {
-      return res.status(409).json({
-        success: false,
-        message: 'A user with this email already exists.',
-      });
-    }
-
-    // 4. Generate Vendor ID
-    const vendorId = `FX-V-${Math.floor(1000 + Math.random() * 9000)}`;
-
-    // 5. Generate temporary password
+    // 3. Generate credentials
+    const vendorId = user?.vendorId || `FX-V-${Math.floor(1000 + Math.random() * 9000)}`;
     const temporaryPassword = `FixIt_${new Date().getFullYear()}_!${crypto
       .randomBytes(2)
       .toString('hex')}`;
-
-    // 6. Hash temporary password
     const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
 
-    // 7. Create vendor account
-    const user = await User.create({
-      fullName: application.fullName,
-      email: application.email,
-      phoneNumber: application.phoneNumber,
-      password: hashedPassword,
-      role: 'vendor',
-      authProviders: ['email'],
-      status: 'active',
-      isApproved: true,
-      vendorId,
-    });
+    if (user) {
+      // Update existing user to vendor role
+      user.fullName = application.fullName || user.fullName;
+      user.phoneNumber = application.phoneNumber || user.phoneNumber;
+      user.role = 'vendor';
+      user.isApproved = true;
+      user.status = 'active';
+      user.vendorId = vendorId;
+      user.password = hashedPassword;
+      if (!user.authProviders.includes('email')) {
+        user.authProviders.push('email');
+      }
+      await user.save();
+    } else {
+      // Create new vendor user
+      user = await User.create({
+        fullName: application.fullName.trim(),
+        email: trimmedEmail,
+        phoneNumber: application.phoneNumber ? application.phoneNumber.trim() : '',
+        password: hashedPassword,
+        role: 'vendor',
+        authProviders: ['email'],
+        status: 'active',
+        isApproved: true,
+        vendorId,
+      });
+    }
 
-    const vendor = await Vendor.create({
-      user: user._id,
+    // 4. Create or update VendorProfile
+    let vendor = await Vendor.findOne({ user: user._id });
 
-      // vendorId,
+    if (!vendor) {
+      vendor = await Vendor.create({
+        user: user._id,
+        professionalTitle: application.specialOption || 'Service Technician',
+        serviceType: application.serviceType || 'General',
+        experience: Number(application.experience) || 0,
+        experienceDescription: application.experienceDescription || 'Application Approved',
+        serviceAddress: application.city || '',
+        profilePhoto: null,
+        appliancesServed: [],
+        serviceRadius: 0,
+        rating: 0,
+        jobsCompleted: 0,
+        vendorUpiId: null,
+        bankDetails: {
+          bankName: null,
+          accountNumber: null,
+          ifsc: null,
+        },
+        certification: {
+          name: null,
+          certificationId: null,
+          verified: false,
+        },
+      });
+    } else {
+      vendor.professionalTitle = application.specialOption || vendor.professionalTitle;
+      vendor.serviceType = application.serviceType || vendor.serviceType;
+      vendor.experience = Number(application.experience) || vendor.experience;
+      vendor.experienceDescription = application.experienceDescription || vendor.experienceDescription;
+      vendor.serviceAddress = application.city || vendor.serviceAddress;
+      await vendor.save();
+    }
 
-      professionalTitle: application.specialOption,
-
-      serviceType: application.serviceType,
-
-      experience: Number(application.experience),
-
-      experienceDescription: application.experienceDescription,
-
-      serviceAddress: application.city,
-
-      // status: 'active',
-
-      profilePhoto: null,
-
-      appliancesServed: [],
-
-      serviceRadius: 0,
-
-      rating: 0,
-
-      jobsCompleted: 0,
-
-      vendorUpiId: null,
-
-      bankDetails: {
-        bankName: null,
-        accountNumber: null,
-        ifsc: null,
-      },
-
-      certification: {
-        name: null,
-        certificationId: null,
-        verified: false,
-      },
-    });
-
-    // 8. Update application
+    // 5. Update application
     application.status = 'Approved';
     application.vendor = vendor._id;
-
     await application.save();
 
-    // 9. Send response
+    // 6. Send response with valid vendor credentials
     return res.status(200).json({
       success: true,
-      message: 'Vendor application approved successfully.',
-
+      message: 'Vendor application approved and credentials generated successfully.',
       application: {
         applicationId: application.applicationId,
         status: application.status,
       },
-
       vendor: {
-        id: vendor._id,
-        vendorId: vendor.vendorId,
-        fullName: vendor.fullName,
-        email: vendor.email,
-        role: vendor.role,
+        id: user._id,
+        vendorId: user.vendorId,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
       },
-
       credentials: {
         vendorId,
         temporaryPassword,
@@ -294,7 +293,7 @@ const approveVendorApplication = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to approve vendor application.',
+      message: 'Failed to approve vendor application. Error: ' + (error.message || error),
     });
   }
 };

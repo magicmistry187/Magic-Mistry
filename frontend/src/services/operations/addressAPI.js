@@ -1,11 +1,11 @@
 import { apiConnector, BASE_URL } from '../apiConnector';
 
 export const addressEndpoints = {
-  CREATE_ADDRESS_API:  BASE_URL + '/address',        // POST   /api/address
-  GET_ADDRESSES_API:   BASE_URL + '/address',        // GET    /api/address
-  GET_ADDRESS_API:     BASE_URL + '/address',        // GET    /api/address/:id
-  UPDATE_ADDRESS_API:  BASE_URL + '/address',        // PUT    /api/address/:id
-  DELETE_ADDRESS_API:  BASE_URL + '/address',        // DELETE /api/address/:id
+  CREATE_ADDRESS_API:  BASE_URL + '/address',
+  GET_ADDRESSES_API:   BASE_URL + '/address',
+  GET_ADDRESS_API:     BASE_URL + '/address',
+  UPDATE_ADDRESS_API:  BASE_URL + '/address',
+  DELETE_ADDRESS_API:  BASE_URL + '/address',
 };
 
 const {
@@ -33,7 +33,7 @@ export async function createAddressApi(addressData, token) {
 
     return {
       success: true,
-      address: res.data.address,
+      address: res.data.address || res.data.data,
       message: res.data.message || 'Address saved successfully',
     };
   } catch (error) {
@@ -58,15 +58,18 @@ export async function getAddressesApi(token) {
       throw new Error(res.data?.message || 'Could not fetch addresses');
     }
 
+    const list = res.data.addresses || res.data.data || [];
+
     return {
       success: true,
-      addresses: res.data.addresses,
-      count: res.data.count,
+      addresses: list,
+      count: res.data.count ?? list.length,
     };
   } catch (error) {
     console.error('[addressAPI] GET_ADDRESSES_API error:', error);
     return {
       success: false,
+      addresses: [],
       message: error.response?.data?.message || error.message || 'Failed to fetch addresses',
     };
   }
@@ -90,7 +93,7 @@ export async function getAddressByIdApi(addressId, token) {
 
     return {
       success: true,
-      address: res.data.address,
+      address: res.data.address || res.data.data,
     };
   } catch (error) {
     console.error('[addressAPI] GET_ADDRESS_API error:', error);
@@ -119,7 +122,7 @@ export async function updateAddressApi(addressId, updateData, token) {
 
     return {
       success: true,
-      address: res.data.address,
+      address: res.data.address || res.data.data,
       message: res.data.message || 'Address updated successfully',
     };
   } catch (error) {

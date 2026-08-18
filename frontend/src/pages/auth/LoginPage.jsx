@@ -5,7 +5,7 @@ import { FcGoogle } from 'react-icons/fc';
 import { IoClose } from 'react-icons/io5';
 import { Eye, EyeOff } from 'lucide-react';
 import { useGoogleLogin } from '@react-oauth/google';
-import { loginUser, googleLogin } from '../../services/api';
+import { loginUser, googleLogin, loginVendor } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
 const WelcomeModal = () => {
@@ -18,6 +18,7 @@ const WelcomeModal = () => {
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isVendorLogin, setIsVendorLogin] = useState(location.state?.isVendorLogin || false);
 
   const from = location.state?.from || '/';
   const reason = location.state?.reason || (from === '/booking' ? 'A user cannot make a booking until they log in.' : null);
@@ -25,10 +26,10 @@ const WelcomeModal = () => {
   const validate = () => {
     const newErrors = {};
 
-    // Email Validation
+    // Email/ID Validation
     if (!email) {
-      newErrors.email = 'Email address is required.';
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      newErrors.email = isVendorLogin ? 'Vendor ID or Email is required.' : 'Email address is required.';
+    } else if (!isVendorLogin && !/\S+@\S+\.\S+/.test(email)) {
       newErrors.email = 'Please enter a valid email address.';
     }
 
@@ -53,7 +54,12 @@ const WelcomeModal = () => {
     }
 
     setIsLoading(true);
-    const res = await loginUser(email, password);
+    let res;
+    if (isVendorLogin) {
+      res = await loginVendor(email, password);
+    } else {
+      res = await loginUser(email, password);
+    }
     setIsLoading(false);
 
     if (res.success) {
@@ -63,6 +69,8 @@ const WelcomeModal = () => {
       login(res.user, res.token);
       if (res.user?.role === 'admin') {
         navigate('/admin-dashboard', { replace: true });
+      } else if (res.user?.role === 'vendor' || isVendorLogin) {
+        navigate('/vendor-dashboard', { replace: true });
       } else {
         navigate(from, { replace: true });
       }
@@ -124,55 +132,123 @@ const WelcomeModal = () => {
 
         <div className="p-8 pb-10">
           {/* Header Section */}
-          <div className="text-center mb-6 mt-2">
-            <h1 className="text-[28px] font-bold text-[#0a192f] tracking-tight mb-2">
-              Welcome Back
-            </h1>
-            <p className="text-gray-500 text-[15px] leading-relaxed px-2">
-              Sign in to manage your repairs and service history.
-            </p>
+          <div className="text-center mb-6 mt-2 min-h-[88px]">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={isVendorLogin ? 'vendor' : 'user'}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                transition={{ duration: 0.15 }}
+              >
+                <h1 className="text-[28px] font-bold text-[#0a192f] tracking-tight mb-2">
+                  {isVendorLogin ? 'Vendor Login' : 'Welcome Back'}
+                </h1>
+                <p className="text-gray-500 text-[15px] leading-relaxed px-2">
+                  {isVendorLogin 
+                    ? 'Sign in to access your vendor dashboard.'
+                    : 'Sign in to manage your repairs and service history.'}
+                </p>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          {/* Tabs for User/Vendor Login */}
+          <div className="flex bg-gray-100 rounded-lg p-1 mb-6 relative">
+            <button
+              type="button"
+              onClick={() => setIsVendorLogin(false)}
+              className={`relative flex-1 py-2 text-sm font-semibold rounded-md transition-all z-10 ${
+                !isVendorLogin
+                  ? 'text-[#0a192f]'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              User Login
+              {!isVendorLogin && (
+                <motion.div
+                  layoutId="activeLoginTab"
+                  className="absolute inset-0 bg-white rounded-md shadow-[0_1px_3px_rgb(0,0,0,0.1)] -z-10"
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsVendorLogin(true)}
+              className={`relative flex-1 py-2 text-sm font-semibold rounded-md transition-all z-10 ${
+                isVendorLogin
+                  ? 'text-[#0a192f]'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Vendor Login
+              {isVendorLogin && (
+                <motion.div
+                  layoutId="activeLoginTab"
+                  className="absolute inset-0 bg-white rounded-md shadow-[0_1px_3px_rgb(0,0,0,0.1)] -z-10"
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                />
+              )}
+            </button>
           </div>
 
           {/* Reason Notice Banner */}
-          {reason && (
-            <div className="mb-6 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs font-semibold flex items-center gap-2.5 shadow-sm">
-              <span className="text-base shrink-0">🔒</span>
-              <span>{reason}</span>
-            </div>
-          )}
-
-         
-
-          <motion.button
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-            type="button"
-            onClick={handleGoogleLogin}
-            disabled={isGoogleLoading}
-            className="w-full flex items-center justify-center gap-3 border border-gray-300 rounded-lg py-2.5 text-[15px] font-semibold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-60"
-          >
-            {isGoogleLoading ? (
+          <AnimatePresence>
+            {reason && !isVendorLogin && (
               <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                className="w-5 h-5 border-2 border-gray-300 border-t-gray-700 rounded-full"
-              />
-            ) : (
-              <>
-                <FcGoogle size={20} />
-                Continue with Google
-              </>
+                initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                animate={{ opacity: 1, height: 'auto', marginBottom: 24 }}
+                exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs font-semibold flex items-center gap-2.5 shadow-sm overflow-hidden"
+              >
+                <span className="text-base shrink-0">🔒</span>
+                <span>{reason}</span>
+              </motion.div>
             )}
-          </motion.button>
+          </AnimatePresence>
 
-          {/* Or Divider */}
-          <div className="flex items-center justify-center gap-4 my-7">
-            <div className="h-px flex-1 bg-gray-200"></div>
-            <span className="text-[11px] font-bold text-gray-400 tracking-wider">
-              OR
-            </span>
-            <div className="h-px flex-1 bg-gray-200"></div>
-          </div>
+          <AnimatePresence>
+            {!isVendorLogin && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <motion.button
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  type="button"
+                  onClick={handleGoogleLogin}
+                  disabled={isGoogleLoading}
+                  className="w-full flex items-center justify-center gap-3 border border-gray-300 rounded-lg py-2.5 text-[15px] font-semibold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-60"
+                >
+                  {isGoogleLoading ? (
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                      className="w-5 h-5 border-2 border-gray-300 border-t-gray-700 rounded-full"
+                    />
+                  ) : (
+                    <>
+                      <FcGoogle size={20} />
+                      Continue with Google
+                    </>
+                  )}
+                </motion.button>
+
+                {/* Or Divider */}
+                <div className="flex items-center justify-center gap-4 my-7">
+                  <div className="h-px flex-1 bg-gray-200"></div>
+                  <span className="text-[11px] font-bold text-gray-400 tracking-wider">
+                    OR
+                  </span>
+                  <div className="h-px flex-1 bg-gray-200"></div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-5" noValidate>
@@ -182,14 +258,14 @@ const WelcomeModal = () => {
                 htmlFor="email"
                 className="text-sm font-semibold text-gray-700"
               >
-                Email Address
+                {isVendorLogin ? 'Vendor ID or Email' : 'Email Address'}
               </label>
               <input
-                type="email"
+                type={isVendorLogin ? 'text' : 'email'}
                 id="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@company.com"
+                placeholder={isVendorLogin ? 'Enter Vendor ID or Email' : 'name@company.com'}
                 className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none transition-all placeholder:text-gray-400 ${
                   errors.email
                     ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-200'
@@ -219,12 +295,14 @@ const WelcomeModal = () => {
                 >
                   Password
                 </label>
-                <Link
-                  to="/forgot-password"
-                  className="text-[13px] font-bold text-[#b86118] hover:text-[#914b10] transition-colors"
-                >
-                  Forgot Password?
-                </Link>
+                {!isVendorLogin && (
+                  <Link
+                    to="/forgot-password"
+                    className="text-[13px] font-bold text-[#b86118] hover:text-[#914b10] transition-colors"
+                  >
+                    Forgot Password?
+                  </Link>
+                )}
               </div>
               <div className="relative">
                 <input
@@ -305,14 +383,38 @@ const WelcomeModal = () => {
           </form>
 
           {/* Footer Section */}
-          <div className="text-center mt-8 text-[14.5px] text-gray-600">
-            Don't have an account?{' '}
-            <Link
-              to="/signup"
-              className="text-[#b86118] font-semibold hover:underline transition-all"
-            >
-              Sign Up
-            </Link>
+          <div className="text-center mt-8 text-[14.5px] text-gray-600 min-h-[24px]">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={isVendorLogin ? 'vendor' : 'user'}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+              >
+                {!isVendorLogin ? (
+                  <>
+                    Don't have an account?{' '}
+                    <Link
+                      to="/signup"
+                      className="text-[#b86118] font-semibold hover:underline transition-all"
+                    >
+                      Sign Up
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    Want to become a vendor?{' '}
+                    <Link
+                      to="/become-a-vendor"
+                      className="text-[#b86118] font-semibold hover:underline transition-all"
+                    >
+                      Apply Here
+                    </Link>
+                  </>
+                )}
+              </motion.div>
+            </AnimatePresence>
           </div>
 
 

@@ -32,7 +32,10 @@ exports.createBooking = async (req, res) => {
 
     if (req.file){
       try {
-        const result = await uploadImageToImageKit(req.file.buffer);
+        const result = await uploadImageToImageKit(
+          req.file.buffer,
+          req.file.originalname || `booking-${Date.now()}.jpg`
+        );
         image = result.url;
       } catch (error) {
         console.error('Image upload failed:', error);

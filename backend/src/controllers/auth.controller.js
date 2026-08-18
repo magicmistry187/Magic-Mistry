@@ -76,7 +76,11 @@ async function sendOtp(req, res) {
     });
 
     const emailBody = userVerification(otp);
-
+    await sendEmail(
+      email.toLowerCase().trim(),
+      "Verification Code - Magic Mistry",
+      emailBody
+    );
 
     return res.status(200).json({
       success: true,
@@ -378,7 +382,7 @@ async function changePassword(req, res) {
     //validaton for both fields if any of them is missing
 
     if (!oldPassword || !newPassword) {
-      return res.status(404).josn({
+      return res.status(400).json({
         success: false,
         message: "All fields are required",
       });
@@ -392,10 +396,9 @@ async function changePassword(req, res) {
     );
 
     if (!isPasswordMatch) {
-      console.log("Password does not match , Please enter correct password");
       return res.status(400).json({
-        sucess: false,
-        message: "Password does not match , Please enter correct password",
+        success: false,
+        message: "Password does not match, please enter your correct current password",
       });
     }
 
@@ -416,21 +419,18 @@ async function changePassword(req, res) {
     try {
       //send email to user about password change
 
-      const emailInfo = await sendEmail(
+      await sendEmail(
         updateUserDetails.email,
         "Password Changed Successfully",
-        `Password Changed Successfully for ${updateUserDeatils.fullName}`,
+        `Password Changed Successfully for ${updateUserDetails.fullName}`,
       );
     } catch (err) {
-      return res.status(500).json({
-        success: false,
-        message: "Something went wrong while sending email",
-      });
+      console.error("Email notification failed on password change:", err);
     }
 
     return res.status(200).json({
       success: true,
-      message: "Password Changes Successfully",
+      message: "Password Changed Successfully",
     });
   } catch (err) {
     console.log("Error while changing password: ", err);
@@ -546,7 +546,7 @@ async function forgotPassword(req, res) {
 
     //verify reset token here
 
-    const decoded = jwt.verify(resetToken,process.env.JWT_SECRET);
+    const decoded = jwt.verify(resetToken, process.env.JWT_SECRET || "secret");
 
     // check if the token is for reset password purpose
 

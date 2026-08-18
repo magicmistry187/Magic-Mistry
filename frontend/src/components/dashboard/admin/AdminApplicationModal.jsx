@@ -177,8 +177,8 @@ export default function AdminApplicationModal({
               </button>
               <div className="flex items-center gap-2 flex-wrap">
 
-                {/* View Vendor ID & Pass — shown when ID already generated */}
-                {vendorCredentials[selectedApplication.id] && (
+                {/* View Vendor ID & Pass — shown when approved or ID already generated */}
+                {(selectedApplication.status === 'Approved' || vendorCredentials?.[selectedApplication.id]) && (
                   <button
                     type="button"
                     onClick={() => onViewVendorCreds(selectedApplication.id)}
@@ -189,7 +189,7 @@ export default function AdminApplicationModal({
                 )}
 
                 {/* Approve / Reject — only if Pending AND no ID generated yet */}
-                {selectedApplication.status === 'Pending' && !vendorCredentials[selectedApplication.id] && (
+                {selectedApplication.status === 'Pending' && !vendorCredentials?.[selectedApplication.id] && (
                   <>
                     <button
                       type="button"

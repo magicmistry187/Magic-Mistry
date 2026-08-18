@@ -53,6 +53,7 @@ exports.createAddress = async (req, res) => {
       success: true,
       message: 'Address added successfully.',
       data: address,
+      address: address,
     });
   } catch (error) {
     console.error('Create Address Error:', error);
@@ -69,16 +70,13 @@ exports.getAddresses = async (req, res) => {
     const addresses = await Address.find({
       user: req.user.id,
     });
-    if (addresses.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No addresses found.',
-      });
-    }
+
     return res.status(200).json({
       success: true,
       message: 'Addresses fetched successfully.',
       data: addresses,
+      addresses: addresses,
+      count: addresses.length,
     });
   } catch (error) {
     console.error('Get Addresses Error:', error);
@@ -107,6 +105,7 @@ exports.getAddress = async (req, res) => {
       success: true,
       message: 'Address fetched successfully.',
       data: address,
+      address: address,
     });
   } catch (error) {
     console.error('Get Address Error:', error);
@@ -162,6 +161,7 @@ exports.updateAddress = async (req, res) => {
       success: true,
       message: 'Address updated successfully.',
       data: updatedAddress,
+      address: updatedAddress,
     });
   } catch (error) {
     console.error('Update Address Error:', error);

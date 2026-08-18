@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import {
+  LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
+} from 'recharts';
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
 import AdminRestockModal from '../../components/dashboard/admin/AdminRestockModal';
@@ -19,6 +22,9 @@ import {
   FileCheck, UserCheck, UserX, ExternalLink, Briefcase, MapPin, Phone, User,
   Snowflake, Droplets, Store, Star, BadgeCheck, BadgeIcon, Contact
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { approveVendorApplication, getAllVendorApplications, rejectVendorApplication, createVendorByAdminApi } from '../../services/api';
+import { getAdminBookingsApi } from '../../services/operations/bookingAPI';
 
 // ─── Initial Inventory Data (Exact match to Reference Screenshots) ───────────
 const INITIAL_INVENTORY = [
@@ -85,60 +91,7 @@ const INITIAL_INVENTORY = [
 ];
 
 // ─── Initial Vendor Applications Data ───────────────────────────────────────
-const INITIAL_APPLICATIONS = [
-  {
-    id: 'APP-901',
-    name: 'Robert Smith',
-    service: 'HVAC Specialist',
-    email: 'robert.s@hvac-pros.com',
-    phone: '+1 (555) 019-2834',
-    city: 'Austin, TX',
-    status: 'Pending',
-    date: 'Oct 24, 2026',
-    experience: '6 Years',
-    docs: ['Photo Upload', 'Aadhar Upload', 'Resume Upload'],
-    notes: 'Applied for commercial and residential AC repair dispatches in Austin metro area.'
-  },
-  {
-    id: 'APP-902',
-    name: 'Vikramaditya Singh',
-    service: 'AC & Refrigeration',
-    email: 'vikram.s@magicmistry.com',
-    phone: '+91 98765 12345',
-    city: 'Bengaluru, KA',
-    status: 'Pending',
-    date: 'Oct 23, 2026',
-    experience: '8 Years',
-    docs: ['Photo Upload', 'Aadhar Upload', 'Resume Upload'],
-    notes: 'Specializes in split AC, cassette AC, and double-door inverter refrigerators.'
-  },
-  {
-    id: 'APP-903',
-    name: 'Anita Desai',
-    service: 'Washing Machine Expert',
-    email: 'anita.d@repairs.in',
-    phone: '+91 98450 67890',
-    city: 'Bengaluru, KA',
-    status: 'Approved',
-    date: 'Oct 20, 2026',
-    experience: '5 Years',
-    docs: ['Photo Upload', 'Aadhar Upload', 'Resume Upload'],
-    notes: 'Expert in front load washing machine drum seals and drain pumps.'
-  },
-  {
-    id: 'APP-904',
-    name: 'Karan Mehra',
-    service: 'Electrical & Plumbing',
-    email: 'karan.m@techpros.com',
-    phone: '+91 97441 55443',
-    city: 'Mumbai, MH',
-    status: 'Reviewing',
-    date: 'Oct 19, 2026',
-    experience: '4 Years',
-    docs: ['Photo Upload', 'Aadhar Upload', 'Resume Upload'],
-    notes: 'Residential wiring, switchboard installation, and leak repairs.'
-  },
-];
+const INITIAL_APPLICATIONS = [];
 
 // ─── Initial Users Data ──────────────────────────────────────────────────────
 const INITIAL_USERS = [
@@ -189,6 +142,36 @@ const INITIAL_PAYMENT_REQUESTS = [
   { id: 'PAY-1040', vendorName: 'Vikram Singh', vendorId: 'FX-8890-C', upiId: 'vikram.s@okicici', bankAccount: '9988776655 (ICICI)', daysOfWork: 7, amount: 22100, status: 'Paid', date: 'Oct 22, 2026', notes: 'Full week payout' },
 ];
 
+// ─── Initial Financial Analytics Data ─────────────────────────────────────────
+const MONTHLY_REVENUE_DATA = [
+  { name: 'Jan', revenue: 145000, profit: 45000 },
+  { name: 'Feb', revenue: 152000, profit: 48000 },
+  { name: 'Mar', revenue: 148000, profit: 46000 },
+  { name: 'Apr', revenue: 161000, profit: 51000 },
+  { name: 'May', revenue: 159000, profit: 49500 },
+  { name: 'Jun', revenue: 175000, profit: 56000 },
+  { name: 'Jul', revenue: 182000, profit: 59000 },
+  { name: 'Aug', revenue: 195000, profit: 64000 },
+  { name: 'Sep', revenue: 215000, profit: 71000 },
+  { name: 'Oct', revenue: 248500, profit: 84200 },
+];
+
+const CATEGORY_REVENUE_DATA = [
+  { name: 'AC Repair', value: 45 },
+  { name: 'Refrigerator', value: 30 },
+  { name: 'Washing Machine', value: 15 },
+  { name: 'Plumbing', value: 10 },
+];
+const COLORS = ['#FF6B00', '#02182e', '#10b981', '#f59e0b', '#3b82f6'];
+
+const RECENT_TRANSACTIONS = [
+  { id: 'TRX-1092', date: 'Oct 26, 2026', type: 'Service Fee', amount: 1500, status: 'Completed', customer: 'Rahul Sharma', vendor: 'Vikram Singh' },
+  { id: 'TRX-1091', date: 'Oct 26, 2026', type: 'Vendor Payout', amount: -12500, status: 'Processing', customer: '-', vendor: 'Anita Desai' },
+  { id: 'TRX-1090', date: 'Oct 25, 2026', type: 'Service Fee', amount: 850, status: 'Completed', customer: 'Priya Patel', vendor: 'Karan Mehra' },
+  { id: 'TRX-1089', date: 'Oct 25, 2026', type: 'Parts Purchase', amount: -4500, status: 'Completed', customer: '-', vendor: 'LG Electronics' },
+  { id: 'TRX-1088', date: 'Oct 24, 2026', type: 'Service Fee', amount: 2200, status: 'Completed', customer: 'Suresh Kumar', vendor: 'Robert Smith' },
+];
+
 // ─── Stock Level Pill Badge (Exact match to Screenshot 1 & 3) ───────────────
 export const StockLevelBadge = ({ level, count }) => {
   if (level === 'In Stock' || level === 'Approved' || level === 'Active' || level === 'Verified') {
@@ -217,6 +200,7 @@ export const StockLevelBadge = ({ level, count }) => {
 
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
+  const { token } = useAuth();
 
   // Navigation tab state: 'overview', 'users', 'applications', 'id-creation', 'analytics', 'settings'
   const [activeTab, setActiveTab] = useState('overview');
@@ -226,6 +210,41 @@ export default function AdminDashboardPage() {
 
   const [applicationsList, setApplicationsList] = useState(INITIAL_APPLICATIONS);
   const [dispatchQueue, setDispatchQueue] = useState(INITIAL_DISPATCH_QUEUE);
+  const [workHistory, setWorkHistory] = useState(INITIAL_WORK_HISTORY);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (token) {
+        const resApps = await getAllVendorApplications(token);
+        if (resApps.success && resApps.applications) {
+          setApplicationsList(resApps.applications.map(app => ({
+            ...app,
+            id: app.applicationId,
+            date: new Date(app.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            name: app.fullName,
+            service: app.serviceType,
+            phone: app.phoneNumber
+          })));
+        }
+
+        const resBookings = await getAdminBookingsApi(token);
+        if (resBookings.success && resBookings.bookings) {
+          const formatted = resBookings.bookings.map(b => ({
+            id: b._id,
+            appliance: b.appliance,
+            customer: b.customer?.fullName || 'Unknown',
+            technician: b.vendor?.fullName || 'Unassigned',
+            technicianAvatar: b.vendor ? b.vendor.fullName.substring(0, 2).toUpperCase() : '',
+            status: b.bookingStatus,
+            dateCompleted: b.bookingStatus === 'Completed' ? new Date(b.updatedAt).toLocaleDateString('en-US') : null,
+          }));
+          setDispatchQueue(formatted.filter(b => b.status !== 'Completed' && b.status !== 'Cancelled' && b.status !== 'Closed'));
+          setWorkHistory(formatted.filter(b => b.status === 'Completed' || b.status === 'Cancelled' || b.status === 'Closed'));
+        }
+      }
+    };
+    fetchData();
+  }, [token]);
   const [vendorApprovals, setVendorApprovals] = useState(INITIAL_VENDOR_APPROVALS);
   const [paymentRequests, setPaymentRequests] = useState(INITIAL_PAYMENT_REQUESTS);
   const [searchTerm, setSearchTerm] = useState('');
@@ -241,7 +260,7 @@ export default function AdminDashboardPage() {
 
   // Work History Pagination & Filters
   const [historyPage, setHistoryPage] = useState(1);
-  const [workHistory, setWorkHistory] = useState(INITIAL_WORK_HISTORY);
+
   
   const filteredHistory = workHistory;
 
@@ -346,10 +365,19 @@ export default function AdminDashboardPage() {
   };
 
   // Reject Application
-  const handleRejectApp = (appId) => {
-    setApplicationsList(prev => prev.map(a => a.id === appId ? { ...a, status: 'Rejected' } : a));
-    setIsApplicationModalOpen(false);
-    showToast(`Application ${appId} rejected.`);
+  const handleRejectApp = async (appId) => {
+    try {
+      const res = await rejectVendorApplication(appId, token);
+      if (res.success) {
+        setApplicationsList(prev => prev.map(a => a.id === appId ? { ...a, status: 'Rejected' } : a));
+        setIsApplicationModalOpen(false);
+        showToast(`Application ${appId} rejected.`);
+      } else {
+        showToast(res.message || 'Failed to reject application');
+      }
+    } catch (error) {
+      showToast('Error rejecting application');
+    }
   };
 
   // Clicking "Approve" — navigates to ID Creation tab (pre-filled), status stays Pending
@@ -368,11 +396,33 @@ export default function AdminDashboardPage() {
   };
 
   // Open "View Vendor ID & Pass" modal
-  const handleViewVendorCreds = (appId) => {
-    const creds = vendorCredentials[appId];
+  const handleViewVendorCreds = async (appId) => {
+    let creds = vendorCredentials[appId];
     if (creds) {
       setViewingCreds(creds);
       setIsViewCredsModalOpen(true);
+      return;
+    }
+
+    try {
+      showToast('Fetching vendor credentials...');
+      const res = await approveVendorApplication(appId, token);
+      if (res.success && res.credentials) {
+        const app = applicationsList.find(a => a.id === appId);
+        const newCreds = {
+          name: `${app?.name || 'Vendor'} - ${app?.service || 'Service Technician'}`,
+          id: res.credentials.vendorId,
+          tempPassword: res.credentials.temporaryPassword,
+          appId: appId,
+        };
+        setVendorCredentials(prev => ({ ...prev, [appId]: newCreds }));
+        setViewingCreds(newCreds);
+        setIsViewCredsModalOpen(true);
+      } else {
+        showToast(res.message || 'Credentials not available');
+      }
+    } catch (e) {
+      showToast('Could not fetch credentials');
     }
   };
 
@@ -517,32 +567,58 @@ export default function AdminDashboardPage() {
   };
 
   // Generate Credentials Submit — saves per-vendor, marks app Approved
-  const handleGenerateCredentials = (e) => {
+  const handleGenerateCredentials = async (e) => {
     e.preventDefault();
     if (!vendorForm.fullName || !vendorForm.email) {
       showToast('Please provide full name and email address.');
       return;
     }
-    const newId = vendorForm.email;
-    const newPass = 'BackendGen_' + Math.random().toString(36).substring(2, 8);
-    const creds = {
-      name: `${vendorForm.fullName} - ${vendorForm.specialization || 'Service Technician'}`,
-      id: newId,
-      tempPassword: newPass,
-      appId: vendorForm.appId || null,
-    };
 
-    setGeneratedCreds(creds);
-
-    // If this was generated for a specific vendor application, mark it Approved & save creds
     if (vendorForm.appId) {
-      setVendorCredentials(prev => ({ ...prev, [vendorForm.appId]: creds }));
-      setApplicationsList(prev =>
-        prev.map(a => a.id === vendorForm.appId ? { ...a, status: 'Approved' } : a)
-      );
+      // Connect to the backend to generate real credentials from an application
+      try {
+        const res = await approveVendorApplication(vendorForm.appId, token);
+        if (res.success && res.credentials) {
+          const creds = {
+            name: `${vendorForm.fullName} - ${vendorForm.specialization || 'Service Technician'}`,
+            id: res.credentials.vendorId,
+            tempPassword: res.credentials.temporaryPassword,
+            appId: vendorForm.appId,
+          };
+          setGeneratedCreds(creds);
+          setVendorCredentials(prev => ({ ...prev, [vendorForm.appId]: creds }));
+          setApplicationsList(prev =>
+            prev.map(a => a.id === vendorForm.appId ? { ...a, status: 'Approved' } : a)
+          );
+          setIsCredentialSuccessOpen(true);
+          showToast('Vendor credentials generated successfully!');
+        } else {
+          showToast(res.message || 'Failed to approve application');
+        }
+      } catch (err) {
+        showToast('Error approving application');
+      }
+    } else {
+      // Direct creation via backend API
+      try {
+        const res = await createVendorByAdminApi(vendorForm, token);
+        if (res.success && res.credentials) {
+          const creds = {
+            name: `${vendorForm.fullName} - ${vendorForm.specialization || 'Service Technician'}`,
+            id: res.credentials.vendorId,
+            tempPassword: res.credentials.temporaryPassword,
+            appId: null,
+          };
+          setGeneratedCreds(creds);
+          setIsCredentialSuccessOpen(true);
+          showToast('Vendor credentials generated successfully!');
+        } else {
+          showToast(res.message || 'Failed to create vendor credentials');
+        }
+      } catch (err) {
+        showToast('Error creating vendor credentials');
+      }
     }
-
-    setIsCredentialSuccessOpen(true);
   };
 
   // Filtered inventory list
@@ -748,7 +824,7 @@ export default function AdminDashboardPage() {
                                     <td className="py-4 px-4">
                                       <div className="flex items-center gap-2">
                                         <div className="p-1.5 rounded-md bg-slate-100 text-slate-600">
-                                          <item.applianceIcon className="w-4 h-4" />
+                                          <Wrench className="w-4 h-4" />
                                         </div>
                                         <span className="font-bold text-slate-800">{item.appliance}</span>
                                       </div>
@@ -839,23 +915,23 @@ export default function AdminDashboardPage() {
                             </span>
                           </div>
                           <div className="p-5 space-y-4 flex-1">
-                            {vendorApprovals.map((vendor, idx) => (
+                            {applicationsList.filter(app => app.status === 'Pending').slice(0, 3).map((app, idx) => (
                               <div key={idx} className="p-4 rounded-xl border border-slate-200 bg-white">
                                 <div className="flex items-start gap-3">
                                   <div className="p-2 rounded-lg bg-slate-50 border border-slate-100 shrink-0">
-                                    <vendor.icon className="w-5 h-5 text-slate-600" />
+                                    <User className="w-5 h-5 text-slate-600" />
                                   </div>
                                   <div>
-                                    <h3 className="font-bold text-sm text-slate-900">{vendor.name}</h3>
-                                    <p className="text-[11px] text-slate-500 font-medium mb-2">{vendor.applied}</p>
+                                    <h3 className="font-bold text-sm text-slate-900">{app.name}</h3>
+                                    <p className="text-[11px] text-slate-500 font-medium mb-2">Applied on {app.date}</p>
                                     <div className="flex flex-wrap gap-1.5 mb-3">
-                                      {vendor.tags.map((tag, tIdx) => (
-                                        <span key={tIdx} className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-semibold">
-                                          {tag}
-                                        </span>
-                                      ))}
+                                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-semibold">
+                                        {app.service}
+                                      </span>
                                     </div>
-                                    <button className="w-full py-1.5 rounded-lg border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-colors">
+                                    <button 
+                                      onClick={() => setActiveTab('applications')}
+                                      className="w-full py-1.5 rounded-lg border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-colors">
                                       Review Docs
                                     </button>
                                   </div>
@@ -1200,8 +1276,8 @@ export default function AdminDashboardPage() {
                                       <Eye className="w-3.5 h-3.5 text-orange-400" /> View Application
                                     </button>
 
-                                    {/* View Vendor ID & Pass — shown when ID has been generated */}
-                                    {vendorCredentials[app.id] && (
+                                    {/* View Vendor ID & Pass — shown when approved or ID has been generated */}
+                                    {(app.status === 'Approved' || vendorCredentials[app.id]) && (
                                       <button
                                         type="button"
                                         onClick={(e) => {
@@ -1631,28 +1707,159 @@ export default function AdminDashboardPage() {
                     transition={{ duration: 0.3 }}
                     className="space-y-6"
                   >
-                    <div>
-                      <h1 className="text-3xl font-extrabold text-slate-900">Financial Analytics</h1>
-                      <p className="text-slate-500 text-sm mt-1">Platform revenue metrics, service charges, and payouts.</p>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <h1 className="text-3xl font-extrabold text-[#02182e]">Financial Analytics</h1>
+                        <p className="text-slate-500 text-sm mt-1">Comprehensive platform revenue metrics, service charges, and payouts.</p>
+                      </div>
+                      <button 
+                        onClick={() => showToast('Financial Report Downloaded!')}
+                        className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                      >
+                        <Download className="w-4 h-4" />
+                        Export Full Report
+                      </button>
                     </div>
 
-                    <div className="grid sm:grid-cols-3 gap-4">
-                      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                        <span className="text-xs font-bold text-slate-400 uppercase">Gross Revenue</span>
-                        <div className="text-3xl font-black text-slate-900 mt-2">₹2,48,500</div>
-                        <p className="text-xs font-bold text-emerald-600 mt-1">↗ +18.4% this month</p>
+                    {/* KPI Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between">
+                        <DollarSign className="w-12 h-12 text-slate-50 absolute top-4 right-4 pointer-events-none" />
+                        <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Gross Revenue (YTD)</span>
+                        <div className="text-2xl font-black text-[#02182e] mt-2 tracking-tight">₹18,45,500</div>
+                        <p className="text-xs font-bold text-emerald-600 mt-2 flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5"/> +18.4% vs last year</p>
                       </div>
 
-                      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                        <span className="text-xs font-bold text-slate-400 uppercase">Vendor Payouts</span>
-                        <div className="text-3xl font-black text-slate-900 mt-2">₹1,64,300</div>
-                        <p className="text-xs font-medium text-slate-500 mt-1">Direct bank transfers</p>
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between">
+                        <IndianRupee className="w-12 h-12 text-slate-50 absolute top-4 right-4 pointer-events-none" />
+                        <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Net Profit / Margin</span>
+                        <div className="text-2xl font-black text-[#02182e] mt-2 tracking-tight">₹6,23,700</div>
+                        <p className="text-xs font-bold text-emerald-600 mt-2">33.8% Net Margin</p>
                       </div>
 
-                      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                        <span className="text-xs font-bold text-slate-400 uppercase">Platform Margin</span>
-                        <div className="text-3xl font-black text-slate-900 mt-2">₹84,200</div>
-                        <p className="text-xs font-bold text-emerald-600 mt-1">33.8% net margin</p>
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between">
+                        <Users className="w-12 h-12 text-slate-50 absolute top-4 right-4 pointer-events-none" />
+                        <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Vendor Payouts</span>
+                        <div className="text-2xl font-black text-[#02182e] mt-2 tracking-tight">₹12,21,800</div>
+                        <p className="text-xs font-medium text-slate-500 mt-2 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500"/> All settled</p>
+                      </div>
+
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between">
+                        <TrendingUp className="w-12 h-12 text-slate-50 absolute top-4 right-4 pointer-events-none" />
+                        <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Avg. Ticket Size</span>
+                        <div className="text-2xl font-black text-[#02182e] mt-2 tracking-tight">₹2,450</div>
+                        <p className="text-xs font-bold text-emerald-600 mt-2 flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5"/> +5.2% vs last month</p>
+                      </div>
+                    </div>
+
+                    {/* Charts Section */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      {/* Revenue Over Time Line Chart */}
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm lg:col-span-2 flex flex-col h-[400px]">
+                        <h2 className="text-sm font-extrabold text-[#02182e] mb-6">Revenue & Profit Trends (2026)</h2>
+                        <div className="flex-1 min-h-0 w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={MONTHLY_REVENUE_DATA} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#02182e" stopOpacity={0.8}/>
+                                  <stop offset="95%" stopColor="#02182e" stopOpacity={0}/>
+                                </linearGradient>
+                                <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#FF6B00" stopOpacity={0.8}/>
+                                  <stop offset="95%" stopColor="#FF6B00" stopOpacity={0}/>
+                                </linearGradient>
+                              </defs>
+                              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dy={10} />
+                              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} tickFormatter={(value) => `₹${value/1000}k`} />
+                              <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="4 4" />
+                              <RechartsTooltip 
+                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' }}
+                                formatter={(value) => [`₹${value.toLocaleString()}`, '']}
+                              />
+                              <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 'bold', paddingTop: '20px' }} />
+                              <Area type="monotone" dataKey="revenue" name="Gross Revenue" stroke="#02182e" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
+                              <Area type="monotone" dataKey="profit" name="Net Profit" stroke="#FF6B00" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+
+                      {/* Revenue By Category Pie Chart */}
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col h-[400px]">
+                        <h2 className="text-sm font-extrabold text-[#02182e] mb-6">Revenue by Category (%)</h2>
+                        <div className="flex-1 min-h-0 w-full flex items-center justify-center">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={CATEGORY_REVENUE_DATA}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={60}
+                                outerRadius={100}
+                                paddingAngle={5}
+                                dataKey="value"
+                                stroke="none"
+                              >
+                                {CATEGORY_REVENUE_DATA.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <RechartsTooltip 
+                                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                formatter={(value) => [`${value}%`, 'Share']}
+                              />
+                              <Legend layout="horizontal" verticalAlign="bottom" align="center" iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: '600' }} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Recent Transactions Table */}
+                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                      <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                        <h2 className="text-sm font-extrabold text-[#02182e]">Recent Transactions</h2>
+                        <button className="text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer">View All Ledgers</button>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse min-w-[700px]">
+                          <thead>
+                            <tr className="bg-slate-50/80 text-slate-500 uppercase font-extrabold tracking-wider border-b border-slate-100">
+                              <th className="py-3 px-5">TRX ID</th>
+                              <th className="py-3 px-4">DATE</th>
+                              <th className="py-3 px-4">TYPE</th>
+                              <th className="py-3 px-4">CUSTOMER / VENDOR</th>
+                              <th className="py-3 px-4 text-right">AMOUNT</th>
+                              <th className="py-3 px-5 text-right">STATUS</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {RECENT_TRANSACTIONS.map((trx) => (
+                              <tr key={trx.id} className="hover:bg-slate-50/80 transition-colors">
+                                <td className="py-4 px-5 font-bold text-slate-600">{trx.id}</td>
+                                <td className="py-4 px-4 text-slate-500 font-medium">{trx.date}</td>
+                                <td className="py-4 px-4 font-bold text-slate-700">{trx.type}</td>
+                                <td className="py-4 px-4">
+                                  <div className="flex flex-col gap-1">
+                                    {trx.customer !== '-' && <span className="font-semibold text-slate-800">C: {trx.customer}</span>}
+                                    {trx.vendor !== '-' && <span className="text-slate-500 font-medium">V: {trx.vendor}</span>}
+                                  </div>
+                                </td>
+                                <td className={`py-4 px-4 text-right font-black ${trx.amount > 0 ? 'text-emerald-600' : 'text-slate-900'}`}>
+                                  {trx.amount > 0 ? '+' : ''}₹{Math.abs(trx.amount).toLocaleString()}
+                                </td>
+                                <td className="py-4 px-5 text-right">
+                                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                    trx.status === 'Completed' ? 'bg-emerald-100/80 text-emerald-800' : 'bg-amber-100/80 text-amber-800'
+                                  }`}>
+                                    {trx.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   </motion.div>

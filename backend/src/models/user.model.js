@@ -49,8 +49,8 @@ const userSchema = new mongoose.Schema(
 
     vendorId: {
       type: String,
-      // required: true,
       unique: true,
+      sparse: true,
       trim: true,
     },
     googleId: {

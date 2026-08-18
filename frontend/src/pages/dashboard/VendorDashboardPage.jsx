@@ -15,6 +15,8 @@ import {
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
 import VendorPayoutModal from '../../components/dashboard/vendor/VendorPayoutModal';
+import { useAuth } from '../../context/AuthContext';
+import { getVendorBookingsApi } from '../../services/operations/bookingAPI';
 import VendorTaxInvoiceModal from '../../components/dashboard/vendor/VendorTaxInvoiceModal';
 
 // Predefined Indian Banks for Profile
@@ -219,6 +221,7 @@ const WEEKLY_EARNINGS_DATA = [
 
 export default function VendorDashboardPage() {
   const navigate = useNavigate();
+  const { token, user } = useAuth();
   const [activeTab, setActiveTab] = useState('active'); // 'active', 'service', 'invoice', 'history', 'earnings', 'profile'
   const [isOnline, setIsOnline] = useState(true);
 
@@ -229,6 +232,31 @@ export default function VendorDashboardPage() {
   };
   const [jobs, setJobs] = useState(INITIAL_JOBS);
   const [history, setHistory] = useState(INITIAL_HISTORY);
+  
+  useEffect(() => {
+    const fetchBookings = async () => {
+      if (token) {
+        const res = await getVendorBookingsApi(token);
+        if (res.success && res.bookings) {
+          const formatted = res.bookings.map(b => ({
+            id: b._id,
+            appliance: b.appliance,
+            serviceTitle: b.serviceCategory || b.appliance,
+            customerName: b.customer?.fullName || 'Unknown',
+            date: new Date(b.serviceDate).toLocaleDateString() + ' ' + b.timeSlot,
+            location: b.address,
+            amount: b.serviceCharge || 0,
+            status: b.bookingStatus,
+            review: b.issue || '',
+          }));
+          setJobs(formatted.filter(b => b.status !== 'Completed' && b.status !== 'Cancelled' && b.status !== 'Closed'));
+          setHistory(formatted.filter(b => b.status === 'Completed' || b.status === 'Cancelled' || b.status === 'Closed'));
+        }
+      }
+    };
+    fetchBookings();
+  }, [token]);
+
   const [filterCategory, setFilterCategory] = useState('All');
   
   // Active Work Order execution state

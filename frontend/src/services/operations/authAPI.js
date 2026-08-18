@@ -18,13 +18,11 @@ const {
   FORGOT_PASSWORD_API,
 } = authEndpoints;
 
-// Send OTP for account creation
-export async function sendOtp({ email, purpose }) {
+// Send OTP for account creation / recovery
+export async function sendOtp(data) {
   try {
-    const response = await apiConnector("POST", SENDOTP_API, {
-      email,
-      purpose,
-    });
+    const payload = typeof data === 'string' ? { email: data, purpose: 'signup' } : data;
+    const response = await apiConnector("POST", SENDOTP_API, payload);
     console.log("SENDOTP API RESPONSE............", response);
 
     if (!response.data?.success) {
@@ -129,7 +127,6 @@ export async function verifyOtpForForgotPassword({ email, otp }) {
     console.log("VERIFY OTP RESPONSE..........", res.data);
 
     if (!res.data?.success || !res.data?.resetToken) {
-      console.log("1")
       throw new Error(res.data?.message || "OTP VERIFICATION FAILED");
     }
 
@@ -139,19 +136,15 @@ export async function verifyOtpForForgotPassword({ email, otp }) {
       resetToken: res.data.resetToken,
     };
   } catch (err) {
-
     console.log("VERIFY OTP ERROR.......", err);
-    console.log("2")
     const errorMessage =
-      err.res?.data?.message || err.message || "OTP verification failed";
+      err.response?.data?.message || err.message || "OTP verification failed";
     return {
       success: false,
       message: errorMessage,
     };
   }
 }
-
-
 
 export async function forgotPassword({ resetToken, newPassword }) {
   try {
@@ -171,7 +164,7 @@ export async function forgotPassword({ resetToken, newPassword }) {
   } catch (err) {
     console.log("FORGOT PASSWORD ERROR .......", err);
     const errorMessage =
-      err.res?.data?.message || err.message || "Password reset failed";
+      err.response?.data?.message || err.message || "Password reset failed";
 
     return {
       success: false,

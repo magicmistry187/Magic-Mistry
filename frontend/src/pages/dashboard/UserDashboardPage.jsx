@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getMyBookingsApi, cancelBookingApi } from '../../services/api';
+import { getAddressesApi } from '../../services/operations/addressAPI';
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
 import {
@@ -89,13 +90,15 @@ export default function UserDashboardPage() {
   // Bookings list state
   const [bookingsList, setBookingsList] = useState(initialBookings);
 
-  // Fetch real backend bookings on mount
+  // Fetch real backend bookings and addresses on mount
   React.useEffect(() => {
-    async function loadBackendBookings() {
+    async function loadData() {
       if (!token) return;
-      const res = await getMyBookingsApi(token);
-      if (res.success && Array.isArray(res.bookings) && res.bookings.length > 0) {
-        const formatted = res.bookings.map((b) => ({
+      
+      // Load Bookings
+      const resBookings = await getMyBookingsApi(token);
+      if (resBookings.success && Array.isArray(resBookings.bookings)) {
+        const formatted = resBookings.bookings.map((b) => ({
           id: b._id || 'BK-' + Date.now().toString().slice(-6),
           service: b.serviceCategory || b.appliance || 'Appliance Service',
           applianceIcon: '🔧',
@@ -114,8 +117,23 @@ export default function UserDashboardPage() {
         }));
         setBookingsList(formatted);
       }
+
+      // Load Addresses
+      const resAddrs = await getAddressesApi(token);
+      if (resAddrs.success && Array.isArray(resAddrs.addresses)) {
+        const mappedAddrs = resAddrs.addresses.map(a => ({
+          id: a._id,
+          type: a.addressType || 'Home',
+          flat: a.house || '',
+          street: a.street || '',
+          landmark: a.landmark || '',
+          pincode: a.pincode || '',
+          isDefault: a.isDefault,
+        }));
+        setAddresses(mappedAddrs);
+      }
     }
-    loadBackendBookings();
+    loadData();
   }, [token, user]);
 
   // Navigation tabs: 'overview', 'bookings', 'history', 'payments', 'addresses', 'support', 'settings'

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
+import { submitVendorApplication } from '../../services/api';
 
 /* ─── Animation Variants ─────────────────────────────────────────── */
 const fadeUp = {
@@ -212,6 +213,7 @@ export default function VendorApplyPage() {
     phone:        '',
     city:         '',
     pincode:      '',
+    specialOption:'',
     serviceType:  '',
     experience:   '',
     about:        '',
@@ -231,6 +233,7 @@ export default function VendorApplyPage() {
       if (!form.email.trim() || !/\S+@\S+\.\S+/.test(form.email)) e.email = 'Valid email is required.';
       if (!form.phone.trim() || !/^\d{10}$/.test(form.phone))     e.phone = 'Enter a valid 10-digit phone number.';
       if (!form.city.trim())      e.city = 'City is required.';
+      if (!form.specialOption)    e.specialOption = 'Please select a special option.';
     }
     if (s === 1) {
       if (!form.serviceType) e.serviceType = 'Please select a service type.';
@@ -263,15 +266,48 @@ export default function VendorApplyPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!agreed) {
       setErrors(prev => ({ ...prev, agreed: 'You must agree to the terms to proceed.' }));
       return;
     }
-    // Simulate async submission
-    setSubmitted(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    const parseExperience = (exp) => {
+      if (exp === 'Less than 1 year') return 0;
+      if (exp === '1-2 years') return 1;
+      if (exp === '3-5 years') return 3;
+      if (exp === '5-10 years') return 5;
+      if (exp === '10+ years') return 10;
+      return parseInt(exp) || 0;
+    };
+    
+    const formData = new FormData();
+    formData.append('fullName', form.fullName);
+    formData.append('email', form.email);
+    formData.append('phoneNumber', form.phone);
+    formData.append('city', form.city);
+    formData.append('specialOption', form.specialOption);
+    formData.append('serviceType', form.serviceType);
+    formData.append('experience', parseExperience(form.experience));
+    formData.append('experienceDescription', form.about);
+    
+    // Add documents
+    if (form.photo) formData.append('documents', form.photo);
+    if (form.aadhar) formData.append('documents', form.aadhar);
+    if (form.resume) formData.append('documents', form.resume);
+
+    try {
+      const res = await submitVendorApplication(formData);
+      if (res.success) {
+        setSubmitted(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        setErrors(prev => ({ ...prev, agreed: res.message || 'Failed to submit application.' }));
+      }
+    } catch (error) {
+      setErrors(prev => ({ ...prev, agreed: 'An error occurred while submitting.' }));
+    }
   };
 
   /* ── Success Screen ── */
@@ -414,9 +450,11 @@ export default function VendorApplyPage() {
                           icon={Phone} error={errors.phone} required
                         />
                         <SelectField
-                          label="Special Option" id="special" value="" onChange={() => {}}
+                          label="Special Option" id="special" value={form.specialOption} onChange={set('specialOption')}
                           options={['Self-employed', 'Small Business', 'Freelancer']}
                           placeholder="Select Option"
+                          error={errors.specialOption}
+                          required
                         />
                       </div>
 
@@ -465,19 +503,19 @@ export default function VendorApplyPage() {
 
                       <div className="flex flex-col gap-4 mt-2">
                         <FileInputField
-                          label="Photo Upload" id="photo" accept=".pdf,application/pdf"
+                          label="Photo Upload" id="photo" accept=".jpg,.jpeg,.png,.webp,.pdf,image/*,application/pdf"
                           onChange={setFile('photo')} error={errors.photo} required file={form.photo}
-                          helperText="upload only PDF File"
+                          helperText="Upload image (JPG, PNG) or PDF"
                         />
                         <FileInputField
-                          label="Aadhar Upload" id="aadhar" accept=".pdf,application/pdf"
+                          label="Aadhar Upload" id="aadhar" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
                           onChange={setFile('aadhar')} error={errors.aadhar} required file={form.aadhar}
-                          helperText="upload only PDF File"
+                          helperText="Upload PDF or image of Aadhar card"
                         />
                         <FileInputField
-                          label="Resume Upload" id="resume" accept=".pdf,application/pdf"
+                          label="Resume Upload" id="resume" accept=".pdf,.doc,.docx,application/pdf"
                           onChange={setFile('resume')} error={errors.resume} required file={form.resume}
-                          helperText="upload only PDF File."
+                          helperText="Upload resume (PDF or DOC)"
                         />
                       </div>
 
