@@ -90,10 +90,7 @@ const vendorApplicationSchema = new mongoose.Schema(
       default: 'Pending',
     },
 
-    rejectionReason: {
-      type: String,
-      default: null,
-    },
+   
 
     vendor: {
       type: mongoose.Schema.Types.ObjectId,

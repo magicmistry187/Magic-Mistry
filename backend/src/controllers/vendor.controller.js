@@ -1,6 +1,7 @@
 const User = require('../models/user.model');
-const bcrypt = require("bcrypt");
+const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const VendorProfile = require('../models/vendorProfile.model');
 const {
   checkVendorExistsByEmail,
   checkVendorExistsByEmailOrPhone,
@@ -126,7 +127,14 @@ exports.vendorLogin = async (req, res) => {
 // Create vendor by Admin (Checks if vendor with same email already exists)
 exports.createVendorByAdmin = async (req, res) => {
   try {
-    const { fullName, email, phoneNumber, specialization, serviceArea, experience } = req.body;
+    const {
+      fullName,
+      email,
+      phoneNumber,
+      specialization,
+      serviceArea,
+      experience,
+    } = req.body;
 
     if (!fullName || !email) {
       return res.status(400).json({
@@ -139,10 +147,15 @@ exports.createVendorByAdmin = async (req, res) => {
     const cleanPhone = phoneNumber ? phoneNumber.trim() : '';
 
     // Check if vendor already exists for this email OR phone number
-    const existingVendor = await checkVendorExistsByEmailOrPhone(trimmedEmail, cleanPhone);
+    const existingVendor = await checkVendorExistsByEmailOrPhone(
+      trimmedEmail,
+      cleanPhone,
+    );
     if (existingVendor) {
       const matchField =
-        existingVendor.email === trimmedEmail ? 'email address' : 'mobile number';
+        existingVendor.email === trimmedEmail
+          ? 'email address'
+          : 'mobile number';
       const matchedVal =
         existingVendor.email === trimmedEmail ? trimmedEmail : cleanPhone;
       return res.status(409).json({
@@ -152,16 +165,17 @@ exports.createVendorByAdmin = async (req, res) => {
       });
     }
 
-    const { user, vendorId, temporaryPassword } = await createOrUpdateVendorAccount({
-      fullName,
-      email: trimmedEmail,
-      phoneNumber,
-      specialization,
-      serviceType: specialization,
-      experience,
-      experienceDescription: 'Vendor created by Admin',
-      serviceAddress: serviceArea,
-    });
+    const { user, vendorId, temporaryPassword } =
+      await createOrUpdateVendorAccount({
+        fullName,
+        email: trimmedEmail,
+        phoneNumber,
+        specialization,
+        serviceType: specialization,
+        experience,
+        experienceDescription: 'Vendor created by Admin',
+        serviceAddress: serviceArea,
+      });
 
     return res.status(200).json({
       success: true,
@@ -182,7 +196,39 @@ exports.createVendorByAdmin = async (req, res) => {
     console.error('Create vendor by admin error:', error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to create vendor credentials. Error: ' + (error.message || error),
+      message:
+        'Failed to create vendor credentials. Error: ' +
+        (error.message || error),
+    });
+  }
+};
+
+// --------------------Vendor Profile-------------
+
+exports.getVendorProfile = async (req, res) => {
+  try {
+    const vendorId = req.user.vendorId;
+
+    const vendorProfile = await VendorProfile.findOne({ vendorId })
+      .populate('serviceAddress')
+      .populate('user');
+
+    if (!vendorProfile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor profile not found.',
+      });
+    }
+    return res.status(200).json({
+      success: true,
+      vendorProfile,
+      message: 'Vendor profile fetched successfully.',
+    });
+  } catch (error) {
+    console.error('Get vendor profile error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch vendor profile.',
     });
   }
 };
