@@ -1,6 +1,7 @@
 const User = require('../models/user.model');
-const bcrypt = require("bcrypt");
+const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const VendorProfile = require('../models/vendorProfile.model');
 
 // VENDOR login
 exports.vendorLogin = async (req, res) => {
@@ -122,6 +123,36 @@ exports.vendorLogin = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Server error during vendor login',
+    });
+  }
+};
+
+// --------------------Vendor Profile-------------
+
+exports.getVendorProfile = async (req, res) => {
+  try {
+    const vendorId = req.user.vendorId;
+
+    const vendorProfile = await VendorProfile.findOne({ vendorId })
+      .populate('serviceAddress')
+      .populate('user');
+
+    if (!vendorProfile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor profile not found.',
+      });
+    }
+    return res.status(200).json({
+      success: true,
+      vendorProfile,
+      message: 'Vendor profile fetched successfully.',
+    });
+  } catch (error) {
+    console.error('Get vendor profile error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch vendor profile.',
     });
   }
 };
