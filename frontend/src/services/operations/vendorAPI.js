@@ -169,3 +169,36 @@ export async function submitVendorApplication(formData) {
     };
   }
 }
+
+export async function getVendorCredentialsApi(applicationId, token) {
+  try {
+    const response = await apiConnector(
+      "GET",
+      `${APPROVE_VENDOR_APP_API}/${applicationId}/credentials`,
+      null,
+      {
+        Authorization: `Bearer ${token}`,
+      }
+    );
+    console.log("GET VENDOR CREDENTIALS API RESPONSE............", response);
+
+    if (!response.data?.success) {
+      throw new Error(response.data?.message || "Failed to fetch credentials");
+    }
+    return {
+      success: true,
+      message: response.data.message || "Vendor credentials retrieved successfully!",
+      credentials: response.data.credentials,
+      vendor: response.data.vendor,
+    };
+  } catch (error) {
+    console.log("GET VENDOR CREDENTIALS API ERROR............", error);
+    const errorMessage =
+      error.response?.data?.message || error.message || "Failed to fetch vendor credentials";
+    return {
+      success: false,
+      message: errorMessage,
+    };
+  }
+}
+

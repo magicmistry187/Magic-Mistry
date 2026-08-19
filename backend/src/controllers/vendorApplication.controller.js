@@ -1,6 +1,9 @@
 const mongoose = require('mongoose');
 const VendorApplication = require('../models/vendorApplication.model');
+const User = require('../models/user.model');
 const uploadImageToImageKit = require('../config/imagekit');
+const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const {
   checkVendorExistsByEmail,
   checkVendorExistsByEmailOrPhone,
@@ -124,10 +127,6 @@ const createVendorApplication = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: 'Vendor application submitted successfully.',
-      // application: {
-      //   applicationId: application.applicationId,
-      //   status: application.status,
-      // },
       application,
     });
   } catch (err) {
@@ -138,11 +137,28 @@ const createVendorApplication = async (req, res) => {
 
 const getAllVendorApplications = async (req, res) => {
   try {
-    const applications = await VendorApplication.find().sort({ createdAt: -1 });
+    const applications = await VendorApplication.find()
+      .populate({
+        path: 'vendor',
+        select: 'vendorId professionalTitle serviceType',
+      })
+      .sort({ createdAt: -1 });
+
+    // Ensure vendorId is populated for all applications
+    const enhancedApplications = await Promise.all(
+      applications.map(async (app) => {
+        const appObj = app.toObject();
+        if (!appObj.vendorId) {
+          const user = await User.findOne({ email: app.email?.toLowerCase().trim() }).select('vendorId');
+          appObj.vendorId = user?.vendorId || appObj.vendor?.vendorId || null;
+        }
+        return appObj;
+      })
+    );
 
     return res.status(200).json({
       success: true,
-      applications,
+      applications: enhancedApplications,
     });
   } catch (error) {
     console.error('Get vendor applications error:', error);
@@ -163,7 +179,7 @@ const getVendorApplicationById = async (req, res) => {
         { applicationId: applicationId },
         ...(mongoose.isValidObjectId(applicationId) ? [{ _id: applicationId }] : []),
       ],
-    });
+    }).populate('vendor');
 
     if (!application) {
       return res.status(404).json({
@@ -172,9 +188,15 @@ const getVendorApplicationById = async (req, res) => {
       });
     }
 
+    const appObj = application.toObject();
+    if (!appObj.vendorId) {
+      const user = await User.findOne({ email: application.email?.toLowerCase().trim() }).select('vendorId');
+      appObj.vendorId = user?.vendorId || appObj.vendor?.vendorId || null;
+    }
+
     return res.status(200).json({
       success: true,
-      application,
+      application: appObj,
     });
   } catch (error) {
     console.error('Get vendor application error:', error);
@@ -193,24 +215,52 @@ const approveVendorApplication = async (req, res) => {
     const { applicationId } = req.params;
 
     // 1. Find the application
-    const application = await VendorApplication.findOne({
+    let application = await VendorApplication.findOne({
       $or: [
         { applicationId: applicationId },
+        { email: applicationId.toLowerCase() },
         ...(mongoose.isValidObjectId(applicationId) ? [{ _id: applicationId }] : []),
       ],
     });
 
     if (!application) {
+      // Fallback: check if User exists directly
+      const escapedAppId = applicationId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const user = await User.findOne({
+        $or: [
+          { vendorId: { $regex: new RegExp(`^${escapedAppId}$`, 'i') } },
+          { email: applicationId.toLowerCase() },
+          ...(mongoose.isValidObjectId(applicationId) ? [{ _id: applicationId }] : []),
+        ],
+      });
+
+      if (user) {
+        const { user: updatedUser, vendorId, temporaryPassword } = await createOrUpdateVendorAccount({
+          fullName: user.fullName,
+          email: user.email,
+          phoneNumber: user.phoneNumber,
+        });
+
+        return res.status(200).json({
+          success: true,
+          message: 'Vendor credentials generated successfully.',
+          vendor: {
+            id: updatedUser._id,
+            vendorId: updatedUser.vendorId,
+            fullName: updatedUser.fullName,
+            email: updatedUser.email,
+            role: updatedUser.role,
+          },
+          credentials: {
+            vendorId,
+            temporaryPassword,
+          },
+        });
+      }
+
       return res.status(404).json({
         success: false,
         message: 'Vendor application not found.',
-      });
-    }
-
-    if (application.status === 'Approved') {
-      return res.status(400).json({
-        success: false,
-        message: `This application (ID: ${application.applicationId}) has already been approved.`,
       });
     }
 
@@ -226,14 +276,14 @@ const approveVendorApplication = async (req, res) => {
       fullName: application.fullName,
       email: application.email,
       phoneNumber: application.phoneNumber,
-      specialization: application.specialOption,
+      specialization: application.specialOption || application.serviceType,
       serviceType: application.serviceType,
       experience: application.experience,
       experienceDescription: application.experienceDescription,
       serviceAddress: application.city,
     });
 
-    // 3. Update application
+    // 3. Update application status and vendor reference
     application.status = 'Approved';
     application.vendor = vendorProfile._id;
     await application.save();
@@ -241,7 +291,7 @@ const approveVendorApplication = async (req, res) => {
     // 4. Send response with valid vendor credentials
     return res.status(200).json({
       success: true,
-      message: 'Vendor application approved and credentials generated successfully.',
+      message: 'Vendor credentials generated successfully.',
       application: {
         applicationId: application.applicationId,
         status: application.status,
@@ -264,6 +314,103 @@ const approveVendorApplication = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to approve vendor application. Error: ' + (error.message || error),
+    });
+  }
+};
+
+const getVendorCredentials = async (req, res) => {
+  try {
+    const { applicationId } = req.params;
+
+    // 1. Try to find VendorApplication first
+    let application = await VendorApplication.findOne({
+      $or: [
+        { applicationId: applicationId },
+        { email: applicationId.toLowerCase() },
+        ...(mongoose.isValidObjectId(applicationId) ? [{ _id: applicationId }] : []),
+      ],
+    });
+
+    if (application) {
+      const result = await createOrUpdateVendorAccount({
+        fullName: application.fullName,
+        email: application.email,
+        phoneNumber: application.phoneNumber,
+        specialization: application.specialOption || application.serviceType,
+        serviceType: application.serviceType,
+        experience: application.experience,
+        experienceDescription: application.experienceDescription,
+        serviceAddress: application.city,
+      });
+
+      application.status = 'Approved';
+      application.vendor = result.vendorProfile._id;
+      await application.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Vendor credentials retrieved successfully.',
+        vendor: {
+          id: result.user._id,
+          vendorId: result.user.vendorId,
+          fullName: result.user.fullName,
+          email: result.user.email,
+          role: result.user.role,
+        },
+        credentials: {
+          vendorId: result.vendorId,
+          temporaryPassword: result.temporaryPassword,
+        },
+      });
+    }
+
+    // 2. Fallback: Search directly in User collection
+    const escapedAppId = applicationId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const user = await User.findOne({
+      $or: [
+        { vendorId: { $regex: new RegExp(`^${escapedAppId}$`, 'i') } },
+        { email: applicationId.toLowerCase() },
+        ...(mongoose.isValidObjectId(applicationId) ? [{ _id: applicationId }] : []),
+      ],
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: `Vendor record not found for "${applicationId}".`,
+      });
+    }
+
+    // Generate fresh temporary password and ensure active approved vendor
+    const temporaryPassword = `FixIt_${new Date().getFullYear()}_!${crypto.randomBytes(2).toString('hex')}`;
+    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+    user.vendorId = user.vendorId || `FX-V-${Math.floor(1000 + Math.random() * 9000)}`;
+    user.password = hashedPassword;
+    user.role = 'vendor';
+    user.isApproved = true;
+    user.status = 'active';
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Vendor credentials retrieved successfully.',
+      vendor: {
+        id: user._id,
+        vendorId: user.vendorId,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+      },
+      credentials: {
+        vendorId: user.vendorId,
+        temporaryPassword,
+      },
+    });
+  } catch (error) {
+    console.error('Get vendor credentials error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve vendor credentials: ' + (error.message || error),
     });
   }
 };
@@ -320,10 +467,76 @@ const rejectVendorApplication = async (req, res) => {
   }
 };
 
+// Create vendor by Admin (Checks if vendor with same email already exists)
+const createVendorByAdmin = async (req, res) => {
+  try {
+    const { fullName, email, phoneNumber, specialization, serviceArea, experience } = req.body;
+
+    if (!fullName || !email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Full name and email are required.',
+      });
+    }
+
+    const trimmedEmail = email.toLowerCase().trim();
+    const cleanPhone = phoneNumber ? phoneNumber.trim() : '';
+
+    // Check if vendor already exists for this email OR phone number
+    const existingVendor = await checkVendorExistsByEmailOrPhone(trimmedEmail, cleanPhone);
+    if (existingVendor) {
+      const matchField =
+        existingVendor.email === trimmedEmail ? 'email address' : 'mobile number';
+      const matchedVal =
+        existingVendor.email === trimmedEmail ? trimmedEmail : cleanPhone;
+      return res.status(409).json({
+        success: false,
+        message: `A vendor account is already registered with this ${matchField} "${matchedVal}" (Vendor ID: ${existingVendor.vendorId || 'Assigned'}). A new ID cannot be generated.`,
+        vendorId: existingVendor.vendorId,
+      });
+    }
+
+    const { user, vendorId, temporaryPassword } = await createOrUpdateVendorAccount({
+      fullName,
+      email: trimmedEmail,
+      phoneNumber,
+      specialization,
+      serviceType: specialization,
+      experience,
+      experienceDescription: 'Vendor created by Admin',
+      serviceAddress: serviceArea,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Vendor credentials generated successfully.',
+      vendor: {
+        id: user._id,
+        vendorId: user.vendorId,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+      },
+      credentials: {
+        vendorId,
+        temporaryPassword,
+      },
+    });
+  } catch (error) {
+    console.error('Create vendor by admin error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to create vendor credentials. Error: ' + (error.message || error),
+    });
+  }
+};
+
 module.exports = {
   createVendorApplication,
   getAllVendorApplications,
   getVendorApplicationById,
   approveVendorApplication,
+  getVendorCredentials,
   rejectVendorApplication,
+  createVendorByAdmin,
 };

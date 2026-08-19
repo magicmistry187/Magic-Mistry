@@ -9,7 +9,9 @@ const {
   getAllVendorApplications,
   getVendorApplicationById,
   approveVendorApplication,
+  getVendorCredentials,
   rejectVendorApplication,
+  createVendorByAdmin,
 } = require('../controllers/vendorApplication.controller');
 
 router.post(
@@ -18,9 +20,11 @@ router.post(
   createVendorApplication,
 );
 
+router.post('/create', auth, isAdmin, createVendorByAdmin);
+
 router.get('/', auth, isAdmin, getAllVendorApplications);
 
-router.get('/:applicationId', auth, isAdmin, getVendorApplicationById);
+router.get('/:applicationId/credentials', auth, isAdmin, getVendorCredentials);
 
 router.patch('/:applicationId/reject', auth, isAdmin, rejectVendorApplication);
 
@@ -30,5 +34,7 @@ router.patch(
   isAdmin,
   approveVendorApplication,
 );
+
+router.get('/:applicationId', auth, isAdmin, getVendorApplicationById);
 
 module.exports = router;

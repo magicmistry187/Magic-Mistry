@@ -203,10 +203,10 @@ export default function AdminApplicationModal({
               <div className="flex items-center gap-2 flex-wrap">
 
                 {/* View Vendor ID & Pass — shown when approved or ID already generated */}
-                {(selectedApplication.status === 'Approved' || vendorCredentials?.[selectedApplication.id]) && (
+                {(selectedApplication.status === 'Approved' || vendorCredentials?.[selectedApplication.id] || vendorCredentials?.[selectedApplication.applicationId]) && (
                   <button
                     type="button"
-                    onClick={() => onViewVendorCreds(selectedApplication.id)}
+                    onClick={() => onViewVendorCreds(selectedApplication)}
                     className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-colors flex items-center gap-1.5 cursor-pointer"
                   >
                     <ShieldCheck className="w-4 h-4" /> View Vendor ID & Pass

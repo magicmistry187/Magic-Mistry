@@ -1,11 +1,6 @@
 const User = require('../models/user.model');
 const bcrypt = require("bcrypt");
 const jwt = require('jsonwebtoken');
-const {
-  checkVendorExistsByEmail,
-  checkVendorExistsByEmailOrPhone,
-  createOrUpdateVendorAccount,
-} = require('../utils/vendor.utils');
 
 // VENDOR login
 exports.vendorLogin = async (req, res) => {
@@ -19,13 +14,21 @@ exports.vendorLogin = async (req, res) => {
       });
     }
     const loginValue = login.trim();
+    const escapedLogin = loginValue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
     const vendor = await User.findOne({
-      role: 'vendor',
-      $or: [
-        { vendorId: loginValue.toUpperCase() },
-        { vendorId: loginValue },
-        { email: loginValue.toLowerCase() },
+      $and: [
+        {
+          $or: [{ role: 'vendor' }, { vendorId: { $exists: true, $ne: null } }],
+        },
+        {
+          $or: [
+            { vendorId: { $regex: new RegExp(`^${escapedLogin}$`, 'i') } },
+            { vendorId: loginValue.toUpperCase() },
+            { vendorId: loginValue },
+            { email: loginValue.toLowerCase() },
+          ],
+        },
       ],
     }).select('+password');
 
@@ -119,70 +122,6 @@ exports.vendorLogin = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Server error during vendor login',
-    });
-  }
-};
-
-// Create vendor by Admin (Checks if vendor with same email already exists)
-exports.createVendorByAdmin = async (req, res) => {
-  try {
-    const { fullName, email, phoneNumber, specialization, serviceArea, experience } = req.body;
-
-    if (!fullName || !email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Full name and email are required.',
-      });
-    }
-
-    const trimmedEmail = email.toLowerCase().trim();
-    const cleanPhone = phoneNumber ? phoneNumber.trim() : '';
-
-    // Check if vendor already exists for this email OR phone number
-    const existingVendor = await checkVendorExistsByEmailOrPhone(trimmedEmail, cleanPhone);
-    if (existingVendor) {
-      const matchField =
-        existingVendor.email === trimmedEmail ? 'email address' : 'mobile number';
-      const matchedVal =
-        existingVendor.email === trimmedEmail ? trimmedEmail : cleanPhone;
-      return res.status(409).json({
-        success: false,
-        message: `A vendor account is already registered with this ${matchField} "${matchedVal}" (Vendor ID: ${existingVendor.vendorId || 'Assigned'}). A new ID cannot be generated.`,
-        vendorId: existingVendor.vendorId,
-      });
-    }
-
-    const { user, vendorId, temporaryPassword } = await createOrUpdateVendorAccount({
-      fullName,
-      email: trimmedEmail,
-      phoneNumber,
-      specialization,
-      serviceType: specialization,
-      experience,
-      experienceDescription: 'Vendor created by Admin',
-      serviceAddress: serviceArea,
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: 'Vendor credentials generated successfully.',
-      vendor: {
-        id: user._id,
-        vendorId: user.vendorId,
-        fullName: user.fullName,
-        email: user.email,
-        role: user.role,
-      },
-      credentials: {
-        vendorId,
-        temporaryPassword,
-      },
-    });
-  } catch (error) {
-    console.error('Create vendor by admin error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to create vendor credentials. Error: ' + (error.message || error),
     });
   }
 };

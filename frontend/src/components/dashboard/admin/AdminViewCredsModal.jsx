@@ -46,10 +46,10 @@ export default function AdminViewCredsModal({
             {/* Copyable Fields */}
             <div className="space-y-4">
               <div>
-                <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5">Vendor Login ID (Email)</label>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5">Vendor ID</label>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl">
-                    <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                     <span className="text-xs font-bold text-slate-800 truncate">{viewingCreds.id}</span>
                   </div>
                   <button
@@ -58,11 +58,34 @@ export default function AdminViewCredsModal({
                       showToast('Vendor ID copied!');
                     }}
                     className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shrink-0"
+                    title="Copy Vendor ID"
                   >
                     <Copy className="w-4 h-4 text-slate-600" />
                   </button>
                 </div>
               </div>
+
+              {viewingCreds.email && (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5">Registered Email</label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                      <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="text-xs font-bold text-slate-800 truncate">{viewingCreds.email}</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(viewingCreds.email);
+                        showToast('Email copied!');
+                      }}
+                      className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shrink-0"
+                      title="Copy Email"
+                    >
+                      <Copy className="w-4 h-4 text-slate-600" />
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5">Temporary Password</label>
@@ -77,6 +100,7 @@ export default function AdminViewCredsModal({
                       showToast('Password copied!');
                     }}
                     className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shrink-0"
+                    title="Copy Password"
                   >
                     <Copy className="w-4 h-4 text-slate-600" />
                   </button>

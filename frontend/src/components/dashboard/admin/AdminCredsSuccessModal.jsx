@@ -35,7 +35,7 @@ export default function AdminCredsSuccessModal({
             {/* Copyable Fields */}
             <div className="space-y-3 text-left">
               <div>
-                <label className="block text-[11px] font-bold text-slate-400 uppercase">Vendor ID (Login Email)</label>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase">Vendor ID</label>
                 <div className="flex items-center gap-2 mt-1">
                   <input
                     type="text"
@@ -49,11 +49,36 @@ export default function AdminCredsSuccessModal({
                       showToast('Vendor ID copied to clipboard!');
                     }}
                     className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shrink-0"
+                    title="Copy Vendor ID"
                   >
                     <Copy className="w-4 h-4 text-slate-600" />
                   </button>
                 </div>
               </div>
+
+              {generatedCreds.email && (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase">Registered Email</label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      type="text"
+                      readOnly
+                      value={generatedCreds.email}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800"
+                    />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedCreds.email);
+                        showToast('Email copied to clipboard!');
+                      }}
+                      className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shrink-0"
+                      title="Copy Email"
+                    >
+                      <Copy className="w-4 h-4 text-slate-600" />
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-400 uppercase">Temporary Password (Backend-Generated)</label>
@@ -70,6 +95,7 @@ export default function AdminCredsSuccessModal({
                       showToast('Password copied!');
                     }}
                     className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shrink-0"
+                    title="Copy Password"
                   >
                     <Copy className="w-4 h-4 text-slate-600" />
                   </button>

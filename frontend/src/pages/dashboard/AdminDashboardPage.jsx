@@ -24,7 +24,7 @@ import {
   Snowflake, Droplets, Store, Star, BadgeCheck, BadgeIcon, Contact, Ban, UserMinus
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { approveVendorApplication, getAllVendorApplications, rejectVendorApplication, createVendorByAdminApi } from '../../services/api';
+import { approveVendorApplication, getAllVendorApplications, rejectVendorApplication, createVendorByAdminApi, getVendorCredentialsApi } from '../../services/api';
 import { getAdminBookingsApi } from '../../services/operations/bookingAPI';
 
 // ─── Service Specializations (Exact match to Vendor Application Categories) ──
@@ -240,7 +240,8 @@ export default function AdminDashboardPage() {
           date: new Date(app.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
           name: app.fullName,
           service: app.serviceType,
-          phone: app.phoneNumber
+          phone: app.phoneNumber,
+          vendorId: app.vendorId || app.vendor?.vendorId || null,
         })));
       }
     } catch (e) {
@@ -657,9 +658,16 @@ export default function AdminDashboardPage() {
   };
 
   // Open "View Vendor ID & Pass" modal
-  const handleViewVendorCreds = async (appId) => {
+  const handleViewVendorCreds = async (app) => {
+    setIsApplicationModalOpen(false);
+    const appId = typeof app === 'object' && app !== null ? (app.applicationId || app.id || app._id) : app;
+    if (!appId) {
+      showToast('Application ID is missing');
+      return;
+    }
+
     let creds = vendorCredentials[appId];
-    if (creds) {
+    if (creds && creds.tempPassword) {
       setViewingCreds(creds);
       setIsViewCredsModalOpen(true);
       return;
@@ -667,12 +675,13 @@ export default function AdminDashboardPage() {
 
     try {
       showToast('Fetching vendor credentials...');
-      const res = await approveVendorApplication(appId, token);
+      const res = await getVendorCredentialsApi(appId, token);
       if (res.success && res.credentials) {
-        const app = applicationsList.find(a => a.id === appId);
+        const appObj = typeof app === 'object' && app !== null ? app : applicationsList.find(a => a.id === appId || a.applicationId === appId || a._id === appId);
         const newCreds = {
-          name: `${app?.name || 'Vendor'} - ${app?.service || 'Service Technician'}`,
+          name: `${appObj?.name || appObj?.fullName || res.vendor?.fullName || 'Vendor'} - ${appObj?.service || appObj?.serviceType || 'Service Technician'}`,
           id: res.credentials.vendorId,
+          email: res.vendor?.email || appObj?.email,
           tempPassword: res.credentials.temporaryPassword,
           appId: appId,
         };
@@ -683,6 +692,7 @@ export default function AdminDashboardPage() {
         showToast(res.message || 'Credentials not available');
       }
     } catch (e) {
+      console.error('Error fetching credentials:', e);
       showToast('Could not fetch credentials');
     }
   };
@@ -836,7 +846,7 @@ export default function AdminDashboardPage() {
       return;
     }
 
-    if (existingVendorMatch) {
+    if (existingVendorMatch && !vendorForm.appId) {
       const errMsg = `Vendor already exists with this ${existingVendorMatch.field} (${existingVendorMatch.matchedValue}) with Vendor ID: ${existingVendorMatch.vendorId}. Cannot generate a duplicate ID.`;
       setVendorFormError(errMsg);
       showToast(errMsg);
@@ -851,6 +861,7 @@ export default function AdminDashboardPage() {
           const creds = {
             name: `${vendorForm.fullName} - ${vendorForm.specialization || 'Service Technician'}`,
             id: res.credentials.vendorId,
+            email: res.vendor?.email || vendorForm.email,
             tempPassword: res.credentials.temporaryPassword,
             appId: vendorForm.appId,
           };
@@ -862,7 +873,7 @@ export default function AdminDashboardPage() {
                a.applicationId === vendorForm.appId ||
                a._id === vendorForm.appId ||
                (a.email && vendorForm.email && a.email.toLowerCase() === vendorForm.email.toLowerCase()))
-                ? { ...a, status: 'Approved' }
+                ? { ...a, status: 'Approved', vendorId: res.credentials.vendorId }
                 : a
             )
           );
@@ -886,12 +897,14 @@ export default function AdminDashboardPage() {
           const creds = {
             name: `${vendorForm.fullName} - ${vendorForm.specialization || 'Service Technician'}`,
             id: res.credentials.vendorId,
+            email: res.vendor?.email || vendorForm.email,
             tempPassword: res.credentials.temporaryPassword,
             appId: null,
           };
           setGeneratedCreds(creds);
           setIsCredentialSuccessOpen(true);
           showToast('Vendor credentials generated successfully!');
+          fetchApplications();
           resetVendorForm();
         } else {
           setVendorFormError(res.message || 'Failed to create vendor credentials');
