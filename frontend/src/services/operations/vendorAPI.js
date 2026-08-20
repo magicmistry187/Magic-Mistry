@@ -72,10 +72,20 @@ export async function approveVendorApplication(applicationId, token) {
 export async function createVendorByAdminApi(vendorData, token) {
   console.log("create vendor by admin is call")
   try {
+    // Map frontend form fields to backend-expected field names
+    const payload = {
+      fullName: vendorData.fullName,
+      email: vendorData.email,
+      phoneNumber: vendorData.phoneNumber || vendorData.phone || '',  // backend expects `phoneNumber`
+      specialization: vendorData.specialization,
+      serviceArea: vendorData.serviceArea,
+      experience: vendorData.experience,
+    };
+
     const response = await apiConnector(
       "POST",
       VENDOR_CREATE_API,
-      vendorData,
+      payload,
       {
         Authorization: `Bearer ${token}`,
       }

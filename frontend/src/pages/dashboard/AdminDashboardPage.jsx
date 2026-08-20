@@ -470,15 +470,7 @@ export default function AdminDashboardPage() {
   const [generatedCreds, setGeneratedCreds] = useState(null);
 
   // Map: appId -> { id, tempPassword, name } — tracks which vendors have had IDs generated
-  // Pre-seed credentials for already-approved vendors in initial data
-  const [vendorCredentials, setVendorCredentials] = useState({
-    'APP-903': {
-      name: 'Anita Desai - Washing Machine Expert',
-      id: 'anita.d@repairs.in',
-      tempPassword: 'BackendGen_x7q2pz',
-      appId: 'APP-903',
-    },
-  });
+  const [vendorCredentials, setVendorCredentials] = useState({});
 
   // Real-time duplicate vendor check (Email and Phone/Mobile Number)
   const existingVendorMatch = useMemo(() => {
@@ -492,6 +484,14 @@ export default function AdminDashboardPage() {
       const appId = app.id || app.applicationId || app._id;
       // If approving this exact application, don't flag itself
       if (vendorForm.appId && (appId === vendorForm.appId || app.applicationId === vendorForm.appId)) continue;
+
+      // Pending applications do not count as existing vendors until approved
+      if (app.status === 'Pending' || app.status === 'pending') {
+        if (!vendorCredentials[appId]) continue;
+      }
+
+      // Rejected applications do not count as active/existing vendors
+      if (app.status === 'Rejected' || app.status === 'rejected') continue;
 
       const appEmail = (app.email || '').trim().toLowerCase();
       const appPhone = (app.phoneNumber || app.phone || '').replace(/\D/g, '');
@@ -515,6 +515,11 @@ export default function AdminDashboardPage() {
     // 2. Check in usersList
     for (const u of usersList) {
       if (u.role !== 'Technician' && u.role !== 'Vendor') continue;
+      // As long as the vendor remains in 'pending' status, do not consider it an existing vendor
+      if (u.status === 'Pending' || u.status === 'pending') continue;
+      // If approving this exact application, don't flag itself
+      if (vendorForm.appId && (u.id === vendorForm.appId || u.applicationId === vendorForm.appId)) continue;
+
       const uEmail = (u.email || '').trim().toLowerCase();
       const uPhone = (u.phone || '').replace(/\D/g, '');
 

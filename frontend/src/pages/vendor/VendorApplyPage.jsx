@@ -4,7 +4,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, CheckCircle2, User, Phone,
   Mail, MapPin, Briefcase, Wrench, FileText, Shield,
-  Upload, ChevronDown, Sparkles, AlertCircle, ExternalLink
+  Upload, ChevronDown, Sparkles, AlertCircle, ExternalLink,
+  Loader2
 } from 'lucide-react';
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
@@ -204,6 +205,7 @@ export default function VendorApplyPage() {
   const navigate = useNavigate();
   const [step, setStep]       = useState(0);
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [agreed, setAgreed]   = useState(false);
   const [errors, setErrors]   = useState({});
 
@@ -265,6 +267,7 @@ export default function VendorApplyPage() {
   };
 
   const back = () => {
+    if (isSubmitting) return;
     setStep(s => s - 1);
     setErrors({});
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -272,11 +275,16 @@ export default function VendorApplyPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     if (!agreed) {
       setErrors(prev => ({ ...prev, agreed: 'You must agree to the terms to proceed.' }));
       return;
     }
     
+    setIsSubmitting(true);
+    setErrors(prev => ({ ...prev, agreed: undefined }));
+
     const parseExperience = (exp) => {
       if (exp === 'Less than 1 year') return 0;
       if (exp === '1-2 years') return 1;
@@ -310,7 +318,9 @@ export default function VendorApplyPage() {
         setErrors(prev => ({ ...prev, agreed: res.message || 'Failed to submit application.' }));
       }
     } catch (error) {
-      setErrors(prev => ({ ...prev, agreed: 'An error occurred while submitting.' }));
+      setErrors(prev => ({ ...prev, agreed: 'An error occurred while submitting. Please try again.' }));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -650,10 +660,13 @@ export default function VendorApplyPage() {
                 {step > 0 ? (
                   <motion.button
                     type="button"
-                    whileHover={{ scale: 1.03, x: -2 }}
-                    whileTap={{ scale: 0.97 }}
+                    disabled={isSubmitting}
+                    whileHover={isSubmitting ? {} : { scale: 1.03, x: -2 }}
+                    whileTap={isSubmitting ? {} : { scale: 0.97 }}
                     onClick={back}
-                    className="flex items-center gap-2 px-6 py-3 border border-slate-200 text-slate-600 rounded-full font-semibold text-sm hover:bg-slate-100 transition-colors cursor-pointer"
+                    className={`flex items-center gap-2 px-6 py-3 border border-slate-200 text-slate-600 rounded-full font-semibold text-sm transition-colors ${
+                      isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-100 cursor-pointer'
+                    }`}
                   >
                     <ArrowLeft className="w-4 h-4" />
                     Back
@@ -661,10 +674,13 @@ export default function VendorApplyPage() {
                 ) : (
                   <motion.button
                     type="button"
-                    whileHover={{ scale: 1.03, x: -2 }}
-                    whileTap={{ scale: 0.97 }}
+                    disabled={isSubmitting}
+                    whileHover={isSubmitting ? {} : { scale: 1.03, x: -2 }}
+                    whileTap={isSubmitting ? {} : { scale: 0.97 }}
                     onClick={() => navigate('/become-a-vendor')}
-                    className="flex items-center gap-2 px-6 py-3 border border-slate-200 text-slate-600 rounded-full font-semibold text-sm hover:bg-slate-100 transition-colors cursor-pointer"
+                    className={`flex items-center gap-2 px-6 py-3 border border-slate-200 text-slate-600 rounded-full font-semibold text-sm transition-colors ${
+                      isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-100 cursor-pointer'
+                    }`}
                   >
                     <ArrowLeft className="w-4 h-4" />
                     Go Back
@@ -685,12 +701,26 @@ export default function VendorApplyPage() {
                 ) : (
                   <motion.button
                     type="submit"
-                    whileHover={{ scale: 1.04, y: -2 }}
-                    whileTap={{ scale: 0.97 }}
-                    className="flex items-center gap-2.5 bg-orange-500 hover:bg-orange-400 text-white px-8 py-3 rounded-full font-bold text-sm shadow-xl shadow-orange-500/30 transition-colors cursor-pointer"
+                    disabled={isSubmitting}
+                    whileHover={isSubmitting ? {} : { scale: 1.04, y: -2 }}
+                    whileTap={isSubmitting ? {} : { scale: 0.97 }}
+                    className={`flex items-center gap-2.5 text-white px-8 py-3 rounded-full font-bold text-sm shadow-xl transition-all ${
+                      isSubmitting
+                        ? 'bg-orange-400 cursor-not-allowed opacity-80 shadow-none'
+                        : 'bg-orange-500 hover:bg-orange-400 shadow-orange-500/30 cursor-pointer'
+                    }`}
                   >
-                    <CheckCircle2 className="w-4 h-4" />
-                    Submit Application
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Submitting Application...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        Submit Application
+                      </>
+                    )}
                   </motion.button>
                 )}
               </div>
