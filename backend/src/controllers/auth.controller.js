@@ -213,6 +213,14 @@ async function login(req, res) {
       });
     }
 
+     // Vendors must use vendor login
+    if (user.role === "vendor") {
+      return res.status(403).json({
+        success: false,
+        message: "Vendors must use the vendor login.",
+      });
+    }
+
     // User signed up only with Google
     if (!user.password) {
       return res.status(400).json({
@@ -231,13 +239,13 @@ async function login(req, res) {
       });
     }
 
-    // Vendor approval check
-    if (user.role === "vendor" && !user.isApproved) {
-      return res.status(403).json({
-        success: false,
-        message: "Your account is waiting for admin approval.",
-      });
-    }
+    // // Vendor approval check
+    // if (user.role === "vendor" && !user.isApproved) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: "Your account is waiting for admin approval.",
+    //   });
+    // }
 
     if (user.status === "blocked") {
       return res.status(403).json({
@@ -352,6 +360,13 @@ async function googleLogin(req, res) {
         });
       }
     }
+
+    if (user.role === "vendor") {
+  return res.status(403).json({
+    success: false,
+    message: "Vendors cannot use Google login. Please use vendor login.",
+  });
+}
 
     const token = generateToken(user);
     // console.log("Google login successful. Token generated:", token);

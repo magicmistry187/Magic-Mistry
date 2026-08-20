@@ -37,6 +37,7 @@ export async function loginVendor(login, password) {
 }
 
 export async function approveVendorApplication(applicationId, token) {
+  console.log("Approve is called with ID:", applicationId);
   try {
     const response = await apiConnector(
       "PATCH",
@@ -69,6 +70,7 @@ export async function approveVendorApplication(applicationId, token) {
 }
 
 export async function createVendorByAdminApi(vendorData, token) {
+  console.log("create vendor by admin is call")
   try {
     const response = await apiConnector(
       "POST",

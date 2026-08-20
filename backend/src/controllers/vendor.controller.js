@@ -8,28 +8,22 @@ exports.vendorLogin = async (req, res) => {
   try {
     const { login, password } = req.body;
 
-    if (!login || !password) {
+    // 1. Validate input
+    if (!login?.trim() || !password) {
       return res.status(400).json({
         success: false,
         message: 'Vendor ID/email and password are required',
       });
     }
-    const loginValue = login.trim();
-    const escapedLogin = loginValue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+    const loginValue = login.trim();
+
+    // 2. Find vendor by Vendor ID or Email
     const vendor = await User.findOne({
-      $and: [
-        {
-          $or: [{ role: 'vendor' }, { vendorId: { $exists: true, $ne: null } }],
-        },
-        {
-          $or: [
-            { vendorId: { $regex: new RegExp(`^${escapedLogin}$`, 'i') } },
-            { vendorId: loginValue.toUpperCase() },
-            { vendorId: loginValue },
-            { email: loginValue.toLowerCase() },
-          ],
-        },
+      role: 'vendor',
+      $or: [
+        { vendorId: loginValue.toUpperCase() },
+        { email: loginValue.toLowerCase() },
       ],
     }).select('+password');
 
@@ -40,6 +34,7 @@ exports.vendorLogin = async (req, res) => {
       });
     }
 
+    // 3. Check account status
     if (vendor.status === 'blocked') {
       return res.status(403).json({
         success: false,
@@ -54,21 +49,26 @@ exports.vendorLogin = async (req, res) => {
       });
     }
 
+    // 4. Check approval
     if (!vendor.isApproved) {
       return res.status(403).json({
         success: false,
-        message: 'Your vendor account is not approved',
+        message: 'Your vendor account is not approved.',
       });
     }
 
+    // 5. Check password
     if (!vendor.password) {
       return res.status(401).json({
         success: false,
-        message: 'Vendor password is not configured',
+        message: 'Vendor password is not configured.',
       });
     }
 
-    const isPasswordCorrect = await bcrypt.compare(password, vendor.password);
+    const isPasswordCorrect = await bcrypt.compare(
+      password,
+      vendor.password
+    );
 
     if (!isPasswordCorrect) {
       return res.status(401).json({
@@ -77,20 +77,21 @@ exports.vendorLogin = async (req, res) => {
       });
     }
 
+    // 6. Generate JWT
     const token = jwt.sign(
       {
         id: vendor._id,
-        userId: vendor._id,
         email: vendor.email,
         role: vendor.role,
         vendorId: vendor.vendorId,
       },
-      process.env.JWT_SECRET || 'secret',
+      process.env.JWT_SECRET,
       {
         expiresIn: '7d',
-      },
+      }
     );
 
+    // 7. Store token in cookie
     res.cookie('vendorToken', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -98,24 +99,17 @@ exports.vendorLogin = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    const vendorData = {
-      id: vendor._id,
-      _id: vendor._id,
-      vendorId: vendor.vendorId,
-      fullName: vendor.fullName,
-      email: vendor.email,
-      role: vendor.role,
-    };
-
+    // 8. Return vendor data
     return res.status(200).json({
       success: true,
       message: 'Vendor login successful',
-      token,
       vendor: {
-        ...vendorData,
-        token: token,
+        _id: vendor._id,
+        vendorId: vendor.vendorId,
+        fullName: vendor.fullName,
+        email: vendor.email,
+        role: vendor.role,
       },
-      user: vendorData,
     });
   } catch (error) {
     console.error('Vendor login error:', error);
@@ -127,7 +121,9 @@ exports.vendorLogin = async (req, res) => {
   }
 };
 
-// --------------------Vendor Profile-------------
+
+
+//--------------------Vendor Profile-------------
 
 exports.getVendorProfile = async (req, res) => {
   try {
@@ -156,3 +152,21 @@ exports.getVendorProfile = async (req, res) => {
     });
   }
 };
+
+
+exports.updateVendorProfile = async (req, res)=>{
+   
+   const userId = req.user._id;
+
+    
+    const vendorProfile = await VendorProfile.findOne({
+      user: userId,
+    });
+
+    if (!vendorProfile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor profile not found.',
+      });
+    }
+}
