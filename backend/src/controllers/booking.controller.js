@@ -14,35 +14,46 @@ exports.createBooking = async (req, res) => {
       timeSlot,
       serviceCategory,
       serviceCategoryCharge,
+      longitude,
+      latitude,
     } = req.body;
 
     const selectedAppliance = appliance || serviceCategory;
+
+    console.log(
+      "Value of longitude and latitude came from frontend:  ",
+      longitude,
+      ",",
+      latitude,
+    );
+
+    //Here we have to first check latitude and longitude is present or not(maybe null) if not then send it to geocode api
 
     // Validate required fields
     if (!selectedAppliance || !address || !serviceDate || !timeSlot) {
       return res.status(400).json({
         success: false,
         message:
-          'All required fields (appliance, address, serviceDate, timeSlot) must be provided.',
+          "All required fields (appliance, address, serviceDate, timeSlot) must be provided.",
       });
     }
 
     // Upload image if provided
-    let image = '';
+    let image = "";
 
-    if (req.file){
+    if (req.file) {
       try {
         const result = await uploadImageToImageKit(
           req.file.buffer,
-          req.file.originalname || `booking-${Date.now()}.jpg`
+          req.file.originalname || `booking-${Date.now()}.jpg`,
         );
         image = result.url;
       } catch (error) {
-        console.error('Image upload failed:', error);
+        console.error("Image upload failed:", error);
 
         return res.status(500).json({
           success: false,
-          message: 'Failed to upload image.',
+          message: "Failed to upload image.",
         });
       }
     }
@@ -51,7 +62,7 @@ exports.createBooking = async (req, res) => {
     const booking = await Booking.create({
       customer: req.user.id,
       appliance: selectedAppliance,
-      issue: issue || 'General Repair & Maintenance',
+      issue: issue || "General Repair & Maintenance",
       image,
       address,
       serviceDate,
@@ -62,7 +73,7 @@ exports.createBooking = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Booking created successfully.',
+      message: "Booking created successfully.",
       booking,
     });
   } catch (error) {

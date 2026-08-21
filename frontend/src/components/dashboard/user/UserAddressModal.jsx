@@ -79,7 +79,7 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
             </div>
 
             <div>
-              <label className="block font-semibold text-xs text-gray-500 mb-1">House / Flat / Building No.</label>
+              <label className="block font-semibold text-xs text-gray-500 mb-1">House / Flat / Building No./ Shop No.</label>
               <input
                 type="text"
                 required

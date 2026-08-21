@@ -27,8 +27,13 @@ exports.createAddress = async (req, res) => {
     const stateVal = (state || 'West Bengal').trim();
     const pincodeVal = (pincode || '000000').trim();
 
+
+    //Here we add geocode api to get longitude and latitude
+
     // Parse coordinates
-    let coords = [88.3639, 22.5726]; // default Kolkata lng, lat
+    // let coords = [88.3639, 22.5726]; // default Kolkata lng, lat
+
+let coords = [19.449832 , 72.883995] // default location for checking functionality
     if (location && Array.isArray(location.coordinates) && location.coordinates.length === 2) {
       coords = [Number(location.coordinates[0]), Number(location.coordinates[1])];
     } else if (longitude !== undefined && latitude !== undefined) {
@@ -43,7 +48,8 @@ exports.createAddress = async (req, res) => {
     };
 
     const addressCount = await Address.countDocuments({
-      user: req.user.id,
+      user: req.user.id
+
     });
 
     const makeDefault = addressCount === 0 ? true : !!isDefault;
@@ -57,13 +63,13 @@ exports.createAddress = async (req, res) => {
 
     const address = await Address.create({
       user: req.user.id,
-      addressType: addressType || 'Home',
-      house: houseVal,
+      addressType: addressType || "Home",
+      addressLine1: houseVal,
       street: streetVal,
-      landmark: (landmark || '').trim(),
+      landmark: (landmark || "").trim(),
       city: cityVal,
       state: stateVal,
-      country: (country || 'India').trim(),
+      country: (country || "India").trim(),
       pincode: pincodeVal,
       location: geoPoint,
       isDefault: makeDefault,
@@ -167,7 +173,7 @@ exports.updateAddress = async (req, res) => {
 
     const updatePayload = { ...req.body };
     if (req.body.flat && !req.body.house) {
-      updatePayload.house = req.body.flat;
+      updatePayload.addressLine1 = req.body.flat;
     }
 
     if (req.body.longitude !== undefined && req.body.latitude !== undefined) {
@@ -208,7 +214,13 @@ exports.updateAddress = async (req, res) => {
     );
 
     if (updatedAddress && (updatedAddress.isDefault || req.body.isDefault)) {
-      const formattedLoc = [updatedAddress.house, updatedAddress.street, updatedAddress.city].filter(Boolean).join(', ');
+      const formattedLoc = [
+        updatedAddress.addressLine1,
+        updatedAddress.street,
+        updatedAddress.city,
+      ]
+        .filter(Boolean)
+        .join(", ");
       await User.findByIdAndUpdate(req.user.id, {
         $set: {
           location: formattedLoc,
