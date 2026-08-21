@@ -19,11 +19,15 @@ export async function loginVendor(login, password) {
     if (!response.data?.success) {
       throw new Error(response.data?.message || "Vendor login failed");
     }
+    // Backend returns token at top-level response.data.token and vendor
+    // details under response.data.vendor — extract correctly
+    const token = response.data.token;
+    const vendorData = response.data.vendor || response.data.user || {};
     return {
       success: true,
       message: response.data.message || "Vendor logged in successfully!",
-      token: response.data.vendor?.token || response.data.token,
-      user: { ...(response.data.vendor || response.data.user), role: 'vendor' },
+      token,
+      user: { ...vendorData, role: 'vendor' },
     };
   } catch (error) {
     console.log("VENDOR LOGIN API ERROR............", error);

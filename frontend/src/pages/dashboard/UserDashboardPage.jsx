@@ -83,8 +83,18 @@ const itemVariants = {
 };
 
 export default function UserDashboardPage() {
-  const { user, token, logout, location, updateLocation } = useAuth();
+  const { user, token, logout, location, updateLocation, loading } = useAuth();
   const navigate = useNavigate();
+
+  // Role guard — redirect vendors/admins to their correct dashboard
+  React.useEffect(() => {
+    if (loading) return; // wait for auth to rehydrate
+    if (user?.role === 'vendor') {
+      navigate('/vendor-dashboard', { replace: true });
+    } else if (user?.role === 'admin') {
+      navigate('/admin-dashboard', { replace: true });
+    }
+  }, [user, loading, navigate]);
 
   // Bookings list state
   const [bookingsList, setBookingsList] = useState(initialBookings);

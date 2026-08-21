@@ -222,9 +222,20 @@ const WEEKLY_EARNINGS_DATA = [
 
 export default function VendorDashboardPage() {
   const navigate = useNavigate();
-  const { token, user } = useAuth();
+  const { token, user, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('active'); // 'active', 'service', 'invoice', 'history', 'earnings', 'profile'
   const [isOnline, setIsOnline] = useState(true);
+
+  // Role guard — redirect away if the user is not a vendor
+  useEffect(() => {
+    if (loading) return; // wait for auth to rehydrate
+    if (!user) {
+      navigate('/login', { replace: true });
+    } else if (user.role !== 'vendor') {
+      // Non-vendor landed on vendor dashboard — send them to the right place
+      navigate(user.role === 'admin' ? '/admin-dashboard' : '/dashboard', { replace: true });
+    }
+  }, [user, loading, navigate]);
 
   // Scroll to top whenever tab changes
   const handleTabChange = (tabId) => {
@@ -241,14 +252,28 @@ export default function VendorDashboardPage() {
         if (res.success && res.bookings) {
           const formatted = res.bookings.map(b => ({
             id: b._id,
-            appliance: b.appliance,
-            serviceTitle: b.serviceCategory || b.appliance,
+            appliance: b.appliance || 'General',
+            applianceIcon: '🔧',
+            serviceTitle: b.serviceCategory || b.appliance || 'Service Request',
+            status: b.bookingStatus || 'New Request',
+            timeSlot: b.timeSlot || '—',
+            appointmentDate: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }) : '—',
             customerName: b.customer?.fullName || 'Unknown',
-            date: new Date(b.serviceDate).toLocaleDateString() + ' ' + b.timeSlot,
-            location: b.address,
+            customerPhone: b.customer?.phoneNumber || '—',
+            serviceAddress: b.address || '—',
+            location: b.address || '—',
+            distance: '—',
+            issue: b.issue || b.description || '—',
+            estimatedPay: b.serviceCharge || b.estimatedPay || 0,
             amount: b.serviceCharge || 0,
-            status: b.bookingStatus,
-            review: b.issue || '',
+            date: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString() + (b.timeSlot ? ' ' + b.timeSlot : '') : '—',
+            review: b.review || b.issue || '',
+            checklist: b.checklist || [],
+            photos: b.photos || [],
+            notes: b.notes || '',
+            parts: b.parts || [
+              { id: 1, description: 'Diagnostic & Initial Inspection Fee', qty: 1, price: 450, locked: true },
+            ],
           }));
           setJobs(formatted.filter(b => b.status !== 'Completed' && b.status !== 'Cancelled' && b.status !== 'Closed'));
           setHistory(formatted.filter(b => b.status === 'Completed' || b.status === 'Cancelled' || b.status === 'Closed'));
@@ -1040,7 +1065,7 @@ export default function VendorDashboardPage() {
                                 <div className="flex sm:flex-col items-center sm:items-end justify-between">
                                   <div>
                                     <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Est. Payout</span>
-                                    <span className="text-lg font-extrabold text-slate-900">₹{job.estimatedPay.toLocaleString('en-IN')}</span>
+                                    <span className="text-lg font-extrabold text-slate-900">₹{(job.estimatedPay ?? 0).toLocaleString('en-IN')}</span>
                                   </div>
                                 </div>
 

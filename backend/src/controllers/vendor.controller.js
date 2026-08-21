@@ -99,10 +99,12 @@ exports.vendorLogin = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    // 8. Return vendor data
+    // 8. Return vendor data (include token in body so the frontend can
+    //    save it to localStorage and restore the session after browser close)
     return res.status(200).json({
       success: true,
       message: 'Vendor login successful',
+      token,
       vendor: {
         _id: vendor._id,
         vendorId: vendor.vendorId,
