@@ -15,7 +15,7 @@ const vendorProfileSchema = new mongoose.Schema(
       sparse: true,
       trim: true,
     },
-    profilePhoto: {
+    profileImage: {
       type: String,
       default: null,
     },
@@ -60,7 +60,7 @@ const vendorProfileSchema = new mongoose.Schema(
     //   default: null,
     // },
 
-    serviceAddress: {
+     serviceAddress: {
       type: String,
       trim: true,
       default: null,

@@ -2,6 +2,7 @@ const User = require('../models/user.model');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const VendorProfile = require('../models/vendorProfile.model');
+const uploadImageToImageKit = require('../config/imagekit');
 
 // VENDOR login
 exports.vendorLogin = async (req, res) => {
@@ -65,10 +66,7 @@ exports.vendorLogin = async (req, res) => {
       });
     }
 
-    const isPasswordCorrect = await bcrypt.compare(
-      password,
-      vendor.password
-    );
+    const isPasswordCorrect = await bcrypt.compare(password, vendor.password);
 
     if (!isPasswordCorrect) {
       return res.status(401).json({
@@ -88,7 +86,7 @@ exports.vendorLogin = async (req, res) => {
       process.env.JWT_SECRET,
       {
         expiresIn: '7d',
-      }
+      },
     );
 
     // 7. Store token in cookie
@@ -123,8 +121,6 @@ exports.vendorLogin = async (req, res) => {
   }
 };
 
-
-
 //--------------------Vendor Profile-------------
 
 exports.getVendorProfile = async (req, res) => {
@@ -155,12 +151,11 @@ exports.getVendorProfile = async (req, res) => {
   }
 };
 
-
-exports.updateVendorProfile = async (req, res)=>{
-   
-   const userId = req.user._id;
-
+exports.updateVendorProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
     
+
     const vendorProfile = await VendorProfile.findOne({
       user: userId,
     });
@@ -171,4 +166,155 @@ exports.updateVendorProfile = async (req, res)=>{
         message: 'Vendor profile not found.',
       });
     }
-}
+
+    const userFields = ['fullName', 'phoneNumber'];
+
+    const vendorFields = [
+      'serviceType',
+      'experience',
+      'experienceDescription',
+      'specialization',
+      'bio',
+      'vendorUpiId',
+    ];
+
+    const userUpdate = {};
+    const vendorUpdate = {};
+
+    userFields.forEach((field) => {
+      if (
+        req.body[field] !== undefined &&
+        req.body[field] !== null &&
+        req.body[field] !== ''
+      ) {
+        userUpdate[field] = req.body[field];
+      }
+    });
+
+    vendorFields.forEach((field) => {
+      if (
+        req.body[field] !== undefined &&
+        req.body[field] !== null &&
+        req.body[field] !== ''
+      ) {
+        vendorUpdate[field] = req.body[field];
+      }
+    });
+
+    if (req.body?.bankDetails) {
+      try {
+        const bankDetails =
+          typeof req.body.bankDetails === 'string'
+            ? JSON.parse(req.body.bankDetails)
+            : req.body.bankDetails;
+
+        vendorUpdate.bankDetails = {
+          ...(vendorProfile.bankDetails?.toObject?.() ||
+            vendorProfile.bankDetails ||
+            {}),
+          ...bankDetails,
+        };
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid bankDetails format.',
+        });
+      }
+    }
+
+    if (req.body?.appliancesServed !== undefined) {
+      try {
+        const appliances =
+          typeof req.body.appliancesServed === 'string'
+            ? JSON.parse(req.body.appliancesServed)
+            : req.body.appliancesServed;
+
+        if (!Array.isArray(appliances)) {
+          return res.status(400).json({
+            success: false,
+            message: 'appliancesServed must be an array.',
+          });
+        }
+
+        vendorUpdate.appliancesServed = appliances;
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid appliancesServed format.',
+        });
+      }
+    }
+
+    if (req.file) {
+      try {
+        const result = await uploadImageToImageKit(
+          req.file.buffer,
+          req.file.originalname || `vendor-profile-${Date.now()}.jpg`,
+          'vendor-profiles',
+        );
+
+        vendorUpdate.profileImage = result.url;
+      } catch (error) {
+        console.error('Profile image upload failed:', error);
+
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to upload profile image.',
+        });
+      }
+    }
+
+    let updatedUser = null;
+
+    if (Object.keys(userUpdate).length > 0) {
+      updatedUser = await User.findByIdAndUpdate(
+        userId,
+        { $set: userUpdate },
+        {
+          new: true,
+          runValidators: true,
+        },
+      ).select('-password');
+    } else {
+      updatedUser = await User.findById(userId).select('-password');
+    }
+
+    const updatedVendorProfile =
+      Object.keys(vendorUpdate).length > 0
+        ? await VendorProfile.findOneAndUpdate(
+            { user: userId },
+            { $set: vendorUpdate },
+            {
+              new: true,
+              runValidators: true,
+            },
+          ).populate('serviceAddress')
+        : vendorProfile;
+
+    if (
+      Object.keys(userUpdate).length === 0 &&
+      Object.keys(vendorUpdate).length === 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'No profile changes were provided.',
+      });
+    }
+    return res.status(200).json({
+      success: true,
+      message: 'Vendor profile updated successfully.',
+      data: {
+        user: updatedUser,
+        vendorProfile: updatedVendorProfile,
+      },
+    });
+  } catch (error) {
+    console.error('Update Vendor Profile Error:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update vendor profile.',
+      error: error.message,
+    });
+  }
+};
