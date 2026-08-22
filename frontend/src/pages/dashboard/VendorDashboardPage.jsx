@@ -19,6 +19,8 @@ import VendorTaxInvoiceModal from '../../components/dashboard/vendor/VendorTaxIn
 import VendorAddressModal from '../../components/dashboard/vendor/VendorAddressModal';
 import { useAuth } from '../../context/AuthContext';
 import { getVendorBookingsApi } from '../../services/operations/bookingAPI';
+import { saveVendorAddressApi } from '../../services/operations/addressAPI';
+
 
 // Predefined Indian Banks for Profile
 const INDIAN_BANKS = [
@@ -341,11 +343,54 @@ export default function VendorDashboardPage() {
   const [editProfileForm, setEditProfileForm] = useState(vendorProfile);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
 
-  const handleSaveVendorAddress = (newAddress) => {
-    setVendorProfile((prev) => ({ ...prev, address: newAddress }));
-    setEditProfileForm((prev) => ({ ...prev, address: newAddress }));
-    showToast('Service address updated successfully!', 'success');
+  const handleSaveVendorAddress = async (addressData) => {
+    // addressData is the structured object from VendorAddressModal:
+    // { flat, street, landmark, pincode, city, state, addressType, formattedAddress }
+
+    // ── Always update local UI immediately (optimistic) ──────────────────────
+    const displayAddress = addressData.formattedAddress || addressData;
+    setVendorProfile((prev) => ({ ...prev, address: displayAddress }));
+    setEditProfileForm((prev) => ({ ...prev, address: displayAddress }));
+
+    // ── Call POST /api/address/vendor → saves into User Location Save module ─
+    try {
+      const payload = {
+        addressType: addressData.addressType || 'Other',
+        house:       addressData.flat    || '',
+        flat:        addressData.flat    || '',
+        street:      addressData.street  || '',
+        landmark:    addressData.landmark || '',
+        city:        addressData.city    || '',
+        state:       addressData.state   || '',
+        country:     'India',
+        pincode:     addressData.pincode || '000000',
+        isDefault:   true,
+        // No GPS coords from this form — controller will use its default coords
+      };
+
+      console.log('[Vendor Dashboard] 📍 Saving vendor location to User Location Save module...', payload);
+
+      const result = await saveVendorAddressApi(payload, token);
+
+      if (result.success) {
+        // ── Required console message ─────────────────────────────────────────
+        console.log(
+          '%c[Magic Mistry] ✅ Vendor location saved into the User Location Save module',
+          'color: #22c55e; font-weight: bold; font-size: 13px;'
+        );
+        console.log('  Saved address record ID :', result.address?._id);
+        console.log('  Formatted address       :', displayAddress);
+        showToast('Service address saved successfully!', 'success');
+      } else {
+        console.warn('[Vendor Dashboard] ⚠️ Address API returned failure:', result.message);
+        showToast('Service address updated locally (backend sync failed).', 'warning');
+      }
+    } catch (err) {
+      console.error('[Vendor Dashboard] ❌ Failed to save vendor address to backend:', err);
+      showToast('Service address updated locally (backend error).', 'warning');
+    }
   };
+
 
   // Timer Effect - interval created once when running, not recreated every second
   useEffect(() => {

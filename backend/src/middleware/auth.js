@@ -80,3 +80,6 @@ exports.isCustomer = authorizeRoles("customer");
 exports.isVendor = authorizeRoles("vendor");
 exports.isAdmin = authorizeRoles("admin");
 exports.authorizeRoles = authorizeRoles;
+
+// Allows both customers AND vendors to access the route (e.g. saving address)
+exports.isCustomerOrVendor = authorizeRoles("customer", "vendor");

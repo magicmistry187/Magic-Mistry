@@ -8,6 +8,8 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
   const [street, setStreet] = useState('');
   const [landmark, setLandmark] = useState('');
   const [pincode, setPincode] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
 
   useEffect(() => {
     if (initialAddress && typeof initialAddress === 'string') {
@@ -15,7 +17,6 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
       if (parts.length >= 3) {
         setFlat(parts[0] || '');
         setStreet(parts[1] || '');
-        // Check if last part has pincode / numbers
         const last = parts[parts.length - 1];
         const pinMatch = last.match(/\d{6}/);
         if (pinMatch) {
@@ -37,16 +38,21 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const formattedAddress = [
-      flat,
-      street,
-      landmark ? landmark : null,
-      pincode ? pincode : null,
-    ]
+    const formattedAddress = [flat, street, landmark || null, city || null, pincode || null]
       .filter(Boolean)
       .join(', ');
 
-    onSave(formattedAddress || `${flat} ${street}`.trim());
+    // Pass a full structured object so the parent handler can call the address API
+    onSave({
+      flat,
+      street,
+      landmark,
+      pincode,
+      city,
+      state,
+      addressType: type,
+      formattedAddress: formattedAddress || `${flat} ${street}`.trim(),
+    });
     onClose();
   };
 
@@ -60,15 +66,12 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
           transition={{ type: 'spring', stiffness: 320, damping: 26 }}
           className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col"
         >
-          {/* Header (Exact match to screenshot) */}
           <div className="bg-[#0f172a] text-white px-6 py-4.5 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-7 h-7 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-400">
                 <MapPin className="w-4 h-4 text-orange-500" />
               </div>
-              <h3 className="font-extrabold text-base tracking-wide text-white">
-                Add New Address
-              </h3>
+              <h3 className="font-extrabold text-base tracking-wide text-white">Add New Address</h3>
             </div>
             <button
               type="button"
@@ -80,17 +83,13 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
           </div>
 
           <form onSubmit={handleSubmit} className="p-6 space-y-4.5 text-xs text-slate-700">
-            {/* Address Type selection buttons (Exact match to screenshot) */}
+            {/* Address Type */}
             <div>
               <label className="block font-extrabold text-[10px] text-slate-400 uppercase tracking-wider mb-2">
                 ADDRESS TYPE
               </label>
               <div className="flex gap-2.5">
-                {[
-                  { label: 'Home', icon: Home },
-                  { label: 'Office', icon: Briefcase },
-                  { label: 'Other', icon: Tag },
-                ].map((item) => {
+                {[{ label: 'Home', icon: Home }, { label: 'Office', icon: Briefcase }, { label: 'Other', icon: Tag }].map((item) => {
                   const isSelected = type === item.label;
                   return (
                     <button
@@ -111,10 +110,10 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
               </div>
             </div>
 
-            {/* House / Flat / Building No. */}
+            {/* House / Flat */}
             <div>
               <label className="block font-bold text-xs text-slate-600 mb-1.5">
-                House / Flat / Building No.
+                House / Flat / Building No. <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -126,10 +125,10 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
               />
             </div>
 
-            {/* Street / Area / Locality */}
+            {/* Street */}
             <div>
               <label className="block font-bold text-xs text-slate-600 mb-1.5">
-                Street / Area / Locality
+                Street / Area / Locality <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -141,12 +140,40 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
               />
             </div>
 
-            {/* Landmark & Pincode */}
+            {/* City & State */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block font-bold text-xs text-slate-600 mb-1.5">
-                  Landmark (Optional)
+                  City <span className="text-red-500">*</span>
                 </label>
+                <input
+                  type="text"
+                  required
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="e.g. Bengaluru"
+                  className="w-full px-4 py-3 bg-white rounded-2xl border border-slate-200 font-semibold text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-xs text-slate-600 mb-1.5">
+                  State <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={state}
+                  onChange={(e) => setState(e.target.value)}
+                  placeholder="e.g. Karnataka"
+                  className="w-full px-4 py-3 bg-white rounded-2xl border border-slate-200 font-semibold text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Landmark & Pincode */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-xs text-slate-600 mb-1.5">Landmark (Optional)</label>
                 <input
                   type="text"
                   value={landmark}
@@ -155,10 +182,9 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
                   className="w-full px-4 py-3 bg-white rounded-2xl border border-slate-200 font-semibold text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
                 />
               </div>
-
               <div>
                 <label className="block font-bold text-xs text-slate-600 mb-1.5">
-                  Pincode
+                  Pincode <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -171,7 +197,7 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
               </div>
             </div>
 
-            {/* Footer Buttons (Exact match to screenshot) */}
+            {/* Footer Buttons */}
             <div className="pt-3 flex gap-3">
               <button
                 type="button"

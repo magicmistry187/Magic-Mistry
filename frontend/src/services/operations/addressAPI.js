@@ -1,11 +1,11 @@
 import { apiConnector, BASE_URL } from '../apiConnector';
 
 export const addressEndpoints = {
-  CREATE_ADDRESS_API:  BASE_URL + '/address',
-  GET_ADDRESSES_API:   BASE_URL + '/address',
-  GET_ADDRESS_API:     BASE_URL + '/address',
-  UPDATE_ADDRESS_API:  BASE_URL + '/address',
-  DELETE_ADDRESS_API:  BASE_URL + '/address',
+  CREATE_ADDRESS_API: BASE_URL + '/address',
+  GET_ADDRESSES_API:  BASE_URL + '/address',
+  GET_ADDRESS_API:    BASE_URL + '/address',
+  UPDATE_ADDRESS_API: BASE_URL + '/address',
+  DELETE_ADDRESS_API: BASE_URL + '/address',
 };
 
 const {
@@ -15,6 +15,7 @@ const {
   UPDATE_ADDRESS_API,
   DELETE_ADDRESS_API,
 } = addressEndpoints;
+
 
 /**
  * createAddressApi — Create / Save a new user address in MongoDB
@@ -159,6 +160,42 @@ export async function deleteAddressApi(addressId, token) {
     return {
       success: false,
       message: error.response?.data?.message || error.message || 'Failed to delete address',
+    };
+  }
+}
+
+/**
+ * saveVendorAddressApi — Save vendor service address into the User Location Save module.
+ *
+ * Calls POST /api/address — the backend now accepts both customer AND vendor roles
+ * on this route via the isCustomerOrVendor middleware, so vendors can save their
+ * service location into the shared Address model (same User Location Save module).
+ *
+ * @param {object} addressData  Structured address payload from VendorAddressModal
+ * @param {string} token        Vendor JWT token
+ */
+export async function saveVendorAddressApi(addressData, token) {
+  try {
+    const res = await apiConnector('POST', CREATE_ADDRESS_API, addressData, {
+      Authorization: `Bearer ${token}`,
+    });
+
+    console.log('[addressAPI] saveVendorAddressApi response:', res.data);
+
+    if (!res.data?.success) {
+      throw new Error(res.data?.message || 'Could not save vendor address');
+    }
+
+    return {
+      success: true,
+      address: res.data.address || res.data.data,
+      message: res.data.message || 'Vendor address saved successfully',
+    };
+  } catch (error) {
+    console.error('[addressAPI] saveVendorAddressApi error:', error);
+    return {
+      success: false,
+      message: error.response?.data?.message || error.message || 'Failed to save vendor address',
     };
   }
 }

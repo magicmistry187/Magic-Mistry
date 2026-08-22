@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 
-const { auth, isCustomer } = require('../middleware/auth');
+const { auth, isCustomer, isCustomerOrVendor } = require('../middleware/auth');
 const {
   createAddress,
   getAddress,
@@ -11,7 +11,9 @@ const {
   deleteAddress,
 } = require('../controllers/address.controller');
 
-router.post('/', auth, isCustomer, createAddress);
+// POST /api/address — both customers and vendors can save a location address
+// Vendors use this to save their service location into the User Location Save module
+router.post('/', auth, isCustomerOrVendor, createAddress);
 
 router.get('/', auth, isCustomer, getAddresses);
 
@@ -22,3 +24,4 @@ router.put('/:id', auth, isCustomer, updateAddress);
 router.delete('/:id', auth, isCustomer, deleteAddress);
 
 module.exports = router;
+
