@@ -224,7 +224,7 @@ const WEEKLY_EARNINGS_DATA = [
 
 export default function VendorDashboardPage() {
   const navigate = useNavigate();
-  const { token, user, loading } = useAuth();
+  const { token, user, loading, location } = useAuth();
   const [activeTab, setActiveTab] = useState('active'); // 'active', 'service', 'invoice', 'history', 'earnings', 'profile'
   const [isOnline, setIsOnline] = useState(true);
 
@@ -342,6 +342,27 @@ export default function VendorDashboardPage() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editProfileForm, setEditProfileForm] = useState(vendorProfile);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  
+  // Sync profile with actual user data and location
+  useEffect(() => {
+    if (user) {
+      const actualLocation = location && location !== 'Set Your Location' ? location : (user.location || vendorProfile.address);
+      setVendorProfile(prev => ({
+        ...prev,
+        name: user.fullName || prev.name,
+        email: user.email || prev.email,
+        phone: user.phoneNumber || prev.phone,
+        address: actualLocation,
+      }));
+      setEditProfileForm(prev => ({
+        ...prev,
+        name: user.fullName || prev.name,
+        email: user.email || prev.email,
+        phone: user.phoneNumber || prev.phone,
+        address: actualLocation,
+      }));
+    }
+  }, [user, location]);
 
   const handleSaveVendorAddress = async (addressData) => {
     // addressData is the structured object from VendorAddressModal:
