@@ -1,9 +1,11 @@
 const mongoose = require('mongoose');
 const VendorApplication = require('../models/vendorApplication.model');
 const User = require('../models/user.model');
+const VendorProfile = require('../models/vendorProfile.model')
 const uploadImageToImageKit = require('../config/imagekit');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
+
 const {
   checkVendorExistsByEmail,
   checkVendorExistsByEmailOrPhone,
@@ -336,14 +338,16 @@ const approveVendorApplication = async (req, res) => {
   }
 };
 
+
+
 const getVendorCredentials = async (req, res) => {
   try {
     const { applicationId } = req.params;
 
-    // 1. Try to find VendorApplication first
-    let application = await VendorApplication.findOne({
+    
+    const application = await VendorApplication.findOne({
       $or: [
-        { applicationId: applicationId },
+        { applicationId },
         { email: applicationId.toLowerCase() },
         ...(mongoose.isValidObjectId(applicationId)
           ? [{ _id: applicationId }]
@@ -351,72 +355,46 @@ const getVendorCredentials = async (req, res) => {
       ],
     });
 
-    if (application) {
-      const result = await createOrUpdateVendorAccount({
-        fullName: application.fullName,
-        email: application.email,
-        phoneNumber: application.phoneNumber,
-        specialization: application.specialOption || application.serviceType,
-        serviceType: application.serviceType,
-        experience: application.experience,
-        experienceDescription: application.experienceDescription,
-        serviceAddress: application.city,
-      });
-
-      application.status = 'Approved';
-      application.vendor = result.vendorProfile._id;
-      await application.save();
-
-      return res.status(200).json({
-        success: true,
-        message: 'Vendor credentials retrieved successfully.',
-        vendor: {
-          id: result.user._id,
-          vendorId: result.user.vendorId,
-          fullName: result.user.fullName,
-          email: result.user.email,
-          role: result.user.role,
-        },
-        credentials: {
-          vendorId: result.vendorId,
-          temporaryPassword: result.temporaryPassword,
-        },
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor application not found.',
       });
     }
 
-    // 2. Fallback: Search directly in User collection
-    const escapedAppId = applicationId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const user = await User.findOne({
-      $or: [
-        { vendorId: { $regex: new RegExp(`^${escapedAppId}$`, 'i') } },
-        { email: applicationId.toLowerCase() },
-        ...(mongoose.isValidObjectId(applicationId)
-          ? [{ _id: applicationId }]
-          : []),
-      ],
-    });
+    if (!application.vendor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor has not been approved yet.',
+      });
+    }
+
+    
+    const vendorProfile = await VendorProfile.findById(
+      application.vendor
+    );
+
+    if (!vendorProfile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor profile not found.',
+      });
+    }
+
+    
+    const user = await User.findById(vendorProfile.user);
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: `Vendor record not found for "${applicationId}".`,
+        message: 'Vendor user not found.',
       });
     }
-
-    // Generate fresh temporary password and ensure active approved vendor
-    const temporaryPassword = `FixIt_${new Date().getFullYear()}_!${crypto.randomBytes(2).toString('hex')}`;
-    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
-    user.vendorId =
-      user.vendorId || `FX-V-${Math.floor(1000 + Math.random() * 9000)}`;
-    user.password = hashedPassword;
-    user.role = 'vendor';
-    user.isApproved = true;
-    user.status = 'active';
-    await user.save();
 
     return res.status(200).json({
       success: true,
       message: 'Vendor credentials retrieved successfully.',
+
       vendor: {
         id: user._id,
         vendorId: user.vendorId,
@@ -424,20 +402,25 @@ const getVendorCredentials = async (req, res) => {
         email: user.email,
         role: user.role,
       },
+
       credentials: {
         vendorId: user.vendorId,
-        temporaryPassword,
+        temporaryPassword: vendorProfile.temporaryPassword,
       },
     });
   } catch (error) {
-    console.error('Get vendor credentials error:', error);
+    console.error(
+      'Get vendor credentials error:',
+      error
+    );
+
     return res.status(500).json({
       success: false,
-      message:
-        'Failed to retrieve vendor credentials: ' + (error.message || error),
+      message: 'Failed to retrieve vendor credentials.',
     });
   }
 };
+
 
 const rejectVendorApplication = async (req, res) => {
   try {

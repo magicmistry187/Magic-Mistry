@@ -32,7 +32,8 @@ const checkVendorExistsByEmailOrPhone = async (email, phoneNumber) => {
 };
 
 // Keep checkVendorExistsByEmail as backward-compatible alias
-const checkVendorExistsByEmail = (email) => checkVendorExistsByEmailOrPhone(email, null);
+const checkVendorExistsByEmail = (email) =>
+  checkVendorExistsByEmailOrPhone(email, null);
 
 /**
  * Generates a unique vendor ID format: FX-V-XXXX
@@ -45,6 +46,7 @@ const generateVendorId = () => {
 /**
  * Creates or updates a User with vendor role and provisions a VendorProfile with generated credentials.
  */
+
 const createOrUpdateVendorAccount = async ({
   fullName,
   email,
@@ -56,29 +58,29 @@ const createOrUpdateVendorAccount = async ({
   serviceAddress,
 }) => {
   const trimmedEmail = email.toLowerCase().trim();
-  let user = await User.findOne({ email: trimmedEmail });
 
-  // 1. Generate vendor credentials (preserve existing vendorId if already set)
-  const vendorId = user?.vendorId || generateVendorId();
-  const temporaryPassword = `FixIt_${new Date().getFullYear()}_!${crypto
-    .randomBytes(2)
-    .toString('hex')}`;
-  const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+  let user = await User.findOne({
+    email: trimmedEmail,
+  }).select('+password');
 
-  // 2. Create or update User document
-  if (user) {
-    user.fullName = fullName?.trim() || user.fullName;
-    if (phoneNumber) user.phoneNumber = phoneNumber.trim();
-    user.role = 'vendor';
-    user.isApproved = true;
-    user.status = 'active';
-    user.vendorId = vendorId;
-    user.password = hashedPassword;
-    if (!user.authProviders.includes('email')) {
-      user.authProviders.push('email');
-    }
-    await user.save();
-  } else {
+  let vendorId;
+  let temporaryPassword = null;
+
+  
+
+  if (!user) {
+  
+    vendorId = generateVendorId();
+
+   
+    temporaryPassword = `FixIt_${new Date().getFullYear()}_!${crypto
+      .randomBytes(2)
+      .toString('hex')}`;
+
+  
+    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+
+    
     user = await User.create({
       fullName: fullName?.trim(),
       email: trimmedEmail,
@@ -92,41 +94,120 @@ const createOrUpdateVendorAccount = async ({
     });
   }
 
-  // 3. Create or update VendorProfile document
-  let vendorProfile = await VendorProfile.findOne({ user: user._id });
+  
+  else {
+    vendorId = user.vendorId || generateVendorId();
+
+    user.fullName = fullName?.trim() || user.fullName;
+
+    if (phoneNumber) {
+      user.phoneNumber = phoneNumber.trim();
+    }
+
+    user.role = 'vendor';
+    user.isApproved = true;
+    user.status = 'active';
+    user.vendorId = vendorId;
+
+    if (!user.authProviders.includes('email')) {
+      user.authProviders.push('email');
+    }
+
+
+    await user.save();
+  }
+
+ 
+
+  let vendorProfile = await VendorProfile.findOne({
+    user: user._id,
+  });
+
   if (!vendorProfile) {
+    // If somehow user existed but VendorProfile didn't,
+    // generate credentials only if there is no existing password.
+    if (!temporaryPassword && !user.password) {
+      temporaryPassword = `FixIt_${new Date().getFullYear()}_!${crypto
+        .randomBytes(2)
+        .toString('hex')}`;
+
+      const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+
+      user.password = hashedPassword;
+      await user.save();
+    }
+
     vendorProfile = await VendorProfile.create({
       user: user._id,
       vendorId: user.vendorId,
+
+      temporaryPassword: temporaryPassword,
+
       professionalTitle: specialization || 'Service Technician',
+
       serviceType: serviceType || specialization || 'General',
+
       experience: Number(experience) || 0,
+
       experienceDescription: experienceDescription || 'Application Approved',
+
       serviceAddress: serviceAddress || '',
-      profilePhoto: null,
+
+      profileImage: {
+        url: null,
+        fileId: null,
+      },
+
       appliancesServed: [],
+
       serviceRadius: 0,
+
       rating: 0,
+
       jobsCompleted: 0,
+
       vendorUpiId: null,
+
       bankDetails: {
         bankName: null,
         accountNumber: null,
         ifsc: null,
       },
+
       certification: {
         name: null,
         certificationId: null,
         verified: false,
       },
     });
-  } else {
+  }
+
+  
+  else {
     vendorProfile.vendorId = user.vendorId;
-    if (specialization) vendorProfile.professionalTitle = specialization;
-    if (serviceType) vendorProfile.serviceType = serviceType;
-    if (experience !== undefined) vendorProfile.experience = Number(experience);
-    if (experienceDescription) vendorProfile.experienceDescription = experienceDescription;
-    if (serviceAddress) vendorProfile.serviceAddress = serviceAddress;
+
+    if (specialization) {
+      vendorProfile.professionalTitle = specialization;
+    }
+
+    if (serviceType) {
+      vendorProfile.serviceType = serviceType;
+    }
+
+    if (experience !== undefined) {
+      vendorProfile.experience = Number(experience);
+    }
+
+    if (experienceDescription) {
+      vendorProfile.experienceDescription = experienceDescription;
+    }
+
+    if (serviceAddress) {
+      vendorProfile.serviceAddress = serviceAddress;
+    }
+
+  
+
     await vendorProfile.save();
   }
 
@@ -134,7 +215,7 @@ const createOrUpdateVendorAccount = async ({
     user,
     vendorProfile,
     vendorId: user.vendorId,
-    temporaryPassword,
+    temporaryPassword: temporaryPassword || vendorProfile.temporaryPassword,
   };
 };
 

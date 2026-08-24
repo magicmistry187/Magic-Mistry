@@ -153,8 +153,8 @@ exports.getVendorProfile = async (req, res) => {
 
 exports.updateVendorProfile = async (req, res) => {
   try {
+    console.log('Update Vendor Profile Request Body:', req.body);
     const userId = req.user.id;
-    
 
     const vendorProfile = await VendorProfile.findOne({
       user: userId,
@@ -315,6 +315,69 @@ exports.updateVendorProfile = async (req, res) => {
       success: false,
       message: 'Failed to update vendor profile.',
       error: error.message,
+    });
+  }
+};
+
+
+// delete part is incomplete
+exports.updateVendorProfileImage = async (req, res) => {
+  try {
+    console.log('Update Vendor Profile Image Request:', req.file);
+    const userId = req.user.id;
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Profile image is required.',
+      });
+    }
+
+    const vendorProfile = await VendorProfile.findOne({
+      user: userId,
+    });
+
+    if (!vendorProfile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor profile not found.',
+      });
+    }
+
+    const oldFileId = vendorProfile.profileImage?.fileId;
+    console.log('Old File ID:', oldFileId);
+
+    const uploadedImage = await uploadImageToImageKit(
+      req.file.buffer,
+      req.file.originalname,
+    );
+
+    vendorProfile.profileImage = {
+      url: uploadedImage.url,
+      fileId: uploadedImage.fileId,
+    };
+
+    await vendorProfile.save();
+
+    if (oldFileId) {
+      try {
+        await imagekit.files.delete(oldFileId);
+      } catch (deleteError) {
+        console.error('Old profile image deletion failed:', deleteError);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Vendor profile image updated successfully.',
+      profilePhoto: vendorProfile.profilePhoto,
+    });
+  } catch (error) {
+    console.error('Update vendor profile image error:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update vendor profile image.',
     });
   }
 };

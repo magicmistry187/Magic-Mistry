@@ -15,9 +15,19 @@ const vendorProfileSchema = new mongoose.Schema(
       sparse: true,
       trim: true,
     },
-    profileImage: {
+    temporaryPassword: {
       type: String,
       default: null,
+    },
+    profileImage: {
+      url: {
+        type: String,
+        default: null,
+      },
+      fileId: {
+        type: String,
+        default: null,
+      },
     },
     professionalTitle: {
       type: String,
@@ -60,7 +70,7 @@ const vendorProfileSchema = new mongoose.Schema(
     //   default: null,
     // },
 
-     serviceAddress: {
+    serviceAddress: {
       type: String,
       trim: true,
       default: null,
