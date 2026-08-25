@@ -53,11 +53,27 @@ exports.auth = async (req, res, next) => {
 
 const authorizeRoles = (...allowedRoles) => {
   // console.log("in the role checker")
-  return (req, res, next) => {
+  return async (req, res, next) => {
     try {
-      const userRole = req.user?.role;
+      let userRole = req.user?.role?.toLowerCase();
 
-      if (!allowedRoles.includes(userRole)) {
+      if (!userRole && (req.user?.id || req.user?.email)) {
+        const User = require('../models/user.model');
+        const mongoose = require('mongoose');
+        let dbUser = null;
+        if (req.user?.id && mongoose.Types.ObjectId.isValid(req.user.id)) {
+          dbUser = await User.findById(req.user.id).select('role');
+        }
+        if (!dbUser && req.user?.email) {
+          dbUser = await User.findOne({ email: req.user.email.toLowerCase().trim() }).select('role');
+        }
+        userRole = dbUser?.role?.toLowerCase();
+        if (req.user && dbUser?.role) req.user.role = dbUser.role;
+      }
+
+      const normalizedAllowed = allowedRoles.map(r => r.toLowerCase());
+
+      if (!userRole || !normalizedAllowed.includes(userRole)) {
         return res.status(403).json({
           success: false,
           message: `Access denied. This route is restricted to: ${allowedRoles.join(", ")}.`,

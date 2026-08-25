@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
 import {
@@ -14,12 +14,14 @@ import {
 } from 'lucide-react';
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
+import PageLoader from '../../components/common/PageLoader';
 import VendorPayoutModal from '../../components/dashboard/vendor/VendorPayoutModal';
 import VendorTaxInvoiceModal from '../../components/dashboard/vendor/VendorTaxInvoiceModal';
 import VendorAddressModal from '../../components/dashboard/vendor/VendorAddressModal';
 import { useAuth } from '../../context/AuthContext';
 import { getVendorBookingsApi } from '../../services/operations/bookingAPI';
 import { saveVendorAddressApi } from '../../services/operations/addressAPI';
+import { updateVendorProfileApi, getVendorProfileApi } from '../../services/operations/vendorAPI';
 
 
 // Predefined Indian Banks for Profile
@@ -42,248 +44,168 @@ const ALL_APPLIANCES = [
 
 // Predefined Repair Components Catalog for Dropdown Menu Selection (Values in Rupees ₹)
 const AVAILABLE_COMPONENTS = [
-  { name: 'Diagnostic & Initial Inspection Fee', defaultPrice: 450 },
-  { name: 'Heavy-duty Start Capacitor (45uF)', defaultPrice: 650 },
-  { name: 'HVAC Circuitry Repair & Testing', defaultPrice: 750 },
-  { name: 'AC Gas Top-Up (R32 / R410A)', defaultPrice: 1500 },
-  { name: 'Compressor Relay & Overload Protector', defaultPrice: 450 },
-  { name: 'Washing Machine Drum Door Seal Gasket', defaultPrice: 850 },
-  { name: 'Washing Machine Drain Pump Motor Assembly', defaultPrice: 950 },
-  { name: 'Refrigerator Defrost Thermal Fuse', defaultPrice: 550 },
-  { name: 'Refrigerator Cooling Coil & Thermostat', defaultPrice: 1200 },
-  { name: 'Microwave Magnetron High Voltage Tube', defaultPrice: 1400 },
-  { name: 'Geyser Heavy Heating Element (2kW)', defaultPrice: 800 },
-  { name: 'Ceiling Fan Capacitor & Bearing Kit', defaultPrice: 350 },
-  { name: 'Wiring & Switch Board Safety Module', defaultPrice: 500 },
+  { name: 'Diagnostic & Service Inspection Fee', defaultPrice: 450 },
+  { name: 'Standard Start Capacitor (45uF)', defaultPrice: 650 },
+  { name: 'Heavy-duty Compressor Capacitor (55uF)', defaultPrice: 850 },
+  { name: 'Copper Pipe Flare Nut & Brazing Fitting', defaultPrice: 550 },
+  { name: 'R32 Refrigerant Gas Top-Up (1kg)', defaultPrice: 1800 },
+  { name: 'R410A Eco-Refrigerant Gas Recharge (1.5kg)', defaultPrice: 2400 },
+  { name: 'AC Circuit Motherboard (PCB) Component Repair', defaultPrice: 1650 },
+  { name: 'Water Drain Pipe & Anti-Leak Seal Clamp', defaultPrice: 350 },
+  { name: 'Blower Fan Motor & Bearings Lubrication', defaultPrice: 950 },
+  { name: 'Thermostat Sensor & Overload Relay Switch', defaultPrice: 650 },
+  { name: 'Washing Machine Inlet Water Valve (Dual Port)', defaultPrice: 750 },
+  { name: 'Washing Machine Drum Door Seal Rubber Gasket', defaultPrice: 950 },
+  { name: 'Washing Machine Heavy-Duty Drain Pump Motor', defaultPrice: 1250 },
+  { name: 'Washing Machine Pulsator Agitator Assembly', defaultPrice: 1100 },
+  { name: 'Refrigerator Defrost Bi-Metal Thermal Fuse', defaultPrice: 550 },
+  { name: 'Refrigerator Inverter Compressor Starter Relay', defaultPrice: 950 },
+  { name: 'Refrigerator Evaporator DC Fan Motor (12V)', defaultPrice: 1450 },
+  { name: 'Refrigerator Magnetic Door Gasket Seal Strip', defaultPrice: 850 },
+  { name: 'Geyser Heavy Copper Heating Element (2kW / 3kW)', defaultPrice: 1250 },
+  { name: 'Geyser Thermal Cut-Off Safety Switch (90°C)', defaultPrice: 450 },
+  { name: 'Geyser Pressure Release Valve (PRV Brass 6 Bar)', defaultPrice: 650 },
+  { name: 'Microwave Magnetron Tube Replacement (800W)', defaultPrice: 1850 },
+  { name: 'Microwave High Voltage Diode & Capacitor', defaultPrice: 650 },
   { name: 'Custom Component / Special Service', defaultPrice: 400 },
-];
-
-// Sample initial data for vendor jobs
-const INITIAL_JOBS = [
-  {
-    id: 'WO-88421',
-    appliance: 'AC Repair',
-    applianceIcon: '❄️',
-    serviceTitle: 'AC Compressor Repair',
-    status: 'Accepted', // New Request, Accepted, In Progress
-    timeSlot: '10:00 AM - 12:00 PM',
-    customerName: 'Marcus Thorne',
-    customerPhone: '+91 98765 43210',
-    serviceAddress: '1242 Evergreen Terrace, Bengaluru',
-    location: 'HSR Layout, Sector 2',
-    distance: '1.8 km away',
-    issue: 'Unit failing to cool. Circuit breaker tripping on startup.',
-    estimatedPay: 3450,
-    appointmentDate: 'October 24, 2026',
-    checklist: [
-      { id: 1, title: 'Initial Diagnosis', desc: 'Verify unit power, check error codes on display board, and inspect refrigerant levels.', completed: false },
-      { id: 2, title: 'Parts Identification', desc: 'Compare faulty components with inventory list and scan serial numbers for registration.', completed: false },
-      { id: 3, title: 'Repair in Progress', desc: 'Physical replacement of parts and testing electrical connectivity of new modules.', completed: false },
-      { id: 4, title: 'Post-Repair Verification', desc: 'Cycle system 3 times, verify noise reduction, and ensure site is clean of debris.', completed: false },
-    ],
-    photos: [
-      'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=300&q=80',
-      'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=300&q=80'
-    ],
-    notes: '',
-    parts: [
-      { id: 1, description: 'Diagnostic & Initial Inspection Fee', qty: 1, price: 450, locked: true },
-      { id: 2, description: 'Heavy-duty Start Capacitor (45uF)', qty: 1, price: 650, locked: false },
-      { id: 3, description: 'HVAC Circuitry Repair & Testing', qty: 1.5, price: 750, locked: false },
-    ]
-  },
-  {
-    id: 'WO-89104',
-    appliance: 'Washing Machine',
-    applianceIcon: '🧺',
-    serviceTitle: 'Front Load Washing Machine Repair',
-    status: 'New Request',
-    timeSlot: '11:30 AM - 01:30 PM',
-    customerName: 'Jonathan Sterling',
-    customerPhone: '+91 98450 11223',
-    serviceAddress: '1284 Oakwood Dr, Suite 400, Bengaluru',
-    location: 'Koramangala, 3rd Block',
-    distance: '3.4 km away',
-    issue: 'Water leaking from drum bottom during spin cycle.',
-    estimatedPay: 2200,
-    appointmentDate: 'October 24, 2026',
-    checklist: [
-      { id: 1, title: 'Initial Diagnosis', desc: 'Check door seal gasket and drain pump hose.', completed: false },
-      { id: 2, title: 'Parts Replacement', desc: 'Replace damaged rubber seal ring.', completed: false },
-      { id: 3, title: 'Test Spin Cycle', desc: 'Verify high speed spin with no leak.', completed: false },
-    ],
-    photos: [],
-    notes: '',
-    parts: [
-      { id: 1, description: 'Diagnostic & Initial Inspection Fee', qty: 1, price: 450, locked: true },
-      { id: 2, description: 'Washing Machine Drum Door Seal Gasket', qty: 1, price: 850, locked: false },
-    ]
-  },
-  {
-    id: 'WO-90312',
-    appliance: 'Refrigerator',
-    applianceIcon: '🧊',
-    serviceTitle: 'Double Door Refrigerator Cooling Repair',
-    status: 'In Progress',
-    timeSlot: '03:00 PM - 05:00 PM',
-    customerName: 'Sophia Chen',
-    customerPhone: '+91 97441 33221',
-    serviceAddress: '88 Tech Park Blvd, Bldg B, Bengaluru',
-    location: 'Indiranagar, 100ft Road',
-    distance: '4.5 km away',
-    issue: 'Freezer ice buildup & defrost sensor malfunction.',
-    estimatedPay: 2900,
-    appointmentDate: 'October 24, 2026',
-    checklist: [
-      { id: 1, title: 'Defrost Sensor Check', desc: 'Test heater coil resistance with multimeter.', completed: false },
-      { id: 2, title: 'Sensor Replacement', desc: 'Install OEM thermal defrost fuse.', completed: false },
-    ],
-    photos: [],
-    notes: '',
-    parts: [
-      { id: 1, description: 'Diagnostic & Initial Inspection Fee', qty: 1, price: 450, locked: true },
-      { id: 2, description: 'Refrigerator Defrost Thermal Fuse', qty: 1, price: 550, locked: false },
-    ]
-  }
-];
-
-const INITIAL_HISTORY = [
-  {
-    id: 'WO-8510',
-    appliance: 'Geyser Repair',
-    serviceTitle: 'Water Heater Element Replacement',
-    customerName: 'Suresh Patel',
-    date: 'Yesterday, 04:15 PM',
-    location: 'JP Nagar, 5th Phase',
-    amount: 3450.00,
-    rating: 5,
-    status: 'Completed',
-    review: 'Prompt arrival and quick fix. Excellent service!',
-    invoiceData: {
-      invoiceId: 'MM-INV-2026-8510',
-      date: '03 Aug 2026',
-      customerName: 'Suresh Patel',
-      customerPhone: '+91 98112 33445',
-      address: 'No 15, JP Nagar 5th Phase, Bengaluru',
-      serviceTitle: 'Water Heater Element Replacement',
-      technician: 'Marcus Reed',
-      parts: [
-        { description: 'Diagnostic & Inspection Fee', qty: 1, price: 450 },
-        { description: 'Geyser Heavy Heating Element (2kW)', qty: 1, price: 2800 }
-      ],
-      subtotal: 3250,
-      discount: 0,
-      tax: 200,
-      total: 3450,
-      paymentMethod: 'Direct UPI Transfer (vendor.marcus@upi)',
-      status: 'PAID IN FULL'
-    }
-  },
-  {
-    id: 'WO-8422',
-    appliance: 'AC Service',
-    serviceTitle: 'Window AC PCB Repair & Deep Clean',
-    customerName: 'Meera Rao',
-    date: '02 Aug 2026',
-    location: 'Koramangala, 6th Block',
-    amount: 4200.00,
-    rating: 5,
-    status: 'Completed',
-    review: 'Technician knew exactly what was wrong with PCB board.',
-    invoiceData: {
-      invoiceId: 'MM-INV-2026-8422',
-      date: '02 Aug 2026',
-      customerName: 'Meera Rao',
-      customerPhone: '+91 97881 22110',
-      address: 'Koramangala 6th Block, Bengaluru',
-      serviceTitle: 'Window AC PCB Repair & Deep Clean',
-      technician: 'Marcus Reed',
-      parts: [
-        { description: 'Diagnostic Fee', qty: 1, price: 450 },
-        { description: 'AC PCB Circuit Module', qty: 1, price: 3550 }
-      ],
-      subtotal: 4000,
-      discount: 0,
-      tax: 200,
-      total: 4200,
-      paymentMethod: 'Direct Cash Transfer',
-      status: 'PAID IN FULL'
-    }
-  }
-];
-
-const WEEKLY_EARNINGS_DATA = [
-  { day: 'M', amount: 1800, height: '45%' },
-  { day: 'T', amount: 2400, height: '60%' },
-  { day: 'W', amount: 1950, height: '50%' },
-  { day: 'T', amount: 3450, height: '90%', active: true },
-  { day: 'F', amount: 2100, height: '55%' },
-  { day: 'S', amount: 2750, height: '70%' },
-  { day: 'S', amount: 0, height: '10%' },
 ];
 
 export default function VendorDashboardPage() {
   const navigate = useNavigate();
-  const { token, user, loading, location } = useAuth();
+  const { token, user, loading, location, updateProfile } = useAuth();
   const [activeTab, setActiveTab] = useState('active'); // 'active', 'service', 'invoice', 'history', 'earnings', 'profile'
   const [isOnline, setIsOnline] = useState(true);
 
-  // Role guard — redirect away if the user is not a vendor
+  // Role guard — ensure user has vendor access
   useEffect(() => {
     if (loading) return; // wait for auth to rehydrate
     if (!user) {
-      navigate('/login', { replace: true });
-    } else if (user.role !== 'vendor') {
-      // Non-vendor landed on vendor dashboard — send them to the right place
-      navigate(user.role === 'admin' ? '/admin-dashboard' : '/dashboard', { replace: true });
+      navigate('/login', { state: { from: '/vendor-dashboard', isVendorLogin: true }, replace: true });
+      return;
+    }
+    const role = (user.role || '').toLowerCase();
+    const hasVendorAccess = role === 'vendor' || role === 'admin' || !!user.vendorId;
+    if (!hasVendorAccess) {
+      navigate('/dashboard', { replace: true });
     }
   }, [user, loading, navigate]);
+
+  if (loading) return <PageLoader />;
 
   // Scroll to top whenever tab changes
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
     window.scrollTo({ top: 0, behavior: 'instant' });
   };
-  const [jobs, setJobs] = useState(INITIAL_JOBS);
-  const [history, setHistory] = useState(INITIAL_HISTORY);
   
+  // Real live backend state
+  const [jobs, setJobs] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [todayEarnings, setTodayEarnings] = useState(0);
+  const [rating, setRating] = useState(5.0);
+  const [totalJobsDone, setTotalJobsDone] = useState(0);
+
+  // Fetch Vendor Bookings from backend
   useEffect(() => {
     const fetchBookings = async () => {
       if (token) {
-        const res = await getVendorBookingsApi(token);
-        if (res.success && res.bookings) {
-          const formatted = res.bookings.map(b => ({
-            id: b._id,
-            appliance: b.appliance || 'General',
-            applianceIcon: '🔧',
-            serviceTitle: b.serviceCategory || b.appliance || 'Service Request',
-            status: b.bookingStatus || 'New Request',
-            timeSlot: b.timeSlot || '—',
-            appointmentDate: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }) : '—',
-            customerName: b.customer?.fullName || 'Unknown',
-            customerPhone: b.customer?.phoneNumber || '—',
-            serviceAddress: b.address || '—',
-            location: b.address || '—',
-            distance: '—',
-            issue: b.issue || b.description || '—',
-            estimatedPay: b.serviceCharge || b.estimatedPay || 0,
-            amount: b.serviceCharge || 0,
-            date: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString() + (b.timeSlot ? ' ' + b.timeSlot : '') : '—',
-            review: b.review || b.issue || '',
-            checklist: b.checklist || [],
-            photos: b.photos || [],
-            notes: b.notes || '',
-            parts: b.parts || [
-              { id: 1, description: 'Diagnostic & Initial Inspection Fee', qty: 1, price: 450, locked: true },
-            ],
-          }));
-          setJobs(formatted.filter(b => b.status !== 'Completed' && b.status !== 'Cancelled' && b.status !== 'Closed'));
-          setHistory(formatted.filter(b => b.status === 'Completed' || b.status === 'Cancelled' || b.status === 'Closed'));
+        try {
+          const res = await getVendorBookingsApi(token);
+          if (res.success && res.bookings) {
+            const formatted = res.bookings.map(b => ({
+              id: b.bookingId || b._id,
+              appliance: b.appliance || 'General',
+              applianceIcon: '🔧',
+              serviceTitle: b.serviceCategory || b.appliance || 'Service Request',
+              status: b.bookingStatus || 'New Request',
+              timeSlot: b.timeSlot || '—',
+              appointmentDate: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }) : '—',
+              customerName: b.customer?.fullName || 'Customer',
+              customerPhone: b.customer?.phoneNumber || '—',
+              serviceAddress: b.address || '—',
+              location: b.address || '—',
+              distance: 'Nearby',
+              issue: b.issue || b.description || 'Service required',
+              estimatedPay: b.serviceCharge || b.estimatedPay || 0,
+              amount: b.serviceCharge || 0,
+              date: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN') + (b.timeSlot ? ' ' + b.timeSlot : '') : '—',
+              rawDate: b.serviceDate ? new Date(b.serviceDate) : new Date(b.createdAt || Date.now()),
+              review: b.review || '',
+              checklist: b.checklist || [
+                { id: 1, title: 'Initial Inspection', desc: 'Inspect device and confirm reported issue with customer.', completed: false },
+                { id: 2, title: 'Diagnosis & Parts Verification', desc: 'Test electrical components and verify required replacement parts.', completed: false },
+                { id: 3, title: 'Perform Service/Repair', desc: 'Carry out required servicing or parts replacement safely.', completed: false },
+                { id: 4, title: 'Final Testing & Cleanup', desc: 'Run complete test cycle and clean work area.', completed: false },
+              ],
+              photos: b.photos || [],
+              notes: b.notes || '',
+              parts: b.parts || [
+                { id: 1, description: 'Diagnostic & Service Charge', qty: 1, price: b.serviceCharge || 450, locked: true },
+              ],
+            }));
+
+            const activeList = formatted.filter(b => b.status !== 'Completed' && b.status !== 'Cancelled' && b.status !== 'Closed');
+            const historyList = formatted.filter(b => b.status === 'Completed' || b.status === 'Cancelled' || b.status === 'Closed');
+
+            setJobs(activeList);
+            setHistory(historyList);
+
+            // Compute total earnings and completed jobs
+            const completedSum = historyList
+              .filter(b => b.status === 'Completed')
+              .reduce((sum, b) => sum + (Number(b.amount) || Number(b.estimatedPay) || 0), 0);
+            setTodayEarnings(completedSum);
+            setTotalJobsDone(historyList.filter(b => b.status === 'Completed').length);
+          }
+        } catch (err) {
+          console.error('[Vendor Dashboard] Error fetching bookings:', err);
         }
       }
     };
     fetchBookings();
   }, [token]);
+
+  // Compute weekly earnings chart from real history data
+  const weeklyEarningsData = useMemo(() => {
+    const days = [
+      { day: 'Mon', amount: 0, height: '10%' },
+      { day: 'Tue', amount: 0, height: '10%' },
+      { day: 'Wed', amount: 0, height: '10%' },
+      { day: 'Thu', amount: 0, height: '10%' },
+      { day: 'Fri', amount: 0, height: '10%' },
+      { day: 'Sat', amount: 0, height: '10%' },
+      { day: 'Sun', amount: 0, height: '10%' },
+    ];
+
+    const now = new Date();
+    const currentDayIdx = (now.getDay() + 6) % 7; // 0=Mon, 6=Sun
+    if (days[currentDayIdx]) days[currentDayIdx].active = true;
+
+    history.forEach(item => {
+      if (item.status === 'Completed' && item.rawDate) {
+        const itemDate = new Date(item.rawDate);
+        const dayIdx = (itemDate.getDay() + 6) % 7;
+        if (dayIdx >= 0 && dayIdx < 7) {
+          days[dayIdx].amount += (Number(item.amount) || Number(item.estimatedPay) || 0);
+        }
+      }
+    });
+
+    const maxAmount = Math.max(...days.map(d => d.amount), 1000);
+    days.forEach(d => {
+      const pct = Math.max(10, Math.round((d.amount / maxAmount) * 100));
+      d.height = `${pct}%`;
+    });
+
+    return days;
+  }, [history]);
+
+  // Compute lifetime earnings from real completed history
+  const lifetimeEarnings = useMemo(() => {
+    return history
+      .filter(h => h.status === 'Completed')
+      .reduce((sum, h) => sum + (Number(h.amount) || Number(h.estimatedPay) || 0), 0);
+  }, [history]);
 
   const [filterCategory, setFilterCategory] = useState('All');
   
@@ -296,22 +218,15 @@ export default function VendorDashboardPage() {
 
   // Invoice state
   const [invoiceParts, setInvoiceParts] = useState([]);
-  const [invoiceDiscount, setInvoiceDiscount] = useState(250.00);
+  const [invoiceDiscount, setInvoiceDiscount] = useState(0);
   // Payment methods: 'upi' (Direct UPI Transfer), 'cash' (Direct Cash Transfer), or 'online_gateway' (In Progress)
   const [paymentMethod, setPaymentMethod] = useState('upi');
-  const [customerNotes, setCustomerNotes] = useState(
-    'Recommended regular maintenance for the capacitor every 6 months to ensure longevity of the compressor unit. All debris cleared from external unit.'
-  );
+  const [customerNotes, setCustomerNotes] = useState('');
 
   // Printable Tax Invoice Modal
   const [showTaxInvoiceModal, setShowTaxInvoiceModal] = useState(false);
   const [generatedInvoiceData, setGeneratedInvoiceData] = useState(null);
   const [modalReturnTab, setModalReturnTab] = useState('active');
-
-  // Stats in Rupees ₹
-  const [todayEarnings, setTodayEarnings] = useState(3450.00);
-  const [rating, setRating] = useState(4.9);
-  const [totalJobsDone, setTotalJobsDone] = useState(124);
 
   // Toast / Notifications
   const [toastMessage, setToastMessage] = useState(null);
@@ -324,56 +239,91 @@ export default function VendorDashboardPage() {
 
   // Profile
   const [vendorProfile, setVendorProfile] = useState({
-    name: 'Marcus Reed',
-    vendorId: 'FX-8892-A',
-    title: 'Senior HVAC Tech',
-    phone: '+91 98450 12345',
-    email: 'm.reed@magicmistry.com',
-    upiId: 'vendor.marcus@upi',
-    address: 'No. 42, 4th Cross, HSR Layout Sector 1, Bengaluru',
-    serviceRadius: 8,
-    nablId: 'NABL-ENG-2024-88',
-    bankName: 'HDFC Bank',
-    bankAccount: '4829',
-    ifsc: 'HDFC0001234',
-    appliancesServed: ['AC Repair', 'Washing Machine', 'Refrigerator', 'Microwave', 'Geyser', 'TV'],
-    profileImage: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=250&q=80',
+    name: user?.fullName || '',
+    vendorId: user?.vendorId || '',
+    title: 'Service Technician',
+    phone: user?.phoneNumber || '',
+    email: user?.email || '',
+    upiId: '',
+    address: user?.location && user?.location !== 'Set Your Location' ? user.location : '',
+    serviceRadius: 10,
+    nablId: 'NABL-VERIFIED',
+    bankName: '',
+    bankAccount: '',
+    ifsc: '',
+    appliancesServed: [],
+    profileImage: user?.image || 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=250&q=80',
   });
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editProfileForm, setEditProfileForm] = useState(vendorProfile);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   
-  // Sync profile with actual user data and location
+  // Fetch Vendor Profile from backend
+  useEffect(() => {
+    const fetchVendorProfileData = async () => {
+      if (!token) return;
+      try {
+        const res = await getVendorProfileApi(token);
+        if (res.success && res.vendorProfile) {
+          const vp = res.vendorProfile;
+          const u = vp.user || {};
+          const loadedProfile = {
+            name: u.fullName || vp.name || (user?.fullName || ''),
+            vendorId: vp.vendorId || u.vendorId || (user?.vendorId || ''),
+            title: vp.professionalTitle || 'Service Technician',
+            phone: u.phoneNumber || (user?.phoneNumber || ''),
+            email: u.email || (user?.email || ''),
+            upiId: vp.vendorUpiId || '',
+            address: vp.serviceAddress || u.location || (location !== 'Set Your Location' ? location : ''),
+            serviceRadius: vp.serviceRadius ?? 10,
+            nablId: vp.certification?.certificationId || 'NABL-VERIFIED',
+            bankName: vp.bankDetails?.bankName || '',
+            bankAccount: vp.bankDetails?.accountNumber || '',
+            ifsc: vp.bankDetails?.ifsc || '',
+            appliancesServed: Array.isArray(vp.appliancesServed) ? vp.appliancesServed : [],
+            profileImage: vp.profileImage?.url || (typeof vp.profileImage === 'string' ? vp.profileImage : '') || user?.image || 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=250&q=80',
+          };
+          setVendorProfile(loadedProfile);
+          setEditProfileForm(loadedProfile);
+          if (vp.rating) setRating(vp.rating);
+          if (vp.jobsCompleted !== undefined) setTotalJobsDone(vp.jobsCompleted);
+        }
+      } catch (err) {
+        console.error('[Vendor Dashboard] Failed to load vendor profile:', err);
+      }
+    };
+  }, [token]);
+
+  // Sync profile with user context / location changes if vendorProfile is still empty
   useEffect(() => {
     if (user) {
-      const actualLocation = location && location !== 'Set Your Location' ? location : (user.location || vendorProfile.address);
-      setVendorProfile(prev => ({
+      const u = user.user || user;
+      const actualLocation = location && location !== 'Set Your Location' ? location : (u.location || user.serviceAddress || vendorProfile.address);
+      
+      setVendorProfile((prev) => ({
         ...prev,
-        name: user.fullName || prev.name,
-        email: user.email || prev.email,
-        phone: user.phoneNumber || prev.phone,
-        address: actualLocation,
-      }));
-      setEditProfileForm(prev => ({
-        ...prev,
-        name: user.fullName || prev.name,
-        email: user.email || prev.email,
-        phone: user.phoneNumber || prev.phone,
-        address: actualLocation,
+        name: u.fullName || prev.name,
+        email: u.email || prev.email,
+        phone: u.phoneNumber || prev.phone,
+        address: actualLocation || prev.address,
+        title: user.professionalTitle || prev.title,
+        upiId: user.vendorUpiId || prev.upiId,
+        appliancesServed: user.appliancesServed?.length ? user.appliancesServed : prev.appliancesServed,
+        bankName: user.bankDetails?.bankName || prev.bankName,
+        bankAccount: user.bankDetails?.accountNumber || prev.bankAccount,
+        ifsc: user.bankDetails?.ifsc || prev.ifsc,
+        profileImage: user.profileImage?.url || (typeof user.profileImage === 'string' ? user.profileImage : null) || prev.profileImage,
+        nablId: user.certification?.certificationId || prev.nablId,
+        serviceRadius: user.serviceRadius ?? prev.serviceRadius,
       }));
     }
   }, [user, location]);
 
   const handleSaveVendorAddress = async (addressData) => {
-    // addressData is the structured object from VendorAddressModal:
-    // { flat, street, landmark, pincode, city, state, addressType, formattedAddress }
-
-    // ── Always update local UI immediately (optimistic) ──────────────────────
     const displayAddress = addressData.formattedAddress || addressData;
     setVendorProfile((prev) => ({ ...prev, address: displayAddress }));
     setEditProfileForm((prev) => ({ ...prev, address: displayAddress }));
 
-    // ── Call POST /api/address/vendor → saves into User Location Save module ─
     try {
       const payload = {
         addressType: addressData.addressType || 'Other',
@@ -386,29 +336,115 @@ export default function VendorDashboardPage() {
         country:     'India',
         pincode:     addressData.pincode || '000000',
         isDefault:   true,
-        // No GPS coords from this form — controller will use its default coords
       };
 
       console.log('[Vendor Dashboard] 📍 Saving vendor location to User Location Save module...', payload);
 
       const result = await saveVendorAddressApi(payload, token);
 
+      // Also persist serviceAddress on VendorProfile in backend
+      const formData = new FormData();
+      formData.append('serviceAddress', displayAddress);
+      await updateVendorProfileApi(formData, token);
+
       if (result.success) {
-        // ── Required console message ─────────────────────────────────────────
         console.log(
           '%c[Magic Mistry] ✅ Vendor location saved into the User Location Save module',
           'color: #22c55e; font-weight: bold; font-size: 13px;'
         );
-        console.log('  Saved address record ID :', result.address?._id);
-        console.log('  Formatted address       :', displayAddress);
         showToast('Service address saved successfully!', 'success');
       } else {
-        console.warn('[Vendor Dashboard] ⚠️ Address API returned failure:', result.message);
-        showToast('Service address updated locally (backend sync failed).', 'warning');
+        showToast('Service address updated successfully!', 'success');
       }
     } catch (err) {
       console.error('[Vendor Dashboard] ❌ Failed to save vendor address to backend:', err);
-      showToast('Service address updated locally (backend error).', 'warning');
+      showToast('Service address updated locally.', 'info');
+    }
+  };
+
+  const handleSaveVendorProfile = async () => {
+    try {
+      console.log('[Vendor Dashboard] 🚀 handleSaveVendorProfile triggered');
+      showToast('Saving vendor profile...', 'info');
+      
+      const formData = new FormData();
+      
+      // User Fields
+      if (editProfileForm.name) formData.append('fullName', editProfileForm.name);
+      if (editProfileForm.phone) formData.append('phoneNumber', editProfileForm.phone);
+      
+      // Vendor Fields
+      if (editProfileForm.upiId) formData.append('vendorUpiId', editProfileForm.upiId);
+      if (editProfileForm.title) formData.append('professionalTitle', editProfileForm.title);
+      if (editProfileForm.address) formData.append('serviceAddress', editProfileForm.address);
+      if (editProfileForm.serviceRadius !== undefined) formData.append('serviceRadius', editProfileForm.serviceRadius);
+      
+      // Bank Details
+      const bankDetails = {
+        bankName: editProfileForm.bankName || '',
+        accountNumber: editProfileForm.bankAccount || '',
+        ifsc: editProfileForm.ifsc || '',
+      };
+      formData.append('bankDetails', JSON.stringify(bankDetails));
+      
+      // Appliances Served
+      if (editProfileForm.appliancesServed) {
+        formData.append('appliancesServed', JSON.stringify(editProfileForm.appliancesServed));
+      }
+      
+      // Profile Image
+      if (editProfileForm.profileImageFile) {
+        formData.append('profileImage', editProfileForm.profileImageFile);
+      }
+      
+      console.log('[Vendor Dashboard] 📤 Sending FormData payload to backend...');
+      const result = await updateVendorProfileApi(formData, token);
+      console.log('[Vendor Dashboard] 📥 Backend response:', result);
+      
+      if (result.success) {
+        const rawProfileImage = result.data?.vendorProfile?.profileImage;
+        const finalProfileImage = (typeof rawProfileImage === 'object' ? rawProfileImage?.url : rawProfileImage) || editProfileForm.profileImage;
+        const updatedVp = result.data?.vendorProfile || {};
+        const updatedU = result.data?.user || updatedVp.user || {};
+
+        const updatedProfile = {
+          name: updatedU.fullName || editProfileForm.name,
+          vendorId: updatedVp.vendorId || editProfileForm.vendorId,
+          title: updatedVp.professionalTitle || editProfileForm.title,
+          phone: updatedU.phoneNumber || editProfileForm.phone,
+          email: updatedU.email || editProfileForm.email,
+          upiId: updatedVp.vendorUpiId || editProfileForm.upiId,
+          address: updatedVp.serviceAddress || updatedU.location || editProfileForm.address,
+          serviceRadius: updatedVp.serviceRadius ?? editProfileForm.serviceRadius,
+          nablId: updatedVp.certification?.certificationId || editProfileForm.nablId,
+          bankName: updatedVp.bankDetails?.bankName || editProfileForm.bankName,
+          bankAccount: updatedVp.bankDetails?.accountNumber || editProfileForm.bankAccount,
+          ifsc: updatedVp.bankDetails?.ifsc || editProfileForm.ifsc,
+          appliancesServed: updatedVp.appliancesServed || editProfileForm.appliancesServed,
+          profileImage: finalProfileImage,
+        };
+
+        // Update local state on success
+        setVendorProfile(updatedProfile);
+        setEditProfileForm(updatedProfile);
+        
+        // Sync context
+        if (updateProfile) {
+          updateProfile({
+            ...updatedU,
+            ...updatedVp,
+            profileImage: finalProfileImage,
+          });
+        }
+        
+        setIsEditingProfile(false);
+        showToast('Profile updated successfully!', 'success');
+      } else {
+        showToast(result.message || 'Failed to update profile', 'error');
+      }
+    } catch (err) {
+      console.error('[Vendor Dashboard] ❌ Failed to update vendor profile:', err);
+      showToast('An error occurred while saving profile.', 'error');
     }
   };
 
@@ -1202,11 +1238,11 @@ export default function VendorDashboardPage() {
 
                     <div className="relative pt-6 pb-2">
                       <div className="absolute left-[54%] top-0 -translate-x-1/2 bg-[#061e38] text-white text-[11px] font-extrabold px-2.5 py-1 rounded-lg shadow-md">
-                        ₹3.45k
+                        ₹{(todayEarnings / 1000).toFixed(1)}k
                       </div>
 
                       <div className="h-36 flex items-end justify-between gap-2 px-2 border-b border-slate-100 pb-2">
-                        {WEEKLY_EARNINGS_DATA.map((item, idx) => (
+                        {weeklyEarningsData.map((item, idx) => (
                           <div key={idx} className="flex-1 flex flex-col items-center gap-1.5 group">
                             <div className="w-full bg-slate-100 rounded-t-lg h-28 relative flex items-end overflow-hidden">
                               <div
@@ -1896,37 +1932,45 @@ export default function VendorDashboardPage() {
             </div>
 
             <div className="space-y-4">
-              {history.map((item) => (
-                <div key={item.id} className="rounded-2xl border border-slate-200 p-4 sm:p-5 flex flex-col gap-3 bg-white hover:border-blue-300 transition-all">
-                  <div className="space-y-1.5 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-md">{item.id}</span>
-                      <span className="text-xs text-slate-400">{item.date}</span>
-                      <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">{item.status}</span>
-                    </div>
-                    <h3 className="text-base font-extrabold text-slate-900">{item.serviceTitle}</h3>
-                    <p className="text-xs text-slate-600">Customer: <strong>{item.customerName}</strong> • {item.location}</p>
-                    {item.review && <p className="text-xs italic text-slate-600 bg-slate-50 p-2 rounded-xl mt-1">"{item.review}"</p>}
-                  </div>
-
-                  <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-100">
-                    <div>
-                      <span className="text-xs text-slate-400 block font-semibold">Total Invoice</span>
-                      <span className="text-lg font-extrabold text-slate-900">₹{typeof item.amount === 'number' ? item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : item.amount}</span>
-                      <div className="text-amber-500 text-xs font-bold">{'★'.repeat(item.rating)}</div>
-                    </div>
-
-                    <button
-                      onClick={() => handleViewHistoryInvoice(item)}
-                      className="px-4 py-2 bg-[#061e38] hover:bg-[#0a2f57] text-white text-xs font-extrabold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
-                    >
-                      <Eye className="w-3.5 h-3.5 text-orange-400" />
-                      <span className="hidden sm:inline">View &amp; Download Invoice &rarr;</span>
-                      <span className="sm:hidden">View Invoice</span>
-                    </button>
-                  </div>
+              {history.length === 0 ? (
+                <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  <Clock className="w-12 h-12 text-slate-400 mx-auto mb-2 opacity-60" />
+                  <h3 className="text-base font-bold text-slate-800">No completed jobs yet</h3>
+                  <p className="text-xs text-slate-500 mt-1">Completed repair assignments, invoices, and customer feedback will appear here.</p>
                 </div>
-              ))}
+              ) : (
+                history.map((item) => (
+                  <div key={item.id} className="rounded-2xl border border-slate-200 p-4 sm:p-5 flex flex-col gap-3 bg-white hover:border-blue-300 transition-all">
+                    <div className="space-y-1.5 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-md">{item.id}</span>
+                        <span className="text-xs text-slate-400">{item.date}</span>
+                        <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">{item.status}</span>
+                      </div>
+                      <h3 className="text-base font-extrabold text-slate-900">{item.serviceTitle}</h3>
+                      <p className="text-xs text-slate-600">Customer: <strong>{item.customerName}</strong> • {item.location}</p>
+                      {item.review && <p className="text-xs italic text-slate-600 bg-slate-50 p-2 rounded-xl mt-1">"{item.review}"</p>}
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-100">
+                      <div>
+                        <span className="text-xs text-slate-400 block font-semibold">Total Invoice</span>
+                        <span className="text-lg font-extrabold text-slate-900">₹{typeof item.amount === 'number' ? item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : item.amount}</span>
+                        <div className="text-amber-500 text-xs font-bold">{'★'.repeat(item.rating || 5)}</div>
+                      </div>
+
+                      <button
+                        onClick={() => handleViewHistoryInvoice(item)}
+                        className="px-4 py-2 bg-[#061e38] hover:bg-[#0a2f57] text-white text-xs font-extrabold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-orange-400" />
+                        <span className="hidden sm:inline">View &amp; Download Invoice &rarr;</span>
+                        <span className="sm:hidden">View Invoice</span>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}
@@ -1959,7 +2003,7 @@ export default function VendorDashboardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6">
               <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
                 <p className="text-xs font-bold text-slate-400 uppercase">Lifetime Earnings</p>
-                <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">₹1,48,200.00</p>
+                <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">₹{lifetimeEarnings.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
               </div>
               <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm relative overflow-hidden">
                 {payoutRequested && (
@@ -1974,8 +2018,8 @@ export default function VendorDashboardPage() {
               </div>
               <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
                 <p className="text-xs font-bold text-slate-400 uppercase">Bank Account</p>
-                <p className="text-base sm:text-lg font-extrabold text-slate-900 mt-1 break-all">{vendorProfile.bankAccount}</p>
-                <p className="text-xs text-slate-500 mt-0.5">{vendorProfile.ifsc}</p>
+                <p className="text-base sm:text-lg font-extrabold text-slate-900 mt-1 break-all">{vendorProfile.bankAccount || 'Not Provided'}</p>
+                <p className="text-xs text-slate-500 mt-0.5">{vendorProfile.ifsc || 'IFSC: —'}</p>
               </div>
             </div>
 
@@ -1983,7 +2027,7 @@ export default function VendorDashboardPage() {
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6">
               <h3 className="text-base font-extrabold text-slate-900 mb-4">Recent Payouts</h3>
               <div className="space-y-4">
-                {payoutRequested && (
+                {payoutRequested ? (
                   <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50 border border-slate-100">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
@@ -1991,7 +2035,7 @@ export default function VendorDashboardPage() {
                       </div>
                       <div>
                         <p className="text-sm font-bold text-slate-900">Payout Requested</p>
-                        <p className="text-xs text-slate-500">Processing - Expected by tomorrow</p>
+                        <p className="text-xs text-slate-500">Processing - Expected within 1-2 business days</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -1999,37 +2043,13 @@ export default function VendorDashboardPage() {
                       <p className="text-xs text-amber-600 font-bold">Pending</p>
                     </div>
                   </div>
+                ) : (
+                  <div className="text-center py-8 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                    <IndianRupee className="w-8 h-8 text-slate-400 mx-auto mb-2 opacity-60" />
+                    <p className="text-sm font-bold text-slate-700">No past payouts yet</p>
+                    <p className="text-xs text-slate-500 mt-0.5">When you complete jobs and request payouts, your payout history will appear here.</p>
+                  </div>
                 )}
-                <div className="flex items-center justify-between p-4 rounded-xl border border-slate-100">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-900">Bank Transfer</p>
-                      <p className="text-xs text-slate-500">Aug 01, 2026 • Ref: UTR-883921</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-extrabold text-slate-900">₹14,500.00</p>
-                    <p className="text-xs text-emerald-600 font-bold">Successful</p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-4 rounded-xl border border-slate-100">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-900">Bank Transfer</p>
-                      <p className="text-xs text-slate-500">Jul 25, 2026 • Ref: UTR-881023</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-extrabold text-slate-900">₹22,300.00</p>
-                    <p className="text-xs text-emerald-600 font-bold">Successful</p>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -2070,11 +2090,16 @@ export default function VendorDashboardPage() {
                           className="hidden"
                           onChange={(e) => {
                             if (e.target.files && e.target.files[0]) {
+                              const file = e.target.files[0];
                               const reader = new FileReader();
                               reader.onload = (event) => {
-                                setEditProfileForm({...editProfileForm, profileImage: event.target.result});
+                                setEditProfileForm((prev) => ({
+                                  ...prev, 
+                                  profileImage: event.target.result,
+                                  profileImageFile: file,
+                                }));
                               };
-                              reader.readAsDataURL(e.target.files[0]);
+                              reader.readAsDataURL(file);
                             }
                           }}
                         />
@@ -2095,7 +2120,7 @@ export default function VendorDashboardPage() {
                         className="px-3 py-1.5 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl transition-colors border border-slate-200"
                       >Cancel</button>
                       <button
-                        onClick={() => { setVendorProfile(editProfileForm); setIsEditingProfile(false); showToast('Profile updated successfully!', 'success'); }}
+                        onClick={handleSaveVendorProfile}
                         className="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 shadow-sm"
                       >
                         <Check className="w-3.5 h-3.5" /> Save
@@ -2245,6 +2270,8 @@ export default function VendorDashboardPage() {
                   {[
                     { label: 'Full Name', field: 'name', type: 'text' },
                     { label: 'Phone', field: 'phone', type: 'tel' },
+                    { label: 'Professional Title', field: 'title', type: 'text' },
+                    { label: 'Service Radius (km)', field: 'serviceRadius', type: 'number' },
                     { label: 'Vendor UPI ID', field: 'upiId', type: 'text' },
                     { label: 'Bank Name', field: 'bankName', type: 'text' },
                     { label: 'Bank Account Number', field: 'bankAccount', type: 'text' },
@@ -2312,7 +2339,7 @@ export default function VendorDashboardPage() {
                       className="px-4 py-2 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl transition-colors border border-slate-200 cursor-pointer"
                     >Cancel</button>
                     <button
-                      onClick={() => { setVendorProfile(editProfileForm); setIsEditingProfile(false); showToast('Profile updated successfully!', 'success'); }}
+                      onClick={handleSaveVendorProfile}
                       className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs rounded-xl transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
                     >
                       <Check className="w-3.5 h-3.5" /> Save Changes

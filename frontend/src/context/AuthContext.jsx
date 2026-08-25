@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { createAddressApi } from '../services/operations/addressAPI';
 import { updateUserLocationApi, getUserProfileApi } from '../services/operations/authAPI';
+import { getVendorProfileApi } from '../services/operations/vendorAPI';
 
 const AuthContext = createContext(null);
 
@@ -32,29 +33,38 @@ export function AuthProvider({ children }) {
 
           setLocation(resolvedLoc);
 
-          // Skip profile sync for vendor/admin — the user-profile endpoint
-          // returns a plain-user record which would overwrite the vendor/admin
-          // role stored in localStorage, causing the role to flip to 'user'
-          // every time the browser is reopened.
-          if (parsedUser.role === 'vendor' || parsedUser.role === 'admin') {
+          // Rehydrate fresh profile data from backend
+          if (parsedUser.role === 'admin') {
             // Nothing to sync — keep what's in localStorage as the source of truth
           } else {
-            // Rehydrate fresh profile data from backend (regular users only)
             try {
-              const profileRes = await getUserProfileApi(storedToken);
-              if (profileRes.success && profileRes.user) {
+              let profileRes;
+              let profileData;
+
+              if (parsedUser.role === 'vendor') {
+                profileRes = await getVendorProfileApi(storedToken);
+                profileData = profileRes.vendorProfile;
+              } else {
+                profileRes = await getUserProfileApi(storedToken);
+                profileData = profileRes.user;
+              }
+
+              if (profileRes.success && profileData) {
                 // Always preserve the stored role — never let the backend
                 // response silently overwrite it
+                const nestedUser = profileData.user && typeof profileData.user === 'object' ? profileData.user : {};
                 const freshUser = {
                   ...parsedUser,
-                  ...profileRes.user,
+                  ...profileData,
+                  ...nestedUser,
                   role: parsedUser.role, // keep stored role authoritative
                 };
                 setUser(freshUser);
                 localStorage.setItem('mm_user', JSON.stringify(freshUser));
-                if (freshUser.location) {
-                  setLocation(freshUser.location);
-                  localStorage.setItem('mm_location', freshUser.location);
+                const resolvedLocation = freshUser.location || profileData.serviceAddress || freshUser.serviceAddress;
+                if (resolvedLocation) {
+                  setLocation(resolvedLocation);
+                  localStorage.setItem('mm_location', resolvedLocation);
                 }
                 if (freshUser.latitude && freshUser.longitude) {
                   localStorage.setItem('mm_lat', freshUser.latitude);

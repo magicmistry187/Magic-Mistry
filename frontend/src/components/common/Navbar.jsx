@@ -357,7 +357,11 @@ const Navbar = () => {
                               initial="hidden"
                               animate="visible"
                               whileHover={{ x: 4, backgroundColor: '#EFF6FF' }}
-                              onClick={() => { setIsDropdownOpen(false); navigate(user?.role === 'admin' ? '/admin-dashboard' : user?.role === 'vendor' ? '/vendor-dashboard' : '/dashboard'); }}
+                              onClick={() => {
+                                setIsDropdownOpen(false);
+                                const r = (user?.role || '').toLowerCase();
+                                navigate(r === 'admin' ? '/admin-dashboard' : (r === 'vendor' || !!user?.vendorId) ? '/vendor-dashboard' : '/dashboard');
+                              }}
                               className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 transition-colors"
                             >
                               <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
@@ -510,7 +514,11 @@ const Navbar = () => {
                       </div>
                       {/* Mobile Profile Button */}
                       <button
-                        onClick={() => { setIsMobileMenuOpen(false); navigate(user?.role === 'admin' ? '/admin-dashboard' : user?.role === 'vendor' ? '/vendor-dashboard' : '/dashboard'); }}
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          const r = (user?.role || '').toLowerCase();
+                          navigate(r === 'admin' ? '/admin-dashboard' : (r === 'vendor' || !!user?.vendorId) ? '/vendor-dashboard' : '/dashboard');
+                        }}
                         className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-blue-700 border border-blue-200 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors"
                       >
                         <LayoutDashboard className="w-4 h-4" />

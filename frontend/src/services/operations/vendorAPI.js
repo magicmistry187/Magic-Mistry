@@ -4,9 +4,17 @@ export const vendorEndpoints = {
   VENDOR_LOGIN_API: BASE_URL + "/vendor/login",
   APPROVE_VENDOR_APP_API: BASE_URL + "/vendor-application",
   VENDOR_CREATE_API: BASE_URL + "/vendor/create",
+  GET_VENDOR_PROFILE_API: BASE_URL + "/vendor/profile",
+  UPDATE_VENDOR_PROFILE_API: BASE_URL + "/vendor/profile-update",
 };
 
-const { VENDOR_LOGIN_API, APPROVE_VENDOR_APP_API, VENDOR_CREATE_API } = vendorEndpoints;
+const { 
+  VENDOR_LOGIN_API, 
+  APPROVE_VENDOR_APP_API, 
+  VENDOR_CREATE_API, 
+  GET_VENDOR_PROFILE_API,
+  UPDATE_VENDOR_PROFILE_API 
+} = vendorEndpoints;
 
 export async function loginVendor(login, password) {
   try {
@@ -218,3 +226,58 @@ export async function getVendorCredentialsApi(applicationId, token) {
   }
 }
 
+export async function getVendorProfileApi(token) {
+  try {
+    const authToken = token || (typeof window !== 'undefined' && (localStorage.getItem('mm_token') || localStorage.getItem('token')));
+    const response = await apiConnector("GET", GET_VENDOR_PROFILE_API, null, {
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+    });
+    if (!response.data?.success) {
+      throw new Error(response.data?.message || "Failed to fetch vendor profile");
+    }
+    return {
+      success: true,
+      vendorProfile: response.data.vendorProfile,
+    };
+  } catch (error) {
+    console.log("GET VENDOR PROFILE ERROR............", error);
+    return {
+      success: false,
+      message: error.response?.data?.message || error.message || "Failed to fetch vendor profile",
+    };
+  }
+}
+
+/**
+ * Updates the vendor's profile.
+ * Expects `formData` to be an instance of FormData, allowing for image upload 
+ * as well as JSON fields like bankDetails and appliancesServed.
+ * 
+ * @param {FormData} formData - The multipart form data containing vendor details and/or image.
+ * @param {string} token - The user's auth token.
+ * @returns {Object} The API response.
+ */
+export async function updateVendorProfileApi(formData, token) {
+  try {
+    const authToken = token || (typeof window !== 'undefined' && (localStorage.getItem('mm_token') || localStorage.getItem('token')));
+    const response = await apiConnector("PUT", UPDATE_VENDOR_PROFILE_API, formData, {
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+    });
+    
+    if (!response.data?.success) {
+      throw new Error(response.data?.message || "Failed to update vendor profile");
+    }
+    
+    return {
+      success: true,
+      message: response.data.message || "Vendor profile updated successfully!",
+      data: response.data.data, // This includes the updated user and vendorProfile
+    };
+  } catch (error) {
+    console.log("UPDATE VENDOR PROFILE ERROR............", error);
+    return {
+      success: false,
+      message: error.response?.data?.message || error.message || "Failed to update vendor profile",
+    };
+  }
+}

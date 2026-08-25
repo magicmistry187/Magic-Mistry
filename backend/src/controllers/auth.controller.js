@@ -13,6 +13,7 @@ function generateToken(user) {
     id: user._id,
     email: user.email,
     role: user.role,
+    vendorId: user.vendorId || undefined,
   };
 
   return jwt.sign(payload, process.env.JWT_SECRET || "secret", {
@@ -656,7 +657,25 @@ async function forgotPassword(req, res) {
 async function updateUserLocation(req, res) {
   try {
     const { location, latitude, longitude } = req.body;
-    const userId = req.user.id;
+    const userId = req.user.id || req.user.userId || req.user._id;
+
+    let user = null;
+    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+      user = await userModel.findById(userId);
+    }
+    if (!user && req.user?.email) {
+      user = await userModel.findOne({ email: req.user.email.toLowerCase().trim() });
+    }
+    if (!user && req.user?.vendorId) {
+      user = await userModel.findOne({ vendorId: req.user.vendorId });
+    }
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
 
     if (!location && latitude === undefined && longitude === undefined) {
       return res.status(400).json({
@@ -671,7 +690,7 @@ async function updateUserLocation(req, res) {
     if (longitude !== undefined && longitude !== null) updateFields.longitude = Number(longitude);
 
     const updatedUser = await userModel.findByIdAndUpdate(
-      userId,
+      user._id,
       { $set: updateFields },
       { new: true }
     );
@@ -710,7 +729,18 @@ async function updateUserLocation(req, res) {
 // Get Current User Profile
 async function getUserProfile(req, res) {
   try {
-    const user = await userModel.findById(req.user.id);
+    const userId = req.user.id || req.user.userId || req.user._id;
+    let user = null;
+    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+      user = await userModel.findById(userId);
+    }
+    if (!user && req.user?.email) {
+      user = await userModel.findOne({ email: req.user.email.toLowerCase().trim() });
+    }
+    if (!user && req.user?.vendorId) {
+      user = await userModel.findOne({ vendorId: req.user.vendorId });
+    }
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -744,6 +774,25 @@ async function getUserProfile(req, res) {
 // Update User Profile
 async function updateUserProfile(req, res) {
   try {
+    const userId = req.user.id || req.user.userId || req.user._id;
+    let user = null;
+    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+      user = await userModel.findById(userId);
+    }
+    if (!user && req.user?.email) {
+      user = await userModel.findOne({ email: req.user.email.toLowerCase().trim() });
+    }
+    if (!user && req.user?.vendorId) {
+      user = await userModel.findOne({ vendorId: req.user.vendorId });
+    }
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
     const { fullName, phoneNumber, location, latitude, longitude } = req.body;
     const updateFields = {};
 
@@ -754,7 +803,7 @@ async function updateUserProfile(req, res) {
     if (longitude !== undefined && longitude !== null) updateFields.longitude = Number(longitude);
 
     const updatedUser = await userModel.findByIdAndUpdate(
-      req.user.id,
+      user._id,
       { $set: updateFields },
       { new: true }
     );

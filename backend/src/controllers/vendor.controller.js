@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const User = require('../models/user.model');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -125,18 +126,61 @@ exports.vendorLogin = async (req, res) => {
 
 exports.getVendorProfile = async (req, res) => {
   try {
-    const vendorId = req.user.vendorId;
+    const userId = req.user.id || req.user.userId || req.user._id;
+    console.log('[Vendor Controller] 🔍 getVendorProfile called for user ID:', userId, 'req.user:', req.user);
+    
+    let user = null;
+    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+      user = await User.findById(userId).select('-password');
+    }
+    if (!user && req.user?.email) {
+      user = await User.findOne({ email: req.user.email.toLowerCase().trim() }).select('-password');
+    }
+    if (!user && req.user?.vendorId) {
+      user = await User.findOne({ vendorId: req.user.vendorId }).select('-password');
+    }
 
-    const vendorProfile = await VendorProfile.findOne({ vendorId })
-      .populate('serviceAddress')
-      .populate('user');
-
-    if (!vendorProfile) {
+    if (!user) {
+      console.warn('[Vendor Controller] ⚠️ User account not found for ID:', userId, 'email:', req.user?.email);
       return res.status(404).json({
         success: false,
-        message: 'Vendor profile not found.',
+        message: 'User account not found.',
       });
     }
+
+    const vendorId = req.user.vendorId || user.vendorId;
+
+    let vendorProfile = await VendorProfile.findOne({
+      $or: [
+        { user: user._id },
+        ...(vendorId ? [{ vendorId }] : []),
+      ],
+    }).populate('user', '-password');
+
+    if (!vendorProfile) {
+      // Auto-provision missing vendor profile document if not created yet
+      const fallbackVendorId = vendorId || `FX-V-${Math.floor(1000 + Math.random() * 9000)}`;
+      vendorProfile = await VendorProfile.create({
+        user: user._id,
+        vendorId: fallbackVendorId,
+        professionalTitle: 'Service Technician',
+        serviceType: 'General',
+        experience: 0,
+        appliancesServed: [],
+        serviceRadius: 10,
+        rating: 4.8,
+        jobsCompleted: 0,
+      });
+
+      if (!user.vendorId) {
+        user.vendorId = fallbackVendorId;
+        await user.save();
+      }
+
+      vendorProfile = await VendorProfile.findById(vendorProfile._id)
+        .populate('user', '-password');
+    }
+
     return res.status(200).json({
       success: true,
       vendorProfile,
@@ -147,6 +191,7 @@ exports.getVendorProfile = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to fetch vendor profile.',
+      error: error.message,
     });
   }
 };
@@ -154,28 +199,68 @@ exports.getVendorProfile = async (req, res) => {
 exports.updateVendorProfile = async (req, res) => {
   try {
     console.log('Update Vendor Profile Request Body:', req.body);
-    const userId = req.user.id;
+    const userId = req.user.id || req.user.userId || req.user._id;
+    console.log('[Vendor Controller] 📝 updateVendorProfile called for user ID:', userId, 'req.user:', req.user);
+    console.log('  Body keys:', Object.keys(req.body));
+    
+    let user = null;
+    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+      user = await User.findById(userId);
+    }
+    if (!user && req.user?.email) {
+      user = await User.findOne({ email: req.user.email.toLowerCase().trim() });
+    }
+    if (!user && req.user?.vendorId) {
+      user = await User.findOne({ vendorId: req.user.vendorId });
+    }
 
-    const vendorProfile = await VendorProfile.findOne({
-      user: userId,
-    });
-
-    if (!vendorProfile) {
+    if (!user) {
+      console.warn('[Vendor Controller] ⚠️ User account not found for ID:', userId, 'email:', req.user?.email);
       return res.status(404).json({
         success: false,
-        message: 'Vendor profile not found.',
+        message: 'User account not found.',
       });
     }
 
-    const userFields = ['fullName', 'phoneNumber'];
+    const vendorId = req.user.vendorId || user?.vendorId;
+
+    let vendorProfile = await VendorProfile.findOne({
+      $or: [
+        { user: user._id },
+        ...(vendorId ? [{ vendorId }] : []),
+      ],
+    });
+
+    if (!vendorProfile) {
+      const fallbackVendorId = vendorId || `FX-V-${Math.floor(1000 + Math.random() * 9000)}`;
+      vendorProfile = await VendorProfile.create({
+        user: user._id,
+        vendorId: fallbackVendorId,
+        professionalTitle: 'Service Technician',
+        serviceType: 'General',
+        experience: 0,
+        appliancesServed: [],
+      });
+
+      if (!user.vendorId) {
+        user.vendorId = fallbackVendorId;
+        await user.save();
+      }
+    } else {
+      if (!vendorProfile.user) vendorProfile.user = user._id;
+      if (!vendorProfile.vendorId && vendorId) vendorProfile.vendorId = vendorId;
+    }
+
+    const userFields = ['fullName', 'phoneNumber', 'location'];
 
     const vendorFields = [
       'serviceType',
       'experience',
       'experienceDescription',
-      'specialization',
-      'bio',
+      'professionalTitle',
       'vendorUpiId',
+      'serviceRadius',
+      'serviceAddress',
     ];
 
     const userUpdate = {};
@@ -197,9 +282,19 @@ exports.updateVendorProfile = async (req, res) => {
         req.body[field] !== null &&
         req.body[field] !== ''
       ) {
-        vendorUpdate[field] = req.body[field];
+        if (field === 'experience' || field === 'serviceRadius') {
+          const num = Number(req.body[field]);
+          if (!isNaN(num)) vendorUpdate[field] = num;
+        } else {
+          vendorUpdate[field] = req.body[field];
+        }
       }
     });
+
+    // Also sync user location if serviceAddress was provided and location was not explicitly provided
+    if (req.body?.serviceAddress && !userUpdate.location) {
+      userUpdate.location = req.body.serviceAddress;
+    }
 
     if (req.body?.bankDetails) {
       try {
@@ -229,14 +324,9 @@ exports.updateVendorProfile = async (req, res) => {
             ? JSON.parse(req.body.appliancesServed)
             : req.body.appliancesServed;
 
-        if (!Array.isArray(appliances)) {
-          return res.status(400).json({
-            success: false,
-            message: 'appliancesServed must be an array.',
-          });
+        if (Array.isArray(appliances)) {
+          vendorUpdate.appliancesServed = appliances;
         }
-
-        vendorUpdate.appliancesServed = appliances;
       } catch (error) {
         return res.status(400).json({
           success: false,
@@ -250,22 +340,25 @@ exports.updateVendorProfile = async (req, res) => {
         const result = await uploadImageToImageKit(
           req.file.buffer,
           req.file.originalname || `vendor-profile-${Date.now()}.jpg`,
-          'vendor-profiles',
         );
 
-        vendorUpdate.profileImage = result.url;
+        if (result?.url) {
+          vendorUpdate.profileImage = {
+            url: result.url,
+            fileId: result.fileId || null,
+          };
+        }
       } catch (error) {
         console.error('Profile image upload failed:', error);
-
         return res.status(500).json({
           success: false,
           message: 'Failed to upload profile image.',
+          error: error.message,
         });
       }
     }
 
     let updatedUser = null;
-
     if (Object.keys(userUpdate).length > 0) {
       updatedUser = await User.findByIdAndUpdate(
         userId,
@@ -279,27 +372,15 @@ exports.updateVendorProfile = async (req, res) => {
       updatedUser = await User.findById(userId).select('-password');
     }
 
-    const updatedVendorProfile =
-      Object.keys(vendorUpdate).length > 0
-        ? await VendorProfile.findOneAndUpdate(
-            { user: userId },
-            { $set: vendorUpdate },
-            {
-              new: true,
-              runValidators: true,
-            },
-          ).populate('serviceAddress')
-        : vendorProfile;
-
-    if (
-      Object.keys(userUpdate).length === 0 &&
-      Object.keys(vendorUpdate).length === 0
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: 'No profile changes were provided.',
-      });
+    let updatedVendorProfile = vendorProfile;
+    if (Object.keys(vendorUpdate).length > 0) {
+      Object.assign(vendorProfile, vendorUpdate);
+      await vendorProfile.save();
     }
+
+    updatedVendorProfile = await VendorProfile.findById(vendorProfile._id)
+      .populate('user', '-password');
+
     return res.status(200).json({
       success: true,
       message: 'Vendor profile updated successfully.',
@@ -320,11 +401,10 @@ exports.updateVendorProfile = async (req, res) => {
 };
 
 
-// delete part is incomplete
 exports.updateVendorProfileImage = async (req, res) => {
   try {
     console.log('Update Vendor Profile Image Request:', req.file);
-    const userId = req.user.id;
+    const userId = req.user.id || req.user.userId || req.user._id;
 
     if (!req.file) {
       return res.status(400).json({
@@ -333,8 +413,25 @@ exports.updateVendorProfileImage = async (req, res) => {
       });
     }
 
-    const vendorProfile = await VendorProfile.findOne({
-      user: userId,
+    let user = null;
+    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+      user = await User.findById(userId);
+    }
+    if (!user && req.user?.email) {
+      user = await User.findOne({ email: req.user.email.toLowerCase().trim() });
+    }
+    if (!user && req.user?.vendorId) {
+      user = await User.findOne({ vendorId: req.user.vendorId });
+    }
+
+    const vendorId = req.user?.vendorId || user?.vendorId;
+    const targetUserId = user?._id || userId;
+
+    let vendorProfile = await VendorProfile.findOne({
+      $or: [
+        { user: targetUserId },
+        ...(vendorId ? [{ vendorId }] : []),
+      ],
     });
 
     if (!vendorProfile) {
@@ -343,9 +440,6 @@ exports.updateVendorProfileImage = async (req, res) => {
         message: 'Vendor profile not found.',
       });
     }
-
-    const oldFileId = vendorProfile.profileImage?.fileId;
-    console.log('Old File ID:', oldFileId);
 
     const uploadedImage = await uploadImageToImageKit(
       req.file.buffer,
@@ -359,18 +453,10 @@ exports.updateVendorProfileImage = async (req, res) => {
 
     await vendorProfile.save();
 
-    if (oldFileId) {
-      try {
-        await imagekit.files.delete(oldFileId);
-      } catch (deleteError) {
-        console.error('Old profile image deletion failed:', deleteError);
-      }
-    }
-
     return res.status(200).json({
       success: true,
       message: 'Vendor profile image updated successfully.',
-      profilePhoto: vendorProfile.profilePhoto,
+      profileImage: vendorProfile.profileImage,
     });
   } catch (error) {
     console.error('Update vendor profile image error:', error);
