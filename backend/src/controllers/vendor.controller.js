@@ -124,79 +124,50 @@ exports.vendorLogin = async (req, res) => {
 
 //--------------------Vendor Profile-------------
 
+
+
 exports.getVendorProfile = async (req, res) => {
   try {
-    // console.log("user is",req.user)
-    const userId = req.user.id 
-    // console.log('[Vendor Controller] 🔍 getVendorProfile called for user ID:', userId, 'req.user:', req.user);
-    
-    let user = null;
-    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-      user = await User.findById(userId).select('-password');
-    }
-    if (!user && req.user?.email) {
-      user = await User.findOne({ email: req.user.email.toLowerCase().trim() }).select('-password');
-    }
-    if (!user && req.user?.vendorId) {
-      user = await User.findOne({ vendorId: req.user.vendorId }).select('-password');
-    }
+    console.log("get profile is called");
+
+    const userId = req.user.id;
+
+    const user = await User.findById(userId).select("-password");
 
     if (!user) {
-      console.warn('[Vendor Controller] ⚠️ User account not found for ID:', userId, 'email:', req.user?.email);
       return res.status(404).json({
         success: false,
-        message: 'User account not found.',
+        message: "User account not found.",
       });
     }
 
-    const vendorId = req.user.vendorId || user.vendorId;
-
-    let vendorProfile = await VendorProfile.findOne({
-      $or: [
-        { user: user._id },
-        ...(vendorId ? [{ vendorId }] : []),
-      ],
-    }).populate('user', '-password');
+    const vendorProfile = await VendorProfile.findOne({
+      user: user._id,
+    }).populate("user", "-password");
 
     if (!vendorProfile) {
-      // Auto-provision missing vendor profile document if not created yet
-      const fallbackVendorId = vendorId || `FX-V-${Math.floor(1000 + Math.random() * 9000)}`;
-      vendorProfile = await VendorProfile.create({
-        user: user._id,
-        vendorId: fallbackVendorId,
-        professionalTitle: 'Service Technician',
-        serviceType: 'General',
-        experience: 0,
-        appliancesServed: [],
-        serviceRadius: 10,
-        rating: 4.8,
-        jobsCompleted: 0,
+      return res.status(404).json({
+        success: false,
+        message: "Vendor profile not found.",
       });
-
-      if (!user.vendorId) {
-        user.vendorId = fallbackVendorId;
-        await user.save();
-      }
-
-      vendorProfile = await VendorProfile.findById(vendorProfile._id)
-        .populate('user', '-password');
     }
 
     return res.status(200).json({
       success: true,
       vendorProfile,
-      message: 'Vendor profile fetched successfully.',
+      message: "Vendor profile fetched successfully.",
     });
+
   } catch (error) {
-    console.error('Get vendor profile error:', error);
+    console.error("Get vendor profile error:", error);
+
     return res.status(500).json({
       success: false,
-      message: 'Failed to fetch vendor profile.',
+      message: "Failed to fetch vendor profile.",
       error: error.message,
     });
   }
 };
-
 
 exports.updateVendorProfile = async (req, res) => {
   try {
