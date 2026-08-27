@@ -15,6 +15,10 @@ const vendorProfileSchema = new mongoose.Schema(
       sparse: true,
       trim: true,
     },
+    temporaryPassword: {
+      type: String,
+      default: null,
+    },
     password: {
       type: String,
       default: null,

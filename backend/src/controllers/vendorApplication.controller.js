@@ -269,7 +269,7 @@ const approveVendorApplication = async (req, res) => {
           },
           credentials: {
             vendorId,
-            password,
+            temporaryPassword: password,
           },
         });
       }
@@ -323,7 +323,7 @@ const approveVendorApplication = async (req, res) => {
       },
       credentials: {
         vendorId,
-        password,
+        temporaryPassword: password,
       },
     });
   } catch (error) {
@@ -344,8 +344,8 @@ const getVendorCredentials = async (req, res) => {
   try {
     const { applicationId } = req.params;
 
-    
-    const application = await VendorApplication.findOne({
+    // 1. Try finding application by applicationId, email, or _id
+    let application = await VendorApplication.findOne({
       $or: [
         { applicationId },
         { email: applicationId.toLowerCase() },
@@ -355,46 +355,74 @@ const getVendorCredentials = async (req, res) => {
       ],
     });
 
-    if (!application) {
-      return res.status(404).json({
-        success: false,
-        message: 'Vendor application not found.',
-      });
+    let vendorProfile = null;
+    let user = null;
+
+    if (application && application.vendor) {
+      vendorProfile = await VendorProfile.findById(application.vendor);
     }
 
-    if (!application.vendor) {
-      return res.status(404).json({
-        success: false,
-        message: 'Vendor has not been approved yet.',
-      });
-    }
-
-    
-    const vendorProfile = await VendorProfile.findById(
-      application.vendor
-    );
-
+    // 2. Fallback: Search directly via User (by vendorId, email, or _id)
     if (!vendorProfile) {
+      const searchParam = application?.email || applicationId;
+      const escapedParam = searchParam.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+      user = await User.findOne({
+        $or: [
+          { vendorId: { $regex: new RegExp(`^${escapedParam}$`, 'i') } },
+          { email: searchParam.toLowerCase().trim() },
+          ...(mongoose.isValidObjectId(searchParam) ? [{ _id: searchParam }] : []),
+        ],
+      });
+
+      if (user) {
+        vendorProfile = await VendorProfile.findOne({ user: user._id });
+        if (!vendorProfile) {
+          vendorProfile = await VendorProfile.create({
+            user: user._id,
+            vendorId: user.vendorId,
+            professionalTitle: application?.serviceType || 'Service Technician',
+            serviceType: application?.serviceType || 'General',
+          });
+        }
+        if (application && !application.vendor) {
+          application.vendor = vendorProfile._id;
+          application.status = 'Approved';
+          await application.save();
+        }
+      }
+    }
+
+    if (vendorProfile && !user) {
+      user = await User.findById(vendorProfile.user);
+    }
+
+    if (!vendorProfile || !user) {
       return res.status(404).json({
         success: false,
-        message: 'Vendor profile not found.',
+        message: 'Vendor credentials not found.',
       });
     }
 
-    
-    const user = await User.findById(vendorProfile.user);
+    // 3. If password was never saved in DB (e.g. legacy vendor), auto-generate temporary password and sync to user
+    let temporaryPassword = vendorProfile.temporaryPassword || vendorProfile.password;
+    if (!temporaryPassword) {
+      temporaryPassword = `FixIt_${new Date().getFullYear()}_!${crypto
+        .randomBytes(2)
+        .toString('hex')}`;
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'Vendor user not found.',
-      });
+      vendorProfile.temporaryPassword = temporaryPassword;
+      vendorProfile.password = temporaryPassword;
+      await vendorProfile.save();
+
+      const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+      user.password = hashedPassword;
+      await user.save();
     }
 
     return res.status(200).json({
       success: true,
       message: 'Vendor credentials retrieved successfully.',
-
       vendor: {
         id: user._id,
         vendorId: user.vendorId,
@@ -402,18 +430,13 @@ const getVendorCredentials = async (req, res) => {
         email: user.email,
         role: user.role,
       },
-
       credentials: {
         vendorId: user.vendorId,
-        temporaryPassword: vendorProfile.temporaryPassword,
+        temporaryPassword: temporaryPassword,
       },
     });
   } catch (error) {
-    console.error(
-      'Get vendor credentials error:',
-      error
-    );
-
+    console.error('Get vendor credentials error:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to retrieve vendor credentials.',
@@ -517,7 +540,7 @@ const createVendorByAdmin = async (req, res) => {
       });
     }
 
-    const { user, vendorId, temporaryPassword } =
+    const { user, vendorId, password } =
       await createOrUpdateVendorAccount({
         fullName,
         email: trimmedEmail,
@@ -541,7 +564,7 @@ const createVendorByAdmin = async (req, res) => {
       },
       credentials: {
         vendorId,
-        temporaryPassword,
+        temporaryPassword: password,
       },
     });
   } catch (error) {

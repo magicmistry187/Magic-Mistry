@@ -687,7 +687,7 @@ export default function AdminDashboardPage() {
           name: `${appObj?.name || appObj?.fullName || res.vendor?.fullName || 'Vendor'} - ${appObj?.service || appObj?.serviceType || 'Service Technician'}`,
           id: res.credentials.vendorId,
           email: res.vendor?.email || appObj?.email,
-          tempPassword: res.credentials.temporaryPassword,
+          tempPassword: res.credentials.temporaryPassword || res.credentials.password || '',
           appId: appId,
         };
         setVendorCredentials(prev => ({ ...prev, [appId]: newCreds }));
@@ -867,7 +867,7 @@ export default function AdminDashboardPage() {
             name: `${vendorForm.fullName} - ${vendorForm.specialization || 'Service Technician'}`,
             id: res.credentials.vendorId,
             email: res.vendor?.email || vendorForm.email,
-            tempPassword: res.credentials.temporaryPassword,
+            tempPassword: res.credentials.temporaryPassword || res.credentials.password || '',
             appId: vendorForm.appId,
           };
           setGeneratedCreds(creds);
@@ -903,7 +903,7 @@ export default function AdminDashboardPage() {
             name: `${vendorForm.fullName} - ${vendorForm.specialization || 'Service Technician'}`,
             id: res.credentials.vendorId,
             email: res.vendor?.email || vendorForm.email,
-            tempPassword: res.credentials.temporaryPassword,
+            tempPassword: res.credentials.temporaryPassword || res.credentials.password || '',
             appId: null,
           };
           setGeneratedCreds(creds);

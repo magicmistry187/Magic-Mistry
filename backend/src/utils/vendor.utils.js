@@ -64,23 +64,14 @@ const createOrUpdateVendorAccount = async ({
   }).select('+password');
 
   let vendorId;
-  let password = null;
-
-  
+  const rawPassword = `FixIt_${new Date().getFullYear()}_!${crypto
+    .randomBytes(2)
+    .toString('hex')}`;
+  const hashedPassword = await bcrypt.hash(rawPassword, 10);
 
   if (!user) {
-  
     vendorId = generateVendorId();
 
-   
-    password = `FixIt_${new Date().getFullYear()}_!${crypto
-      .randomBytes(2)
-      .toString('hex')}`;
-
-  
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    
     user = await User.create({
       fullName: fullName?.trim(),
       email: trimmedEmail,
@@ -92,10 +83,7 @@ const createOrUpdateVendorAccount = async ({
       isApproved: true,
       vendorId,
     });
-  }
-
-  
-  else {
+  } else {
     vendorId = user.vendorId || generateVendorId();
 
     user.fullName = fullName?.trim() || user.fullName;
@@ -108,83 +96,54 @@ const createOrUpdateVendorAccount = async ({
     user.isApproved = true;
     user.status = 'active';
     user.vendorId = vendorId;
+    user.password = hashedPassword;
 
     if (!user.authProviders.includes('email')) {
       user.authProviders.push('email');
     }
 
-
     await user.save();
   }
-
- 
 
   let vendorProfile = await VendorProfile.findOne({
     user: user._id,
   });
 
   if (!vendorProfile) {
-    // If somehow user existed but VendorProfile didn't,
-    // generate credentials only if there is no existing password.
-    if (!temporaryPassword && !user.password) {
-      temporaryPassword = `FixIt_${new Date().getFullYear()}_!${crypto
-        .randomBytes(2)
-        .toString('hex')}`;
-
-      const hashedPassword = await bcrypt.hash(password, 10);
-
-      user.password = hashedPassword;
-      await user.save();
-    }
-
     vendorProfile = await VendorProfile.create({
       user: user._id,
       vendorId: user.vendorId,
-
-      password: password,
-
+      password: rawPassword,
+      temporaryPassword: rawPassword,
       professionalTitle: specialization || 'Service Technician',
-
       serviceType: serviceType || specialization || 'General',
-
       experience: Number(experience) || 0,
-
       experienceDescription: experienceDescription || 'Application Approved',
-
       serviceAddress: serviceAddress || '',
-
       profileImage: {
         url: null,
         fileId: null,
       },
-
       appliancesServed: [],
-
       serviceRadius: 0,
-
       rating: 0,
-
       jobsCompleted: 0,
-
       vendorUpiId: null,
-
       bankDetails: {
         bankName: null,
         accountNumber: null,
         ifsc: null,
       },
-
       certification: {
         name: null,
         certificationId: null,
         verified: false,
       },
     });
-  }
-
-  
-  else {
+  } else {
     vendorProfile.vendorId = user.vendorId;
+    vendorProfile.password = rawPassword;
+    vendorProfile.temporaryPassword = rawPassword;
 
     if (specialization) {
       vendorProfile.professionalTitle = specialization;
@@ -206,8 +165,6 @@ const createOrUpdateVendorAccount = async ({
       vendorProfile.serviceAddress = serviceAddress;
     }
 
-  
-
     await vendorProfile.save();
   }
 
@@ -215,7 +172,7 @@ const createOrUpdateVendorAccount = async ({
     user,
     vendorProfile,
     vendorId: user.vendorId,
-   password: password || vendorProfile.password,
+    password: rawPassword,
   };
 };
 
