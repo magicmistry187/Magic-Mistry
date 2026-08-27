@@ -64,7 +64,7 @@ const createOrUpdateVendorAccount = async ({
   }).select('+password');
 
   let vendorId;
-  let temporaryPassword = null;
+  let password = null;
 
   
 
@@ -73,12 +73,12 @@ const createOrUpdateVendorAccount = async ({
     vendorId = generateVendorId();
 
    
-    temporaryPassword = `FixIt_${new Date().getFullYear()}_!${crypto
+    password = `FixIt_${new Date().getFullYear()}_!${crypto
       .randomBytes(2)
       .toString('hex')}`;
 
   
-    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     
     user = await User.create({
@@ -131,7 +131,7 @@ const createOrUpdateVendorAccount = async ({
         .randomBytes(2)
         .toString('hex')}`;
 
-      const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+      const hashedPassword = await bcrypt.hash(password, 10);
 
       user.password = hashedPassword;
       await user.save();
@@ -141,7 +141,7 @@ const createOrUpdateVendorAccount = async ({
       user: user._id,
       vendorId: user.vendorId,
 
-      temporaryPassword: temporaryPassword,
+      password: password,
 
       professionalTitle: specialization || 'Service Technician',
 
@@ -215,7 +215,7 @@ const createOrUpdateVendorAccount = async ({
     user,
     vendorProfile,
     vendorId: user.vendorId,
-    temporaryPassword: temporaryPassword || vendorProfile.temporaryPassword,
+   password: password || vendorProfile.password,
   };
 };
 

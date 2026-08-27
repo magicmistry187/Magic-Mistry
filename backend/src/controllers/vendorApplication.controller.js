@@ -250,7 +250,7 @@ const approveVendorApplication = async (req, res) => {
         const {
           user: updatedUser,
           vendorId,
-          temporaryPassword,
+          password,
         } = await createOrUpdateVendorAccount({
           fullName: user.fullName,
           email: user.email,
@@ -269,7 +269,7 @@ const approveVendorApplication = async (req, res) => {
           },
           credentials: {
             vendorId,
-            temporaryPassword,
+            password,
           },
         });
       }
@@ -288,7 +288,7 @@ const approveVendorApplication = async (req, res) => {
     }
 
     // 2. Create/Update User & VendorProfile using shared utility
-    const { user, vendorProfile, vendorId, temporaryPassword } =
+    const { user, vendorProfile, vendorId, password } =
       await createOrUpdateVendorAccount({
         fullName: application.fullName,
         email: application.email,
@@ -323,7 +323,7 @@ const approveVendorApplication = async (req, res) => {
       },
       credentials: {
         vendorId,
-        temporaryPassword,
+        password,
       },
     });
   } catch (error) {

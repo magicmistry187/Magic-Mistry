@@ -126,8 +126,9 @@ exports.vendorLogin = async (req, res) => {
 
 exports.getVendorProfile = async (req, res) => {
   try {
-    const userId = req.user.id || req.user.userId || req.user._id;
-    console.log('[Vendor Controller] 🔍 getVendorProfile called for user ID:', userId, 'req.user:', req.user);
+    // console.log("user is",req.user)
+    const userId = req.user.id 
+    // console.log('[Vendor Controller] 🔍 getVendorProfile called for user ID:', userId, 'req.user:', req.user);
     
     let user = null;
     if (userId && mongoose.Types.ObjectId.isValid(userId)) {
@@ -196,12 +197,13 @@ exports.getVendorProfile = async (req, res) => {
   }
 };
 
+
 exports.updateVendorProfile = async (req, res) => {
   try {
-    console.log('Update Vendor Profile Request Body:', req.body);
-    const userId = req.user.id || req.user.userId || req.user._id;
-    console.log('[Vendor Controller] 📝 updateVendorProfile called for user ID:', userId, 'req.user:', req.user);
-    console.log('  Body keys:', Object.keys(req.body));
+    // console.log('Update Vendor Profile Request Body:', req.body);
+    const userId = req.user.id
+    // console.log('[Vendor Controller] 📝 updateVendorProfile called for user ID:', userId, 'req.user:', req.user);
+    // console.log('  Body keys:', Object.keys(req.body));
     
     let user = null;
     if (userId && mongoose.Types.ObjectId.isValid(userId)) {
@@ -399,6 +401,8 @@ exports.updateVendorProfile = async (req, res) => {
     });
   }
 };
+
+
 
 
 exports.updateVendorProfileImage = async (req, res) => {
