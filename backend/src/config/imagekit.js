@@ -19,4 +19,13 @@ async function uploadImageToImageKit(buffer, fileName) {
   return result;
 }
 
-module.exports = uploadImageToImageKit;
+async function deleteImageFromImageKit(fileId) {
+  if (!fileId) return null;
+
+  return imagekit.files.delete(fileId);
+}
+
+module.exports = {
+  uploadImageToImageKit,
+  deleteImageFromImageKit,
+};
