@@ -21,7 +21,7 @@ import VendorAddressModal from '../../components/dashboard/vendor/VendorAddressM
 import { useAuth } from '../../context/AuthContext';
 import { getVendorBookingsApi } from '../../services/operations/bookingAPI';
 import { saveVendorAddressApi } from '../../services/operations/addressAPI';
-import { updateVendorProfileApi, getVendorProfileApi } from '../../services/operations/vendorAPI';
+import { updateVendorProfileApi, getVendorProfileApi, updateVendorProfileImageApi } from '../../services/operations/vendorAPI';
 
 
 // Predefined Indian Banks for Profile
@@ -292,6 +292,7 @@ export default function VendorDashboardPage() {
         console.error('[Vendor Dashboard] Failed to load vendor profile:', err);
       }
     };
+    fetchVendorProfileData();
   }, [token]);
 
   // Sync profile with user context / location changes if vendorProfile is still empty
@@ -366,7 +367,23 @@ export default function VendorDashboardPage() {
     try {
       console.log('[Vendor Dashboard] 🚀 handleSaveVendorProfile triggered');
       showToast('Saving vendor profile...', 'info');
-      
+
+      let finalProfileImage = editProfileForm.profileImage;
+
+      // Step 1: If a new image file was selected, upload it via the dedicated endpoint
+      if (editProfileForm.profileImageFile) {
+        console.log('[Vendor Dashboard] 🖼️ Uploading profile image via dedicated endpoint...');
+        const imgResult = await updateVendorProfileImageApi(editProfileForm.profileImageFile, token);
+        if (imgResult.success) {
+          finalProfileImage = imgResult.profileImage?.url || finalProfileImage;
+          console.log('[Vendor Dashboard] ✅ Profile image uploaded:', finalProfileImage);
+        } else {
+          showToast(imgResult.message || 'Failed to upload profile image', 'error');
+          return;
+        }
+      }
+
+      // Step 2: Build FormData for the rest of the profile fields
       const formData = new FormData();
       
       // User Fields
@@ -392,18 +409,11 @@ export default function VendorDashboardPage() {
         formData.append('appliancesServed', JSON.stringify(editProfileForm.appliancesServed));
       }
       
-      // Profile Image
-      if (editProfileForm.profileImageFile) {
-        formData.append('profileImage', editProfileForm.profileImageFile);
-      }
-      
-      console.log('[Vendor Dashboard] 📤 Sending FormData payload to backend...');
+      console.log('[Vendor Dashboard] 📤 Sending profile FormData to backend...');
       const result = await updateVendorProfileApi(formData, token);
       console.log('[Vendor Dashboard] 📥 Backend response:', result);
       
       if (result.success) {
-        const rawProfileImage = result.data?.vendorProfile?.profileImage;
-        const finalProfileImage = (typeof rawProfileImage === 'object' ? rawProfileImage?.url : rawProfileImage) || editProfileForm.profileImage;
         const updatedVp = result.data?.vendorProfile || {};
         const updatedU = result.data?.user || updatedVp.user || {};
 

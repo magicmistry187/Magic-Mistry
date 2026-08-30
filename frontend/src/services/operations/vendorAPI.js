@@ -6,6 +6,7 @@ export const vendorEndpoints = {
   VENDOR_CREATE_API: BASE_URL + "/vendor/create",
   GET_VENDOR_PROFILE_API: BASE_URL + "/vendor/profile",
   UPDATE_VENDOR_PROFILE_API: BASE_URL + "/vendor/profile-update",
+  UPDATE_VENDOR_PROFILE_IMAGE_API: BASE_URL + "/vendor/profile-image-update",
 };
 
 const { 
@@ -13,7 +14,8 @@ const {
   APPROVE_VENDOR_APP_API, 
   VENDOR_CREATE_API, 
   GET_VENDOR_PROFILE_API,
-  UPDATE_VENDOR_PROFILE_API 
+  UPDATE_VENDOR_PROFILE_API,
+  UPDATE_VENDOR_PROFILE_IMAGE_API,
 } = vendorEndpoints;
 
 export async function loginVendor(login, password) {
@@ -278,6 +280,42 @@ export async function updateVendorProfileApi(formData, token) {
     return {
       success: false,
       message: error.response?.data?.message || error.message || "Failed to update vendor profile",
+    };
+  }
+}
+
+/**
+ * Uploads a new profile image for the vendor.
+ * Calls POST /vendor/profile-image-update with a FormData containing the image file.
+ *
+ * @param {File} imageFile - The image File object to upload.
+ * @param {string} token - The user's auth token.
+ * @returns {Object} The API response with the updated profileImage { url, fileId }.
+ */
+export async function updateVendorProfileImageApi(imageFile, token) {
+  try {
+    const authToken = token || (typeof window !== 'undefined' && (localStorage.getItem('mm_token') || localStorage.getItem('token')));
+    const formData = new FormData();
+    formData.append('profileImage', imageFile);
+
+    const response = await apiConnector("POST", UPDATE_VENDOR_PROFILE_IMAGE_API, formData, {
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+    });
+
+    if (!response.data?.success) {
+      throw new Error(response.data?.message || "Failed to update profile image");
+    }
+
+    return {
+      success: true,
+      message: response.data.message || "Profile image updated successfully!",
+      profileImage: response.data.profileImage, // { url, fileId }
+    };
+  } catch (error) {
+    console.log("UPDATE VENDOR PROFILE IMAGE ERROR............", error);
+    return {
+      success: false,
+      message: error.response?.data?.message || error.message || "Failed to update profile image",
     };
   }
 }
