@@ -68,6 +68,8 @@ export default function AddressForm() {
   const [addrType, setAddrType]         = useState("Home");
   const [flat, setFlat]                 = useState("");
   const [street, setStreet]             = useState("");
+  const [city, setCity]                 = useState("");
+  const [state, setState]               = useState("");
   const [landmark, setLandmark]         = useState("");
   const [pincode, setPincode]           = useState("");
   const [manualError, setManualError]   = useState("");
@@ -88,7 +90,7 @@ export default function AddressForm() {
       if (res.success && res.addresses?.length > 0) {
         const def = res.addresses.find((a) => a.isDefault) || res.addresses[0];
         setSavedAddress(def);
-        const parts = [def.house || def.flat, def.street, def.landmark, def.city, def.state, def.pincode].filter(Boolean);
+        const parts = [def.house || def.flat || def.addressLine1, def.street, def.landmark, def.city, def.state, def.pincode].filter(Boolean);
         applyAddress(parts.join(", "));
       } else {
         setSavedError("No saved address found. Please enter one below.");
@@ -104,17 +106,17 @@ export default function AddressForm() {
 
   const handleEnterDifferent = () => {
     applyAddress("");
-    setFlat(""); setStreet(""); setLandmark(""); setPincode(""); setAddrType("Home");
+    setFlat(""); setStreet(""); setCity(""); setState(""); setLandmark(""); setPincode(""); setAddrType("Home");
     setManualError(""); setLocState(LOC.IDLE); setLocError("");
     setMode(MODE.MANUAL);
   };
 
   useEffect(() => {
     if (mode !== MODE.MANUAL) return;
-    const full = [flat, street, landmark, pincode].filter(Boolean).join(", ");
+    const full = [flat, street, landmark, city, state, pincode].filter(Boolean).join(", ");
     applyAddress(full);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flat, street, landmark, pincode, addrType, mode]);
+  }, [flat, street, landmark, city, state, pincode, addrType, mode]);
 
   const handleUseLocation = () => {
     if (!navigator.geolocation) {
@@ -133,14 +135,18 @@ export default function AddressForm() {
           );
           const data = await res.json();
           const a = data.address || {};
+          const detectedCity = a.city || a.town || a.village || a.county || a.state_district || "";
+          const detectedState = a.state || "";
           const parts = [
             a.house_number, a.road || a.pedestrian || a.footway,
-            a.neighbourhood || a.suburb, a.city || a.town || a.village || a.county,
-            a.state, a.postcode,
+            a.neighbourhood || a.suburb, detectedCity,
+            detectedState, a.postcode,
           ].filter(Boolean);
           const fullAddress = parts.length ? parts.join(", ") : data.display_name;
           setFlat(a.house_number || "");
           setStreet([a.road || a.pedestrian || a.footway, a.neighbourhood || a.suburb].filter(Boolean).join(", "));
+          setCity(detectedCity);
+          setState(detectedState);
           setLandmark("");
           setPincode(a.postcode || "");
           updateBooking("address", fullAddress);
@@ -163,7 +169,7 @@ export default function AddressForm() {
   };
 
   const savedAddressLine = savedAddress
-    ? [savedAddress.house || savedAddress.flat, savedAddress.street, savedAddress.city, savedAddress.state, savedAddress.pincode].filter(Boolean).join(", ")
+    ? [savedAddress.house || savedAddress.flat || savedAddress.addressLine1, savedAddress.street, savedAddress.landmark, savedAddress.city, savedAddress.state, savedAddress.pincode].filter(Boolean).join(", ")
     : "";
 
   return (
@@ -327,47 +333,86 @@ export default function AddressForm() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">House / Flat / Building No. <span className="text-red-500">*</span></label>
+              <label className="block font-bold text-xs text-slate-600 mb-1.5">
+                House / Flat / Building No. <span className="text-gray-400 font-normal text-xs">(Optional)</span>
+              </label>
               <input
                 type="text"
                 value={flat}
                 onChange={(e) => setFlat(e.target.value)}
                 placeholder="e.g. Flat 402, Green Valley Apartments"
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">Street / Area / Locality <span className="text-red-500">*</span></label>
+              <label className="block font-bold text-xs text-slate-600 mb-1.5">
+                Street / Area / Locality <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
+                required
                 value={street}
                 onChange={(e) => setStreet(e.target.value)}
                 placeholder="e.g. 10th Main Road, Indiranagar"
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Landmark <span className="text-gray-400 font-normal">(optional)</span></label>
+                <label className="block font-bold text-xs text-slate-600 mb-1.5">
+                  City <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="e.g. Kolkata"
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-xs text-slate-600 mb-1.5">
+                  State <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={state}
+                  onChange={(e) => setState(e.target.value)}
+                  placeholder="e.g. West Bengal"
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-xs text-slate-600 mb-1.5">
+                  Landmark <span className="text-gray-400 font-normal text-xs">(Optional)</span>
+                </label>
                 <input
                   type="text"
                   value={landmark}
                   onChange={(e) => setLandmark(e.target.value)}
                   placeholder="e.g. Near Metro Station"
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Pincode <span className="text-red-500">*</span></label>
+                <label className="block font-bold text-xs text-slate-600 mb-1.5">
+                  Pincode <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
+                  required
                   value={pincode}
                   onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                   placeholder="700001"
                   maxLength={6}
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all"
                 />
               </div>
             </div>

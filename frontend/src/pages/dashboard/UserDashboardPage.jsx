@@ -20,7 +20,6 @@ import UserTechnicianMapModal from '../../components/dashboard/user/UserTechnici
 import UserInvoiceModal       from '../../components/dashboard/user/UserInvoiceModal';
 import UserAddressModal        from '../../components/dashboard/user/UserAddressModal';
 import UserRatingModal         from '../../components/dashboard/user/UserRatingModal';
-import LocationSelectorModal   from '../../components/common/LocationSelectorModal';
 import ApplianceIcon           from '../../components/common/ApplianceIcon';
 
 
@@ -133,9 +132,11 @@ export default function UserDashboardPage() {
         const mappedAddrs = resAddrs.addresses.map(a => ({
           id: a._id,
           type: a.addressType || 'Home',
-          flat: a.house || '',
+          flat: a.house || a.flat || a.addressLine1 || '',
           street: a.street || '',
           landmark: a.landmark || '',
+          city: a.city || '',
+          state: a.state || '',
           pincode: a.pincode || '',
           isDefault: a.isDefault,
         }));
@@ -159,7 +160,6 @@ export default function UserDashboardPage() {
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState(null);
   const [addresses, setAddresses] = useState(initialAddresses);
-  const [isLocationSelectorOpen, setIsLocationSelectorOpen] = useState(false);
 
 
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
@@ -220,16 +220,26 @@ export default function UserDashboardPage() {
   };
 
   const handleSaveAddress = async (addressObj) => {
-    const formattedStr = [addressObj.flat, addressObj.street, addressObj.landmark, addressObj.pincode].filter(Boolean).join(', ');
+    const formattedStr = [
+      addressObj.flat,
+      addressObj.street,
+      addressObj.landmark,
+      addressObj.city,
+      addressObj.state,
+      addressObj.pincode,
+    ].filter(Boolean).join(', ');
+
     const payload = {
-      addressType: addressObj.type || 'Home',
-      house: addressObj.flat,
-      flat: addressObj.flat,
-      street: addressObj.street,
-      landmark: addressObj.landmark,
-      pincode: addressObj.pincode,
-      city: 'Kolkata',
-      state: 'West Bengal',
+      addressType: addressObj.type || addressObj.addressType || 'Home',
+      house: addressObj.flat || '',
+      flat: addressObj.flat || '',
+      addressLine1: addressObj.flat || addressObj.street || 'Address',
+      street: addressObj.street || '',
+      landmark: addressObj.landmark || '',
+      city: addressObj.city || 'Kolkata',
+      state: addressObj.state || 'West Bengal',
+      pincode: addressObj.pincode || '',
+      country: 'India',
       isDefault: true,
     };
 
@@ -244,9 +254,11 @@ export default function UserDashboardPage() {
         setAddresses(resAddrs.addresses.map(a => ({
           id: a._id,
           type: a.addressType || 'Home',
-          flat: a.house || '',
+          flat: a.house || a.flat || a.addressLine1 || '',
           street: a.street || '',
           landmark: a.landmark || '',
+          city: a.city || '',
+          state: a.state || '',
           pincode: a.pincode || '',
           isDefault: a.isDefault,
         })));
@@ -271,9 +283,11 @@ export default function UserDashboardPage() {
         setAddresses(resAddrs.addresses.map(a => ({
           id: a._id,
           type: a.addressType || 'Home',
-          flat: a.house || '',
+          flat: a.house || a.flat || a.addressLine1 || '',
           street: a.street || '',
           landmark: a.landmark || '',
+          city: a.city || '',
+          state: a.state || '',
           pincode: a.pincode || '',
           isDefault: a.isDefault,
         })));
@@ -393,9 +407,12 @@ export default function UserDashboardPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setIsLocationSelectorOpen(true)}
+                      onClick={() => {
+                        setEditingAddress(null);
+                        setIsAddressModalOpen(true);
+                      }}
                       className="self-start sm:self-auto flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-orange-600 bg-white hover:bg-orange-50 px-3.5 py-2 rounded-2xl border border-slate-200 shadow-xs transition-colors cursor-pointer"
-                      title="Select or Change Location"
+                      title="Add or Change Address"
                     >
                       <MapPin className="w-4 h-4 text-orange-500" />
                       <span>{location || 'Kolkata, West Bengal'}</span>
@@ -1264,10 +1281,13 @@ export default function UserDashboardPage() {
                       </div>
                     </div>
                     <button
-                      onClick={() => setIsLocationSelectorOpen(true)}
-                      className="px-4 py-2.5 bg-white text-slate-900 hover:bg-orange-50 hover:text-orange-600 font-extrabold text-xs rounded-2xl transition-colors shrink-0 shadow-md"
+                      onClick={() => {
+                        setEditingAddress(null);
+                        setIsAddressModalOpen(true);
+                      }}
+                      className="px-4 py-2.5 bg-white text-slate-900 hover:bg-orange-50 hover:text-orange-600 font-extrabold text-xs rounded-2xl transition-colors shrink-0 shadow-md cursor-pointer"
                     >
-                      Change Location
+                      Add / Change Address
                     </button>
                   </div>
 
@@ -1282,8 +1302,11 @@ export default function UserDashboardPage() {
                       </div>
                     ) : (
                       addresses.map((addr) => {
-                        const fullAddrStr = [addr.flat, addr.street, addr.landmark, addr.pincode].filter(Boolean).join(', ');
-                        const isCurrentPrimary = location && location.toLowerCase().includes(addr.flat.toLowerCase());
+                        const fullAddrStr = [addr.flat, addr.street, addr.landmark, addr.city, addr.state, addr.pincode].filter(Boolean).join(', ');
+                        const isCurrentPrimary = location && (
+                          (addr.flat && location.toLowerCase().includes(addr.flat.toLowerCase())) ||
+                          (addr.street && location.toLowerCase().includes(addr.street.toLowerCase()))
+                        );
 
                         return (
                           <div key={addr.id} className={`bg-white rounded-3xl p-6 border shadow-sm flex flex-col justify-between space-y-4 transition-all ${isCurrentPrimary ? 'border-orange-500 ring-2 ring-orange-200' : 'border-slate-100'}`}>
@@ -1291,7 +1314,7 @@ export default function UserDashboardPage() {
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                   <span className="px-3 py-1 bg-orange-50 text-orange-600 font-extrabold text-xs rounded-full flex items-center gap-1">
-                                    {addr.type === 'Home' ? <Home className="w-3.5 h-3.5" /> : <Briefcase className="w-3.5 h-3.5" />}
+                                    {addr.type === 'Home' ? <Home className="w-3.5 h-3.5" /> : addr.type === 'Office' ? <Briefcase className="w-3.5 h-3.5" /> : <Tag className="w-3.5 h-3.5" />}
                                     {addr.type}
                                   </span>
                                   {isCurrentPrimary && (
@@ -1320,9 +1343,15 @@ export default function UserDashboardPage() {
                                   </button>
                                 </div>
                               </div>
-                              <p className="font-extrabold text-slate-900 text-base mt-3">{addr.flat}</p>
-                              <p className="text-xs text-slate-500 mt-1">{addr.street}, {addr.landmark}</p>
-                              <p className="text-xs font-bold text-slate-600 mt-1">Pincode: {addr.pincode}</p>
+                              <p className="font-extrabold text-slate-900 text-base mt-3">
+                                {addr.flat || addr.street}
+                              </p>
+                              <p className="text-xs text-slate-500 mt-1">
+                                {addr.flat ? `${addr.street}${addr.landmark ? `, ${addr.landmark}` : ''}` : (addr.landmark || '')}
+                              </p>
+                              <p className="text-xs font-semibold text-slate-600 mt-1">
+                                {[addr.city, addr.state].filter(Boolean).join(', ')}{addr.pincode ? ` - ${addr.pincode}` : ''}
+                              </p>
                             </div>
 
                             <button
@@ -1459,9 +1488,12 @@ export default function UserDashboardPage() {
                         <div className="flex flex-wrap items-center gap-2 mt-2">
                           <button
                             type="button"
-                            onClick={() => setIsLocationSelectorOpen(true)}
+                            onClick={() => {
+                              setEditingAddress(null);
+                              setIsAddressModalOpen(true);
+                            }}
                             className="flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-orange-600 bg-slate-100 hover:bg-orange-50 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors cursor-pointer"
-                            title="Click to change location with popup"
+                            title="Click to add or change address"
                           >
                             <MapPin className="w-3.5 h-3.5 text-orange-500" />
                             <span>{location || 'Kolkata, West Bengal'}</span>
@@ -1531,11 +1563,14 @@ export default function UserDashboardPage() {
                           </div>
                           <button
                             type="button"
-                            onClick={() => setIsLocationSelectorOpen(true)}
+                            onClick={() => {
+                              setEditingAddress(null);
+                              setIsAddressModalOpen(true);
+                            }}
                             className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
                           >
                             <MapPin className="w-3.5 h-3.5 text-orange-400" />
-                            <span>Select Location Popup</span>
+                            <span>Manage Address</span>
                           </button>
                         </div>
                       </div>
@@ -1589,7 +1624,7 @@ export default function UserDashboardPage() {
                           />
                         </div>
 
-                        {/* ── EXACT LOCATION INPUT FIELD WITH POPUP TRIGGER ── */}
+                        {/* ── EXACT LOCATION INPUT FIELD WITH MODAL TRIGGER ── */}
                         <div className="sm:col-span-2">
                           <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-1.5">
                             Service / Primary Location <span className="text-red-500">*</span>
@@ -1607,16 +1642,19 @@ export default function UserDashboardPage() {
                             />
                             <button
                               type="button"
-                              onClick={() => setIsLocationSelectorOpen(true)}
+                              onClick={() => {
+                                setEditingAddress(null);
+                                setIsAddressModalOpen(true);
+                              }}
                               className="absolute right-1.5 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-lg transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
                             >
                               <MapPin className="w-3.5 h-3.5 text-orange-400" />
-                              <span>Select Location</span>
+                              <span>Address Modal</span>
                             </button>
                           </div>
                           <p className="text-[11px] text-slate-400 font-medium mt-1.5 flex items-center gap-1">
                             <LocateFixed className="w-3 h-3 text-orange-500 inline" />
-                            Type address or click <strong>"Select Location"</strong> to auto-detect GPS coordinates or select popular cities.
+                            Type address or click <strong>"Address Modal"</strong> to enter full structured address with GPS detection.
                           </p>
                         </div>
 
@@ -1724,12 +1762,6 @@ export default function UserDashboardPage() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Location Selector Popup Modal */}
-      <LocationSelectorModal
-        isOpen={isLocationSelectorOpen}
-        onClose={() => setIsLocationSelectorOpen(false)}
-      />
 
       <Footer />
     </div>

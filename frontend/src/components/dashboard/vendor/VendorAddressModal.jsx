@@ -1,57 +1,143 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MapPin, Home, Briefcase, Tag } from 'lucide-react';
+import {
+  X,
+  MapPin,
+  Home,
+  Briefcase,
+  Tag,
+  LocateFixed,
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
+} from 'lucide-react';
 
 export default function VendorAddressModal({ isOpen, onClose, onSave, initialAddress }) {
   const [type, setType] = useState('Home');
   const [flat, setFlat] = useState('');
   const [street, setStreet] = useState('');
-  const [landmark, setLandmark] = useState('');
-  const [pincode, setPincode] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
+  const [landmark, setLandmark] = useState('');
+  const [pincode, setPincode] = useState('');
+
+  const [locState, setLocState] = useState('idle'); // 'idle' | 'loading' | 'success' | 'error'
+  const [locError, setLocError] = useState('');
 
   useEffect(() => {
-    if (initialAddress && typeof initialAddress === 'string') {
-      const parts = initialAddress.split(',').map((p) => p.trim());
-      if (parts.length >= 3) {
-        setFlat(parts[0] || '');
-        setStreet(parts[1] || '');
-        const last = parts[parts.length - 1];
-        const pinMatch = last.match(/\d{6}/);
-        if (pinMatch) {
-          setPincode(pinMatch[0]);
-          setLandmark(parts.slice(2, parts.length - 1).join(', ') || '');
+    if (initialAddress) {
+      if (typeof initialAddress === 'object') {
+        setType(initialAddress.type || initialAddress.addressType || 'Home');
+        setFlat(initialAddress.flat || initialAddress.house || initialAddress.addressLine1 || '');
+        setStreet(initialAddress.street || '');
+        setCity(initialAddress.city || '');
+        setState(initialAddress.state || '');
+        setLandmark(initialAddress.landmark || '');
+        setPincode(initialAddress.pincode || '');
+      } else if (typeof initialAddress === 'string') {
+        const parts = initialAddress.split(',').map((p) => p.trim());
+        if (parts.length >= 4) {
+          setFlat(parts[0] || '');
+          setStreet(parts[1] || '');
+          setCity(parts[2] || '');
+          const last = parts[parts.length - 1];
+          const pinMatch = last.match(/\d{6}/);
+          if (pinMatch) {
+            setPincode(pinMatch[0]);
+            setState(last.replace(/\d{6}/, '').trim() || '');
+            if (parts.length > 4) {
+              setLandmark(parts.slice(3, parts.length - 1).join(', '));
+            }
+          } else {
+            setState(parts[3] || '');
+          }
+        } else if (parts.length === 3) {
+          setFlat(parts[0] || '');
+          setStreet(parts[1] || '');
+          setCity(parts[2] || '');
+        } else if (parts.length === 2) {
+          setFlat(parts[0] || '');
+          setStreet(parts[1] || '');
         } else {
-          setLandmark(parts.slice(2).join(', ') || '');
+          setStreet(initialAddress);
         }
-      } else if (parts.length === 2) {
-        setFlat(parts[0] || '');
-        setStreet(parts[1] || '');
-      } else {
-        setStreet(initialAddress);
       }
+    } else {
+      setType('Home');
+      setFlat('');
+      setStreet('');
+      setCity('');
+      setState('');
+      setLandmark('');
+      setPincode('');
     }
+    setLocState('idle');
+    setLocError('');
   }, [initialAddress, isOpen]);
+
+  const handleUseLocation = () => {
+    if (!navigator.geolocation) {
+      setLocState('error');
+      setLocError('Geolocation is not supported by your browser.');
+      return;
+    }
+    setLocState('loading');
+    setLocError('');
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${coords.latitude}&lon=${coords.longitude}&format=json&addressdetails=1`,
+            { headers: { 'Accept-Language': 'en' } }
+          );
+          const data = await res.json();
+          const a = data.address || {};
+          const detectedCity = a.city || a.town || a.village || a.county || a.state_district || '';
+          const detectedState = a.state || '';
+          setFlat(a.house_number || '');
+          setStreet([a.road || a.pedestrian || a.footway, a.neighbourhood || a.suburb].filter(Boolean).join(', '));
+          setCity(detectedCity);
+          setState(detectedState);
+          setLandmark('');
+          setPincode(a.postcode ? a.postcode.replace(/\D/g, '').slice(0, 6) : '');
+          setLocState('success');
+          setLocError('');
+        } catch {
+          setLocState('error');
+          setLocError('Could not fetch location details. Please enter manually.');
+        }
+      },
+      (err) => {
+        setLocState('error');
+        setLocError(
+          err.code === 1
+            ? 'Location permission denied. Please allow access and try again.'
+            : 'Unable to retrieve your location. Please enter manually.'
+        );
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
 
   if (!isOpen) return null;
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const formattedAddress = [flat, street, landmark || null, city || null, pincode || null]
+    const formattedAddress = [flat, street, landmark, city, state, pincode]
       .filter(Boolean)
       .join(', ');
 
     // Pass a full structured object so the parent handler can call the address API
     onSave({
-      flat,
+      storeNo,
       street,
       landmark,
-      pincode,
       city,
       state,
+      pincode,
+      type,
       addressType: type,
-      formattedAddress: formattedAddress || `${flat} ${street}`.trim(),
+      formattedAddress: formattedAddress || `${flat} ${street} ${city}`.trim(),
     });
     onClose();
   };
@@ -64,14 +150,16 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.92, y: 15 }}
           transition={{ type: 'spring', stiffness: 320, damping: 26 }}
-          className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col"
+          className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col"
         >
-          <div className="bg-[#0f172a] text-white px-6 py-4.5 flex items-center justify-between">
+          <div className="bg-slate-900 text-white px-6 py-4.5 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-400">
-                <MapPin className="w-4 h-4 text-orange-500" />
+              <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-400">
+                <MapPin className="w-4 h-4 text-orange-400" />
               </div>
-              <h3 className="font-extrabold text-base tracking-wide text-white">Add New Address</h3>
+              <h3 className="font-extrabold text-base tracking-wide text-white">
+                {initialAddress ? 'Edit Service Address' : 'Add New Address'}
+              </h3>
             </div>
             <button
               type="button"
@@ -82,21 +170,65 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-4.5 text-xs text-slate-700">
+          <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs sm:text-sm text-slate-700">
+            {/* Auto-detect Location Button */}
+            <button
+              type="button"
+              onClick={handleUseLocation}
+              disabled={locState === 'loading'}
+              className={`w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-2xl border-2 font-bold text-xs transition-all cursor-pointer ${
+                locState === 'success'
+                  ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                  : locState === 'error'
+                  ? 'border-red-300 bg-red-50 text-red-600'
+                  : locState === 'loading'
+                  ? 'border-blue-300 bg-blue-50 text-blue-600 cursor-wait'
+                  : 'border-dashed border-orange-400 bg-orange-50/50 text-orange-700 hover:bg-orange-100 hover:border-orange-500'
+              }`}
+            >
+              {locState === 'loading' && <Loader2 className="w-4 h-4 animate-spin text-blue-600" />}
+              {locState === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+              {locState === 'error' && <AlertCircle className="w-4 h-4 text-red-500" />}
+              {locState === 'idle' && <LocateFixed className="w-4 h-4 text-orange-600" />}
+              <span>
+                {locState === 'loading' && 'Fetching your location...'}
+                {locState === 'success' && 'Location detected — fields auto-filled below'}
+                {locState === 'error' && 'Try Again'}
+                {locState === 'idle' && 'Use My Current Location'}
+              </span>
+            </button>
+
+            {locState === 'error' && locError && (
+              <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-xs text-red-700">
+                <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                <span>{locError}</span>
+              </div>
+            )}
+
+            <div className="flex items-center gap-3">
+              <div className="flex-1 border-t border-slate-200" />
+              <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">or fill in manually</span>
+              <div className="flex-1 border-t border-slate-200" />
+            </div>
+
             {/* Address Type */}
             <div>
-              <label className="block font-extrabold text-[10px] text-slate-400 uppercase tracking-wider mb-2">
-                ADDRESS TYPE
+              <label className="block font-extrabold text-[10px] sm:text-xs text-slate-400 uppercase tracking-wider mb-2">
+                Address Type
               </label>
               <div className="flex gap-2.5">
-                {[{ label: 'Home', icon: Home }, { label: 'Office', icon: Briefcase }, { label: 'Other', icon: Tag }].map((item) => {
+                {[
+                  { label: 'Home', icon: Home },
+                  { label: 'Office', icon: Briefcase },
+                  { label: 'Other', icon: Tag },
+                ].map((item) => {
                   const isSelected = type === item.label;
                   return (
                     <button
                       key={item.label}
                       type="button"
                       onClick={() => setType(item.label)}
-                      className={`flex-1 py-3 px-3 rounded-2xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      className={`flex-1 py-2.5 sm:py-3 px-3 rounded-2xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
                         isSelected
                           ? 'bg-orange-500 text-white shadow-lg shadow-orange-200 border border-orange-500'
                           : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
@@ -113,15 +245,14 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
             {/* House / Flat */}
             <div>
               <label className="block font-bold text-xs text-slate-600 mb-1.5">
-                House / Flat / Building No. <span className="text-red-500">*</span>
+                Store / Building No. <span className="text-gray-400 font-normal text-xs">(Optional)</span>
               </label>
               <input
                 type="text"
-                required
                 value={flat}
                 onChange={(e) => setFlat(e.target.value)}
                 placeholder="e.g. Flat 402, Green Valley Apartments"
-                className="w-full px-4 py-3 bg-white rounded-2xl border border-slate-200 font-semibold text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
+                className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
               />
             </div>
 
@@ -136,7 +267,7 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
                 value={street}
                 onChange={(e) => setStreet(e.target.value)}
                 placeholder="e.g. 10th Main Road, Indiranagar"
-                className="w-full px-4 py-3 bg-white rounded-2xl border border-slate-200 font-semibold text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
+                className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
               />
             </div>
 
@@ -151,8 +282,8 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
                   required
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  placeholder="e.g. Bengaluru"
-                  className="w-full px-4 py-3 bg-white rounded-2xl border border-slate-200 font-semibold text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
+                  placeholder="e.g. Kolkata"
+                  className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
                 />
               </div>
               <div>
@@ -164,8 +295,8 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
                   required
                   value={state}
                   onChange={(e) => setState(e.target.value)}
-                  placeholder="e.g. Karnataka"
-                  className="w-full px-4 py-3 bg-white rounded-2xl border border-slate-200 font-semibold text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
+                  placeholder="e.g. West Bengal"
+                  className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
                 />
               </div>
             </div>
@@ -173,13 +304,15 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
             {/* Landmark & Pincode */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block font-bold text-xs text-slate-600 mb-1.5">Landmark (Optional)</label>
+                <label className="block font-bold text-xs text-slate-600 mb-1.5">
+                  Landmark <span className="text-gray-400 font-normal text-xs">(Optional)</span>
+                </label>
                 <input
                   type="text"
                   value={landmark}
                   onChange={(e) => setLandmark(e.target.value)}
                   placeholder="e.g. Near Metro Station"
-                  className="w-full px-4 py-3 bg-white rounded-2xl border border-slate-200 font-semibold text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
+                  className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
                 />
               </div>
               <div>
@@ -190,9 +323,10 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
                   type="text"
                   required
                   value={pincode}
-                  onChange={(e) => setPincode(e.target.value)}
-                  placeholder="560038"
-                  className="w-full px-4 py-3 bg-white rounded-2xl border border-slate-200 font-semibold text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
+                  onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="700001"
+                  maxLength={6}
+                  className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
                 />
               </div>
             </div>
@@ -202,13 +336,13 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs rounded-2xl transition-colors cursor-pointer"
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs sm:text-sm rounded-2xl transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs rounded-2xl shadow-lg shadow-orange-200 transition-colors cursor-pointer"
+                className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-lg shadow-orange-200 transition-colors cursor-pointer"
               >
                 Save Address
               </button>
