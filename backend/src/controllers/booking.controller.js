@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const Booking = require('../models/booking.model');
-const uploadImageToImageKit = require('../config/imagekit');
+const { uploadImageToImageKit } = require('../config/imagekit');
 
 // Create booking
 exports.createBooking = async (req, res) => {

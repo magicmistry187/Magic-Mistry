@@ -7,6 +7,8 @@ export const authEndpoints = {
   GOOGLE_LOGIN_API: BASE_URL + "/auth/googleLogin",
   VERIFY_OTP: BASE_URL + "/auth/forgotPassword/verifyOtp",
   FORGOT_PASSWORD_API: BASE_URL + "/auth/forgotPassword",
+  GET_USER_PROFILE_API: BASE_URL + "/auth/profile",
+  UPDATE_USER_PROFILE_API: BASE_URL + "/auth/profile",
 };
 
 const {
@@ -225,6 +227,33 @@ export async function getUserProfileApi(token) {
     return {
       success: false,
       message: err.response?.data?.message || err.message || "Failed to fetch profile",
+    };
+  }
+}
+
+export async function updateUserProfileApi(profileData, token) {
+  try {
+    const res = await apiConnector(
+      "PUT",
+      BASE_URL + "/auth/profile",
+      profileData,
+      token ? { Authorization: `Bearer ${token}` } : {}
+    );
+    console.log("UPDATE USER PROFILE RESPONSE .......", res.data);
+    if (!res.data?.success) {
+      throw new Error(res.data?.message || "Failed to update profile");
+    }
+
+    return {
+      success: true,
+      message: res.data.message || "Profile updated successfully",
+      user: res.data.user,
+    };
+  } catch (err) {
+    console.log("UPDATE USER PROFILE ERROR .......", err);
+    return {
+      success: false,
+      message: err.response?.data?.message || err.message || "Failed to update profile",
     };
   }
 }

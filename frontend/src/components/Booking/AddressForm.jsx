@@ -91,7 +91,15 @@ export default function AddressForm() {
         const def = res.addresses.find((a) => a.isDefault) || res.addresses[0];
         setSavedAddress(def);
         const parts = [def.house || def.flat || def.addressLine1, def.street, def.landmark, def.city, def.state, def.pincode].filter(Boolean);
-        applyAddress(parts.join(", "));
+        const fullStr = parts.join(", ");
+        applyAddress(fullStr);
+        if (def.location?.coordinates?.length === 2) {
+          updateBooking("longitude", def.location.coordinates[0]);
+          updateBooking("latitude", def.location.coordinates[1]);
+        } else if (def.longitude && def.latitude) {
+          updateBooking("longitude", Number(def.longitude));
+          updateBooking("latitude", Number(def.latitude));
+        }
       } else {
         setSavedError("No saved address found. Please enter one below.");
         setMode(MODE.MANUAL);
@@ -135,20 +143,35 @@ export default function AddressForm() {
           );
           const data = await res.json();
           const a = data.address || {};
-          const detectedCity = a.city || a.town || a.village || a.county || a.state_district || "";
-          const detectedState = a.state || "";
+          const detectedCity =
+            a.city || a.town || a.village || a.municipality || a.county || a.state_district || "Kolkata";
+          const detectedState = a.state || "West Bengal";
+          const detectedHouse = a.house_number || a.building || a.flat || a.room || "";
+          const detectedStreet = [
+            a.road || a.pedestrian || a.footway || a.street,
+            a.neighbourhood || a.suburb || a.residential || a.subdistrict || a.city_district,
+          ]
+            .filter(Boolean)
+            .join(", ");
+          const detectedLandmark = a.landmark || a.attraction || a.amenity || "";
+          const detectedPincode = a.postcode ? a.postcode.replace(/\D/g, "").slice(0, 6) : "";
+
           const parts = [
-            a.house_number, a.road || a.pedestrian || a.footway,
-            a.neighbourhood || a.suburb, detectedCity,
-            detectedState, a.postcode,
+            detectedHouse,
+            detectedStreet || data.display_name?.split(",")?.[0]?.trim(),
+            detectedLandmark,
+            detectedCity,
+            detectedState,
+            detectedPincode,
           ].filter(Boolean);
           const fullAddress = parts.length ? parts.join(", ") : data.display_name;
-          setFlat(a.house_number || "");
-          setStreet([a.road || a.pedestrian || a.footway, a.neighbourhood || a.suburb].filter(Boolean).join(", "));
+
+          setFlat(detectedHouse);
+          setStreet(detectedStreet || data.display_name?.split(",")?.[0]?.trim() || "");
           setCity(detectedCity);
           setState(detectedState);
-          setLandmark("");
-          setPincode(a.postcode || "");
+          setLandmark(detectedLandmark);
+          setPincode(detectedPincode);
           updateBooking("address", fullAddress);
           updateBooking("latitude", coords.latitude);
           updateBooking("longitude", coords.longitude);

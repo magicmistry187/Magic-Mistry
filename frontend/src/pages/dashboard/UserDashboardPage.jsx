@@ -3,16 +3,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getAddressesApi, createAddressApi, updateAddressApi, deleteAddressApi } from '../../services/operations/addressAPI';
+import { getMyBookingsApi, cancelBookingApi } from '../../services/operations/bookingAPI';
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
 import {
   LayoutDashboard, Wrench, Heart, Settings, LogOut, Bell,
-  Star, CheckCircle2, Clock, AlertCircle, ChevronRight,
+  Star, CheckCircle2, Clock, AlertCircle, ChevronRight, ChevronLeft, ChevronDown,
   Phone, Mail, MapPin, Calendar, Award, TrendingUp,
   Zap, Shield, User, Edit3, ToggleLeft, ToggleRight,
   Package, ArrowRight, Download, CreditCard, Navigation,
   Plus, Search, Filter, MessageSquare, Check, RefreshCw,
-  Home, Briefcase, Tag, Trash2, HelpCircle, Camera, ShieldCheck, LocateFixed
+  Home, Briefcase, Tag, Trash2, HelpCircle, Camera, ShieldCheck, LocateFixed,
+  Loader2
 } from 'lucide-react';
 
 // ── User Dashboard Components (renamed with User__ prefix for clarity) ───────
@@ -21,6 +23,7 @@ import UserInvoiceModal       from '../../components/dashboard/user/UserInvoiceM
 import UserAddressModal        from '../../components/dashboard/user/UserAddressModal';
 import UserRatingModal         from '../../components/dashboard/user/UserRatingModal';
 import ApplianceIcon           from '../../components/common/ApplianceIcon';
+import { parseAddressString }  from '../../utils/addressParser';
 
 
 // ─── Initial Data ────────────────────────────────────────────────────────────
@@ -81,8 +84,33 @@ const itemVariants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] } },
 };
 
+// ── Helper: re-map backend address list to UI shape ────────────────────────
+const mapAddresses = (list) =>
+  (Array.isArray(list) ? list : []).map((a) => {
+    const parsed = parseAddressString(a);
+    return {
+      id: a._id || a.id,
+      _id: a._id || a.id,
+      type: a.addressType || a.type || 'Home',
+      addressType: a.addressType || a.type || 'Home',
+      flat: parsed.flat,
+      house: a.house || parsed.flat || 'Home',
+      addressLine1: a.addressLine1 || parsed.flat || '',
+      street: parsed.street,
+      landmark: parsed.landmark,
+      city: parsed.city,
+      state: parsed.state,
+      country: a.country || 'India',
+      pincode: parsed.pincode,
+      isDefault: !!a.isDefault,
+      location: a.location,
+      latitude: a.location?.coordinates?.[1] ?? a.latitude ?? null,
+      longitude: a.location?.coordinates?.[0] ?? a.longitude ?? null,
+    };
+  });
+
 export default function UserDashboardPage() {
-  const { user, token, logout, location, updateLocation, loading } = useAuth();
+  const { user, token, logout, location, updateLocation, updateProfile, loading } = useAuth();
   const navigate = useNavigate();
 
   // Role guard — redirect vendors/admins to their correct dashboard
@@ -129,18 +157,7 @@ export default function UserDashboardPage() {
       // Load Addresses
       const resAddrs = await getAddressesApi(token);
       if (resAddrs.success && Array.isArray(resAddrs.addresses)) {
-        const mappedAddrs = resAddrs.addresses.map(a => ({
-          id: a._id,
-          type: a.addressType || 'Home',
-          flat: a.house || a.flat || a.addressLine1 || '',
-          street: a.street || '',
-          landmark: a.landmark || '',
-          city: a.city || '',
-          state: a.state || '',
-          pincode: a.pincode || '',
-          isDefault: a.isDefault,
-        }));
-        setAddresses(mappedAddrs);
+        setAddresses(mapAddresses(resAddrs.addresses));
       }
     }
     loadData();
@@ -173,14 +190,52 @@ export default function UserDashboardPage() {
   const [email, setEmail] = useState(user?.email || '');
   const [phone, setPhone] = useState(user?.phoneNumber || '');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [pushNotifs, setPushNotifs] = useState(true);
   const [whatsappNotifs, setWhatsappNotifs] = useState(true);
   const [emailNotifs, setEmailNotifs] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 
+  // Mobile Expandable Header Menu State
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Sync user details when user state rehydrates
+  React.useEffect(() => {
+    if (user) {
+      if (user.fullName) setFullName(user.fullName);
+      if (user.email) setEmail(user.email);
+      if (user.phoneNumber) setPhone(user.phoneNumber);
+    }
+  }, [user]);
+
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!fullName || !fullName.trim()) {
+      showToast('Full Name is required');
+      return;
+    }
+    setIsSavingProfile(true);
+    try {
+      const res = await updateProfile({
+        fullName: fullName.trim(),
+        phoneNumber: phone.trim(),
+        location: location && location !== 'Set Your Location' ? location : '',
+      });
+      if (res && res.success) {
+        setIsEditingProfile(false);
+        showToast('Profile updated successfully!');
+      } else {
+        showToast(res?.message || 'Failed to update profile');
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to update profile');
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   const getInitials = () => {
@@ -221,7 +276,7 @@ export default function UserDashboardPage() {
 
   const handleSaveAddress = async (addressObj) => {
     const formattedStr = [
-      addressObj.flat,
+      addressObj.flat || addressObj.house,
       addressObj.street,
       addressObj.landmark,
       addressObj.city,
@@ -229,73 +284,124 @@ export default function UserDashboardPage() {
       addressObj.pincode,
     ].filter(Boolean).join(', ');
 
+    // If user explicitly checked isDefault, or if it is the very first address
+    const makeDefault = addressObj.isDefault !== undefined ? !!addressObj.isDefault : (addresses.length === 0 && !editingAddress);
+
     const payload = {
       addressType: addressObj.type || addressObj.addressType || 'Home',
-      house: addressObj.flat || '',
-      flat: addressObj.flat || '',
-      addressLine1: addressObj.flat || addressObj.street || 'Address',
-      street: addressObj.street || '',
+      house: addressObj.flat || addressObj.house || addressObj.street || 'Home',
+      addressLine1: addressObj.flat || addressObj.house || addressObj.street || '',
+      street: addressObj.street || addressObj.flat || 'Area',
       landmark: addressObj.landmark || '',
-      city: addressObj.city || 'Kolkata',
-      state: addressObj.state || 'West Bengal',
+      city: addressObj.city || '',
+      state: addressObj.state || '',
       pincode: addressObj.pincode || '',
-      country: 'India',
-      isDefault: true,
+      country: addressObj.country || 'India',
+      isDefault: makeDefault,
     };
 
-    if (token) {
-      if (editingAddress && editingAddress.id) {
-        await updateAddressApi(editingAddress.id, payload, token);
+    if (addressObj.latitude && addressObj.longitude) {
+      payload.latitude = addressObj.latitude;
+      payload.longitude = addressObj.longitude;
+      payload.location = {
+        type: 'Point',
+        coordinates: [Number(addressObj.longitude), Number(addressObj.latitude)],
+      };
+    }
+
+    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') : null);
+
+    if (authToken) {
+      if (editingAddress && (editingAddress.id || editingAddress._id)) {
+        await updateAddressApi(editingAddress.id || editingAddress._id, payload, authToken);
+        showToast('Address updated successfully!');
       } else {
-        await createAddressApi(payload, token);
+        await createAddressApi(payload, authToken);
+        showToast('Address added successfully!');
       }
-      const resAddrs = await getAddressesApi(token);
+      const resAddrs = await getAddressesApi(authToken);
       if (resAddrs.success && Array.isArray(resAddrs.addresses)) {
-        setAddresses(resAddrs.addresses.map(a => ({
-          id: a._id,
-          type: a.addressType || 'Home',
-          flat: a.house || a.flat || a.addressLine1 || '',
-          street: a.street || '',
-          landmark: a.landmark || '',
-          city: a.city || '',
-          state: a.state || '',
-          pincode: a.pincode || '',
-          isDefault: a.isDefault,
-        })));
+        const mapped = mapAddresses(resAddrs.addresses);
+        setAddresses(mapped);
+        // If it was marked default or there's a default address, sync active location
+        const def = mapped.find(a => a.isDefault) || (makeDefault ? mapped[0] : null);
+        if (def) {
+          const defStr = [def.flat, def.street, def.landmark, def.city, def.state, def.pincode]
+            .filter(Boolean).join(', ');
+          updateLocation(defStr, def.latitude && def.longitude ? { lat: def.latitude, lng: def.longitude } : null);
+        }
       }
     } else {
       if (editingAddress) {
-        setAddresses(prev => prev.map(a => a.id === addressObj.id ? addressObj : a));
+        setAddresses(prev => prev.map(a => a.id === addressObj.id ? { ...addressObj, isDefault: makeDefault } : a));
       } else {
-        setAddresses(prev => [...prev, addressObj]);
+        setAddresses(prev => [...prev, { ...addressObj, isDefault: makeDefault }]);
       }
+      if (makeDefault) {
+        updateLocation(formattedStr);
+      }
+      showToast('Address saved locally.');
     }
 
     setEditingAddress(null);
-    updateLocation(formattedStr);
+  };
+
+  // ── Set a saved address as the default (persists to backend) ───────────────
+  const handleSetDefault = async (addrId) => {
+    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') : null);
+    if (authToken) {
+      await updateAddressApi(addrId, { isDefault: true }, authToken);
+      const resAddrs = await getAddressesApi(authToken);
+      if (resAddrs.success && Array.isArray(resAddrs.addresses)) {
+        const mapped = mapAddresses(resAddrs.addresses);
+        setAddresses(mapped);
+        const def = mapped.find(a => a.isDefault);
+        if (def) {
+          const defStr = [def.flat, def.street, def.landmark, def.city, def.state, def.pincode]
+            .filter(Boolean).join(', ');
+          updateLocation(defStr, def.latitude && def.longitude ? { lat: def.latitude, lng: def.longitude } : null);
+        }
+      }
+      showToast('Default address updated!');
+    } else {
+      setAddresses(prev => prev.map(a => ({ ...a, isDefault: a.id === addrId })));
+      showToast('Default address updated locally.');
+    }
   };
 
   const handleDeleteAddress = async (id) => {
-    if (token) {
-      await deleteAddressApi(id, token);
-      const resAddrs = await getAddressesApi(token);
-      if (resAddrs.success && Array.isArray(resAddrs.addresses)) {
-        setAddresses(resAddrs.addresses.map(a => ({
-          id: a._id,
-          type: a.addressType || 'Home',
-          flat: a.house || a.flat || a.addressLine1 || '',
-          street: a.street || '',
-          landmark: a.landmark || '',
-          city: a.city || '',
-          state: a.state || '',
-          pincode: a.pincode || '',
-          isDefault: a.isDefault,
-        })));
-      } else {
-        setAddresses(prev => prev.filter(a => a.id !== id));
+    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') : null);
+    
+    // Optimistically update local state immediately
+    setAddresses((prev) => prev.filter((a) => a.id !== id && a._id !== id));
+
+    if (authToken) {
+      try {
+        const res = await deleteAddressApi(id, authToken);
+        if (res.success) {
+          showToast('Address deleted successfully!');
+          const resAddrs = await getAddressesApi(authToken);
+          if (resAddrs.success && Array.isArray(resAddrs.addresses)) {
+            const mapped = mapAddresses(resAddrs.addresses);
+            setAddresses(mapped);
+            // If default was deleted, sync active location with the new default
+            const newDef = mapped.find((a) => a.isDefault) || mapped[0];
+            if (newDef) {
+              const defStr = [newDef.flat, newDef.street, newDef.landmark, newDef.city, newDef.state, newDef.pincode]
+                .filter(Boolean)
+                .join(', ');
+              updateLocation(defStr, newDef.latitude && newDef.longitude ? { lat: newDef.latitude, lng: newDef.longitude } : null);
+            }
+          }
+        } else {
+          showToast(res.message || 'Address deleted.');
+        }
+      } catch (err) {
+        console.error('Error deleting address:', err);
+        showToast('Address deleted.');
       }
     } else {
-      setAddresses(prev => prev.filter(a => a.id !== id));
+      showToast('Address deleted.');
     }
   };
 
@@ -318,12 +424,119 @@ export default function UserDashboardPage() {
     <div className="min-h-screen bg-[#f4f7fb] font-sans antialiased text-slate-800">
       <Navbar />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 print:hidden">
-        <div className="flex flex-col lg:flex-row gap-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-24 sm:pt-28 pb-16 print:hidden">
+        
+        {/* ── MOBILE & TABLET EXPANDABLE HEADER CARD (Visible on screens < lg) ── */}
+        <div className="lg:hidden bg-white rounded-3xl p-3.5 sm:p-4 shadow-sm border border-slate-200/90 mb-6 transition-all duration-200">
+          
+          {/* Header Row: User Info + Active Tab Badge + Switch Tab Button */}
+          <div className="flex items-center justify-between gap-3">
+            
+            {/* Left: User Profile & Current Section */}
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-extrabold text-sm shadow-sm shrink-0">
+                {getInitials()}
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold text-slate-400 leading-none truncate">
+                  Welcome back, {user?.fullName?.split(' ')[0] || 'Customer'}
+                </p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  {(() => {
+                    const currentItem = sidebarNavItems.find(i => i.id === activeTab) || sidebarNavItems[0];
+                    const CurrentIcon = currentItem.icon;
+                    return (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-slate-900 bg-slate-100/80 px-2.5 py-0.5 rounded-lg truncate">
+                        <CurrentIcon className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                        <span className="truncate">{currentItem.label}</span>
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
 
-          {/* ── SIDEBAR NAVIGATION (Matching Reference Screenshot Design) ───────── */}
-          <aside className="lg:w-64 shrink-0">
-            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-6">
+            {/* Right: Switch Tab Button */}
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className={`px-3 py-2 rounded-xl text-xs font-extrabold transition-all duration-200 flex items-center gap-1.5 shrink-0 cursor-pointer border ${
+                isMobileMenuOpen
+                  ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                  : 'bg-slate-100 hover:bg-orange-50 hover:text-orange-600 text-slate-700 border-slate-200/80'
+              }`}
+            >
+              <span>{isMobileMenuOpen ? 'Close' : 'Switch Tab'}</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isMobileMenuOpen ? 'rotate-180 text-orange-400' : 'text-slate-400'}`} />
+            </button>
+          </div>
+
+          {/* Collapsible Dropdown Grid of Sections */}
+          <AnimatePresence>
+            {isMobileMenuOpen && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.25, ease: 'easeInOut' }}
+                className="overflow-hidden"
+              >
+                <div className="pt-3.5 mt-3.5 border-t border-slate-100">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1">
+                    Select Section
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {sidebarNavItems.map((item) => {
+                      const isActive = activeTab === item.id;
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            setActiveTab(item.id);
+                            setIsMobileMenuOpen(false);
+                          }}
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-bold transition-all duration-150 cursor-pointer text-left ${
+                            isActive
+                              ? 'bg-[#061e38] text-white shadow-md'
+                              : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900 bg-slate-50/80 border border-slate-100'
+                          }`}
+                        >
+                          <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${
+                            isActive ? 'bg-orange-500 text-white' : 'bg-white text-slate-500 border border-slate-200/60 shadow-2xs'
+                          }`}>
+                            <Icon className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="flex-1 truncate">{item.label}</span>
+                          {isActive && (
+                            <span className="w-2 h-2 rounded-full bg-orange-400 shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Mobile Logout Option in Expanded Menu */}
+                  <div className="pt-2.5 mt-2.5 border-t border-slate-100 flex justify-end">
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-extrabold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                    >
+                      <LogOut className="w-3.5 h-3.5 text-rose-500" />
+                      <span>Logout</span>
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+
+          {/* ── DESKTOP SIDEBAR NAVIGATION (Visible on screens lg+) ─────────────── */}
+          <aside className="hidden lg:block lg:w-64 shrink-0">
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-6 sticky top-28">
 
               {/* User Profile Summary */}
               <div className="flex items-center gap-3.5 pb-5 border-b border-slate-100">
@@ -351,7 +564,7 @@ export default function UserDashboardPage() {
                       onClick={() => setActiveTab(item.id)}
                       whileHover={{ x: 3 }}
                       whileTap={{ scale: 0.98 }}
-                      className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-sm font-bold transition-all duration-200 ${
+                      className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-sm font-bold transition-all duration-200 cursor-pointer ${
                         isActive
                           ? 'bg-orange-500 text-white shadow-lg shadow-orange-200'
                           : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
@@ -370,7 +583,7 @@ export default function UserDashboardPage() {
                   whileHover={{ x: 3 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-sm font-bold text-rose-600 hover:bg-rose-50 transition-colors"
+                  className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-sm font-bold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                 >
                   <LogOut className="w-5 h-5 text-rose-500" />
                   <span>Logout</span>
@@ -393,15 +606,15 @@ export default function UserDashboardPage() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -15 }}
                   transition={{ duration: 0.3 }}
-                  className="space-y-8"
+                  className="space-y-6 sm:space-y-8"
                 >
                   {/* Top Welcome Title Header */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-                        Welcome back, {user?.fullName?.split(' ')[0] || 'Rahul'}.
+                      <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                        Welcome back, {user?.fullName?.split(' ')[0] || 'Customer'}.
                       </h1>
-                      <p className="text-slate-500 text-sm mt-1">
+                      <p className="text-slate-500 text-xs sm:text-sm mt-1">
                         Here is a quick overview of your current services and saved appliances.
                       </p>
                     </div>
@@ -411,12 +624,14 @@ export default function UserDashboardPage() {
                         setEditingAddress(null);
                         setIsAddressModalOpen(true);
                       }}
-                      className="self-start sm:self-auto flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-orange-600 bg-white hover:bg-orange-50 px-3.5 py-2 rounded-2xl border border-slate-200 shadow-xs transition-colors cursor-pointer"
+                      className="self-start sm:self-auto flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-orange-600 bg-white hover:bg-orange-50 px-3.5 py-2 rounded-2xl border border-slate-200 shadow-xs transition-colors cursor-pointer max-w-full truncate"
                       title="Add or Change Address"
                     >
-                      <MapPin className="w-4 h-4 text-orange-500" />
-                      <span>{location || 'Kolkata, West Bengal'}</span>
-                      <span className="text-[10px] text-orange-600 font-extrabold bg-orange-100 px-1.5 py-0.5 rounded">Change</span>
+                      <MapPin className="w-4 h-4 text-orange-500 shrink-0" />
+                      <span className="truncate">{location && location !== 'Set Your Location' ? location : 'Set Your Location'}</span>
+                      <span className="text-[10px] text-orange-600 font-extrabold bg-orange-100 px-1.5 py-0.5 rounded shrink-0">
+                        {location && location !== 'Set Your Location' ? 'Change' : 'Set'}
+                      </span>
                     </button>
                   </div>
 
@@ -526,17 +741,17 @@ export default function UserDashboardPage() {
                         {/* List maximum 2 booking tracking cards in Overview */}
                         <div className="space-y-6">
                           {displayedBookings.map((activeBooking) => (
-                            <div key={activeBooking.id} className="bg-slate-50 rounded-2xl p-6 border border-slate-100 space-y-6">
-                              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                            <div key={activeBooking.id} className="bg-slate-50 rounded-2xl p-4 sm:p-6 border border-slate-100 space-y-5 sm:space-y-6">
+                              <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 sm:gap-6">
 
                                 {/* Service Title & Booking ID */}
-                                <div className="flex items-start gap-4">
-                                  <div className="w-14 h-14 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center shrink-0 shadow-xs p-2">
-                                    <ApplianceIcon name={activeBooking.service} className="w-9 h-9" />
+                                <div className="flex items-start gap-3.5 sm:gap-4">
+                                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center shrink-0 shadow-xs p-2">
+                                    <ApplianceIcon name={activeBooking.service} className="w-7 h-7 sm:w-9 sm:h-9" />
                                   </div>
-                                  <div>
-                                    <div className="flex items-center gap-3 flex-wrap">
-                                      <h3 className="text-xl font-extrabold text-slate-900">
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                                      <h3 className="text-lg sm:text-xl font-extrabold text-slate-900">
                                         {activeBooking.service}
                                       </h3>
                                       <StatusBadge status={activeBooking.status} />
@@ -551,22 +766,22 @@ export default function UserDashboardPage() {
                                 </div>
 
                                 {/* Technician Card Box */}
-                                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between gap-4 shrink-0">
+                                <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 shrink-0">
                                   <div>
-                                    <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2">
+                                    <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5 sm:mb-2">
                                       Assigned Technician
                                     </p>
                                     <div className="flex items-center gap-3">
-                                      <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-sm">
+                                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs sm:text-sm">
                                         {activeBooking.techAvatar || 'MM'}
                                       </div>
                                       <div>
                                         <div className="flex items-center gap-1">
-                                          <span className="font-bold text-slate-900 text-sm">{activeBooking.technician || 'Verification Pending'}</span>
-                                          <Shield className="w-3.5 h-3.5 text-blue-600 fill-blue-100" />
+                                          <span className="font-bold text-slate-900 text-xs sm:text-sm">{activeBooking.technician || 'Verification Pending'}</span>
+                                          <Shield className="w-3.5 h-3.5 text-blue-600 fill-blue-100 shrink-0" />
                                         </div>
                                         <p className="text-xs text-slate-500 font-medium flex items-center gap-1 mt-0.5">
-                                          <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
+                                          <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400 shrink-0" />
                                           <span className="font-bold text-slate-800">{activeBooking.techRating || '4.9'}</span> ({activeBooking.techJobs || '100+'} jobs)
                                         </p>
                                       </div>
@@ -574,7 +789,7 @@ export default function UserDashboardPage() {
                                   </div>
                                   <button
                                     onClick={() => handleOpenMap(activeBooking)}
-                                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                                    className="w-full sm:w-auto px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer"
                                   >
                                     <Navigation className="w-4 h-4 text-orange-500" />
                                     Track on Map
@@ -584,9 +799,9 @@ export default function UserDashboardPage() {
 
                               {/* ─ Animated Progress Stepper Bar ─ */}
                               <div className="pt-4 border-t border-slate-200/60">
-                                <div className="relative flex items-center justify-between max-w-xl mx-auto px-4">
+                                <div className="relative flex items-center justify-between max-w-xl mx-auto px-2 sm:px-4">
                                   {/* Background Line */}
-                                  <div className="absolute top-1/2 left-8 right-8 -translate-y-1/2 h-1 bg-slate-200 z-0" />
+                                  <div className="absolute top-1/2 left-6 sm:left-8 right-6 sm:right-8 -translate-y-1/2 h-1 bg-slate-200 z-0" />
                                   {/* Active Orange Progress Fill Line */}
                                   <motion.div
                                     initial={{ width: '0%' }}
@@ -601,28 +816,28 @@ export default function UserDashboardPage() {
                                           : '0%',
                                     }}
                                     transition={{ duration: 0.5, ease: 'easeOut' }}
-                                    className="absolute top-1/2 left-8 -translate-y-1/2 h-1 bg-orange-500 z-0"
+                                    className="absolute top-1/2 left-6 sm:left-8 -translate-y-1/2 h-1 bg-orange-500 z-0"
                                   />
 
                                   {/* Step 1: Requested/Assigned */}
                                   <div className="relative z-10 flex flex-col items-center">
-                                    <div className={`w-7 h-7 rounded-full text-white flex items-center justify-center text-xs shadow-md ${
+                                    <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full text-white flex items-center justify-center text-xs shadow-md ${
                                       ['Accepted', 'In Progress', 'Completed'].includes(activeBooking.status)
                                         ? 'bg-orange-500 shadow-orange-200'
                                         : activeBooking.status === 'Pending'
                                         ? 'bg-amber-500 ring-4 ring-amber-200'
                                         : 'bg-slate-300 text-slate-600'
                                     }`}>
-                                      <Check className="w-4 h-4 stroke-[3]" />
+                                      <Check className="w-3.5 h-3.5 stroke-[3]" />
                                     </div>
-                                    <span className="text-xs font-bold text-slate-900 mt-2">
+                                    <span className="text-[10px] sm:text-xs font-bold text-slate-900 mt-2 text-center leading-tight max-w-[55px] sm:max-w-none">
                                       {activeBooking.status === 'Pending' ? 'Received' : 'Assigned'}
                                     </span>
                                   </div>
 
                                   {/* Step 2: Under Diagnosis */}
                                   <div className="relative z-10 flex flex-col items-center">
-                                    <div className={`w-7 h-7 rounded-full text-white flex items-center justify-center text-xs shadow-md ${
+                                    <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full text-white flex items-center justify-center text-xs shadow-md ${
                                       activeBooking.status === 'In Progress'
                                         ? 'bg-orange-500 ring-4 ring-orange-200'
                                         : activeBooking.status === 'Completed'
@@ -630,24 +845,24 @@ export default function UserDashboardPage() {
                                         : 'bg-slate-200 text-slate-400'
                                     }`}>
                                       {activeBooking.status === 'In Progress' ? (
-                                        <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+                                        <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
                                       ) : activeBooking.status === 'Completed' ? (
-                                        <Check className="w-4 h-4 stroke-[3]" />
+                                        <Check className="w-3.5 h-3.5 stroke-[3]" />
                                       ) : (
                                         2
                                       )}
                                     </div>
-                                    <span className={`text-xs font-extrabold mt-2 ${activeBooking.status === 'In Progress' ? 'text-orange-600' : 'text-slate-500'}`}>Under Diagnosis</span>
+                                    <span className={`text-[10px] sm:text-xs font-extrabold mt-2 text-center leading-tight max-w-[65px] sm:max-w-none ${activeBooking.status === 'In Progress' ? 'text-orange-600' : 'text-slate-500'}`}>Under Diagnosis</span>
                                   </div>
 
                                   {/* Step 3: Repaired */}
                                   <div className="relative z-10 flex flex-col items-center">
-                                    <div className={`w-7 h-7 rounded-full text-white flex items-center justify-center text-xs shadow-md ${
+                                    <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full text-white flex items-center justify-center text-xs shadow-md ${
                                       activeBooking.status === 'Completed' ? 'bg-emerald-600 shadow-emerald-200' : 'bg-slate-200 text-slate-400'
                                     }`}>
-                                      {activeBooking.status === 'Completed' ? <Check className="w-4 h-4 stroke-[3]" /> : 3}
+                                      {activeBooking.status === 'Completed' ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : 3}
                                     </div>
-                                    <span className={`text-xs font-semibold mt-2 ${activeBooking.status === 'Completed' ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}>Repaired</span>
+                                    <span className={`text-[10px] sm:text-xs font-semibold mt-2 text-center leading-tight max-w-[55px] sm:max-w-none ${activeBooking.status === 'Completed' ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}>Repaired</span>
                                   </div>
                                 </div>
                               </div>
@@ -900,37 +1115,47 @@ export default function UserDashboardPage() {
                                 className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden"
                               >
                                 {/* Card Header */}
-                                <div className="p-6 flex flex-col md:flex-row md:items-start justify-between gap-5">
+                                <div className="p-4 sm:p-6 flex flex-col md:flex-row md:items-start justify-between gap-4 sm:gap-5">
                                   {/* Left: Service info */}
-                                  <div className="flex items-start gap-4 flex-1 min-w-0">
-                                    <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center shrink-0 p-2">
-                                      <ApplianceIcon name={item.service} className="w-8 h-8" />
+                                  <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
+                                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center shrink-0 p-2">
+                                      <ApplianceIcon name={item.service} className="w-7 h-7 sm:w-8 sm:h-8" />
                                     </div>
                                     <div className="min-w-0">
-                                      <div className="flex items-center gap-3 flex-wrap">
-                                        <h3 className="font-extrabold text-slate-900 text-lg">{item.service}</h3>
+                                      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                                        <h3 className="font-extrabold text-slate-900 text-base sm:text-lg">{item.service}</h3>
                                         <StatusBadge status={item.status} />
                                       </div>
                                       <p className="text-xs font-medium text-slate-400 mt-0.5">
                                         Booking ID: <span className="font-bold text-slate-700">{item.id}</span>
                                       </p>
-                                      <div className="flex items-center gap-4 text-xs text-slate-500 mt-1 flex-wrap">
+                                      <div className="flex items-center gap-2.5 sm:gap-4 text-xs text-slate-500 mt-1 flex-wrap">
                                         <span className="flex items-center gap-1">
-                                          <Calendar className="w-3.5 h-3.5 text-slate-400" /> {item.date}
+                                          <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" /> {item.date}
                                         </span>
                                         <span className="flex items-center gap-1">
-                                          <Clock className="w-3.5 h-3.5 text-slate-400" /> {item.time}
+                                          <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" /> {item.time}
                                         </span>
                                         <span className="flex items-center gap-1">
-                                          <User className="w-3.5 h-3.5 text-slate-400" /> {item.technician || 'Verification Pending'}
+                                          <User className="w-3.5 h-3.5 text-slate-400 shrink-0" /> {item.technician || 'Verification Pending'}
                                         </span>
+                                        {item.address && (
+                                          <span className="flex items-center gap-1 text-slate-600">
+                                            <MapPin className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                                            <span className="truncate max-w-[200px] sm:max-w-xs" title={typeof item.address === 'object' ? [item.address.house || item.address.flat, item.address.street, item.address.city].filter(Boolean).join(', ') : item.address}>
+                                              {typeof item.address === 'object'
+                                                ? [item.address.house || item.address.flat, item.address.street, item.address.city].filter(Boolean).join(', ')
+                                                : item.address}
+                                            </span>
+                                          </span>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
 
                                   {/* Right: Price + Actions */}
-                                  <div className="flex flex-row md:flex-col items-center md:items-end justify-between md:justify-start gap-3 shrink-0">
-                                    <span className="text-2xl font-extrabold text-slate-900">{item.price}</span>
+                                  <div className="flex flex-row md:flex-col items-center md:items-end justify-between md:justify-start gap-3 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
+                                    <span className="text-xl sm:text-2xl font-extrabold text-slate-900">{item.price}</span>
                                     <div className="flex items-center gap-2">
                                       {['Pending', 'Accepted', 'In Progress', 'On The Way'].includes(item.status) && (
                                         <button
@@ -961,10 +1186,10 @@ export default function UserDashboardPage() {
                                 </div>
 
                                 {/* Status Tracking Stepper */}
-                                <div className={`px-6 pb-6 pt-2 border-t border-slate-100 ${isCancelled ? 'bg-rose-50/50' : 'bg-slate-50/50'}`}>
+                                <div className={`px-3 sm:px-6 pb-4 sm:pb-6 pt-2 border-t border-slate-100 ${isCancelled ? 'bg-rose-50/50' : 'bg-slate-50/50'}`}>
                                   {isCancelled ? (
                                     <div className="flex items-center gap-3 py-3">
-                                      <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center">
+                                      <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
                                         <AlertCircle className="w-4 h-4 text-rose-500" />
                                       </div>
                                       <div>
@@ -974,9 +1199,9 @@ export default function UserDashboardPage() {
                                     </div>
                                   ) : (
                                     <div className="pt-4">
-                                      <div className="relative flex items-start justify-between">
+                                      <div className="relative flex items-start justify-between max-w-xl mx-auto px-1 sm:px-4">
                                         {/* Background connector line */}
-                                        <div className="absolute top-3.5 left-3.5 right-3.5 h-1 bg-slate-200 z-0" />
+                                        <div className="absolute top-3 sm:top-3.5 left-2 sm:left-3.5 right-2 sm:right-3.5 h-1 bg-slate-200 z-0" />
                                         {/* Orange progress fill */}
                                         <motion.div
                                           initial={{ width: '0%' }}
@@ -988,7 +1213,7 @@ export default function UserDashboardPage() {
                                               : '0%',
                                           }}
                                           transition={{ duration: 0.6, ease: 'easeOut' }}
-                                          className="absolute top-3.5 left-3.5 h-1 bg-orange-500 z-0"
+                                          className="absolute top-3 sm:top-3.5 left-2 sm:left-3.5 h-1 bg-orange-500 z-0"
                                         />
 
                                         {STEPS.map((step, idx) => {
@@ -997,7 +1222,7 @@ export default function UserDashboardPage() {
                                           return (
                                             <div key={step.key} className="relative z-10 flex flex-col items-center flex-1">
                                               <div
-                                                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow transition-all ${
+                                                className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold shadow transition-all ${
                                                   isDone
                                                     ? 'bg-orange-500 text-white shadow-orange-200'
                                                     : isActive
@@ -1008,15 +1233,15 @@ export default function UserDashboardPage() {
                                                 }`}
                                               >
                                                 {isDone || (isActive && item.status === 'Completed') ? (
-                                                  <Check className="w-4 h-4 stroke-[3]" />
+                                                  <Check className="w-3.5 h-3.5 stroke-[3]" />
                                                 ) : isActive ? (
-                                                  <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+                                                  <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
                                                 ) : (
                                                   idx + 1
                                                 )}
                                               </div>
                                               <span
-                                                className={`text-[10px] font-bold mt-2 text-center leading-tight max-w-[60px] ${
+                                                className={`text-[9px] sm:text-[10px] font-bold mt-1.5 sm:mt-2 text-center leading-tight max-w-[50px] sm:max-w-[70px] ${
                                                   isDone
                                                     ? 'text-orange-600'
                                                     : isActive
@@ -1272,12 +1497,20 @@ export default function UserDashboardPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-extrabold text-orange-400 uppercase tracking-wider">CURRENT ACTIVE LOCATION</span>
-                          <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 font-bold text-[10px] rounded-full flex items-center gap-1 border border-emerald-500/30">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live Synced
-                          </span>
+                          {location && location !== 'Set Your Location' && (
+                            <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 font-bold text-[10px] rounded-full flex items-center gap-1 border border-emerald-500/30">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live Synced
+                            </span>
+                          )}
                         </div>
-                        <p className="text-lg font-extrabold text-white mt-0.5">{location || 'Bangalore, IN'}</p>
-                        <p className="text-xs text-slate-400">Used for automatic technician dispatch on booking</p>
+                        <p className="text-lg font-extrabold text-white mt-0.5">
+                          {location && location !== 'Set Your Location' ? location : 'Set Your Location'}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {location && location !== 'Set Your Location'
+                            ? 'Used for automatic technician dispatch on booking'
+                            : 'Click "Set Location" to add your service address'}
+                        </p>
                       </div>
                     </div>
                     <button
@@ -1287,29 +1520,36 @@ export default function UserDashboardPage() {
                       }}
                       className="px-4 py-2.5 bg-white text-slate-900 hover:bg-orange-50 hover:text-orange-600 font-extrabold text-xs rounded-2xl transition-colors shrink-0 shadow-md cursor-pointer"
                     >
-                      Add / Change Address
+                      {addresses.length > 0 ? 'Add / Change Address' : 'Set Location'}
                     </button>
                   </div>
 
                   <div className="grid sm:grid-cols-2 gap-6">
                     {addresses.length === 0 ? (
-                      <div className="col-span-2 flex flex-col items-center justify-center py-16 text-center">
-                        <div className="w-16 h-16 rounded-3xl bg-slate-100 flex items-center justify-center mb-4">
-                          <MapPin className="w-8 h-8 text-slate-300" />
+                      <div className="col-span-2 flex flex-col items-center justify-center py-16 text-center bg-slate-50/70 rounded-3xl border border-dashed border-slate-200 p-8">
+                        <div className="w-16 h-16 rounded-3xl bg-orange-50 flex items-center justify-center mb-4 text-orange-500 shadow-sm">
+                          <MapPin className="w-8 h-8" />
                         </div>
-                        <p className="font-extrabold text-slate-700 text-base">No saved addresses yet</p>
-                        <p className="text-slate-400 text-sm mt-1">Click "Add Address" above to save your home or work location.</p>
+                        <p className="font-extrabold text-slate-800 text-lg">No saved address yet</p>
+                        <p className="text-slate-400 text-sm mt-1 max-w-sm">
+                          Set your location or add an address so technicians can be dispatched to your doorstep.
+                        </p>
+                        <button
+                          onClick={() => {
+                            setEditingAddress(null);
+                            setIsAddressModalOpen(true);
+                          }}
+                          className="mt-5 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs rounded-2xl shadow-md shadow-orange-200 transition-all flex items-center gap-2 cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Set Your Location / Add Address
+                        </button>
                       </div>
                     ) : (
                       addresses.map((addr) => {
-                        const fullAddrStr = [addr.flat, addr.street, addr.landmark, addr.city, addr.state, addr.pincode].filter(Boolean).join(', ');
-                        const isCurrentPrimary = location && (
-                          (addr.flat && location.toLowerCase().includes(addr.flat.toLowerCase())) ||
-                          (addr.street && location.toLowerCase().includes(addr.street.toLowerCase()))
-                        );
-
+                        const addrId = addr.id || addr._id;
                         return (
-                          <div key={addr.id} className={`bg-white rounded-3xl p-6 border shadow-sm flex flex-col justify-between space-y-4 transition-all ${isCurrentPrimary ? 'border-orange-500 ring-2 ring-orange-200' : 'border-slate-100'}`}>
+                          <div key={addrId} className={`bg-white rounded-3xl p-6 border shadow-sm flex flex-col justify-between space-y-4 transition-all ${addr.isDefault ? 'border-orange-500 ring-2 ring-orange-200' : 'border-slate-100'}`}>
                             <div>
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
@@ -1317,9 +1557,9 @@ export default function UserDashboardPage() {
                                     {addr.type === 'Home' ? <Home className="w-3.5 h-3.5" /> : addr.type === 'Office' ? <Briefcase className="w-3.5 h-3.5" /> : <Tag className="w-3.5 h-3.5" />}
                                     {addr.type}
                                   </span>
-                                  {isCurrentPrimary && (
+                                  {addr.isDefault && (
                                     <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 font-bold text-[10px] rounded-full flex items-center gap-1">
-                                      <Check className="w-3 h-3 text-emerald-600" /> Active Primary
+                                      <Check className="w-3 h-3 text-emerald-600" /> Default
                                     </span>
                                   )}
                                 </div>
@@ -1329,42 +1569,63 @@ export default function UserDashboardPage() {
                                       setEditingAddress(addr);
                                       setIsAddressModalOpen(true);
                                     }}
-                                    className="p-1.5 text-slate-400 hover:text-slate-700"
+                                    className="p-1.5 text-slate-400 hover:text-slate-700 cursor-pointer transition-colors"
                                     title="Edit Address"
                                   >
                                     <Edit3 className="w-4 h-4" />
                                   </button>
                                   <button
-                                    onClick={() => handleDeleteAddress(addr.id)}
-                                    className="p-1.5 text-rose-400 hover:text-rose-600"
+                                    onClick={() => handleDeleteAddress(addrId)}
+                                    className="p-1.5 text-rose-400 hover:text-rose-600 cursor-pointer transition-colors"
                                     title="Delete Address"
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
                                 </div>
                               </div>
-                              <p className="font-extrabold text-slate-900 text-base mt-3">
-                                {addr.flat || addr.street}
+
+                              {/* House / Flat / Building No */}
+                              {addr.flat && (
+                                <p className="font-extrabold text-slate-900 text-base mt-3">
+                                  {addr.flat}
+                                </p>
+                              )}
+
+                              {/* Street / Area / Locality */}
+                              <p className={`text-xs text-slate-600 leading-relaxed ${addr.flat ? 'mt-1' : 'mt-3 font-extrabold text-slate-900 text-base'}`}>
+                                {addr.street || 'Street / Locality'}
                               </p>
-                              <p className="text-xs text-slate-500 mt-1">
-                                {addr.flat ? `${addr.street}${addr.landmark ? `, ${addr.landmark}` : ''}` : (addr.landmark || '')}
-                              </p>
-                              <p className="text-xs font-semibold text-slate-600 mt-1">
+
+                              {/* Landmark */}
+                              {addr.landmark && (
+                                <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                                  <span className="font-medium text-slate-400">Landmark:</span> {addr.landmark}
+                                </p>
+                              )}
+
+                              {/* City, State - Pincode */}
+                              <p className="text-xs font-semibold text-slate-700 mt-1.5">
                                 {[addr.city, addr.state].filter(Boolean).join(', ')}{addr.pincode ? ` - ${addr.pincode}` : ''}
                               </p>
+
+                              {/* Country */}
+                              {addr.country && (
+                                <p className="text-[11px] text-slate-400 mt-0.5">{addr.country}</p>
+                              )}
                             </div>
 
                             <button
                               type="button"
-                              onClick={() => updateLocation(fullAddrStr)}
+                              onClick={() => !addr.isDefault && handleSetDefault(addrId)}
+                              disabled={addr.isDefault}
                               className={`w-full py-2.5 rounded-2xl text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 ${
-                                isCurrentPrimary
+                                addr.isDefault
                                   ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default'
-                                  : 'bg-slate-100 hover:bg-orange-500 hover:text-white text-slate-700'
+                                  : 'bg-slate-100 hover:bg-orange-500 hover:text-white text-slate-700 cursor-pointer'
                               }`}
                             >
-                              <MapPin className="w-3.5 h-3.5 text-orange-500 group-hover:text-white" />
-                              {isCurrentPrimary ? 'Currently Selected Location' : 'Set as Active Location'}
+                              <MapPin className="w-3.5 h-3.5" />
+                              {addr.isDefault ? 'Default Location' : 'Set as Default'}
                             </button>
                           </div>
                         );
@@ -1463,18 +1724,22 @@ export default function UserDashboardPage() {
                           <div className="flex gap-2">
                             <button
                               onClick={() => setIsEditingProfile(false)}
-                              className="px-3 py-1.5 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl transition-colors border border-slate-200 cursor-pointer"
+                              disabled={isSavingProfile}
+                              className="px-3 py-1.5 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl transition-colors border border-slate-200 cursor-pointer disabled:opacity-50"
                             >
                               Cancel
                             </button>
                             <button
-                              onClick={() => {
-                                setIsEditingProfile(false);
-                                showToast('Profile updated successfully!');
-                              }}
-                              className="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+                              onClick={handleSaveProfile}
+                              disabled={isSavingProfile}
+                              className="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
                             >
-                              <Check className="w-3.5 h-3.5" /> Save
+                              {isSavingProfile ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Check className="w-3.5 h-3.5" />
+                              )}
+                              <span>{isSavingProfile ? 'Saving...' : 'Save'}</span>
                             </button>
                           </div>
                         )}
@@ -1662,19 +1927,23 @@ export default function UserDashboardPage() {
                           <button
                             type="button"
                             onClick={() => setIsEditingProfile(false)}
-                            className="px-4 py-2 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl transition-colors border border-slate-200 cursor-pointer"
+                            disabled={isSavingProfile}
+                            className="px-4 py-2 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl transition-colors border border-slate-200 cursor-pointer disabled:opacity-50"
                           >
                             Cancel
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
-                              setIsEditingProfile(false);
-                              showToast('Profile updated successfully!');
-                            }}
-                            className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs rounded-xl transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
+                            onClick={handleSaveProfile}
+                            disabled={isSavingProfile}
+                            className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs rounded-xl transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                           >
-                            <Check className="w-3.5 h-3.5" /> Save Changes
+                            {isSavingProfile ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Check className="w-3.5 h-3.5" />
+                            )}
+                            <span>{isSavingProfile ? 'Saving Changes...' : 'Save Changes'}</span>
                           </button>
                         </div>
                       </div>

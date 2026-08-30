@@ -129,7 +129,11 @@ export default function UserInvoiceModal({ isOpen, onClose, booking }) {
               <div>
                 <p className="font-extrabold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Billed To (Customer)</p>
                 <p className="font-bold text-slate-900 text-sm">{booking.customerName || 'Customer'}</p>
-                <p className="text-slate-600 mt-0.5 leading-snug">{booking.address || 'Address on File, Kolkata'}</p>
+                <p className="text-slate-600 mt-0.5 leading-snug">
+                  {typeof booking.address === 'object' && booking.address !== null
+                    ? [booking.address.house || booking.address.flat || booking.address.addressLine1, booking.address.street, booking.address.landmark, booking.address.city, booking.address.state, booking.address.pincode].filter(Boolean).join(', ')
+                    : (booking.address || 'Address on File, Kolkata')}
+                </p>
               </div>
               <div className="border-t sm:border-t-0 sm:border-l border-slate-200 pt-3 sm:pt-0 sm:pl-4">
                 <p className="font-extrabold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Service Details</p>

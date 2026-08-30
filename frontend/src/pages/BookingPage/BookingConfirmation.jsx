@@ -159,7 +159,11 @@ export default function BookingConfirmation() {
                   </span>
                   <div className="flex-1">
                     <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide">Service Address</p>
-                    <p className="text-slate-800 font-semibold text-sm leading-relaxed">{booking.address}</p>
+                    <p className="text-slate-800 font-semibold text-sm leading-relaxed">
+                      {typeof booking.address === 'object' && booking.address !== null
+                        ? [booking.address.house || booking.address.flat || booking.address.addressLine1, booking.address.street, booking.address.landmark, booking.address.city, booking.address.state, booking.address.pincode].filter(Boolean).join(', ')
+                        : (booking.address || '—')}
+                    </p>
                   </div>
                 </div>
 

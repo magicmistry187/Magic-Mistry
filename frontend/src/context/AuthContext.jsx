@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { createAddressApi } from '../services/operations/addressAPI';
-import { updateUserLocationApi, getUserProfileApi } from '../services/operations/authAPI';
+import { updateUserLocationApi, getUserProfileApi, updateUserProfileApi } from '../services/operations/authAPI';
 import { getVendorProfileApi } from '../services/operations/vendorAPI';
+import { parseAddressString } from '../utils/addressParser';
 
 const AuthContext = createContext(null);
 
@@ -79,8 +80,12 @@ export function AuthProvider({ children }) {
           setLocation(storedLocation || 'Set Your Location');
         }
       } catch {
-        localStorage.removeItem('mm_token');
-        localStorage.removeItem('mm_user');
+        try {
+          localStorage.clear();
+          sessionStorage.clear();
+        } catch (storageErr) {
+          console.warn('Storage clear error:', storageErr);
+        }
         setLocation('Set Your Location');
       } finally {
         setLoading(false);
@@ -136,8 +141,12 @@ export function AuthProvider({ children }) {
     setToken(null);
     setIsLoggedIn(false);
     setLocation('Set Your Location');
-    localStorage.removeItem('mm_token');
-    localStorage.removeItem('mm_user');
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (storageErr) {
+      console.warn('Storage clear error on logout:', storageErr);
+    }
   };
 
   /**
@@ -206,13 +215,17 @@ export function AuthProvider({ children }) {
     // ── If GPS coords are provided, also persist address record ─────────────
     if (token && geoCoords?.lat && geoCoords?.lng) {
       try {
+        const parsed = parseAddressString(newLocation);
         const payload = {
           addressType: 'Home',
-          house: 'Current Location',
-          street: newLocation,
-          city: newLocation.split(',')[0] || newLocation,
-          state: 'West Bengal',
-          pincode: '000000',
+          house: parsed.flat || parsed.street || 'Home',
+          addressLine1: parsed.flat || parsed.street || '',
+          street: parsed.street || parsed.city || 'Area',
+          city: parsed.city || 'Kolkata',
+          state: parsed.state || 'West Bengal',
+          country: 'India',
+          landmark: parsed.landmark || '',
+          pincode: parsed.pincode || '700001',
           isDefault: true,
           location: {
             type: 'Point',
@@ -231,14 +244,44 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const updateProfile = (profileData) => {
-    if (!user) return;
+  const updateProfile = async (profileData) => {
+    if (!user) return { success: false, message: 'User not logged in' };
+    
+    // Optimistically update local user state
     const updatedUser = {
       ...user,
       ...profileData,
     };
     setUser(updatedUser);
     localStorage.setItem('mm_user', JSON.stringify(updatedUser));
+
+    // Persist to backend if token is available
+    if (token) {
+      try {
+        const payload = {
+          fullName: profileData.fullName,
+          phoneNumber: profileData.phoneNumber,
+          location: profileData.location,
+          latitude: profileData.latitude,
+          longitude: profileData.longitude,
+        };
+        const res = await updateUserProfileApi(payload, token);
+        if (res.success && res.user) {
+          const syncedUser = {
+            ...updatedUser,
+            ...res.user,
+          };
+          setUser(syncedUser);
+          localStorage.setItem('mm_user', JSON.stringify(syncedUser));
+          return { success: true, user: syncedUser };
+        }
+        return res;
+      } catch (err) {
+        console.warn('[Magic Mistry] Failed to persist profile to backend:', err);
+        return { success: false, message: err.message };
+      }
+    }
+    return { success: true, user: updatedUser };
   };
 
   return (

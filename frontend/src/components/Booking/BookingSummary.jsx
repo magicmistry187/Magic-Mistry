@@ -101,7 +101,7 @@ export default function BookingSummary() {
       formData.append('serviceCategory', serviceTitle);
       formData.append('serviceCategoryCharge', basePrice);
       formData.append('issue', bookingState.problemDescription || (bookingState.selectedSubServices.length > 0 ? bookingState.selectedSubServices.map(s => s.label).join(', ') : 'General Repair & Maintenance'));
-      formData.append('address', bookingState.address);
+      formData.append('address', bookingState.address.trim());
       formData.append('serviceDate', bookingState.date);
       formData.append('timeSlot', bookingState.timeSlot);
 
@@ -110,14 +110,18 @@ export default function BookingSummary() {
       const lat = bookingState.latitude ?? user?.latitude ?? savedLat ?? null;
       const lng = bookingState.longitude ?? user?.longitude ?? savedLng ?? null;
 
-      // Send latitude and longitude (including null if not present)
-      formData.append('latitude', lat !== null && lat !== undefined ? lat : null);
-      formData.append('longitude', lng !== null && lng !== undefined ? lng : null);
+      // Only send valid numeric coordinates
+      if (lat !== null && lat !== undefined && lat !== 'null' && !isNaN(Number(lat))) {
+        formData.append('latitude', Number(lat));
+      }
+      if (lng !== null && lng !== undefined && lng !== 'null' && !isNaN(Number(lng))) {
+        formData.append('longitude', Number(lng));
+      }
 
       if (lat && lng) {
         console.log(`[Magic Mistry Booking] 📍 Sending booking request with coordinates - Latitude: ${lat}, Longitude: ${lng}`);
       } else {
-        console.log(`[Magic Mistry Booking] 📍 Sending booking request with null coordinates - Latitude: ${lat}, Longitude: ${lng}`);
+        console.log(`[Magic Mistry Booking] 📍 Booking request address: ${bookingState.address}`);
       }
 
       if (bookingState.imageFile) {

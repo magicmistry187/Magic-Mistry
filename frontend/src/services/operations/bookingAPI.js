@@ -14,12 +14,24 @@ const {
   CANCEL_BOOKING_API,
 } = bookingEndpoints;
 
+const getAuthToken = (token) =>
+  token ||
+  (typeof window !== 'undefined'
+    ? localStorage.getItem('mm_token') ||
+      localStorage.getItem('token') ||
+      localStorage.getItem('vendorToken')
+    : null);
+
 // Create Booking
 export async function createBookingApi(formData, token) {
   try {
-    const res = await apiConnector('POST', CREATE_BOOKING_API, formData, {
-      Authorization: `Bearer ${token}`,
-    });
+    const authToken = getAuthToken(token);
+    const res = await apiConnector(
+      'POST',
+      CREATE_BOOKING_API,
+      formData,
+      authToken ? { Authorization: `Bearer ${authToken}` } : {}
+    );
 
     console.log('Create booking response:', res.data);
 
@@ -44,9 +56,13 @@ export async function createBookingApi(formData, token) {
 // Get My Bookings
 export async function getMyBookingsApi(token) {
   try {
-    const res = await apiConnector('GET', GET_MY_BOOKINGS_API, null, {
-      Authorization: `Bearer ${token}`,
-    });
+    const authToken = getAuthToken(token);
+    const res = await apiConnector(
+      'GET',
+      GET_MY_BOOKINGS_API,
+      null,
+      authToken ? { Authorization: `Bearer ${authToken}` } : {}
+    );
 
     if (!res.data?.success) {
       throw new Error(res.data?.message || 'Failed to fetch bookings');
@@ -69,9 +85,13 @@ export async function getMyBookingsApi(token) {
 // Get Booking Details
 export async function getBookingDetailsApi(bookingId, token) {
   try {
-    const res = await apiConnector('GET', `${GET_BOOKING_DETAILS_API}/${bookingId}`, null, {
-      Authorization: `Bearer ${token}`,
-    });
+    const authToken = getAuthToken(token);
+    const res = await apiConnector(
+      'GET',
+      `${GET_BOOKING_DETAILS_API}/${bookingId}`,
+      null,
+      authToken ? { Authorization: `Bearer ${authToken}` } : {}
+    );
 
     if (!res.data?.success) {
       throw new Error(res.data?.message || 'Failed to fetch booking details');
@@ -93,9 +113,13 @@ export async function getBookingDetailsApi(bookingId, token) {
 // Cancel Booking
 export async function cancelBookingApi(bookingId, token) {
   try {
-    const res = await apiConnector('PATCH', `${CANCEL_BOOKING_API}/${bookingId}/cancel`, null, {
-      Authorization: `Bearer ${token}`,
-    });
+    const authToken = getAuthToken(token);
+    const res = await apiConnector(
+      'PATCH',
+      `${CANCEL_BOOKING_API}/${bookingId}/cancel`,
+      null,
+      authToken ? { Authorization: `Bearer ${authToken}` } : {}
+    );
 
     if (!res.data?.success) {
       throw new Error(res.data?.message || 'Failed to cancel booking');
@@ -118,9 +142,13 @@ export async function cancelBookingApi(bookingId, token) {
 // Get Admin Bookings
 export async function getAdminBookingsApi(token) {
   try {
-    const res = await apiConnector('GET', `${BASE_URL}/booking/admin/bookings`, null, {
-      Authorization: `Bearer ${token}`,
-    });
+    const authToken = getAuthToken(token);
+    const res = await apiConnector(
+      'GET',
+      `${BASE_URL}/booking/admin/bookings`,
+      null,
+      authToken ? { Authorization: `Bearer ${authToken}` } : {}
+    );
 
     if (!res.data?.success) {
       throw new Error(res.data?.message || 'Failed to fetch admin bookings');
@@ -143,9 +171,13 @@ export async function getAdminBookingsApi(token) {
 // Get Vendor Bookings
 export async function getVendorBookingsApi(token) {
   try {
-    const res = await apiConnector('GET', `${BASE_URL}/booking/vendor/bookings`, null, {
-      Authorization: `Bearer ${token}`,
-    });
+    const authToken = getAuthToken(token);
+    const res = await apiConnector(
+      'GET',
+      `${BASE_URL}/booking/vendor/bookings`,
+      null,
+      authToken ? { Authorization: `Bearer ${authToken}` } : {}
+    );
 
     if (!res.data?.success) {
       throw new Error(res.data?.message || 'Failed to fetch vendor bookings');

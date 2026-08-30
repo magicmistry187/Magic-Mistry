@@ -17,14 +17,26 @@ const {
 } = addressEndpoints;
 
 
+const getAuthToken = (token) =>
+  token ||
+  (typeof window !== 'undefined'
+    ? localStorage.getItem('mm_token') ||
+      localStorage.getItem('token') ||
+      localStorage.getItem('vendorToken')
+    : null);
+
 /**
  * createAddressApi — Create / Save a new user address in MongoDB
  */
 export async function createAddressApi(addressData, token) {
   try {
-    const res = await apiConnector('POST', CREATE_ADDRESS_API, addressData, {
-      Authorization: `Bearer ${token}`,
-    });
+    const authToken = getAuthToken(token);
+    const res = await apiConnector(
+      'POST',
+      CREATE_ADDRESS_API,
+      addressData,
+      authToken ? { Authorization: `Bearer ${authToken}` } : {}
+    );
 
     console.log('[addressAPI] CREATE_ADDRESS_API response:', res.data);
 
@@ -51,9 +63,13 @@ export async function createAddressApi(addressData, token) {
  */
 export async function getAddressesApi(token) {
   try {
-    const res = await apiConnector('GET', GET_ADDRESSES_API, null, {
-      Authorization: `Bearer ${token}`,
-    });
+    const authToken = getAuthToken(token);
+    const res = await apiConnector(
+      'GET',
+      GET_ADDRESSES_API,
+      null,
+      authToken ? { Authorization: `Bearer ${authToken}` } : {}
+    );
 
     if (!res.data?.success) {
       throw new Error(res.data?.message || 'Could not fetch addresses');
@@ -81,11 +97,12 @@ export async function getAddressesApi(token) {
  */
 export async function getAddressByIdApi(addressId, token) {
   try {
+    const authToken = getAuthToken(token);
     const res = await apiConnector(
       'GET',
       `${GET_ADDRESS_API}/${addressId}`,
       null,
-      { Authorization: `Bearer ${token}` }
+      authToken ? { Authorization: `Bearer ${authToken}` } : {}
     );
 
     if (!res.data?.success) {
@@ -110,12 +127,12 @@ export async function getAddressByIdApi(addressId, token) {
  */
 export async function updateAddressApi(addressId, updateData, token) {
   try {
-    console.log("update adress is called")
+    const authToken = getAuthToken(token);
     const res = await apiConnector(
       'PUT',
       `${UPDATE_ADDRESS_API}/${addressId}`,
       updateData,
-      { Authorization: `Bearer ${token}` }
+      authToken ? { Authorization: `Bearer ${authToken}` } : {}
     );
 
     if (!res.data?.success) {
@@ -141,11 +158,12 @@ export async function updateAddressApi(addressId, updateData, token) {
  */
 export async function deleteAddressApi(addressId, token) {
   try {
+    const authToken = getAuthToken(token);
     const res = await apiConnector(
       'DELETE',
       `${DELETE_ADDRESS_API}/${addressId}`,
       null,
-      { Authorization: `Bearer ${token}` }
+      authToken ? { Authorization: `Bearer ${authToken}` } : {}
     );
 
     if (!res.data?.success) {
@@ -168,19 +186,21 @@ export async function deleteAddressApi(addressId, token) {
 /**
  * saveVendorAddressApi — Save vendor service address into the User Location Save module.
  *
- * Calls POST /api/address — the backend now accepts both customer AND vendor roles
- * on this route via the isCustomerOrVendor middleware, so vendors can save their
- * service location into the shared Address model (same User Location Save module).
+ * Calls POST /api/address — the backend accepts both customer AND vendor roles
+ * on this route via the isCustomerOrVendor middleware.
  *
  * @param {object} addressData  Structured address payload from VendorAddressModal
  * @param {string} token        Vendor JWT token
  */
 export async function saveVendorAddressApi(addressData, token) {
   try {
-    console.log("saved address is called")
-    const res = await apiConnector('POST', CREATE_ADDRESS_API, addressData, {
-      Authorization: `Bearer ${token}`,
-    });
+    const authToken = getAuthToken(token);
+    const res = await apiConnector(
+      'POST',
+      CREATE_ADDRESS_API,
+      addressData,
+      authToken ? { Authorization: `Bearer ${authToken}` } : {}
+    );
 
     console.log('[addressAPI] saveVendorAddressApi response:', res.data);
 

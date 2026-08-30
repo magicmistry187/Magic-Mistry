@@ -264,7 +264,7 @@ const Navbar = () => {
                 >
                   <MapPin className="w-3.5 h-3.5 text-orange-500 shrink-0" />
                   <span className="hidden min-[930px]:inline max-w-[130px] truncate">
-                    {location && location !== 'Set Your Location' ? location : 'No Location Set'}
+                    {location && location !== 'Set Your Location' ? location : 'Set Your Location'}
                   </span>
                 </div>
 
@@ -483,7 +483,7 @@ const Navbar = () => {
                     <div className="flex items-center space-x-2 overflow-hidden">
                       <MapPin className="w-4 h-4 text-orange-500 shrink-0" />
                       <span className="truncate">
-                        {location && location !== 'Set Your Location' ? location : 'No Location Set'}
+                        {location && location !== 'Set Your Location' ? location : 'Set Your Location'}
                       </span>
                     </div>
                   </div>

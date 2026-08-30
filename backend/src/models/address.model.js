@@ -20,6 +20,11 @@ const addressSchema = new mongoose.Schema(
       trim: true,
     },
 
+    addressLine1: {
+      type: String,
+      trim: true,
+    },
+
     street: {
       type: String,
       required: true,

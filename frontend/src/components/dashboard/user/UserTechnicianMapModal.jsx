@@ -108,22 +108,22 @@ export default function UserTechnicianMapModal({ isOpen, onClose, technician, bo
           </div>
 
           {/* Technician Info Card */}
-          <div className="p-6 bg-white space-y-4">
-            <div className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
-              <div className="flex items-center gap-4">
+          <div className="p-4 sm:p-6 bg-white space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-100 gap-3">
+              <div className="flex items-center gap-3.5 sm:gap-4">
                 <div className="relative">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-xl shadow-md">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-lg sm:text-xl shadow-md shrink-0">
                     {technician?.name ? technician.name.slice(0, 2).toUpperCase() : 'SK'}
                   </div>
                   <div className="absolute -bottom-1 -right-1 bg-blue-600 text-white p-1 rounded-full text-[10px]" title="Verified Partner">
-                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <ShieldCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                   </div>
                 </div>
                 <div>
-                  <h4 className="font-extrabold text-gray-900 text-base">{technician?.name || 'Suresh Kumar'}</h4>
-                  <div className="flex items-center gap-2 mt-0.5">
+                  <h4 className="font-extrabold text-gray-900 text-sm sm:text-base">{technician?.name || 'Suresh Kumar'}</h4>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     <span className="flex items-center gap-1 text-xs font-bold text-amber-500">
-                      <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                      <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400 shrink-0" />
                       {technician?.rating || '4.9'}
                     </span>
                     <span className="text-xs text-gray-400">• {technician?.jobs || '120+ jobs'}</span>
@@ -135,13 +135,13 @@ export default function UserTechnicianMapModal({ isOpen, onClose, technician, bo
               </div>
 
               {/* Quick Action Buttons */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 self-end sm:self-auto">
                 <Link
                   to={`tel:${technician?.phone || '+919876543210'}`}
-                  className="w-11 h-11 rounded-2xl bg-emerald-500 text-white flex items-center justify-center hover:bg-emerald-600 transition-colors shadow-md shadow-emerald-200"
+                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-emerald-500 text-white flex items-center justify-center hover:bg-emerald-600 transition-colors shadow-md shadow-emerald-200"
                   title="Call Technician"
                 >
-                  <Phone className="w-5 h-5" />
+                  <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
                 </Link>
                 <button
                   onClick={() => alert(`Messaging ${technician?.name || 'Technician'}...`)}

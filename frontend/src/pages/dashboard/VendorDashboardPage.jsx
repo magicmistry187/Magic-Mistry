@@ -328,7 +328,8 @@ export default function VendorDashboardPage() {
     try {
       const payload = {
         addressType: addressData.addressType || 'Other',
-        house:       addressData.flat    || '',
+        house:       addressData.flat    || addressData.street || 'Shop',
+        addressLine1: addressData.flat   || addressData.street || '',
         flat:        addressData.flat    || '',
         street:      addressData.street  || '',
         landmark:    addressData.landmark || '',
@@ -339,14 +340,24 @@ export default function VendorDashboardPage() {
         isDefault:   true,
       };
 
-      console.log('[Vendor Dashboard] 📍 Saving vendor location to User Location Save module...', payload);
+      if (addressData.latitude && addressData.longitude) {
+        payload.latitude = addressData.latitude;
+        payload.longitude = addressData.longitude;
+        payload.location = {
+          type: 'Point',
+          coordinates: [Number(addressData.longitude), Number(addressData.latitude)],
+        };
+      }
 
-      const result = await saveVendorAddressApi(payload, token);
+      const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') || localStorage.getItem('vendorToken') : null);
 
-      // Also persist serviceAddress on VendorProfile in backend
+      const result = await saveVendorAddressApi(payload, authToken);
+
+      // Also persist serviceAddress and location on VendorProfile / User in backend
       const formData = new FormData();
       formData.append('serviceAddress', displayAddress);
-      await updateVendorProfileApi(formData, token);
+      formData.append('location', displayAddress);
+      await updateVendorProfileApi(formData, authToken);
 
       if (result.success) {
         console.log(
@@ -2151,8 +2162,10 @@ export default function VendorDashboardPage() {
                       title="Click to update address via popup"
                     >
                       <MapPin className="w-3.5 h-3.5 text-orange-500" />
-                      <span>{vendorProfile.address}</span>
-                      <span className="text-[10px] text-orange-600 font-extrabold bg-orange-100 px-1.5 py-0.5 rounded ml-0.5">Change</span>
+                      <span>{vendorProfile.address && vendorProfile.address !== 'Set Your Location' ? vendorProfile.address : 'Set Service Location'}</span>
+                      <span className="text-[10px] text-orange-600 font-extrabold bg-orange-100 px-1.5 py-0.5 rounded ml-0.5">
+                        {vendorProfile.address && vendorProfile.address !== 'Set Your Location' ? 'Change' : 'Set Location'}
+                      </span>
                     </button>
                     <span className="text-slate-300">•</span>
                     <span className="text-xs font-bold text-slate-600">ID: {vendorProfile.vendorId}</span>
@@ -2262,7 +2275,7 @@ export default function VendorDashboardPage() {
                       </p>
                       <p className="text-xs sm:text-sm font-semibold text-slate-800 flex items-center gap-1.5 break-words">
                         <MapPin className="w-4 h-4 text-orange-500 shrink-0" />
-                        {vendorProfile.address}
+                        {vendorProfile.address && vendorProfile.address !== 'Set Your Location' ? vendorProfile.address : 'No address set. Set your location.'}
                       </p>
                     </div>
                     <button
@@ -2271,7 +2284,7 @@ export default function VendorDashboardPage() {
                       className="px-3.5 py-2 bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
                     >
                       <MapPin className="w-3.5 h-3.5" />
-                      <span>Update Address</span>
+                      <span>{vendorProfile.address && vendorProfile.address !== 'Set Your Location' ? 'Update Address' : 'Set Service Location'}</span>
                     </button>
                   </div>
                 </div>

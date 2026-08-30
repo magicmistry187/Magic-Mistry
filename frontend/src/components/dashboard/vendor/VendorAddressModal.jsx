@@ -11,6 +11,7 @@ import {
   AlertCircle,
   CheckCircle2,
 } from 'lucide-react';
+import { parseAddressString } from '../../../utils/addressParser';
 
 export default function VendorAddressModal({ isOpen, onClose, onSave, initialAddress }) {
   const [type, setType] = useState('Home');
@@ -20,46 +21,38 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
   const [state, setState] = useState('');
   const [landmark, setLandmark] = useState('');
   const [pincode, setPincode] = useState('');
+  const [geoCoords, setGeoCoords] = useState(null);
 
   const [locState, setLocState] = useState('idle'); // 'idle' | 'loading' | 'success' | 'error'
   const [locError, setLocError] = useState('');
 
   useEffect(() => {
     if (initialAddress) {
+      const parsed = parseAddressString(initialAddress);
+      const chosenType =
+        typeof initialAddress === 'object' && (initialAddress.type || initialAddress.addressType)
+          ? initialAddress.type || initialAddress.addressType
+          : 'Home';
+
+      setType(chosenType);
+      setFlat(parsed.flat);
+      setStreet(parsed.street);
+      setCity(parsed.city);
+      setState(parsed.state);
+      setLandmark(parsed.landmark);
+      setPincode(parsed.pincode);
+
       if (typeof initialAddress === 'object') {
-        setType(initialAddress.type || initialAddress.addressType || 'Home');
-        setFlat(initialAddress.flat || initialAddress.house || initialAddress.addressLine1 || '');
-        setStreet(initialAddress.street || '');
-        setCity(initialAddress.city || '');
-        setState(initialAddress.state || '');
-        setLandmark(initialAddress.landmark || '');
-        setPincode(initialAddress.pincode || '');
-      } else if (typeof initialAddress === 'string') {
-        const parts = initialAddress.split(',').map((p) => p.trim());
-        if (parts.length >= 4) {
-          setFlat(parts[0] || '');
-          setStreet(parts[1] || '');
-          setCity(parts[2] || '');
-          const last = parts[parts.length - 1];
-          const pinMatch = last.match(/\d{6}/);
-          if (pinMatch) {
-            setPincode(pinMatch[0]);
-            setState(last.replace(/\d{6}/, '').trim() || '');
-            if (parts.length > 4) {
-              setLandmark(parts.slice(3, parts.length - 1).join(', '));
-            }
-          } else {
-            setState(parts[3] || '');
-          }
-        } else if (parts.length === 3) {
-          setFlat(parts[0] || '');
-          setStreet(parts[1] || '');
-          setCity(parts[2] || '');
-        } else if (parts.length === 2) {
-          setFlat(parts[0] || '');
-          setStreet(parts[1] || '');
-        } else {
-          setStreet(initialAddress);
+        if (initialAddress.location?.coordinates?.length === 2) {
+          setGeoCoords({
+            lng: initialAddress.location.coordinates[0],
+            lat: initialAddress.location.coordinates[1],
+          });
+        } else if (initialAddress.latitude && initialAddress.longitude) {
+          setGeoCoords({
+            lat: Number(initialAddress.latitude),
+            lng: Number(initialAddress.longitude),
+          });
         }
       }
     } else {
@@ -70,6 +63,7 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
       setState('');
       setLandmark('');
       setPincode('');
+      setGeoCoords(null);
     }
     setLocState('idle');
     setLocError('');
@@ -92,14 +86,29 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
           );
           const data = await res.json();
           const a = data.address || {};
-          const detectedCity = a.city || a.town || a.village || a.county || a.state_district || '';
-          const detectedState = a.state || '';
-          setFlat(a.house_number || '');
-          setStreet([a.road || a.pedestrian || a.footway, a.neighbourhood || a.suburb].filter(Boolean).join(', '));
-          setCity(detectedCity);
-          setState(detectedState);
-          setLandmark('');
-          setPincode(a.postcode ? a.postcode.replace(/\D/g, '').slice(0, 6) : '');
+          const detectedCity =
+            a.city || a.town || a.village || a.municipality || a.county || a.state_district || 'Kolkata';
+          const detectedState = a.state || 'West Bengal';
+          const detectedHouse = a.house_number || a.building || a.flat || a.room || '';
+          const detectedStreet = [
+            a.road || a.pedestrian || a.footway || a.street,
+            a.neighbourhood || a.suburb || a.residential || a.subdistrict || a.city_district,
+          ]
+            .filter(Boolean)
+            .join(', ');
+          const detectedLandmark = a.landmark || a.attraction || a.amenity || '';
+          const detectedPincode = a.postcode ? a.postcode.replace(/\D/g, '').slice(0, 6) : '';
+
+          const combinedStr = data.display_name || '';
+          const parsedCombined = parseAddressString(combinedStr);
+
+          setFlat(detectedHouse || parsedCombined.flat || '');
+          setStreet(detectedStreet || parsedCombined.street || '');
+          setCity(detectedCity || parsedCombined.city || 'Kolkata');
+          setState(detectedState || parsedCombined.state || 'West Bengal');
+          setLandmark(detectedLandmark || parsedCombined.landmark || '');
+          setPincode(detectedPincode || parsedCombined.pincode || '');
+          setGeoCoords({ lat: coords.latitude, lng: coords.longitude });
           setLocState('success');
           setLocError('');
         } catch {
@@ -123,21 +132,34 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const formattedAddress = [flat, street, landmark, city, state, pincode]
+    const cleanFlat = flat.trim();
+    const cleanStreet = street.trim();
+    const cleanLandmark = landmark.trim();
+    const cleanCity = city.trim();
+    const cleanState = state.trim();
+    const cleanPincode = pincode.trim();
+
+    const formattedAddress = [cleanFlat, cleanStreet, cleanLandmark, cleanCity, cleanState, cleanPincode]
       .filter(Boolean)
       .join(', ');
 
     // Pass a full structured object so the parent handler can call the address API
     onSave({
-      storeNo,
-      street,
-      landmark,
-      city,
-      state,
-      pincode,
+      flat: cleanFlat,
+      house: cleanFlat || cleanStreet || 'Shop',
+      addressLine1: cleanFlat || cleanStreet || '',
+      street: cleanStreet,
+      landmark: cleanLandmark,
+      city: cleanCity,
+      state: cleanState,
+      country: 'India',
+      pincode: cleanPincode,
       type,
       addressType: type,
-      formattedAddress: formattedAddress || `${flat} ${street} ${city}`.trim(),
+      latitude: geoCoords?.lat,
+      longitude: geoCoords?.lng,
+      location: geoCoords ? { type: 'Point', coordinates: [geoCoords.lng, geoCoords.lat] } : undefined,
+      formattedAddress: formattedAddress || `${cleanFlat} ${cleanStreet} ${cleanCity}`.trim(),
     });
     onClose();
   };

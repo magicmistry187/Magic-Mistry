@@ -17,6 +17,7 @@ import {
   AlertCircle,
   CheckCircle2,
 } from 'lucide-react';
+import { parseAddressString } from '../../../utils/addressParser';
 
 export default function UserAddressModal({ isOpen, onClose, onSave, initialData }) {
   const [type, setType] = useState('Home');
@@ -26,19 +27,36 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
   const [state, setState] = useState('');
   const [landmark, setLandmark] = useState('');
   const [pincode, setPincode] = useState('');
+  const [isDefault, setIsDefault] = useState(false);
+  const [geoCoords, setGeoCoords] = useState(null);
 
   const [locState, setLocState] = useState('idle'); // 'idle' | 'loading' | 'success' | 'error'
   const [locError, setLocError] = useState('');
 
   useEffect(() => {
     if (initialData) {
+      const parsed = parseAddressString(initialData);
       setType(initialData.type || initialData.addressType || 'Home');
-      setFlat(initialData.flat || initialData.house || initialData.addressLine1 || '');
-      setStreet(initialData.street || '');
-      setCity(initialData.city || '');
-      setState(initialData.state || '');
-      setLandmark(initialData.landmark || '');
-      setPincode(initialData.pincode || '');
+      setFlat(parsed.flat);
+      setStreet(parsed.street);
+      setCity(parsed.city);
+      setState(parsed.state);
+      setLandmark(parsed.landmark);
+      setPincode(parsed.pincode);
+      setIsDefault(!!initialData.isDefault);
+      if (initialData.location?.coordinates?.length === 2) {
+        setGeoCoords({
+          lng: initialData.location.coordinates[0],
+          lat: initialData.location.coordinates[1],
+        });
+      } else if (initialData.latitude && initialData.longitude) {
+        setGeoCoords({
+          lat: Number(initialData.latitude),
+          lng: Number(initialData.longitude),
+        });
+      } else {
+        setGeoCoords(null);
+      }
     } else {
       setType('Home');
       setFlat('');
@@ -47,6 +65,8 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
       setState('');
       setLandmark('');
       setPincode('');
+      setIsDefault(false);
+      setGeoCoords(null);
     }
     setLocState('idle');
     setLocError('');
@@ -69,14 +89,29 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
           );
           const data = await res.json();
           const a = data.address || {};
-          const detectedCity = a.city || a.town || a.village || a.county || a.state_district || '';
-          const detectedState = a.state || '';
-          setFlat(a.house_number || '');
-          setStreet([a.road || a.pedestrian || a.footway, a.neighbourhood || a.suburb].filter(Boolean).join(', '));
-          setCity(detectedCity);
-          setState(detectedState);
-          setLandmark('');
-          setPincode(a.postcode ? a.postcode.replace(/\D/g, '').slice(0, 6) : '');
+          const detectedCity =
+            a.city || a.town || a.village || a.municipality || a.county || a.state_district || 'Kolkata';
+          const detectedState = a.state || 'West Bengal';
+          const detectedHouse = a.house_number || a.building || a.flat || a.room || '';
+          const detectedStreet = [
+            a.road || a.pedestrian || a.footway || a.street,
+            a.neighbourhood || a.suburb || a.residential || a.subdistrict || a.city_district,
+          ]
+            .filter(Boolean)
+            .join(', ');
+          const detectedLandmark = a.landmark || a.attraction || a.amenity || '';
+          const detectedPincode = a.postcode ? a.postcode.replace(/\D/g, '').slice(0, 6) : '';
+
+          const combinedStr = data.display_name || '';
+          const parsedCombined = parseAddressString(combinedStr);
+
+          setFlat(detectedHouse || parsedCombined.flat || '');
+          setStreet(detectedStreet || parsedCombined.street || '');
+          setCity(detectedCity || parsedCombined.city || 'Kolkata');
+          setState(detectedState || parsedCombined.state || 'West Bengal');
+          setLandmark(detectedLandmark || parsedCombined.landmark || '');
+          setPincode(detectedPincode || parsedCombined.pincode || '');
+          setGeoCoords({ lat: coords.latitude, lng: coords.longitude });
           setLocState('success');
           setLocError('');
         } catch {
@@ -100,20 +135,35 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const formattedAddress = [flat, street, landmark, city, state, pincode]
+    const cleanFlat = flat.trim();
+    const cleanStreet = street.trim();
+    const cleanLandmark = landmark.trim();
+    const cleanCity = city.trim();
+    const cleanState = state.trim();
+    const cleanPincode = pincode.trim();
+
+    const formattedAddress = [cleanFlat, cleanStreet, cleanLandmark, cleanCity, cleanState, cleanPincode]
       .filter(Boolean)
       .join(', ');
 
     onSave({
-      id: initialData?.id || initialData?._id || Date.now(),
+      id: initialData?.id || initialData?._id,
+      _id: initialData?._id || initialData?.id,
       type,
       addressType: type,
-      flat,
-      street,
-      city,
-      state,
-      landmark,
-      pincode,
+      flat: cleanFlat,
+      house: cleanFlat || cleanStreet || 'Home',
+      addressLine1: cleanFlat || cleanStreet || '',
+      street: cleanStreet,
+      city: cleanCity,
+      state: cleanState,
+      country: 'India',
+      landmark: cleanLandmark,
+      pincode: cleanPincode,
+      isDefault,
+      latitude: geoCoords?.lat,
+      longitude: geoCoords?.lng,
+      location: geoCoords ? { type: 'Point', coordinates: [geoCoords.lng, geoCoords.lat] } : undefined,
       formattedAddress,
     });
     onClose();
@@ -127,9 +177,9 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.92, y: 15 }}
           transition={{ type: 'spring', stiffness: 320, damping: 26 }}
-          className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col"
+          className="bg-white w-full max-w-lg max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col"
         >
-          <div className="bg-slate-900 text-white px-6 py-4.5 flex items-center justify-between">
+          <div className="bg-slate-900 text-white px-5 sm:px-6 py-4 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-400">
                 <MapPin className="w-4 h-4 text-orange-400" />
@@ -147,7 +197,7 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs sm:text-sm text-slate-700">
+          <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 text-xs sm:text-sm text-slate-700 overflow-y-auto">
             {/* Auto-detect Location Button */}
             <button
               type="button"
@@ -306,6 +356,20 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
                   className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
                 />
               </div>
+            </div>
+
+            {/* Default Address Option */}
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="checkbox"
+                id="userAddressDefaultCheckbox"
+                checked={isDefault}
+                onChange={(e) => setIsDefault(e.target.checked)}
+                className="w-4 h-4 text-orange-500 rounded border-slate-300 focus:ring-orange-500 cursor-pointer"
+              />
+              <label htmlFor="userAddressDefaultCheckbox" className="text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                Set as default delivery / service address
+              </label>
             </div>
 
             <div className="pt-3 flex gap-3">

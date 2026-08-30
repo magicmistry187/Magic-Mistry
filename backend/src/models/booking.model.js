@@ -57,18 +57,8 @@ const bookingSchema = new mongoose.Schema(
       default: null,
     },
     address: {
-      addressType: String,
-      house: String,
-      street: String,
-      landmark: String,
-      city: String,
-      state: String,
-      country: String,
-      pincode: String,
-      location: {
-        type: { type: String, enum: ['Point'], default: 'Point' },
-        coordinates: [Number],
-      },
+      type: mongoose.Schema.Types.Mixed,
+      required: true,
     },
     serviceDate: {
       type: Date,

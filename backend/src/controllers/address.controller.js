@@ -64,6 +64,7 @@ let coords = [19.449832 , 72.883995] // default location for checking functional
     const address = await Address.create({
       user: req.user.id,
       addressType: addressType || "Home",
+      house: houseVal,
       addressLine1: houseVal,
       street: streetVal,
       landmark: (landmark || "").trim(),
@@ -174,7 +175,10 @@ exports.updateAddress = async (req, res) => {
 
     const updatePayload = { ...req.body };
     if (req.body.flat && !req.body.house) {
+      updatePayload.house = req.body.flat;
       updatePayload.addressLine1 = req.body.flat;
+    } else if (req.body.house) {
+      updatePayload.addressLine1 = req.body.house;
     }
 
     if (req.body.longitude !== undefined && req.body.latitude !== undefined) {
@@ -216,7 +220,7 @@ exports.updateAddress = async (req, res) => {
 
     if (updatedAddress && (updatedAddress.isDefault || req.body.isDefault)) {
       const formattedLoc = [
-        updatedAddress.addressLine1,
+        updatedAddress.house || updatedAddress.addressLine1,
         updatedAddress.street,
         updatedAddress.city,
       ]
