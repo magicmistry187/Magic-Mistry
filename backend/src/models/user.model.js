@@ -67,19 +67,16 @@ const userSchema = new mongoose.Schema(
       ],
       default: [],
     },
-    location: {
-      type: String,
-      trim: true,
-      default: '',
-    },
-    latitude: {
-      type: Number,
-      default: null,
-    },
-    longitude: {
-      type: Number,
-      default: null,
-    },
+
+     // ----------adding adress -----------------
+        // Address: {
+        //   type: mongoose.Schema.Types.ObjectId,
+        //   ref: 'Address',
+        //   default: null,
+        // },
+        // ------------------------------------------
+    
+  
   },
   { timestamps: true },
 );

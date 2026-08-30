@@ -13,9 +13,8 @@ const addressSchema = new mongoose.Schema(
       enum: ['Home', 'Office', 'Other'],
       default: 'Home',
     },
-     //here i changed house to adddressLine1 because the address is common in bothn customer and vendor
-
-    addressLine1: {
+    
+    house: {
       type: String,
       required: true,
       trim: true,

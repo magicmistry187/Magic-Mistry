@@ -110,6 +110,7 @@ export async function getAddressByIdApi(addressId, token) {
  */
 export async function updateAddressApi(addressId, updateData, token) {
   try {
+    console.log("update adress is called")
     const res = await apiConnector(
       'PUT',
       `${UPDATE_ADDRESS_API}/${addressId}`,
@@ -176,6 +177,7 @@ export async function deleteAddressApi(addressId, token) {
  */
 export async function saveVendorAddressApi(addressData, token) {
   try {
+    console.log("saved address is called")
     const res = await apiConnector('POST', CREATE_ADDRESS_API, addressData, {
       Authorization: `Bearer ${token}`,
     });

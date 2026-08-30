@@ -157,6 +157,7 @@ exports.getAddress = async (req, res) => {
 
 exports.updateAddress = async (req, res) => {
   try {
+    console.log("update addrss called")
     const { id } = req.params;
 
     const existingAddress = await Address.findOne({

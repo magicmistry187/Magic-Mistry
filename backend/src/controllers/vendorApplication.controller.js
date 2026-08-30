@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 const VendorApplication = require('../models/vendorApplication.model');
 const User = require('../models/user.model');
-const VendorProfile = require('../models/vendorProfile.model')
-const uploadImageToImageKit = require('../config/imagekit');
+const VendorProfile = require('../models/vendorProfile.model');
+const { uploadImageToImageKit } = require('../config/imagekit');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 
@@ -338,8 +338,6 @@ const approveVendorApplication = async (req, res) => {
   }
 };
 
-
-
 const getVendorCredentials = async (req, res) => {
   try {
     const { applicationId } = req.params;
@@ -371,7 +369,9 @@ const getVendorCredentials = async (req, res) => {
         $or: [
           { vendorId: { $regex: new RegExp(`^${escapedParam}$`, 'i') } },
           { email: searchParam.toLowerCase().trim() },
-          ...(mongoose.isValidObjectId(searchParam) ? [{ _id: searchParam }] : []),
+          ...(mongoose.isValidObjectId(searchParam)
+            ? [{ _id: searchParam }]
+            : []),
         ],
       });
 
@@ -405,7 +405,8 @@ const getVendorCredentials = async (req, res) => {
     }
 
     // 3. If password was never saved in DB (e.g. legacy vendor), auto-generate temporary password and sync to user
-    let temporaryPassword = vendorProfile.temporaryPassword || vendorProfile.password;
+    let temporaryPassword =
+      vendorProfile.temporaryPassword || vendorProfile.password;
     if (!temporaryPassword) {
       temporaryPassword = `FixIt_${new Date().getFullYear()}_!${crypto
         .randomBytes(2)
@@ -443,7 +444,6 @@ const getVendorCredentials = async (req, res) => {
     });
   }
 };
-
 
 const rejectVendorApplication = async (req, res) => {
   try {
@@ -540,17 +540,16 @@ const createVendorByAdmin = async (req, res) => {
       });
     }
 
-    const { user, vendorId, password } =
-      await createOrUpdateVendorAccount({
-        fullName,
-        email: trimmedEmail,
-        phoneNumber,
-        specialization,
-        serviceType: specialization,
-        experience,
-        experienceDescription: 'Vendor created by Admin',
-        serviceAddress: serviceArea,
-      });
+    const { user, vendorId, password } = await createOrUpdateVendorAccount({
+      fullName,
+      email: trimmedEmail,
+      phoneNumber,
+      specialization,
+      serviceType: specialization,
+      experience,
+      experienceDescription: 'Vendor created by Admin',
+      serviceAddress: serviceArea,
+    });
 
     return res.status(200).json({
       success: true,

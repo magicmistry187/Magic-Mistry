@@ -33,13 +33,13 @@ const bookingSchema = new mongoose.Schema(
 
     serviceCategory: {
       type: String,
-      required:true,
-      trim:true,
+      required: true,
+      trim: true,
     },
     serviceCategoryCharge: {
       type: Number,
-      required:true,
-      min:0,
+      required: true,
+      min: 0,
     },
 
     issue: {
@@ -50,10 +50,25 @@ const bookingSchema = new mongoose.Schema(
     image: {
       type: String,
     },
+
+    refAddress: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Address',
+      default: null,
+    },
     address: {
-      type: String,
-      required: true,
-      trim: true,
+      addressType: String,
+      house: String,
+      street: String,
+      landmark: String,
+      city: String,
+      state: String,
+      country: String,
+      pincode: String,
+      location: {
+        type: { type: String, enum: ['Point'], default: 'Point' },
+        coordinates: [Number],
+      },
     },
     serviceDate: {
       type: Date,
@@ -96,7 +111,7 @@ const bookingSchema = new mongoose.Schema(
     serviceCharge: {
       type: Number,
       // required: true,
-      min:0,
+      min: 0,
     },
     acceptedAt: {
       type: Date,
