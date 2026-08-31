@@ -1,4 +1,3 @@
-const mongoose = require('mongoose');
 const Address = require('../models/address.model');
 const User = require('../models/user.model');
 
@@ -29,12 +28,15 @@ exports.createAddress = async (req, res) => {
     const pincodeVal = (pincode || '000000').trim();
 
 
+
+
     //Here we add geocode api to get longitude and latitude
 
     // Parse coordinates
     // let coords = [88.3639, 22.5726]; // default Kolkata lng, lat
 
-let coords = [19.449832 , 72.883995] // default location for checking functionality
+let coords = [72.883995, 19.449832]; // default location for checking functionality
+//First one is longitude and 2nd one is latitude
     if (location && Array.isArray(location.coordinates) && location.coordinates.length === 2) {
       coords = [Number(location.coordinates[0]), Number(location.coordinates[1])];
     } else if (longitude !== undefined && latitude !== undefined) {
@@ -109,7 +111,7 @@ exports.getAddresses = async (req, res) => {
   try {
     const addresses = await Address.find({
       user: req.user.id,
-    }).sort({ isDefault: -1, createdAt: -1 });
+    });
 
     return res.status(200).json({
       success: true,
@@ -253,66 +255,34 @@ exports.updateAddress = async (req, res) => {
 
 exports.deleteAddress = async (req, res) => {
   try {
-    const id = req.params?.id || req.query?.id || req.body?.id || req.body?.addressId;
-    const userId = req.user?.id || req.user?._id || req.user?.userId;
+    const { id } = req.params;
 
-    if (!userId) {
-      return res.status(401).json({
+    const address = await Address.findOne({
+      _id: id,
+      user: req.user.id,
+    });
+    if (!address) {
+      return res.status(404).json({
         success: false,
-        message: 'User authentication required.',
+        message: 'Address not found.',
       });
     }
+    const wasDefault = address.isDefault;
 
-    // 1. Try finding the specific address if valid ObjectId
-    let address = null;
-    if (id && id !== 'undefined' && id !== 'null' && !String(id).startsWith('default-') && mongoose.Types.ObjectId.isValid(id)) {
-      address = await Address.findOne({
-        _id: id,
-        user: userId,
+    await Address.findOneAndDelete({
+      _id: id,
+      user: req.user.id,
+    });
+    if (wasDefault) {
+      const anotherAddress = await Address.findOne({
+        user: req.user.id,
       });
-      if (!address) {
-        address = await Address.findById(id);
-        if (address && String(address.user) !== String(userId)) {
-          address = null; // Belongs to another user
-        }
+
+      if (anotherAddress) {
+        anotherAddress.isDefault = true;
+        await anotherAddress.save();
       }
     }
-
-    // 2. If specific address found, delete it; otherwise delete for this user
-    if (address) {
-      await Address.findByIdAndDelete(address._id);
-    } else {
-      await Address.deleteMany({ user: userId });
-    }
-
-    // 3. Check if any remaining addresses exist for this user
-    const remainingAddress = await Address.findOne({ user: userId }).sort({ isDefault: -1, createdAt: -1 });
-
-    if (remainingAddress) {
-      remainingAddress.isDefault = true;
-      await remainingAddress.save();
-      const formattedLoc = [
-        remainingAddress.house || remainingAddress.addressLine1,
-        remainingAddress.street,
-        remainingAddress.city,
-      ]
-        .filter(Boolean)
-        .join(', ');
-      await User.findByIdAndUpdate(userId, {
-        $set: {
-          location: formattedLoc,
-          latitude: remainingAddress.location?.coordinates?.[1] || null,
-          longitude: remainingAddress.location?.coordinates?.[0] || null,
-        },
-      });
-    } else {
-      // Completely clean up: no addresses left in DB
-      await Address.deleteMany({ user: userId });
-      await User.findByIdAndUpdate(userId, {
-        $set: { location: '', latitude: null, longitude: null },
-      });
-    }
-
     return res.status(200).json({
       success: true,
       message: 'Address deleted successfully.',
@@ -322,7 +292,7 @@ exports.deleteAddress = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: 'Internal Server Error: ' + (error.message || error),
+      message: 'Internal Server Error',
     });
   }
 };
