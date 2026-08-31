@@ -7,11 +7,41 @@ import { parseAddressString } from '../utils/addressParser';
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [location, setLocation] = useState('Set Your Location');
+  const [token, setToken] = useState(() => {
+    try {
+      return localStorage.getItem('mm_token') || null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [user, setUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem('mm_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    try {
+      return !!localStorage.getItem('mm_token');
+    } catch {
+      return false;
+    }
+  });
+
+  const [location, setLocation] = useState(() => {
+    try {
+      const storedLoc = localStorage.getItem('mm_location');
+      return storedLoc && storedLoc !== 'Set Your Location' ? storedLoc : 'Set Your Location';
+    } catch {
+      return 'Set Your Location';
+    }
+  });
+
+  const [loading, setLoading] = useState(false);
   const [addresses, setAddresses] = useState([]);
 
   // Rehydrate session from localStorage and backend on startup
@@ -40,21 +70,29 @@ export function AuthProvider({ children }) {
               let profileRes;
               let profileData;
 
-              if (parsedUser.role === 'vendor') {
+              const isVendor = parsedUser.role === 'vendor' || !!parsedUser.vendorId || !!parsedUser.serviceRadius;
+
+              if (isVendor) {
                 profileRes = await getVendorProfileApi(storedToken);
-                profileData = profileRes.vendorProfile;
-              } else {
-                profileRes = await getUserProfileApi(storedToken);
-                profileData = profileRes.user;
+                if (profileRes?.success && profileRes?.vendorProfile) {
+                  profileData = profileRes.vendorProfile;
+                }
               }
 
-              if (profileRes.success && profileData) {
+              if (!profileData) {
+                profileRes = await getUserProfileApi(storedToken);
+                if (profileRes?.success && profileRes?.user) {
+                  profileData = profileRes.user;
+                }
+              }
+
+              if (profileRes && profileRes.success && profileData) {
                 const nestedUser = profileData.user && typeof profileData.user === 'object' ? profileData.user : {};
                 const freshUser = {
                   ...parsedUser,
                   ...profileData,
                   ...nestedUser,
-                  role: parsedUser.role, // keep stored role authoritative
+                  role: parsedUser.role || profileData.role || (isVendor ? 'vendor' : 'customer'),
                 };
 
                 // Check authoritative database location

@@ -11,7 +11,7 @@ import {
   AlertCircle,
   CheckCircle2,
 } from 'lucide-react';
-import { parseAddressString } from '../../../utils/addressParser';
+import { parseAddressString, INDIAN_STATES } from '../../../utils/addressParser';
 
 export default function VendorAddressModal({ isOpen, onClose, onSave, initialAddress }) {
   const [type, setType] = useState('Home');
@@ -28,19 +28,27 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
 
   useEffect(() => {
     if (initialAddress) {
-      const parsed = parseAddressString(initialAddress);
+      const parsed = typeof initialAddress === 'object' ? {
+        flat: initialAddress.flat || initialAddress.house || initialAddress.addressLine1 || '',
+        street: initialAddress.street || '',
+        city: initialAddress.city || '',
+        state: initialAddress.state || '',
+        landmark: initialAddress.landmark || '',
+        pincode: initialAddress.pincode || '',
+      } : parseAddressString(initialAddress);
+
       const chosenType =
         typeof initialAddress === 'object' && (initialAddress.type || initialAddress.addressType)
           ? initialAddress.type || initialAddress.addressType
           : 'Home';
 
       setType(chosenType);
-      setFlat(parsed.flat);
-      setStreet(parsed.street);
-      setCity(parsed.city);
-      setState(parsed.state);
-      setLandmark(parsed.landmark);
-      setPincode(parsed.pincode);
+      setFlat(parsed.flat || '');
+      setStreet(parsed.street || '');
+      setCity(parsed.city || '');
+      setState(parsed.state || '');
+      setLandmark(parsed.landmark || '');
+      setPincode(parsed.pincode || '');
 
       if (typeof initialAddress === 'object') {
         if (initialAddress.location?.coordinates?.length === 2) {
@@ -182,8 +190,12 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
       .filter(Boolean)
       .join(', ');
 
+    const addressId = typeof initialAddress === 'object' ? (initialAddress?._id || initialAddress?.id || initialAddress?.addressId) : null;
+
     // Pass a full structured object so the parent handler can call the address API
     onSave({
+      _id: addressId,
+      id: addressId,
       flat: cleanFlat,
       house: cleanFlat || cleanStreet || 'Shop',
       addressLine1: cleanFlat || cleanStreet || '',
@@ -354,11 +366,17 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
                 <input
                   type="text"
                   required
+                  list="vendor-states-list"
                   value={state}
                   onChange={(e) => setState(e.target.value)}
                   placeholder="e.g. West Bengal"
                   className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
                 />
+                <datalist id="vendor-states-list">
+                  {INDIAN_STATES.map((s) => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
               </div>
             </div>
 

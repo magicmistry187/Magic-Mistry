@@ -20,7 +20,7 @@ import VendorTaxInvoiceModal from '../../components/dashboard/vendor/VendorTaxIn
 import VendorAddressModal from '../../components/dashboard/vendor/VendorAddressModal';
 import { useAuth } from '../../context/AuthContext';
 import { getVendorBookingsApi } from '../../services/operations/bookingAPI';
-import { saveVendorAddressApi } from '../../services/operations/addressAPI';
+import { saveVendorAddressApi, getAddressesApi, updateAddressApi, createAddressApi } from '../../services/operations/addressAPI';
 import { updateVendorProfileApi, getVendorProfileApi, updateVendorProfileImageApi } from '../../services/operations/vendorAPI';
 
 
@@ -79,16 +79,29 @@ export default function VendorDashboardPage() {
   // Role guard — ensure user has vendor access
   useEffect(() => {
     if (loading) return; // wait for auth to rehydrate
-    if (!user) {
+    const storedToken = token || localStorage.getItem('mm_token');
+    const storedUser = user || (() => {
+      try {
+        const s = localStorage.getItem('mm_user');
+        return s ? JSON.parse(s) : null;
+      } catch {
+        return null;
+      }
+    })();
+
+    if (!storedToken && !storedUser) {
       navigate('/login', { state: { from: '/vendor-dashboard', isVendorLogin: true }, replace: true });
       return;
     }
-    const role = (user.role || user.user?.role || '').toLowerCase();
-    const hasVendorAccess = role === 'vendor' || role === 'admin' || !!user.vendorId || !!user.user?.vendorId;
-    if (!hasVendorAccess) {
-      navigate('/dashboard', { replace: true });
+
+    if (storedUser) {
+      const role = (storedUser.role || storedUser.user?.role || '').toLowerCase();
+      const hasVendorAccess = role === 'vendor' || role === 'admin' || !!storedUser.vendorId || !!storedUser.user?.vendorId;
+      if (!hasVendorAccess) {
+        navigate('/dashboard', { replace: true });
+      }
     }
-  }, [user, loading, navigate]);
+  }, [user, token, loading, navigate]);
 
   if (loading) return <PageLoader />;
 
@@ -238,25 +251,39 @@ export default function VendorDashboardPage() {
   const [payoutNotes, setPayoutNotes] = useState('');
 
   // Profile
-  const [vendorProfile, setVendorProfile] = useState({
-    name: user?.fullName || '',
-    vendorId: user?.vendorId || '',
-    title: 'Service Technician',
-    phone: user?.phoneNumber || '',
-    email: user?.email || '',
-    upiId: '',
-    address: user?.location && user?.location !== 'Set Your Location' ? user.location : '',
-    serviceRadius: 10,
-    nablId: 'NABL-VERIFIED',
-    bankName: '',
-    bankAccount: '',
-    ifsc: '',
-    appliancesServed: [],
-    profileImage: user?.image || 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=250&q=80',
-  });
+  const getInitialVendorProfile = () => {
+    let u = user?.user || user;
+    if (!u) {
+      try {
+        const stored = localStorage.getItem('mm_user');
+        if (stored) u = JSON.parse(stored);
+      } catch {}
+    }
+    u = u?.user || u || {};
+    return {
+      name: u.fullName || '',
+      vendorId: u.vendorId || '',
+      title: u.professionalTitle || 'Service Technician',
+      phone: u.phoneNumber || '',
+      email: u.email || '',
+      upiId: u.vendorUpiId || '',
+      address: (u.location && u.location !== 'Set Your Location' ? u.location : '') ||
+               (u.serviceAddress && u.serviceAddress !== 'Set Your Location' ? u.serviceAddress : ''),
+      serviceRadius: u.serviceRadius ?? 10,
+      nablId: u.certification?.certificationId || 'NABL-VERIFIED',
+      bankName: u.bankDetails?.bankName || '',
+      bankAccount: u.bankDetails?.accountNumber || '',
+      ifsc: u.bankDetails?.ifsc || '',
+      appliancesServed: Array.isArray(u.appliancesServed) ? u.appliancesServed : [],
+      profileImage: u.profileImage?.url || (typeof u.profileImage === 'string' ? u.profileImage : '') || u.image || 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=250&q=80',
+    };
+  };
+
+  const [vendorProfile, setVendorProfile] = useState(getInitialVendorProfile);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [editProfileForm, setEditProfileForm] = useState(vendorProfile);
+  const [editProfileForm, setEditProfileForm] = useState(getInitialVendorProfile);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [vendorAddressObj, setVendorAddressObj] = useState(null);
   
   // Fetch Vendor Profile from backend
   useEffect(() => {
@@ -291,6 +318,30 @@ export default function VendorDashboardPage() {
           setEditProfileForm(loadedProfile);
           if (vp.rating) setRating(vp.rating);
           if (vp.jobsCompleted !== undefined) setTotalJobsDone(vp.jobsCompleted);
+        }
+
+        // Also fetch structured address object
+        try {
+          const addrRes = await getAddressesApi(token);
+          if (addrRes.success && Array.isArray(addrRes.addresses) && addrRes.addresses.length > 0) {
+            const def = addrRes.addresses.find((a) => a.isDefault) || addrRes.addresses[0];
+            setVendorAddressObj({
+              flat: def.house || def.flat || def.addressLine1 || '',
+              house: def.house || def.flat || def.addressLine1 || '',
+              street: def.street || '',
+              landmark: def.landmark || '',
+              city: def.city || '',
+              state: def.state || '',
+              pincode: def.pincode || '',
+              type: def.addressType || def.type || 'Home',
+              addressType: def.addressType || def.type || 'Home',
+              location: def.location,
+              latitude: def.latitude || def.location?.coordinates?.[1],
+              longitude: def.longitude || def.location?.coordinates?.[0],
+            });
+          }
+        } catch (addrErr) {
+          console.warn('Vendor address fetch error:', addrErr);
         }
       } catch (err) {
         console.error('[Vendor Dashboard] Failed to load vendor profile:', err);
@@ -328,22 +379,32 @@ export default function VendorDashboardPage() {
 
   const handleSaveVendorAddress = async (addressData) => {
     const displayAddress = addressData.formattedAddress || addressData;
+    const existingId = addressData._id || addressData.id || vendorAddressObj?._id || vendorAddressObj?.id;
+
+    setVendorAddressObj((prev) => ({
+      ...prev,
+      ...addressData,
+      _id: existingId || prev?._id,
+      id: existingId || prev?.id,
+    }));
     setVendorProfile((prev) => ({ ...prev, address: displayAddress }));
     setEditProfileForm((prev) => ({ ...prev, address: displayAddress }));
 
     try {
       const payload = {
-        addressType: addressData.addressType || 'Other',
-        house:       addressData.flat    || addressData.street || 'Shop',
-        addressLine1: addressData.flat   || addressData.street || '',
-        flat:        addressData.flat    || '',
-        street:      addressData.street  || '',
-        landmark:    addressData.landmark || '',
-        city:        addressData.city    || '',
-        state:       addressData.state   || '',
-        country:     'India',
-        pincode:     addressData.pincode || '000000',
-        isDefault:   true,
+        _id: existingId,
+        id: existingId,
+        addressType: addressData.addressType || addressData.type || 'Other',
+        house: addressData.flat || addressData.street || 'Shop',
+        addressLine1: addressData.flat || addressData.street || '',
+        flat: addressData.flat || '',
+        street: addressData.street || '',
+        landmark: addressData.landmark || '',
+        city: addressData.city || '',
+        state: addressData.state || '',
+        country: 'India',
+        pincode: addressData.pincode || '000000',
+        isDefault: true,
       };
 
       if (addressData.latitude && addressData.longitude) {
@@ -357,7 +418,32 @@ export default function VendorDashboardPage() {
 
       const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') || localStorage.getItem('vendorToken') : null);
 
-      const result = await saveVendorAddressApi(payload, authToken);
+      let result;
+      if (existingId) {
+        result = await updateAddressApi(existingId, payload, authToken);
+      } else {
+        result = await saveVendorAddressApi(payload, authToken);
+      }
+
+      if (result.success && result.address) {
+        const savedAddr = result.address;
+        setVendorAddressObj({
+          _id: savedAddr._id || savedAddr.id || existingId,
+          id: savedAddr._id || savedAddr.id || existingId,
+          flat: savedAddr.house || savedAddr.flat || savedAddr.addressLine1 || '',
+          house: savedAddr.house || savedAddr.flat || savedAddr.addressLine1 || '',
+          street: savedAddr.street || '',
+          landmark: savedAddr.landmark || '',
+          city: savedAddr.city || '',
+          state: savedAddr.state || '',
+          pincode: savedAddr.pincode || '',
+          type: savedAddr.addressType || savedAddr.type || 'Home',
+          addressType: savedAddr.addressType || savedAddr.type || 'Home',
+          location: savedAddr.location,
+          latitude: savedAddr.latitude || savedAddr.location?.coordinates?.[1],
+          longitude: savedAddr.longitude || savedAddr.location?.coordinates?.[0],
+        });
+      }
 
       // Also persist serviceAddress and location on VendorProfile / User in backend
       const formData = new FormData();
@@ -365,15 +451,7 @@ export default function VendorDashboardPage() {
       formData.append('location', displayAddress);
       await updateVendorProfileApi(formData, authToken);
 
-      if (result.success) {
-        console.log(
-          '%c[Magic Mistry] ✅ Vendor location saved into the User Location Save module',
-          'color: #22c55e; font-weight: bold; font-size: 13px;'
-        );
-        showToast('Service address saved successfully!', 'success');
-      } else {
-        showToast('Service address updated successfully!', 'success');
-      }
+      showToast('Service address updated successfully!', 'success');
     } catch (err) {
       console.error('[Vendor Dashboard] ❌ Failed to save vendor address to backend:', err);
       showToast('Service address updated locally.', 'info');
@@ -903,7 +981,7 @@ export default function VendorDashboardPage() {
                   {[
                     { id: 'active', label: 'Jobs', badge: jobs.length },
                     { id: 'history', label: 'History', badge: history.length },
-                    { id: 'earnings', label: 'Earnings', badge: `₹${(todayEarnings/1000).toFixed(1)}k` },
+                    { id: 'earnings', label: 'Earnings', badge: `₹${((Number(todayEarnings) || 0) / 1000).toFixed(1)}k` },
                     { id: 'profile', label: 'Profile', badge: '★' },
                   ].map((tab) => {
                     const isActive = activeTab === tab.id;
@@ -1119,7 +1197,7 @@ export default function VendorDashboardPage() {
 
                 {/* Job Cards */}
                 <div className="space-y-4">
-                  {jobs.filter(j => filterCategory === 'All' || j.appliance.includes(filterCategory)).length === 0 ? (
+                  {jobs.filter(j => filterCategory === 'All' || (j.appliance && String(j.appliance).includes(filterCategory))).length === 0 ? (
                     <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                       <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-2 opacity-60" />
                       <h3 className="text-base font-bold text-slate-800">All work orders clear!</h3>
@@ -1127,7 +1205,7 @@ export default function VendorDashboardPage() {
                     </div>
                   ) : (
                     jobs
-                      .filter(j => filterCategory === 'All' || j.appliance.includes(filterCategory))
+                      .filter(j => filterCategory === 'All' || (j.appliance && String(j.appliance).includes(filterCategory)))
                       .map((job) => {
                         const isNew = job.status === 'New Request';
                         const isInProgress = job.status === 'In Progress';
@@ -2408,7 +2486,7 @@ export default function VendorDashboardPage() {
           isOpen={isAddressModalOpen}
           onClose={() => setIsAddressModalOpen(false)}
           onSave={handleSaveVendorAddress}
-          initialAddress={editProfileForm.address || vendorProfile.address}
+          initialAddress={vendorAddressObj || editProfileForm.address || vendorProfile.address}
         />
 
         {/* ── FLOATING TOAST NOTIFICATION ── */}

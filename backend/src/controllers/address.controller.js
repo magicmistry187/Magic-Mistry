@@ -161,22 +161,30 @@ exports.getAddress = async (req, res) => {
 
 exports.updateAddress = async (req, res) => {
   try {
-    console.log("update addrss called")
-    const { id } = req.params;
+    const rawId = req.params.id || req.body._id || req.body.id || req.body.addressId || req.query.id;
+    const cleanId = rawId && rawId !== 'undefined' && rawId !== 'null' ? rawId : null;
 
-    const existingAddress = await Address.findOne({
-      _id: id,
-      user: req.user.id,
-    });
+    let existingAddress = null;
 
-    if (!existingAddress) {
-      return res.status(404).json({
-        success: false,
-        message: 'Address not found.',
+    if (cleanId && mongoose.Types.ObjectId.isValid(cleanId)) {
+      existingAddress = await Address.findOne({
+        _id: cleanId,
+        user: req.user.id,
       });
     }
 
+    // Fallback: If no valid ID provided or not found by ID, find user's latest/default existing address
+    if (!existingAddress) {
+      existingAddress = await Address.findOne({
+        user: req.user.id,
+      }).sort({ isDefault: -1, createdAt: -1 });
+    }
+
     const updatePayload = { ...req.body };
+    delete updatePayload._id;
+    delete updatePayload.id;
+    delete updatePayload.addressId;
+
     if (req.body.flat && !req.body.house) {
       updatePayload.house = req.body.flat;
       updatePayload.addressLine1 = req.body.flat;
@@ -196,30 +204,61 @@ exports.updateAddress = async (req, res) => {
       };
     }
 
-    if (req.body.isDefault) {
-      await Address.updateMany(
+    let updatedAddress;
+
+    if (existingAddress) {
+      if (req.body.isDefault) {
+        await Address.updateMany(
+          {
+            user: req.user.id,
+            _id: { $ne: existingAddress._id },
+          },
+          {
+            $set: { isDefault: false },
+          },
+        );
+      }
+
+      updatedAddress = await Address.findByIdAndUpdate(
+        existingAddress._id,
         {
-          user: req.user.id,
-          _id: { $ne: id },
+          $set: updatePayload,
         },
         {
-          $set: { isDefault: false },
+          new: true,
+          runValidators: true,
         },
       );
-    }
-    const updatedAddress = await Address.findOneAndUpdate(
-      {
-        _id: id,
+    } else {
+      // If no address exists yet for this user/vendor, create it
+      const houseVal = (req.body.house || req.body.flat || req.body.street || 'Home').trim();
+      const streetVal = (req.body.street || houseVal || 'Area').trim();
+      const cityVal = (req.body.city || 'Kolkata').trim();
+      const stateVal = (req.body.state || 'West Bengal').trim();
+      const pincodeVal = (req.body.pincode || '000000').trim();
+
+      let coords = [88.3639, 22.5726];
+      if (req.body.location?.coordinates?.length === 2) {
+        coords = [Number(req.body.location.coordinates[0]), Number(req.body.location.coordinates[1])];
+      } else if (req.body.longitude !== undefined && req.body.latitude !== undefined) {
+        coords = [Number(req.body.longitude), Number(req.body.latitude)];
+      }
+
+      updatedAddress = await Address.create({
         user: req.user.id,
-      },
-      {
-        $set: updatePayload,
-      },
-      {
-        new: true,
-        runValidators: true,
-      },
-    );
+        addressType: req.body.addressType || req.body.type || 'Home',
+        house: houseVal,
+        addressLine1: houseVal,
+        street: streetVal,
+        landmark: (req.body.landmark || '').trim(),
+        city: cityVal,
+        state: stateVal,
+        country: (req.body.country || 'India').trim(),
+        pincode: pincodeVal,
+        location: { type: 'Point', coordinates: coords },
+        isDefault: true,
+      });
+    }
 
     if (updatedAddress && (updatedAddress.isDefault || req.body.isDefault)) {
       const formattedLoc = [

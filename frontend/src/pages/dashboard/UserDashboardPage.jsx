@@ -194,6 +194,15 @@ export default function UserDashboardPage() {
     return '';
   }, [addresses]);
 
+  const handleOpenEditDefaultAddress = () => {
+    const defaultAddr = (Array.isArray(addresses) && addresses.length > 0)
+      ? (addresses.find((a) => a.isDefault) || addresses[0])
+      : (activeBackendAddress || (user?.location && user.location !== 'Set Your Location' ? user.location : null));
+
+    setEditingAddress(defaultAddr || null);
+    setIsAddressModalOpen(true);
+  };
+
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
   const [selectedBookingForRating, setSelectedBookingForRating] = useState(null);
 
@@ -643,10 +652,7 @@ export default function UserDashboardPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => {
-                        setEditingAddress(null);
-                        setIsAddressModalOpen(true);
-                      }}
+                      onClick={handleOpenEditDefaultAddress}
                       className="self-start sm:self-auto flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-orange-600 bg-white hover:bg-orange-50 px-3.5 py-2 rounded-2xl border border-slate-200 shadow-xs transition-colors cursor-pointer max-w-full truncate"
                       title="Add or Change Address"
                     >
@@ -1537,10 +1543,7 @@ export default function UserDashboardPage() {
                       </div>
                     </div>
                     <button
-                      onClick={() => {
-                        setEditingAddress(null);
-                        setIsAddressModalOpen(true);
-                      }}
+                      onClick={handleOpenEditDefaultAddress}
                       className="px-4 py-2.5 bg-white text-slate-900 hover:bg-orange-50 hover:text-orange-600 font-extrabold text-xs rounded-2xl transition-colors shrink-0 shadow-md cursor-pointer"
                     >
                       {activeBackendAddress ? 'Change Address' : 'Set Location'}
@@ -1776,10 +1779,7 @@ export default function UserDashboardPage() {
                         <div className="flex flex-wrap items-center gap-2 mt-2">
                           <button
                             type="button"
-                            onClick={() => {
-                              setEditingAddress(null);
-                              setIsAddressModalOpen(true);
-                            }}
+                            onClick={handleOpenEditDefaultAddress}
                             className="flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-orange-600 bg-slate-100 hover:bg-orange-50 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors cursor-pointer"
                             title="Click to add or change address"
                           >

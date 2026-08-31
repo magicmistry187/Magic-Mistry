@@ -17,7 +17,7 @@ import {
   AlertCircle,
   CheckCircle2,
 } from 'lucide-react';
-import { parseAddressString } from '../../../utils/addressParser';
+import { parseAddressString, INDIAN_STATES } from '../../../utils/addressParser';
 
 export default function UserAddressModal({ isOpen, onClose, onSave, initialData }) {
   const [type, setType] = useState('Home');
@@ -35,14 +35,22 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
 
   useEffect(() => {
     if (initialData) {
-      const parsed = parseAddressString(initialData);
+      const parsed = typeof initialData === 'object' ? {
+        flat: initialData.flat || initialData.house || initialData.addressLine1 || '',
+        street: initialData.street || '',
+        city: initialData.city || '',
+        state: initialData.state || '',
+        landmark: initialData.landmark || '',
+        pincode: initialData.pincode || '',
+      } : parseAddressString(initialData);
+
       setType(initialData.type || initialData.addressType || 'Home');
-      setFlat(parsed.flat);
-      setStreet(parsed.street);
-      setCity(parsed.city);
-      setState(parsed.state);
-      setLandmark(parsed.landmark);
-      setPincode(parsed.pincode);
+      setFlat(parsed.flat || '');
+      setStreet(parsed.street || '');
+      setCity(parsed.city || '');
+      setState(parsed.state || '');
+      setLandmark(parsed.landmark || '');
+      setPincode(parsed.pincode || '');
       setIsDefault(!!initialData.isDefault);
       if (initialData.location?.coordinates?.length === 2) {
         setGeoCoords({
@@ -359,11 +367,17 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
                 <input
                   type="text"
                   required
+                  list="user-states-list"
                   value={state}
                   onChange={(e) => setState(e.target.value)}
                   placeholder="e.g. West Bengal"
                   className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
                 />
+                <datalist id="user-states-list">
+                  {INDIAN_STATES.map((s) => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
               </div>
             </div>
 

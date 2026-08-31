@@ -13,6 +13,42 @@ export const INDIAN_STATES = [
   'Dadra and Nagar Haveli', 'Daman and Diu', 'Lakshadweep'
 ];
 
+export const STATE_ALIASES = {
+  wb: 'West Bengal',
+  dl: 'Delhi',
+  ncr: 'Delhi',
+  mh: 'Maharashtra',
+  ka: 'Karnataka',
+  tn: 'Tamil Nadu',
+  up: 'Uttar Pradesh',
+  mp: 'Madhya Pradesh',
+  gj: 'Gujarat',
+  rj: 'Rajasthan',
+  ts: 'Telangana',
+  tg: 'Telangana',
+  ap: 'Andhra Pradesh',
+  kl: 'Kerala',
+  pb: 'Punjab',
+  hr: 'Haryana',
+  or: 'Odisha',
+  od: 'Odisha',
+  jh: 'Jharkhand',
+  br: 'Bihar',
+  as: 'Assam',
+  ch: 'Chandigarh',
+  ga: 'Goa',
+  uk: 'Uttarakhand',
+  ut: 'Uttarakhand',
+  hp: 'Himachal Pradesh',
+  tr: 'Tripura',
+  sk: 'Sikkim',
+  ml: 'Meghalaya',
+  mn: 'Manipur',
+  mz: 'Mizoram',
+  nl: 'Nagaland',
+  ar: 'Arunachal Pradesh',
+};
+
 /**
  * Parses any Indian address input (full string or partially structured object)
  * into clean, separate address fields: flat, street, landmark, city, state, pincode.
@@ -98,12 +134,14 @@ export function parseAddressString(input) {
       }
     }
 
-    // 2. Extract State (check against known Indian states from right to left)
+    // 2. Extract State (check against known Indian states & aliases from right to left)
     for (let i = parts.length - 1; i >= 0; i--) {
-      const partLower = parts[i].toLowerCase();
-      const matchedState = INDIAN_STATES.find(
-        (s) => s.toLowerCase() === partLower || partLower.includes(s.toLowerCase())
-      );
+      const partLower = parts[i].toLowerCase().replace(/[^a-z\s&]/g, '').trim();
+      const matchedState =
+        INDIAN_STATES.find(
+          (s) => s.toLowerCase() === partLower || partLower.includes(s.toLowerCase()) || s.toLowerCase().includes(partLower)
+        ) || STATE_ALIASES[partLower];
+
       if (matchedState) {
         extractedState = matchedState;
         parts.splice(i, 1);
@@ -128,14 +166,22 @@ export function parseAddressString(input) {
         p.startsWith('behind') ||
         p.startsWith('beside') ||
         p.startsWith('station') ||
+        p.startsWith('landmark') ||
         p.includes('station') ||
         p.includes('metro') ||
         p.includes('temple') ||
+        p.includes('masjid') ||
+        p.includes('church') ||
         p.includes('school') ||
         p.includes('hospital') ||
-        p.includes('mall')
+        p.includes('mall') ||
+        p.includes('plaza') ||
+        p.includes('market') ||
+        p.includes('park') ||
+        p.includes('road more') ||
+        p.includes('more')
       ) {
-        extractedLandmark = parts[i];
+        extractedLandmark = parts[i].replace(/^landmark\s*[:\-]?\s*/i, '');
         parts.splice(i, 1);
         break;
       }
@@ -153,7 +199,16 @@ export function parseAddressString(input) {
       }
     }
 
-    // 6. From remaining parts: last part is City, preceding parts are Street/Area
+    // 6. If State was not found in known lists, and we have enough parts, check if the part before pincode was the State
+    if (!extractedState && parts.length >= 3) {
+      const candidateState = parts[parts.length - 1];
+      if (candidateState && candidateState.length <= 25 && !/\d/.test(candidateState)) {
+        extractedState = candidateState;
+        parts.pop();
+      }
+    }
+
+    // 7. From remaining parts: last part is City, preceding parts are Street/Area
     if (parts.length >= 2) {
       extractedCity = parts[parts.length - 1];
       parts.pop();

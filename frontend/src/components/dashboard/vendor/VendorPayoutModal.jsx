@@ -38,7 +38,7 @@ export default function VendorPayoutModal({
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Available Balance (₹)</label>
-                <input type="text" readOnly value={`₹${todayEarnings.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-lg font-black text-slate-900 focus:outline-none" />
+                <input type="text" readOnly value={`₹${(Number(todayEarnings) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-lg font-black text-slate-900 focus:outline-none" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Days of Work</label>
