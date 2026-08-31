@@ -7,9 +7,8 @@ export const axiosInstance = axios.create({
 });
 
 export const apiConnector = (method, url, bodyData, headers = {}, params) => {
-  // If bodyData is FormData, let axios auto-set Content-Type with boundary
-  // Do NOT manually set Content-Type for FormData
   const isFormData = bodyData instanceof FormData;
+  const hasBody = bodyData !== null && bodyData !== undefined && bodyData !== '';
 
   // Resolve valid auth header
   const resolvedHeaders = { ...headers };
@@ -33,14 +32,21 @@ export const apiConnector = (method, url, bodyData, headers = {}, params) => {
     }
   }
 
-  return axiosInstance({
+  // Only set application/json if there is actually a body payload and not FormData
+  if (hasBody && !isFormData && !resolvedHeaders['Content-Type']) {
+    resolvedHeaders['Content-Type'] = 'application/json';
+  }
+
+  const config = {
     method: `${method}`,
     url: `${url}`,
-    data: bodyData ? bodyData : null,
-    headers: {
-      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-      ...resolvedHeaders,
-    },
+    headers: resolvedHeaders,
     params: params ? params : null,
-  });
+  };
+
+  if (hasBody) {
+    config.data = bodyData;
+  }
+
+  return axiosInstance(config);
 };

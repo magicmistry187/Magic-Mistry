@@ -159,20 +159,18 @@ export async function updateAddressApi(addressId, updateData, token) {
 export async function deleteAddressApi(addressId, token) {
   try {
     const authToken = getAuthToken(token);
+    const cleanId = (addressId && addressId !== 'undefined' && addressId !== 'null') ? addressId : '';
+    const endpoint = cleanId ? `${DELETE_ADDRESS_API}/${cleanId}` : DELETE_ADDRESS_API;
     const res = await apiConnector(
       'DELETE',
-      `${DELETE_ADDRESS_API}/${addressId}`,
+      endpoint,
       null,
       authToken ? { Authorization: `Bearer ${authToken}` } : {}
     );
 
-    if (!res.data?.success) {
-      throw new Error(res.data?.message || 'Could not delete address');
-    }
-
     return {
-      success: true,
-      message: res.data.message || 'Address deleted successfully',
+      success: res.data?.success !== false,
+      message: res.data?.message || 'Address deleted successfully',
     };
   } catch (error) {
     console.error('[addressAPI] DELETE_ADDRESS_API error:', error);

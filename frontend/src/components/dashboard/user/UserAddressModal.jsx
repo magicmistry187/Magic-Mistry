@@ -90,8 +90,8 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
           const data = await res.json();
           const a = data.address || {};
           const detectedCity =
-            a.city || a.town || a.village || a.municipality || a.county || a.state_district || 'Kolkata';
-          const detectedState = a.state || 'West Bengal';
+            a.city || a.town || a.village || a.municipality || a.county || a.state_district || '';
+          const detectedState = a.state || '';
           const detectedHouse = a.house_number || a.building || a.flat || a.room || '';
           const detectedStreet = [
             a.road || a.pedestrian || a.footway || a.street,
@@ -107,8 +107,8 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
 
           setFlat(detectedHouse || parsedCombined.flat || '');
           setStreet(detectedStreet || parsedCombined.street || '');
-          setCity(detectedCity || parsedCombined.city || 'Kolkata');
-          setState(detectedState || parsedCombined.state || 'West Bengal');
+          setCity(detectedCity || parsedCombined.city || '');
+          setState(detectedState || parsedCombined.state || '');
           setLandmark(detectedLandmark || parsedCombined.landmark || '');
           setPincode(detectedPincode || parsedCombined.pincode || '');
           setGeoCoords({ lat: coords.latitude, lng: coords.longitude });

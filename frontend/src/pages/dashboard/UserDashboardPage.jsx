@@ -93,15 +93,15 @@ const mapAddresses = (list) =>
       _id: a._id || a.id,
       type: a.addressType || a.type || 'Home',
       addressType: a.addressType || a.type || 'Home',
-      flat: parsed.flat,
-      house: a.house || parsed.flat || 'Home',
-      addressLine1: a.addressLine1 || parsed.flat || '',
-      street: parsed.street,
-      landmark: parsed.landmark,
-      city: parsed.city,
-      state: parsed.state,
+      flat: parsed.flat || a.house || a.addressLine1 || '',
+      house: a.house || parsed.flat || '',
+      addressLine1: a.addressLine1 || a.house || parsed.flat || '',
+      street: parsed.street || a.street || '',
+      landmark: parsed.landmark || a.landmark || '',
+      city: parsed.city || a.city || '',
+      state: parsed.state || a.state || '',
       country: a.country || 'India',
-      pincode: parsed.pincode,
+      pincode: parsed.pincode || a.pincode || '',
       isDefault: !!a.isDefault,
       location: a.location,
       latitude: a.location?.coordinates?.[1] ?? a.latitude ?? null,
@@ -158,6 +158,8 @@ export default function UserDashboardPage() {
       const resAddrs = await getAddressesApi(token);
       if (resAddrs.success && Array.isArray(resAddrs.addresses)) {
         setAddresses(mapAddresses(resAddrs.addresses));
+      } else {
+        setAddresses([]);
       }
     }
     loadData();
@@ -178,6 +180,19 @@ export default function UserDashboardPage() {
   const [editingAddress, setEditingAddress] = useState(null);
   const [addresses, setAddresses] = useState(initialAddresses);
 
+  // Derive authentic active location strictly from saved addresses
+  const activeBackendAddress = React.useMemo(() => {
+    if (addresses && addresses.length > 0) {
+      const def = addresses.find((a) => a.isDefault) || addresses[0];
+      const str = [def.flat || def.house, def.street, def.landmark, def.city, def.state, def.pincode]
+        .filter(Boolean)
+        .join(', ')
+        .replace(/^(current location|location),\s*/i, '')
+        .trim();
+      return str;
+    }
+    return '';
+  }, [addresses]);
 
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
   const [selectedBookingForRating, setSelectedBookingForRating] = useState(null);
@@ -370,28 +385,33 @@ export default function UserDashboardPage() {
   };
 
   const handleDeleteAddress = async (id) => {
+    const targetId = id || '';
     const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') : null);
     
     // Optimistically update local state immediately
-    setAddresses((prev) => prev.filter((a) => a.id !== id && a._id !== id));
+    const remaining = addresses.filter((a) => a.id !== targetId && a._id !== targetId);
+    setAddresses(remaining);
 
-    if (authToken) {
+    if (authToken && targetId) {
       try {
-        const res = await deleteAddressApi(id, authToken);
+        const res = await deleteAddressApi(targetId, authToken);
         if (res.success) {
           showToast('Address deleted successfully!');
           const resAddrs = await getAddressesApi(authToken);
           if (resAddrs.success && Array.isArray(resAddrs.addresses)) {
             const mapped = mapAddresses(resAddrs.addresses);
             setAddresses(mapped);
-            // If default was deleted, sync active location with the new default
-            const newDef = mapped.find((a) => a.isDefault) || mapped[0];
-            if (newDef) {
-              const defStr = [newDef.flat, newDef.street, newDef.landmark, newDef.city, newDef.state, newDef.pincode]
+            if (mapped.length > 0) {
+              const newDef = mapped.find((a) => a.isDefault) || mapped[0];
+              const defStr = [newDef.flat || newDef.house, newDef.street, newDef.landmark, newDef.city, newDef.state, newDef.pincode]
                 .filter(Boolean)
                 .join(', ');
-              updateLocation(defStr, newDef.latitude && newDef.longitude ? { lat: newDef.latitude, lng: newDef.longitude } : null);
+              updateLocation(defStr);
+            } else {
+              updateLocation('');
             }
+          } else {
+            updateLocation('');
           }
         } else {
           showToast(res.message || 'Address deleted.');
@@ -401,6 +421,9 @@ export default function UserDashboardPage() {
         showToast('Address deleted.');
       }
     } else {
+      if (remaining.length === 0) {
+        updateLocation('');
+      }
       showToast('Address deleted.');
     }
   };
@@ -628,9 +651,9 @@ export default function UserDashboardPage() {
                       title="Add or Change Address"
                     >
                       <MapPin className="w-4 h-4 text-orange-500 shrink-0" />
-                      <span className="truncate">{location && location !== 'Set Your Location' ? location : 'Set Your Location'}</span>
+                      <span className="truncate">{activeBackendAddress || 'Set Your Location'}</span>
                       <span className="text-[10px] text-orange-600 font-extrabold bg-orange-100 px-1.5 py-0.5 rounded shrink-0">
-                        {location && location !== 'Set Your Location' ? 'Change' : 'Set'}
+                        {activeBackendAddress ? 'Change' : 'Set'}
                       </span>
                     </button>
                   </div>
@@ -1497,17 +1520,17 @@ export default function UserDashboardPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-extrabold text-orange-400 uppercase tracking-wider">CURRENT ACTIVE LOCATION</span>
-                          {location && location !== 'Set Your Location' && (
+                          {activeBackendAddress && (
                             <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 font-bold text-[10px] rounded-full flex items-center gap-1 border border-emerald-500/30">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live Synced
                             </span>
                           )}
                         </div>
-                        <p className="text-lg font-extrabold text-white mt-0.5">
-                          {location && location !== 'Set Your Location' ? location : 'Set Your Location'}
+                        <p className="text-lg font-extrabold text-white mt-0.5 break-words">
+                          {activeBackendAddress || 'No address set'}
                         </p>
                         <p className="text-xs text-slate-400">
-                          {location && location !== 'Set Your Location'
+                          {activeBackendAddress
                             ? 'Used for automatic technician dispatch on booking'
                             : 'Click "Set Location" to add your service address'}
                         </p>
@@ -1520,7 +1543,7 @@ export default function UserDashboardPage() {
                       }}
                       className="px-4 py-2.5 bg-white text-slate-900 hover:bg-orange-50 hover:text-orange-600 font-extrabold text-xs rounded-2xl transition-colors shrink-0 shadow-md cursor-pointer"
                     >
-                      {addresses.length > 0 ? 'Add / Change Address' : 'Set Location'}
+                      {activeBackendAddress ? 'Change Address' : 'Set Location'}
                     </button>
                   </div>
 
@@ -1761,8 +1784,10 @@ export default function UserDashboardPage() {
                             title="Click to add or change address"
                           >
                             <MapPin className="w-3.5 h-3.5 text-orange-500" />
-                            <span>{location || 'Kolkata, West Bengal'}</span>
-                            <span className="text-[10px] text-orange-600 font-extrabold bg-orange-100 px-1.5 py-0.5 rounded ml-0.5">Change</span>
+                            <span>{activeBackendAddress || 'Set Your Location'}</span>
+                            <span className="text-[10px] text-orange-600 font-extrabold bg-orange-100 px-1.5 py-0.5 rounded ml-0.5">
+                              {activeBackendAddress ? 'Change' : 'Set'}
+                            </span>
                           </button>
                           <span className="text-slate-300">•</span>
                           <span className="text-xs font-bold text-slate-600">Customer ID: USR-{String(user?._id || '101').slice(-4).toUpperCase()}</span>
@@ -1823,7 +1848,7 @@ export default function UserDashboardPage() {
                             </p>
                             <p className="text-xs sm:text-sm font-semibold text-slate-800 flex items-center gap-1.5 break-words">
                               <MapPin className="w-4 h-4 text-orange-500 shrink-0" />
-                              {location || 'Kolkata, West Bengal'}
+                              {activeBackendAddress || 'Set Your Location'}
                             </p>
                           </div>
                           <button

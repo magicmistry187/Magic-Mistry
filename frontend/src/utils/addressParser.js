@@ -59,7 +59,10 @@ export function parseAddressString(input) {
   }
 
   if (stringToParse) {
-    const rawParts = stringToParse.split(',').map((p) => p.trim()).filter(Boolean);
+    const rawParts = stringToParse
+      .split(',')
+      .map((p) => p.trim())
+      .filter((p) => p && !/^(current location|location|select location|set your location)$/i.test(p));
     let parts = [...rawParts];
 
     let extractedPincode = '';
