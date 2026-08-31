@@ -83,8 +83,8 @@ export default function VendorDashboardPage() {
       navigate('/login', { state: { from: '/vendor-dashboard', isVendorLogin: true }, replace: true });
       return;
     }
-    const role = (user.role || '').toLowerCase();
-    const hasVendorAccess = role === 'vendor' || role === 'admin' || !!user.vendorId;
+    const role = (user.role || user.user?.role || '').toLowerCase();
+    const hasVendorAccess = role === 'vendor' || role === 'admin' || !!user.vendorId || !!user.user?.vendorId;
     if (!hasVendorAccess) {
       navigate('/dashboard', { replace: true });
     }
@@ -2213,21 +2213,22 @@ export default function VendorDashboardPage() {
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {!isEditingProfile ? (
-                      vendorProfile.appliancesServed.map((appliance, i) => (
+                      (Array.isArray(vendorProfile.appliancesServed) ? vendorProfile.appliancesServed : []).map((appliance, i) => (
                         <span key={i} className="text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
                           {appliance}
                         </span>
                       ))
                     ) : (
                       ALL_APPLIANCES.map((appliance) => {
-                        const isSelected = editProfileForm.appliancesServed.includes(appliance);
+                        const currentList = Array.isArray(editProfileForm.appliancesServed) ? editProfileForm.appliancesServed : [];
+                        const isSelected = currentList.includes(appliance);
                         return (
                           <button
                             key={appliance}
                             onClick={() => {
                               const newAppliances = isSelected
-                                ? editProfileForm.appliancesServed.filter(a => a !== appliance)
-                                : [...editProfileForm.appliancesServed, appliance];
+                                ? currentList.filter(a => a !== appliance)
+                                : [...currentList, appliance];
                               setEditProfileForm({...editProfileForm, appliancesServed: newAppliances});
                             }}
                             className={`text-xs font-bold px-2.5 py-1 rounded-lg border transition-colors ${

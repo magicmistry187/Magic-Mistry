@@ -86,19 +86,58 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
           );
           const data = await res.json();
           const a = data.address || {};
-          const detectedCity =
-            a.city || a.town || a.village || a.municipality || a.county || a.state_district || '';
-          const detectedState = a.state || '';
-          const detectedHouse = a.house_number || a.building || a.flat || a.room || '';
-          const detectedStreet = [
-            a.road || a.pedestrian || a.footway || a.street,
-            a.neighbourhood || a.suburb || a.residential || a.subdistrict || a.city_district,
-          ]
-            .filter(Boolean)
-            .join(', ');
-          const detectedLandmark = a.landmark || a.attraction || a.amenity || '';
-          const detectedPincode = a.postcode ? a.postcode.replace(/\D/g, '').slice(0, 6) : '';
 
+          // 1. House / Flat / Building / Shop
+          const detectedHouse =
+            a.house_number ||
+            a.building ||
+            a.flat ||
+            a.room ||
+            a.house_name ||
+            a.shop ||
+            a.commercial ||
+            a.apartments ||
+            '';
+
+          // 2. Road / Street
+          const road = a.road || a.pedestrian || a.footway || a.street || a.path || a.highway || '';
+
+          // 3. Locality / Suburb / Area
+          const locality =
+            a.suburb ||
+            a.neighbourhood ||
+            a.residential ||
+            a.subdistrict ||
+            a.city_district ||
+            a.quarter ||
+            a.hamlet ||
+            a.village_district ||
+            '';
+
+          const detectedStreet = [road, locality].filter(Boolean).join(', ');
+
+          // 4. City / Town
+          const detectedCity =
+            a.city ||
+            a.town ||
+            a.village ||
+            a.municipality ||
+            a.state_district ||
+            a.county ||
+            a.district ||
+            '';
+
+          // 5. State
+          const detectedState = a.state || a.province || a.region || '';
+
+          // 6. Landmark
+          const detectedLandmark =
+            a.landmark || a.attraction || a.amenity || a.place || a.historic || a.leisure || '';
+
+          // 7. Pincode
+          const detectedPincode = (a.postcode || '').replace(/\D/g, '').slice(0, 6);
+
+          // Fallback parsing from full display_name if needed
           const combinedStr = data.display_name || '';
           const parsedCombined = parseAddressString(combinedStr);
 

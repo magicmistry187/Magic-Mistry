@@ -25,6 +25,16 @@ export function parseAddressString(input) {
     return { flat: '', street: '', city: '', state: '', landmark: '', pincode: '' };
   }
 
+  if (typeof input === 'string') {
+    const trimmed = input.trim();
+    if (
+      !trimmed ||
+      /^(set your location|set service location|no address set|no saved address yet|no address set\..*|current location|select location)$/i.test(trimmed)
+    ) {
+      return { flat: '', street: '', city: '', state: '', landmark: '', pincode: '' };
+    }
+  }
+
   // If input is an object
   let rawFlat = (typeof input === 'object' ? input.flat || input.house || input.addressLine1 : '') || '';
   let rawStreet = (typeof input === 'object' ? input.street : '') || '';
@@ -40,7 +50,8 @@ export function parseAddressString(input) {
     str === 'Office' ||
     str === 'Other' ||
     str === 'Current Location' ||
-    str === 'Area';
+    str === 'Area' ||
+    /^(set your location|set service location|no address set|no saved address yet)$/i.test(str);
 
   if (isGeneric(rawFlat)) rawFlat = '';
   if (isGeneric(rawStreet)) rawStreet = '';
@@ -62,7 +73,7 @@ export function parseAddressString(input) {
     const rawParts = stringToParse
       .split(',')
       .map((p) => p.trim())
-      .filter((p) => p && !/^(current location|location|select location|set your location)$/i.test(p));
+      .filter((p) => p && !/^(current location|location|select location|set your location|set service location|no address set|no saved address yet)$/i.test(p));
     let parts = [...rawParts];
 
     let extractedPincode = '';
