@@ -20,7 +20,6 @@ export function AuthProvider({ children }) {
         const storedToken    = localStorage.getItem('mm_token');
         const storedUser     = localStorage.getItem('mm_user');
         const storedLocation = localStorage.getItem('mm_location');
-
         if (storedToken && storedUser) {
           setToken(storedToken);
           const parsedUser = JSON.parse(storedUser);
@@ -137,6 +136,7 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
+    
     setUser(null);
     setToken(null);
     setIsLoggedIn(false);
