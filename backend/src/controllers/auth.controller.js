@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const userModel = require('../models/user.model');
+const addressModel = require('../models/address.model');
 const otpModel = require('../models/otp.model');
 const otpGenerator = require('otp-generator');
 const bcrypt = require('bcrypt');
@@ -677,19 +678,26 @@ async function updateUserLocation(req, res) {
       });
     }
 
-    if (!location && latitude === undefined && longitude === undefined) {
+    if (location === undefined && latitude === undefined && longitude === undefined) {
       return res.status(400).json({
         success: false,
         message: 'Location or coordinates required',
       });
     }
 
+    const cleanLocation = location !== undefined ? String(location).trim() : '';
+    const isClearing = cleanLocation === '' || cleanLocation === 'Set Your Location';
+
     const updateFields = {};
-    if (location !== undefined) updateFields.location = String(location).trim();
-    if (latitude !== undefined && latitude !== null)
-      updateFields.latitude = Number(latitude);
-    if (longitude !== undefined && longitude !== null)
-      updateFields.longitude = Number(longitude);
+    if (location !== undefined) {
+      updateFields.location = isClearing ? '' : cleanLocation;
+    }
+    if (latitude !== undefined) {
+      updateFields.latitude = isClearing || latitude === null ? null : Number(latitude);
+    }
+    if (longitude !== undefined) {
+      updateFields.longitude = isClearing || longitude === null ? null : Number(longitude);
+    }
 
     const updatedUser = await userModel.findByIdAndUpdate(
       user._id,

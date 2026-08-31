@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { createAddressApi } from '../services/operations/addressAPI';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createAddressApi, getAddressesApi } from '../services/operations/addressAPI';
 import { updateUserLocationApi, getUserProfileApi, updateUserProfileApi } from '../services/operations/authAPI';
 import { getVendorProfileApi } from '../services/operations/vendorAPI';
 import { parseAddressString } from '../utils/addressParser';
@@ -12,6 +12,7 @@ export function AuthProvider({ children }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [location, setLocation] = useState('Set Your Location');
+  const [addresses, setAddresses] = useState([]);
 
   // Rehydrate session from localStorage and backend on startup
   useEffect(() => {
@@ -26,14 +27,12 @@ export function AuthProvider({ children }) {
           setUser(parsedUser);
           setIsLoggedIn(true);
 
-          const resolvedLoc =
-            parsedUser.location ||
-            storedLocation ||
-            'Set Your Location';
+          // Initial fallback while syncing from backend
+          const initialUserLoc = parsedUser.location && parsedUser.location !== 'Set Your Location' ? parsedUser.location : '';
+          const initialResolvedLoc = initialUserLoc || (storedLocation && storedLocation !== 'Set Your Location' ? storedLocation : 'Set Your Location');
+          setLocation(initialResolvedLoc);
 
-          setLocation(resolvedLoc);
-
-          // Rehydrate fresh profile data from backend
+          // Rehydrate fresh profile data from backend (AUTHORITATIVE SOURCE)
           if (parsedUser.role === 'admin') {
             // Nothing to sync — keep what's in localStorage as the source of truth
           } else {
@@ -50,8 +49,6 @@ export function AuthProvider({ children }) {
               }
 
               if (profileRes.success && profileData) {
-                // Always preserve the stored role — never let the backend
-                // response silently overwrite it
                 const nestedUser = profileData.user && typeof profileData.user === 'object' ? profileData.user : {};
                 const freshUser = {
                   ...parsedUser,
@@ -59,24 +56,75 @@ export function AuthProvider({ children }) {
                   ...nestedUser,
                   role: parsedUser.role, // keep stored role authoritative
                 };
+
+                // Check authoritative database location
+                const dbLocation = (freshUser.location && freshUser.location !== 'Set Your Location' ? freshUser.location : '') ||
+                  (profileData.serviceAddress && profileData.serviceAddress !== 'Set Your Location' ? profileData.serviceAddress : '') ||
+                  (freshUser.serviceAddress && freshUser.serviceAddress !== 'Set Your Location' ? freshUser.serviceAddress : '');
+
+                if (dbLocation && dbLocation.trim() !== '') {
+                  freshUser.location = dbLocation.trim();
+                  setLocation(dbLocation.trim());
+                  localStorage.setItem('mm_location', dbLocation.trim());
+                  if (freshUser.latitude && freshUser.longitude) {
+                    localStorage.setItem('mm_lat', freshUser.latitude);
+                    localStorage.setItem('mm_lng', freshUser.longitude);
+                  }
+                } else {
+                  // Backend DB has NO address saved: clear stale localStorage location
+                  freshUser.location = '';
+                  setLocation('Set Your Location');
+                  localStorage.removeItem('mm_location');
+                  localStorage.removeItem('mm_lat');
+                  localStorage.removeItem('mm_lng');
+                }
+
+                // Fetch authoritative addresses from Address collection
+                try {
+                  const addrRes = await getAddressesApi(storedToken);
+                  if (addrRes.success && Array.isArray(addrRes.addresses) && addrRes.addresses.length > 0) {
+                    setAddresses(addrRes.addresses);
+                    const def = addrRes.addresses.find((a) => a.isDefault) || addrRes.addresses[0];
+                    const formattedAddr = [def.house || def.flat, def.street, def.landmark, def.city, def.state, def.pincode]
+                      .filter(Boolean)
+                      .join(', ');
+                    if (formattedAddr) {
+                      freshUser.location = formattedAddr;
+                      setLocation(formattedAddr);
+                      localStorage.setItem('mm_location', formattedAddr);
+                      if (def.location?.coordinates?.length === 2) {
+                        localStorage.setItem('mm_lng', def.location.coordinates[0]);
+                        localStorage.setItem('mm_lat', def.location.coordinates[1]);
+                      }
+                    }
+                  } else {
+                    // When database has no addresses, completely clear active location
+                    setAddresses([]);
+                    freshUser.location = '';
+                    setLocation('Set Your Location');
+                    localStorage.removeItem('mm_location');
+                    localStorage.removeItem('mm_lat');
+                    localStorage.removeItem('mm_lng');
+                  }
+                } catch (addrErr) {
+                  console.warn('[Magic Mistry] Address fetch on init error:', addrErr);
+                }
+
                 setUser(freshUser);
                 localStorage.setItem('mm_user', JSON.stringify(freshUser));
-                const resolvedLocation = freshUser.location || profileData.serviceAddress || freshUser.serviceAddress;
-                if (resolvedLocation) {
-                  setLocation(resolvedLocation);
-                  localStorage.setItem('mm_location', resolvedLocation);
-                }
-                if (freshUser.latitude && freshUser.longitude) {
-                  localStorage.setItem('mm_lat', freshUser.latitude);
-                  localStorage.setItem('mm_lng', freshUser.longitude);
-                }
               }
             } catch (profileErr) {
               console.warn('[Magic Mistry] Profile sync on load error:', profileErr);
             }
           }
         } else {
-          setLocation(storedLocation || 'Set Your Location');
+          const validStoredLocation = storedLocation && storedLocation !== 'Set Your Location' ? storedLocation : '';
+          if (validStoredLocation) {
+            setLocation(validStoredLocation);
+          } else {
+            setLocation('Set Your Location');
+            localStorage.removeItem('mm_location');
+          }
         }
       } catch {
         try {
@@ -94,45 +142,55 @@ export function AuthProvider({ children }) {
     initAuth();
   }, []);
 
-  const login = (userData, authToken) => {
-    // Priority for location on login:
-    // 1. Location stored in the backend user object (most authoritative)
-    // 2. Location the user already set before login (mm_location in localStorage)
-    // 3. Location already in memory (user changed it before logging in)
-    // 4. Neutral default — never force a hardcoded city
-    const savedLocation = localStorage.getItem('mm_location');
-    const userLoc =
-      userData.location ||
-      savedLocation ||
-      (location !== 'Set Your Location' ? location : '') ||
-      'Set Your Location'; // ← no hardcoded city fallback
+  const fetchAddresses = useCallback(async (authToken) => {
+    const t = authToken || token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') : null);
+    if (!t) return [];
+    try {
+      const res = await getAddressesApi(t);
+      if (res.success && Array.isArray(res.addresses)) {
+        setAddresses(res.addresses);
+        return res.addresses;
+      }
+      return [];
+    } catch (err) {
+      console.warn('[Magic Mistry] Failed to fetch addresses:', err);
+      return [];
+    }
+  }, [token]);
 
-    const savedLat = localStorage.getItem('mm_lat');
-    const savedLng = localStorage.getItem('mm_lng');
+  const login = (userData, authToken) => {
+    // Database location is the authoritative source:
+    const dbLoc = userData.location && userData.location !== 'Set Your Location' ? userData.location.trim() : '';
 
     const updatedUser = {
       ...userData,
-      location: userLoc,
+      location: dbLoc,
     };
-
-    if (userData.latitude || savedLat) {
-      updatedUser.latitude = userData.latitude || savedLat;
-    }
-    if (userData.longitude || savedLng) {
-      updatedUser.longitude = userData.longitude || savedLng;
-    }
 
     setUser(updatedUser);
     setToken(authToken);
     setIsLoggedIn(true);
-    setLocation(userLoc);
+
+    if (dbLoc) {
+      setLocation(dbLoc);
+      localStorage.setItem('mm_location', dbLoc);
+      if (userData.latitude && userData.longitude) {
+        localStorage.setItem('mm_lat', userData.latitude);
+        localStorage.setItem('mm_lng', userData.longitude);
+      }
+    } else {
+      // Backend DB has no location: do NOT store dummy location in localStorage
+      setLocation('Set Your Location');
+      localStorage.removeItem('mm_location');
+      localStorage.removeItem('mm_lat');
+      localStorage.removeItem('mm_lng');
+    }
+
     localStorage.setItem('mm_token', authToken);
     localStorage.setItem('mm_user', JSON.stringify(updatedUser));
-    localStorage.setItem('mm_location', userLoc);
-    if (updatedUser.latitude && updatedUser.longitude) {
-      localStorage.setItem('mm_lat', updatedUser.latitude);
-      localStorage.setItem('mm_lng', updatedUser.longitude);
-    }
+
+    // Fetch authoritative saved addresses upon login
+    fetchAddresses(authToken);
   };
 
   const logout = () => {
@@ -140,6 +198,7 @@ export function AuthProvider({ children }) {
     setUser(null);
     setToken(null);
     setIsLoggedIn(false);
+    setAddresses([]);
     setLocation('Set Your Location');
     try {
       localStorage.clear();
@@ -165,28 +224,39 @@ export function AuthProvider({ children }) {
    *           → Address.create({ ..., location: { type:'Point', coordinates:[lng,lat] } })
    */
   const updateLocation = async (newLocation, geoCoords = null) => {
+    const isClearing = !newLocation || newLocation === 'Set Your Location';
+    const locValue = isClearing ? 'Set Your Location' : newLocation;
+
     // ── CONSOLE LOG: Always fires when updateLocation is called ───────────
     console.log(
       '%c[Magic Mistry] 📍 updateLocation called',
       'color: #f97316; font-weight: bold;'
     );
-    console.log('  New location    :', newLocation);
+    console.log('  New location    :', locValue);
     console.log('  GPS coords      :', geoCoords ?? 'not provided (city/manual selection)');
     console.log('  User logged in  :', isLoggedIn);
     console.log('  Token present   :', !!token);
 
     // 1. Always update in-memory state and localStorage immediately (optimistic)
-    setLocation(newLocation);
-    localStorage.setItem('mm_location', newLocation);
-
-    if (geoCoords?.lat && geoCoords?.lng) {
-      localStorage.setItem('mm_lat', geoCoords.lat);
-      localStorage.setItem('mm_lng', geoCoords.lng);
+    setLocation(locValue);
+    if (isClearing) {
+      localStorage.removeItem('mm_location');
+      localStorage.removeItem('mm_lat');
+      localStorage.removeItem('mm_lng');
+    } else {
+      localStorage.setItem('mm_location', locValue);
+      if (geoCoords?.lat && geoCoords?.lng) {
+        localStorage.setItem('mm_lat', geoCoords.lat);
+        localStorage.setItem('mm_lng', geoCoords.lng);
+      }
     }
 
     if (user) {
-      const updatedUser = { ...user, location: newLocation };
-      if (geoCoords?.lat && geoCoords?.lng) {
+      const updatedUser = { ...user, location: isClearing ? '' : locValue };
+      if (isClearing) {
+        updatedUser.latitude = null;
+        updatedUser.longitude = null;
+      } else if (geoCoords?.lat && geoCoords?.lng) {
         updatedUser.latitude = geoCoords.lat;
         updatedUser.longitude = geoCoords.lng;
       }
@@ -194,53 +264,23 @@ export function AuthProvider({ children }) {
       localStorage.setItem('mm_user', JSON.stringify(updatedUser));
     }
 
-    // ── ALWAYS PERSIST TO USER RECORD IN BACKEND IF LOGGED IN ─────────────
+    // ── ALWAYS PERSIST TO USER & ADDRESS RECORD IN BACKEND IF LOGGED IN ──
     if (token) {
       updateUserLocationApi(
         {
-          location: newLocation,
-          latitude: geoCoords?.lat ?? null,
-          longitude: geoCoords?.lng ?? null,
+          location: isClearing ? '' : locValue,
+          latitude: isClearing ? null : (geoCoords?.lat ?? null),
+          longitude: isClearing ? null : (geoCoords?.lng ?? null),
         },
         token
       ).then((res) => {
         if (res.success && res.user) {
           console.log('[Magic Mistry] ✅ User location persisted to MongoDB:', res.user.location);
+          fetchAddresses(token);
         }
       }).catch((err) => {
         console.warn('[Magic Mistry] ❌ Failed to persist user location to backend:', err);
       });
-    }
-
-    // ── If GPS coords are provided, also persist address record ─────────────
-    if (token && geoCoords?.lat && geoCoords?.lng) {
-      try {
-        const parsed = parseAddressString(newLocation);
-        const payload = {
-          addressType: 'Home',
-          house: parsed.flat || parsed.street || 'Home',
-          addressLine1: parsed.flat || parsed.street || '',
-          street: parsed.street || parsed.city || 'Area',
-          city: parsed.city || 'Kolkata',
-          state: parsed.state || 'West Bengal',
-          country: 'India',
-          landmark: parsed.landmark || '',
-          pincode: parsed.pincode || '700001',
-          isDefault: true,
-          location: {
-            type: 'Point',
-            coordinates: [geoCoords.lng, geoCoords.lat],
-          },
-        };
-
-        createAddressApi(payload, token).then((result) => {
-          if (result.success) {
-            console.log('[Magic Mistry] ✅ GPS Address record created in backend:', result.address?._id);
-          }
-        });
-      } catch (err) {
-        console.warn('[Magic Mistry] GPS address record error:', err);
-      }
     }
   };
 
@@ -292,6 +332,9 @@ export function AuthProvider({ children }) {
         isLoggedIn,
         loading,
         location,
+        addresses,
+        setAddresses,
+        fetchAddresses,
         updateLocation,
         login,
         logout,

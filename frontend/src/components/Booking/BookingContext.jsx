@@ -219,10 +219,8 @@ export const BookingProvider = ({ children, initialAppliance = null }) => {
   const getBasePrice = (id) =>
     APPLIANCE_PRICING[id]?.basePrice ?? DEFAULT_BASE_PRICE;
 
-  const savedLocation =
-    typeof window !== 'undefined'
-      ? localStorage.getItem('mm_location') || 'Kolkata, West Bengal'
-      : 'Kolkata, West Bengal';
+  const storedLoc = typeof window !== 'undefined' ? localStorage.getItem('mm_location') : null;
+  const savedLocation = storedLoc && storedLoc !== 'Set Your Location' ? storedLoc : '';
 
   // Only pre-fill if user came from home page with an appliance selected
   const hasInitialAppliance = Boolean(initialAppliance && initialAppliance.id);

@@ -267,6 +267,10 @@ export default function VendorDashboardPage() {
         if (res.success && res.vendorProfile) {
           const vp = res.vendorProfile;
           const u = vp.user || {};
+          const serviceLoc =
+            (vp.serviceAddress && vp.serviceAddress !== 'Set Your Location' ? vp.serviceAddress : '') ||
+            (u.location && u.location !== 'Set Your Location' ? u.location : '');
+
           const loadedProfile = {
             name: u.fullName || vp.name || (user?.fullName || ''),
             vendorId: vp.vendorId || u.vendorId || (user?.vendorId || ''),
@@ -274,7 +278,7 @@ export default function VendorDashboardPage() {
             phone: u.phoneNumber || (user?.phoneNumber || ''),
             email: u.email || (user?.email || ''),
             upiId: vp.vendorUpiId || '',
-            address: vp.serviceAddress || u.location || (location !== 'Set Your Location' ? location : ''),
+            address: serviceLoc,
             serviceRadius: vp.serviceRadius ?? 10,
             nablId: vp.certification?.certificationId || 'NABL-VERIFIED',
             bankName: vp.bankDetails?.bankName || '',
@@ -299,14 +303,16 @@ export default function VendorDashboardPage() {
   useEffect(() => {
     if (user) {
       const u = user.user || user;
-      const actualLocation = location && location !== 'Set Your Location' ? location : (u.location || user.serviceAddress || vendorProfile.address);
+      const actualLocation =
+        (u.location && u.location !== 'Set Your Location' ? u.location : '') ||
+        (user.serviceAddress && user.serviceAddress !== 'Set Your Location' ? user.serviceAddress : '');
       
       setVendorProfile((prev) => ({
         ...prev,
         name: u.fullName || prev.name,
         email: u.email || prev.email,
         phone: u.phoneNumber || prev.phone,
-        address: actualLocation || prev.address,
+        address: actualLocation,
         title: user.professionalTitle || prev.title,
         upiId: user.vendorUpiId || prev.upiId,
         appliancesServed: user.appliancesServed?.length ? user.appliancesServed : prev.appliancesServed,
@@ -318,7 +324,7 @@ export default function VendorDashboardPage() {
         serviceRadius: user.serviceRadius ?? prev.serviceRadius,
       }));
     }
-  }, [user, location]);
+  }, [user]);
 
   const handleSaveVendorAddress = async (addressData) => {
     const displayAddress = addressData.formattedAddress || addressData;

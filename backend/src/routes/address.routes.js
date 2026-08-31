@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 
-const { auth, isCustomer, isCustomerOrVendor } = require('../middleware/auth');
+const { auth } = require('../middleware/auth');
 const {
   createAddress,
   getAddress,
@@ -11,17 +11,13 @@ const {
   deleteAddress,
 } = require('../controllers/address.controller');
 
-// POST /api/address — both customers and vendors can save a location address
-// Vendors use this to save their service location into the User Location Save module
-router.post('/', auth, isCustomerOrVendor, createAddress);
-
-router.get('/', auth, isCustomer, getAddresses);
-
-router.get('/:id', auth, isCustomer, getAddress);
-
-router.put('/:id', auth, isCustomer, updateAddress);
-
-router.delete('/:id', auth, isCustomer, deleteAddress);
+// All address endpoints are protected with standard auth middleware
+router.post('/', auth, createAddress);
+router.get('/', auth, getAddresses);
+router.get('/:id', auth, getAddress);
+router.put('/:id', auth, updateAddress);
+router.delete('/:id', auth, deleteAddress);
+router.delete('/', auth, deleteAddress);
 
 module.exports = router;
 

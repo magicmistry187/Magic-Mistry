@@ -132,7 +132,7 @@ export default function UserInvoiceModal({ isOpen, onClose, booking }) {
                 <p className="text-slate-600 mt-0.5 leading-snug">
                   {typeof booking.address === 'object' && booking.address !== null
                     ? [booking.address.house || booking.address.flat || booking.address.addressLine1, booking.address.street, booking.address.landmark, booking.address.city, booking.address.state, booking.address.pincode].filter(Boolean).join(', ')
-                    : (booking.address || 'Address on File, Kolkata')}
+                    : (booking.address || 'Address on File')}
                 </p>
               </div>
               <div className="border-t sm:border-t-0 sm:border-l border-slate-200 pt-3 sm:pt-0 sm:pl-4">

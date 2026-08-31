@@ -2,6 +2,7 @@ const User = require('../models/user.model');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const VendorProfile = require('../models/vendorProfile.model');
+const Address = require('../models/address.model');
 const {
   uploadImageToImageKit,
   deleteImageFromImageKit,
@@ -152,6 +153,36 @@ exports.getVendorProfile = async (req, res) => {
       });
     }
 
+    // Strictly sync with Address collection (same as User Address model)
+    const addressCount = await Address.countDocuments({ user: user._id });
+    if (addressCount === 0) {
+      if (vendorProfile.serviceAddress || user.location) {
+        vendorProfile.serviceAddress = '';
+        await vendorProfile.save();
+        user.location = '';
+        await user.save();
+        if (vendorProfile.user) {
+          vendorProfile.user.location = '';
+        }
+      }
+    } else {
+      const defaultAddr = await Address.findOne({ user: user._id }).sort({ isDefault: -1, createdAt: -1 });
+      if (defaultAddr) {
+        const formatted = [
+          defaultAddr.house || defaultAddr.addressLine1,
+          defaultAddr.street,
+          defaultAddr.landmark,
+          defaultAddr.city,
+          defaultAddr.state,
+          defaultAddr.pincode,
+        ]
+          .filter(Boolean)
+          .join(', ');
+        vendorProfile.serviceAddress = formatted;
+        await vendorProfile.save();
+      }
+    }
+
     return res.status(200).json({
       success: true,
       vendorProfile,
@@ -206,21 +237,13 @@ exports.updateVendorProfile = async (req, res) => {
     ];
 
     userFields.forEach((field) => {
-      if (
-        req.body[field] !== undefined &&
-        req.body[field] !== null &&
-        req.body[field] !== ''
-      ) {
+      if (req.body[field] !== undefined && req.body[field] !== null) {
         user[field] = req.body[field];
       }
     });
 
     vendorFields.forEach((field) => {
-      if (
-        req.body[field] !== undefined &&
-        req.body[field] !== null &&
-        req.body[field] !== ''
-      ) {
+      if (req.body[field] !== undefined && req.body[field] !== null) {
         if (field === 'experience' || field === 'serviceRadius') {
           const value = Number(req.body[field]);
 

@@ -141,11 +141,9 @@ export default function AddressForm() {
             `https://nominatim.openstreetmap.org/reverse?lat=${coords.latitude}&lon=${coords.longitude}&format=json&addressdetails=1`,
             { headers: { "Accept-Language": "en" } }
           );
-          const data = await res.json();
-          const a = data.address || {};
           const detectedCity =
-            a.city || a.town || a.village || a.municipality || a.county || a.state_district || "Kolkata";
-          const detectedState = a.state || "West Bengal";
+            a.city || a.town || a.village || a.municipality || a.county || a.state_district || "";
+          const detectedState = a.state || "";
           const detectedHouse = a.house_number || a.building || a.flat || a.room || "";
           const detectedStreet = [
             a.road || a.pedestrian || a.footway || a.street,
