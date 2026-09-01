@@ -14,15 +14,12 @@ const addressSchema = new mongoose.Schema(
       default: 'Home',
     },
     
-    house: {
-      type: String,
-      required: true,
-      trim: true,
-    },
+   
 
     addressLine1: {
       type: String,
       trim: true,
+      required: true,
     },
 
     street: {

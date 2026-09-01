@@ -50,15 +50,33 @@ const bookingSchema = new mongoose.Schema(
     image: {
       type: String,
     },
-
+    //   Reference  of customer saved address in its profile
     refAddress: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Address',
       default: null,
     },
+
+    //snapshot of the address at the time of bnooking, in case the user updates their address later
     address: {
-      type: mongoose.Schema.Types.Mixed,
-      required: true,
+       addressType: {
+    type: String,
+    enum: ['Home', 'Office', 'Other'],
+  },
+      addressLine1: String,
+      street: String,
+      city: String,
+      state: String,
+      pincode: String,
+      landmark: String,
+       country: String,
+      location: {
+        type: {
+          type: String,
+          enum: ['Point'],
+        },
+        coordinates: [Number],
+      },
     },
     serviceDate: {
       type: Date,
@@ -67,13 +85,6 @@ const bookingSchema = new mongoose.Schema(
     timeSlot: {
       type: String,
       required: true,
-      // enum: [
-      //   '09:00 AM - 11:00 AM',
-      //   '11:00 AM - 01:00 PM',
-      //   '02:00 PM - 04:00 PM',
-      //   '04:00 PM - 06:00 PM',
-
-      // ],
     },
     bookingStatus: {
       type: String,

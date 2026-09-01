@@ -68,13 +68,7 @@ const vendorProfileSchema = new mongoose.Schema(
       min: 0,
     },
 
-    // ----------adding adress -----------------
-    // Address: {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: 'Address',
-    //   default: null,
-    // },
-     // ------------------------------------------
+   
 
     serviceAddress: {
       type: String,
