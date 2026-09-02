@@ -1,11 +1,49 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { getApplianceImage } from '../../assets/applianceImages';
 
 /**
  * ApplianceIcon Component
- * Renders pure, high-resolution SVG vector illustration icons for each service category.
+ * Displays real, high-resolution product photography for all 16 service categories.
+ * Falls back to pure SVG vector illustrations if the real photo fails to load or vector={true} is passed.
  * Supports matching by category ID (1-16) or name string.
  */
-export default function ApplianceIcon({ name = '', id = null, className = 'w-12 h-12', style = {} }) {
+export default function ApplianceIcon({
+  name = '',
+  id = null,
+  className = 'w-12 h-12',
+  style = {},
+  alt = '',
+  vector = false,
+}) {
+  const [hasError, setHasError] = useState(false);
+
+  // If vector is explicitly requested or image had an error, render SVG fallback
+  if (vector || hasError) {
+    return <VectorFallbackIcon id={id} name={name} className={className} style={style} />;
+  }
+
+  const realImgSrc = getApplianceImage(id, name);
+
+  if (realImgSrc) {
+    return (
+      <img
+        src={realImgSrc}
+        alt={alt || name || 'Appliance'}
+        className={`object-contain max-h-full max-w-full drop-shadow-xs transition-transform duration-300 select-none pointer-events-none ${className}`}
+        style={style}
+        loading="lazy"
+        onError={() => setHasError(true)}
+      />
+    );
+  }
+
+  return <VectorFallbackIcon id={id} name={name} className={className} style={style} />;
+}
+
+/**
+ * SVG vector fallback router
+ */
+function VectorFallbackIcon({ id = null, name = '', className = 'w-12 h-12', style = {} }) {
   const str = String(name || '').toLowerCase().trim();
   const numId = Number(id);
 
@@ -50,7 +88,7 @@ export default function ApplianceIcon({ name = '', id = null, className = 'w-12 
 }
 
 /* ───────────────────────────────────────────────────────────────────────────── */
-/* PURE SVG VECTOR ILLUSTRATIONS FOR APPLIANCES                                 */
+/* PURE SVG VECTOR ILLUSTRATIONS FOR APPLIANCES (FALLBACKS)                     */
 /* ───────────────────────────────────────────────────────────────────────────── */
 
 // 1. Air Conditioner SVG Vector

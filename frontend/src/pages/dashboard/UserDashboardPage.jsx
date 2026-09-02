@@ -336,24 +336,37 @@ export default function UserDashboardPage() {
     const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') : null);
 
     if (authToken) {
-      if (editingAddress && (editingAddress.id || editingAddress._id)) {
-        await updateAddressApi(editingAddress.id || editingAddress._id, payload, authToken);
-        showToast('Address updated successfully!');
-      } else {
-        await createAddressApi(payload, authToken);
-        showToast('Address added successfully!');
-      }
-      const resAddrs = await getAddressesApi(authToken);
-      if (resAddrs.success && Array.isArray(resAddrs.addresses)) {
-        const mapped = mapAddresses(resAddrs.addresses);
-        setAddresses(mapped);
-        // If it was marked default or there's a default address, sync active location
-        const def = mapped.find(a => a.isDefault) || (makeDefault ? mapped[0] : null);
-        if (def) {
-          const defStr = [def.flat, def.street, def.landmark, def.city, def.state, def.pincode]
-            .filter(Boolean).join(', ');
-          updateLocation(defStr, def.latitude && def.longitude ? { lat: def.latitude, lng: def.longitude } : null);
+      try {
+        let result;
+        if (editingAddress && (editingAddress.id || editingAddress._id)) {
+          result = await updateAddressApi(editingAddress.id || editingAddress._id, payload, authToken);
+        } else {
+          result = await createAddressApi(payload, authToken);
         }
+
+        if (!result?.success) {
+          showToast(result?.message || 'Failed to save address. Please try again.');
+          return;
+        }
+
+        showToast(editingAddress ? 'Address updated successfully!' : 'Address added successfully!');
+
+        const resAddrs = await getAddressesApi(authToken);
+        if (resAddrs.success && Array.isArray(resAddrs.addresses)) {
+          const mapped = mapAddresses(resAddrs.addresses);
+          setAddresses(mapped);
+          // If it was marked default or there's a default address, sync active location
+          const def = mapped.find(a => a.isDefault) || (makeDefault ? mapped[0] : null);
+          if (def) {
+            const defStr = [def.flat, def.street, def.landmark, def.city, def.state, def.pincode]
+              .filter(Boolean).join(', ');
+            updateLocation(defStr, def.latitude && def.longitude ? { lat: def.latitude, lng: def.longitude } : null);
+          }
+        }
+      } catch (err) {
+        console.error('[UserDashboard] Address save error:', err);
+        showToast(err?.response?.data?.message || err?.message || 'Failed to save address. Please try again.');
+        return;
       }
     } else {
       if (editingAddress) {

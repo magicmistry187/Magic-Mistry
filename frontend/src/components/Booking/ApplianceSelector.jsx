@@ -1,11 +1,11 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBooking, APPLIANCE_SUB_SERVICES } from './BookingContext';
-import { Lock, Unlock, CheckCircle2, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import ApplianceIcon from '../common/ApplianceIcon';
 
 export default function ApplianceSelector() {
-  const { bookingState, updateBooking, unlockApplianceSelection, scrollToNextStep } = useBooking();
+  const { bookingState, updateBooking, scrollToNextStep } = useBooking();
 
   // All appliance categories matching home page & diagram flow
   const defaultServices = [
@@ -80,32 +80,47 @@ export default function ApplianceSelector() {
       </div>
 
       {/* Main Categories Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
         {defaultServices.map((cat) => {
           const isSelected = bookingState.serviceId === cat.id;
 
           return (
             <button
               key={cat.id}
+              type="button"
               onClick={() => handleSelectCategory(cat)}
-              className={`p-4 rounded-2xl flex flex-col items-center justify-center transition-all duration-300 gap-3 text-center relative group overflow-hidden ${
+              className={`p-3.5 sm:p-4 rounded-2xl flex flex-col items-center justify-between transition-all duration-300 gap-3 text-center relative group overflow-hidden ${
                 isSelected
-                  ? 'bg-gradient-to-br from-indigo-50 to-blue-50/50 text-indigo-950 shadow-lg shadow-indigo-100 border border-indigo-200 ring-2 ring-indigo-500/20 transform -translate-y-1'
-                  : 'bg-slate-50 border border-transparent hover:bg-white hover:border-slate-200 hover:shadow-xl hover:shadow-slate-200/50 cursor-pointer transform hover:-translate-y-1'
+                  ? 'bg-gradient-to-b from-indigo-50/90 to-blue-50/50 text-indigo-950 shadow-lg shadow-indigo-500/10 border-2 border-indigo-600 ring-2 ring-indigo-500/20 transform -translate-y-1'
+                  : 'bg-white border border-slate-200/80 hover:border-indigo-200 hover:shadow-xl hover:shadow-slate-200/50 cursor-pointer transform hover:-translate-y-1'
               }`}
             >
               {isSelected && (
-                <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
               )}
               {isSelected && (
-                <span className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] shadow-sm">
+                <span className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] shadow-sm font-black z-10">
                   ✓
                 </span>
               )}
-              <div className={`w-14 h-14 flex items-center justify-center rounded-2xl transition-transform duration-300 ${isSelected ? 'scale-110' : 'group-hover:scale-110'}`}>
-                <ApplianceIcon id={cat.id} name={cat.name} className="w-12 h-12" />
+              <div className={`w-16 h-16 sm:w-20 sm:h-20 p-2 rounded-2xl flex items-center justify-center transition-all duration-300 ${
+                isSelected
+                  ? 'bg-white shadow-xs border border-indigo-100'
+                  : 'bg-slate-50/80 border border-slate-100 group-hover:bg-white group-hover:shadow-xs group-hover:border-slate-200'
+              }`}>
+                <ApplianceIcon
+                  id={cat.id}
+                  name={cat.name}
+                  className={`w-full h-full object-contain transition-transform duration-300 ${
+                    isSelected ? 'scale-105' : 'group-hover:scale-105'
+                  }`}
+                />
               </div>
-              <span className={`text-xs leading-tight truncate w-full transition-colors ${isSelected ? 'font-extrabold text-indigo-900' : 'font-bold text-slate-600 group-hover:text-slate-900'}`}>{cat.name}</span>
+              <span className={`text-xs sm:text-sm leading-tight font-bold w-full transition-colors ${
+                isSelected ? 'font-extrabold text-indigo-950' : 'text-slate-700 group-hover:text-slate-900'
+              }`}>
+                {cat.name}
+              </span>
             </button>
           );
         })}
@@ -124,14 +139,17 @@ export default function ApplianceSelector() {
             <div className="bg-slate-50/50 p-6 md:p-8 rounded-3xl border border-slate-200 space-y-6 relative">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200/80 gap-3">
             <div className="flex items-center gap-4">
-              <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
-                <ApplianceIcon id={currentCatData?.id} name={currentCatData?.name} className="w-10 h-10 flex-shrink-0" />
+              <div className="w-14 h-14 bg-white p-2 rounded-2xl shadow-sm border border-slate-200/80 flex items-center justify-center shrink-0">
+                <ApplianceIcon id={currentCatData?.id} name={currentCatData?.name} className="w-10 h-10 object-contain" />
               </div>
-              <h3 className="font-extrabold text-[#0B1E40] text-lg tracking-tight">
-                {currentCatData?.name} Packages
-              </h3>
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 block">Selected Appliance</span>
+                <h3 className="font-extrabold text-[#0B1E40] text-lg sm:text-xl tracking-tight">
+                  {currentCatData?.name} Packages
+                </h3>
+              </div>
             </div>
-            <div className="inline-flex items-center justify-center px-3 py-1.5 rounded-full bg-white border border-slate-200 shadow-sm">
+            <div className="inline-flex items-center justify-center px-3 py-1.5 rounded-full bg-white border border-slate-200 shadow-sm self-start sm:self-auto">
               <span className="text-xs font-bold text-slate-500">
                 {subServicesList.length} Options
               </span>

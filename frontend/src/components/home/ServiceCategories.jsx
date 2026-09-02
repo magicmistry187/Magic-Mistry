@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import ApplianceIcon from '../common/ApplianceIcon';
 
@@ -41,12 +41,12 @@ export default function ServiceCategories() {
           <div
             key={item.id}
             onClick={() => handleServiceClick(item)}
-            className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:border-slate-300"
+            className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col items-center justify-between text-center cursor-pointer transition-all hover:border-indigo-200 hover:shadow-xl hover:shadow-slate-200/50 hover:-translate-y-1 group"
           >
-            <div className="mb-3 flex items-center justify-center w-12 h-12">
-              <ApplianceIcon id={item.id} name={item.name} className="w-12 h-12" />
+            <div className="mb-3 flex items-center justify-center w-16 h-16 p-2 rounded-2xl bg-slate-50/70 border border-slate-100 group-hover:bg-white group-hover:shadow-xs group-hover:border-slate-200 transition-all duration-300">
+              <ApplianceIcon id={item.id} name={item.name} className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300" />
             </div>
-            <h3 className="text-xs sm:text-sm font-extrabold text-slate-800 leading-tight">
+            <h3 className="text-xs sm:text-sm font-extrabold text-slate-800 group-hover:text-indigo-900 transition-colors leading-tight">
               {item.name}
             </h3>
           </div>
@@ -54,12 +54,12 @@ export default function ServiceCategories() {
 
         <div
           onClick={() => navigate('/booking')}
-          className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:border-slate-300"
+          className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col items-center justify-between text-center cursor-pointer transition-all hover:border-indigo-200 hover:shadow-xl hover:shadow-slate-200/50 hover:-translate-y-1 group"
         >
-          <div className="mb-3 flex items-center justify-center w-12 h-12">
-            <ApplianceIcon name="generic" className="w-12 h-12" />
+          <div className="mb-3 flex items-center justify-center w-16 h-16 p-2 rounded-2xl bg-slate-50/70 border border-slate-100 group-hover:bg-white group-hover:shadow-xs group-hover:border-slate-200 transition-all duration-300">
+            <ApplianceIcon name="generic" className="w-10 h-10 object-contain group-hover:scale-105 transition-transform duration-300 text-indigo-600" />
           </div>
-          <h3 className="text-xs sm:text-sm font-extrabold text-slate-800 leading-tight">
+          <h3 className="text-xs sm:text-sm font-extrabold text-slate-800 group-hover:text-indigo-900 transition-colors leading-tight">
             View More Services
           </h3>
         </div>

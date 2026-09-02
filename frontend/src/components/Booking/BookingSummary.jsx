@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Info, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 import LoginRequiredModal from '../auth/LoginRequiredModal';
+import ApplianceIcon from '../common/ApplianceIcon';
 
 /* West Bengal keywords — same list as AddressForm */
 const WB_KEYWORDS = [
@@ -159,11 +160,18 @@ export default function BookingSummary() {
       <div className="space-y-3.5 mb-5 text-sm border-b border-slate-600 pb-5">
 
         {/* Appliance */}
-        <div className="flex justify-between items-start gap-2">
+        <div className="flex justify-between items-center gap-2">
           <span className="text-slate-400 shrink-0">Appliance</span>
-          <span className="font-bold text-right max-w-[55%] text-orange-300">
-            {bookingState.serviceName || <span className="text-red-400 italic font-normal">Not selected</span>}
-          </span>
+          <div className="flex items-center gap-2.5 max-w-[65%] justify-end">
+            {(bookingState.serviceId || bookingState.serviceName) && (
+              <div className="w-8 h-8 rounded-xl bg-white/10 p-1 shrink-0 flex items-center justify-center border border-white/10 shadow-xs">
+                <ApplianceIcon id={bookingState.serviceId} name={bookingState.serviceName} className="w-6 h-6 object-contain" />
+              </div>
+            )}
+            <span className="font-bold text-right text-orange-300 truncate">
+              {bookingState.serviceName || <span className="text-red-400 italic font-normal">Not selected</span>}
+            </span>
+          </div>
         </div>
 
         {/* Sub-service packages */}

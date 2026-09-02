@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Address = require('../models/address.model');
 const User = require('../models/user.model');
 

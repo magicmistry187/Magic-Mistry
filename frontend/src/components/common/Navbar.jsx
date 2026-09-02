@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, MapPin, Menu, X, LogOut, User, LayoutDashboard, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -6,6 +6,7 @@ import logo2 from '../../../public/logo2.png';
 import { useAuth } from '../../context/AuthContext';
 
 import LoginRequiredModal from '../auth/LoginRequiredModal';
+import ApplianceIcon from './ApplianceIcon';
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -53,28 +54,42 @@ const Navbar = () => {
 
   // Search Data with direct booking capability
   const searchServices = [
-    { id: 1, name: 'AC Service & Repair', category: 'AC Repair', icon: '❄️' },
-    { id: 1, name: 'AC Installation', category: 'AC Repair', icon: '❄️' },
-    { id: 2, name: 'Refrigerator Repair', category: 'Refrigerator', icon: '🧊' },
-    { id: 3, name: 'Washing Machine Repair', category: 'Washing Machine', icon: '🧺' },
-    { id: 4, name: 'Microwave Repair', category: 'Microwave', icon: '♨️' },
-    { id: 5, name: 'Mixer Grinder Repair', category: 'Mixer Grinder', icon: '🥛' },
-    { id: 6, name: 'Pump Motor Repair', category: 'Pump Motor', icon: '💧' },
-    { id: 7, name: 'Air Cooler Repair', category: 'Air Cooler', icon: '💨' },
-    { id: 8, name: 'Induction Cooktop Repair', category: 'Induction Cooktop', icon: '🍳' },
-    { id: 9, name: 'Stabilizer Repair', category: 'Stabilizer', icon: '🔌' },
-    { id: 10, name: 'Press Iron Repair', category: 'Press Iron', icon: '👔' },
-    { id: 11, name: 'TV Repair', category: 'TV', icon: '📺' },
-    { id: 12, name: 'Ceiling Fan Repair', category: 'Ceiling Fan / Fan Repair', icon: '🌀' },
-    { id: 13, name: 'Geyser Repair', category: 'Geyser', icon: '🚿' },
-    { id: 14, name: 'Stand Fan Repair', category: 'Stand Fan', icon: '🌬️' },
-    { id: 15, name: 'Table/Wall Fan Repair', category: 'Table Fan / Wall Fan', icon: '🎐' },
-    { id: 16, name: 'Wiring & Switch Board', category: 'Wiring / Switch Board', icon: '⚡' },
+    { id: 1, name: 'AC Service & Repair', category: 'AC Repair' },
+    { id: 1, name: 'AC Installation', category: 'AC Repair' },
+    { id: 2, name: 'Refrigerator Repair', category: 'Refrigerator' },
+    { id: 3, name: 'Washing Machine Repair', category: 'Washing Machine' },
+    { id: 4, name: 'Microwave Repair', category: 'Microwave' },
+    { id: 5, name: 'Mixer Grinder Repair', category: 'Mixer Grinder' },
+    { id: 6, name: 'Pump Motor Repair', category: 'Pump Motor' },
+    { id: 7, name: 'Air Cooler Repair', category: 'Air Cooler' },
+    { id: 8, name: 'Induction Cooktop Repair', category: 'Induction Cooktop' },
+    { id: 9, name: 'Stabilizer Repair', category: 'Stabilizer' },
+    { id: 10, name: 'Press Iron Repair', category: 'Press Iron' },
+    { id: 11, name: 'TV Repair', category: 'TV' },
+    { id: 12, name: 'Ceiling Fan Repair', category: 'Ceiling Fan' },
+    { id: 13, name: 'Geyser Repair', category: 'Geyser' },
+    { id: 14, name: 'Stand Fan Repair', category: 'Stand Fan' },
+    { id: 15, name: 'Table/Wall Fan Repair', category: 'Table Fan' },
+    { id: 16, name: 'Wiring & Switch Board', category: 'Switch Board' },
   ];
 
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Dynamic appliance icon based on the current search query
+  const activeSearchAppliance = useMemo(() => {
+    if (!searchQuery.trim()) return null;
+    if (suggestions.length > 0) {
+      return suggestions[0];
+    }
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      searchServices.find(
+        (s) => s.name.toLowerCase().includes(q) || s.category.toLowerCase().includes(q)
+      ) || null
+    );
+  }, [searchQuery, suggestions]);
 
   const handleSearchChange = (e) => {
     const query = e.target.value;
@@ -101,7 +116,6 @@ const Navbar = () => {
     const applianceObj = {
       id: serviceItem.id,
       name: serviceItem.category,
-      icon: serviceItem.icon,
       serviceName: serviceItem.category,
     };
 
@@ -219,27 +233,66 @@ const Navbar = () => {
                     onChange={handleSearchChange}
                     onKeyDown={handleSearchKeyDown}
                     onFocus={() => searchQuery.trim().length > 0 && setShowSuggestions(true)}
-                    onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                     placeholder="Search for AC, Washing Machine, Fridge..."
-                    className="w-full px-4 py-2 pl-10 text-sm bg-gray-100 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white transition-colors"
+                    className="w-full px-4 py-2 pl-10 pr-9 text-sm bg-gray-100 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white transition-all"
                   />
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  {/* Dynamic Search Box Icon: Shows matched appliance or search magnifying glass */}
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none transition-all duration-200">
+                    {activeSearchAppliance ? (
+                      <div className="w-5 h-5 flex items-center justify-center">
+                        <ApplianceIcon
+                          id={activeSearchAppliance.id}
+                          name={activeSearchAppliance.category}
+                          className="w-5 h-5 object-contain"
+                        />
+                      </div>
+                    ) : (
+                      <Search className="text-gray-400 w-4 h-4" />
+                    )}
+                  </div>
+                  {/* Clear Button */}
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setSuggestions([]);
+                        setShowSuggestions(false);
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-gray-200 transition-colors cursor-pointer"
+                      title="Clear search"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   {showSuggestions && (
-                    <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden flex flex-col z-50">
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden flex flex-col z-50 max-h-96 overflow-y-auto">
                       {suggestions.length > 0 ? (
                         suggestions.map((item, index) => (
                           <div
                             key={index}
                             onMouseDown={() => handleSuggestionSelect(item)}
-                            className="px-4 py-3 text-sm text-slate-700 hover:bg-orange-50 hover:text-orange-700 cursor-pointer transition-colors border-b border-slate-100 last:border-none flex items-center justify-between group"
+                            className="px-3.5 py-2.5 text-sm text-slate-700 hover:bg-orange-50 hover:text-orange-700 cursor-pointer transition-colors border-b border-slate-100 last:border-none flex items-center justify-between group"
                           >
-                            <div className="flex items-center gap-2.5">
-                              <span className="text-base">{item.icon}</span>
-                              <span className="font-bold text-slate-800 group-hover:text-orange-600 transition-colors">
-                                {item.name}
-                              </span>
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-100 p-1 flex items-center justify-center shrink-0 group-hover:bg-white group-hover:border-orange-200 transition-colors shadow-2xs">
+                                <ApplianceIcon
+                                  id={item.id}
+                                  name={item.category}
+                                  className="w-full h-full object-contain group-hover:scale-105 transition-transform"
+                                />
+                              </div>
+                              <div className="flex flex-col text-left min-w-0">
+                                <span className="font-bold text-slate-800 group-hover:text-orange-600 transition-colors truncate">
+                                  {item.name}
+                                </span>
+                                <span className="text-[11px] text-slate-400 font-medium truncate">
+                                  {item.category}
+                                </span>
+                              </div>
                             </div>
-                            <span className="text-[11px] font-extrabold text-orange-600 bg-orange-100/70 group-hover:bg-orange-600 group-hover:text-white px-2.5 py-1 rounded-full transition-colors shrink-0">
+                            <span className="text-[11px] font-extrabold text-orange-600 bg-orange-100/70 group-hover:bg-orange-600 group-hover:text-white px-2.5 py-1 rounded-full transition-colors shrink-0 ml-2">
                               Book Now &rarr;
                             </span>
                           </div>
@@ -426,27 +479,66 @@ const Navbar = () => {
                 onChange={handleSearchChange}
                 onKeyDown={handleSearchKeyDown}
                 onFocus={() => searchQuery.trim().length > 0 && setShowSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                 placeholder="Search for AC, Washing Machine, Fridge..."
-                className="w-full px-4 py-2 pl-10 text-sm bg-white border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="w-full px-4 py-2 pl-10 pr-9 text-sm bg-white border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all shadow-xs"
               />
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              {/* Dynamic Search Box Icon: Shows matched appliance or search magnifying glass */}
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none transition-all duration-200">
+                {activeSearchAppliance ? (
+                  <div className="w-5 h-5 flex items-center justify-center">
+                    <ApplianceIcon
+                      id={activeSearchAppliance.id}
+                      name={activeSearchAppliance.category}
+                      className="w-5 h-5 object-contain"
+                    />
+                  </div>
+                ) : (
+                  <Search className="text-gray-400 w-4 h-4" />
+                )}
+              </div>
+              {/* Clear Button */}
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSuggestions([]);
+                    setShowSuggestions(false);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-gray-200 transition-colors cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
               {showSuggestions && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden flex flex-col z-50">
+                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden flex flex-col z-50 max-h-80 overflow-y-auto">
                   {suggestions.length > 0 ? (
                     suggestions.map((item, index) => (
                       <div
                         key={index}
                         onMouseDown={() => handleSuggestionSelect(item)}
-                        className="px-4 py-3 text-sm text-slate-700 hover:bg-orange-50 hover:text-orange-700 cursor-pointer transition-colors border-b border-slate-100 last:border-none flex items-center justify-between group"
+                        className="px-3.5 py-2.5 text-sm text-slate-700 hover:bg-orange-50 hover:text-orange-700 cursor-pointer transition-colors border-b border-slate-100 last:border-none flex items-center justify-between group"
                       >
-                        <div className="flex items-center gap-2.5">
-                          <span className="text-base">{item.icon}</span>
-                          <span className="font-bold text-slate-800 group-hover:text-orange-600 transition-colors">
-                            {item.name}
-                          </span>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-100 p-1 flex items-center justify-center shrink-0 group-hover:bg-white group-hover:border-orange-200 transition-colors shadow-2xs">
+                            <ApplianceIcon
+                              id={item.id}
+                              name={item.category}
+                              className="w-full h-full object-contain group-hover:scale-105 transition-transform"
+                            />
+                          </div>
+                          <div className="flex flex-col text-left min-w-0">
+                            <span className="font-bold text-slate-800 group-hover:text-orange-600 transition-colors truncate">
+                              {item.name}
+                            </span>
+                            <span className="text-[11px] text-slate-400 font-medium truncate">
+                              {item.category}
+                            </span>
+                          </div>
                         </div>
-                        <span className="text-[11px] font-extrabold text-orange-600 bg-orange-100/70 group-hover:bg-orange-600 group-hover:text-white px-2.5 py-1 rounded-full transition-colors shrink-0">
+                        <span className="text-[11px] font-extrabold text-orange-600 bg-orange-100/70 group-hover:bg-orange-600 group-hover:text-white px-2.5 py-1 rounded-full transition-colors shrink-0 ml-2">
                           Book Now &rarr;
                         </span>
                       </div>
