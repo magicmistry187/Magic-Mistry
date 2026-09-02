@@ -13,8 +13,13 @@ const addressSchema = new mongoose.Schema(
       enum: ['Home', 'Office', 'Other'],
       default: 'Home',
     },
-    
-   
+
+    // house / flat / building — kept alongside addressLine1 for backwards compatibility
+    house: {
+      type: String,
+      trim: true,
+      default: '',
+    },
 
     addressLine1: {
       type: String,
@@ -65,8 +70,8 @@ const addressSchema = new mongoose.Schema(
         default: 'Point',
       },
       coordinates: {
-        type: [Number], // [longitude, latitude]
-        required: true,
+        type: [Number], // [longitude, latitude] — defaults provided by controller
+        default: [72.883995, 19.449832],
       },
     },
 
