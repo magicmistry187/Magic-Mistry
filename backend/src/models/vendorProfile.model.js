@@ -18,10 +18,7 @@ const vendorProfileSchema = new mongoose.Schema(
     temporaryPassword: {
       type: String,
       default: null,
-    },
-    password: {
-      type: String,
-      default: null,
+      select: false,
     },
     profileImage: {
       url: {

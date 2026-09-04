@@ -113,7 +113,6 @@ const createOrUpdateVendorAccount = async ({
     vendorProfile = await VendorProfile.create({
       user: user._id,
       vendorId: user.vendorId,
-      password: rawPassword,
       temporaryPassword: rawPassword,
       professionalTitle: specialization || 'Service Technician',
       serviceType: serviceType || specialization || 'General',
@@ -142,7 +141,6 @@ const createOrUpdateVendorAccount = async ({
     });
   } else {
     vendorProfile.vendorId = user.vendorId;
-    vendorProfile.password = rawPassword;
     vendorProfile.temporaryPassword = rawPassword;
 
     if (specialization) {

@@ -11,6 +11,7 @@ const {
   checkVendorExistsByEmailOrPhone,
   createOrUpdateVendorAccount,
 } = require('../utils/vendor.utils');
+const sendEmail = require('../utils/sendEmail');
 
 const createVendorApplication = async (req, res) => {
   try {
@@ -305,7 +306,28 @@ const approveVendorApplication = async (req, res) => {
     application.vendor = vendorProfile._id;
     await application.save();
 
-    // 4. Send response with valid vendor credentials
+    // 4. Send email notification with credentials to vendor
+    try {
+      if (application.email) {
+        await sendEmail(
+          application.email.toLowerCase().trim(),
+          'Welcome to Magic Mistry - Vendor Account Approved',
+          `<div style="font-family: sans-serif; padding: 20px; color: #1e293b;">
+            <h2>Congratulations ${user.fullName}!</h2>
+            <p>Your vendor application has been approved. Here are your login credentials for the Magic Mistry Vendor Portal:</p>
+            <div style="background: #f1f5f9; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <p><strong>Vendor ID:</strong> ${vendorId}</p>
+              <p><strong>Temporary Password:</strong> ${password}</p>
+            </div>
+            <p>Please log in and update your password in your profile settings.</p>
+          </div>`
+        );
+      }
+    } catch (emailErr) {
+      console.warn('[Vendor Approval] Email notification failed (credentials still created):', emailErr.message);
+    }
+
+    // 5. Send response with valid vendor credentials
 
     return res.status(200).json({
       success: true,
@@ -357,7 +379,7 @@ const getVendorCredentials = async (req, res) => {
     let user = null;
 
     if (application && application.vendor) {
-      vendorProfile = await VendorProfile.findById(application.vendor);
+      vendorProfile = await VendorProfile.findById(application.vendor).select('+temporaryPassword');
     }
 
     // 2. Fallback: Search directly via User (by vendorId, email, or _id)
@@ -376,7 +398,7 @@ const getVendorCredentials = async (req, res) => {
       });
 
       if (user) {
-        vendorProfile = await VendorProfile.findOne({ user: user._id });
+        vendorProfile = await VendorProfile.findOne({ user: user._id }).select('+temporaryPassword');
         if (!vendorProfile) {
           vendorProfile = await VendorProfile.create({
             user: user._id,
@@ -404,16 +426,14 @@ const getVendorCredentials = async (req, res) => {
       });
     }
 
-    // 3. If password was never saved in DB (e.g. legacy vendor), auto-generate temporary password and sync to user
-    let temporaryPassword =
-      vendorProfile.temporaryPassword || vendorProfile.password;
+    // 3. If temporary password was never saved in DB (e.g. legacy vendor), auto-generate temporary password and sync to user
+    let temporaryPassword = vendorProfile.temporaryPassword;
     if (!temporaryPassword) {
       temporaryPassword = `FixIt_${new Date().getFullYear()}_!${crypto
         .randomBytes(2)
         .toString('hex')}`;
 
       vendorProfile.temporaryPassword = temporaryPassword;
-      vendorProfile.password = temporaryPassword;
       await vendorProfile.save();
 
       const hashedPassword = await bcrypt.hash(temporaryPassword, 10);

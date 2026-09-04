@@ -19,7 +19,7 @@ import VendorPayoutModal from '../../components/dashboard/vendor/VendorPayoutMod
 import VendorTaxInvoiceModal from '../../components/dashboard/vendor/VendorTaxInvoiceModal';
 import VendorAddressModal from '../../components/dashboard/vendor/VendorAddressModal';
 import { useAuth } from '../../context/AuthContext';
-import { getVendorBookingsApi } from '../../services/operations/bookingAPI';
+import { getVendorBookingsApi, acceptBookingApi, updateBookingStatusApi } from '../../services/operations/bookingAPI';
 import { saveVendorAddressApi, getAddressesApi, updateAddressApi, createAddressApi } from '../../services/operations/addressAPI';
 import { updateVendorProfileApi, getVendorProfileApi, updateVendorProfileImageApi } from '../../services/operations/vendorAPI';
 
@@ -103,8 +103,6 @@ export default function VendorDashboardPage() {
     }
   }, [user, token, loading, navigate]);
 
-  if (loading) return <PageLoader />;
-
   // Scroll to top whenever tab changes
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
@@ -130,13 +128,17 @@ export default function VendorDashboardPage() {
               appliance: b.appliance || 'General',
               applianceIcon: '🔧',
               serviceTitle: b.serviceCategory || b.appliance || 'Service Request',
-              status: b.bookingStatus || 'New Request',
+              status: b.bookingStatus === 'Pending' ? 'New Request' : (b.bookingStatus || 'New Request'),
               timeSlot: b.timeSlot || '—',
               appointmentDate: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }) : '—',
               customerName: b.customer?.fullName || 'Customer',
               customerPhone: b.customer?.phoneNumber || '—',
-              serviceAddress: b.address || '—',
-              location: b.address || '—',
+              serviceAddress: typeof b.address === 'object' && b.address !== null
+                ? [b.address.house || b.address.flat || b.address.addressLine1, b.address.street, b.address.landmark, b.address.city, b.address.state, b.address.pincode].filter(Boolean).join(', ')
+                : (b.address || '—'),
+              location: typeof b.address === 'object' && b.address !== null
+                ? [b.address.house || b.address.flat || b.address.addressLine1, b.address.street, b.address.landmark, b.address.city, b.address.state, b.address.pincode].filter(Boolean).join(', ')
+                : (b.address || '—'),
               distance: 'Nearby',
               issue: b.issue || b.description || 'Service required',
               estimatedPay: b.serviceCharge || b.estimatedPay || 0,
@@ -422,7 +424,7 @@ export default function VendorDashboardPage() {
       if (existingId) {
         result = await updateAddressApi(existingId, payload, authToken);
       } else {
-        result = await saveVendorAddressApi(payload, authToken);
+        result = await createAddressApi(payload, authToken);
       }
 
       if (result.success && result.address) {
@@ -607,22 +609,40 @@ export default function VendorDashboardPage() {
   };
 
   // Accept / Reject
-  const handleAcceptJob = (jobId) => {
+  const handleAcceptJob = async (jobId) => {
     setJobs(prevJobs =>
       prevJobs.map(job =>
         job.id === jobId ? { ...job, status: 'Accepted' } : job
       )
     );
     showToast(`Work Order ${jobId} accepted! Navigation route ready.`, 'success');
+
+    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') : null);
+    if (authToken && jobId) {
+      try {
+        await acceptBookingApi(jobId, authToken);
+      } catch (err) {
+        console.error('[Vendor Dashboard] Accept booking error:', err);
+      }
+    }
   };
 
-  const handleStartService = (job) => {
+  const handleStartService = async (job) => {
     setJobs(prevJobs =>
       prevJobs.map(j =>
         j.id === job.id ? { ...j, status: 'In Progress' } : j
       )
     );
     openServiceExecution({ ...job, status: 'In Progress' });
+
+    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') : null);
+    if (authToken && job?.id) {
+      try {
+        await updateBookingStatusApi(job.id, { status: 'In Progress' }, authToken);
+      } catch (err) {
+        console.error('[Vendor Dashboard] Start service error:', err);
+      }
+    }
   };
 
   const handleRejectJob = (jobId) => {
@@ -770,7 +790,7 @@ export default function VendorDashboardPage() {
   };
 
   // Finalize & Send Invoice -> Complete Service & Move to History!
-  const handleGenerateAndSendInvoice = () => {
+  const handleGenerateAndSendInvoice = async () => {
     if (!selectedJob) return;
 
     if (paymentMethod === 'online_gateway') {
@@ -825,6 +845,24 @@ export default function VendorDashboardPage() {
     setGeneratedInvoiceData(invoiceDataObj);
     setShowTaxInvoiceModal(true);
     showToast(`Service Completed! Invoice ${invoiceDataObj.invoiceId} generated & moved to History.`, 'success');
+
+    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') : null);
+    if (authToken && selectedJob?.id) {
+      try {
+        await updateBookingStatusApi(
+          selectedJob.id,
+          {
+            status: 'Completed',
+            serviceCharge: grandTotal,
+            paymentMethod: paymentLabel,
+            paymentStatus: 'Paid',
+          },
+          authToken
+        );
+      } catch (err) {
+        console.error('[Vendor Dashboard] Error completing job in backend:', err);
+      }
+    }
   };
 
   // Close modal & return to modalReturnTab (active, history, etc.)
@@ -875,6 +913,8 @@ export default function VendorDashboardPage() {
   };
 
   const pendingJobsCount = jobs.filter(j => j.status === 'New Request').length;
+
+  if (loading) return <PageLoader />;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col selection:bg-orange-500 selection:text-white">

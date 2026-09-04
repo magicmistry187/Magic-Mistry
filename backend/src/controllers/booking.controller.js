@@ -226,18 +226,22 @@ exports.getBookingsToAdmin = async (req, res) =>{
 
 exports.getBookingsToVendor = async (req, res) => {
   try {
+    const vendorId = req.user.id;
     const bookings = await Booking.find({
-      bookingStatus: "Pending",
+      $or: [
+        { bookingStatus: "Pending" },
+        { vendor: vendorId },
+      ],
     })
       .populate("customer", "fullName email phoneNumber")
+      .populate("vendor", "fullName email phoneNumber")
       .sort({ createdAt: -1 });
-      // console.log("Pending bookings fetched:", bookings);
 
     return res.status(200).json({
       success: true,
       count: bookings.length,
       bookings,
-      message: "Pending bookings fetched successfully.",
+      message: "Vendor bookings fetched successfully.",
     });
   } catch (error) {
     console.error("Get Bookings to Vendor Error:", error);
@@ -245,6 +249,116 @@ exports.getBookingsToVendor = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch bookings.",
+      error: error.message,
+    });
+  }
+};
+
+exports.acceptBooking = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const vendorId = req.user.id;
+
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found.',
+      });
+    }
+
+    if (booking.bookingStatus !== 'Pending') {
+      return res.status(400).json({
+        success: false,
+        message: `Booking is already ${booking.bookingStatus}.`,
+      });
+    }
+
+    booking.vendor = vendorId;
+    booking.bookingStatus = 'Accepted';
+    booking.acceptedAt = new Date();
+    await booking.save();
+
+    const updated = await Booking.findById(bookingId)
+      .populate('customer', 'fullName email phoneNumber')
+      .populate('vendor', 'fullName email phoneNumber');
+
+    return res.status(200).json({
+      success: true,
+      message: 'Booking accepted successfully.',
+      booking: updated,
+    });
+  } catch (error) {
+    console.error('Accept Booking Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to accept booking.',
+      error: error.message,
+    });
+  }
+};
+
+exports.updateBookingStatus = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const vendorId = req.user.id;
+    const { status, serviceCharge, paymentMethod, paymentStatus } = req.body;
+
+    const booking = await Booking.findOne({
+      _id: bookingId,
+      vendor: vendorId,
+    });
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found or not assigned to you.',
+      });
+    }
+
+    const allowedStatuses = ['In Progress', 'Completed', 'Cancelled'];
+    if (status && !allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status transition: ${status}`,
+      });
+    }
+
+    if (status) {
+      booking.bookingStatus = status;
+    }
+
+    if (status === 'Completed') {
+      booking.completedAt = new Date();
+      booking.paymentStatus = paymentStatus || 'Paid';
+    }
+
+    if (serviceCharge !== undefined && serviceCharge !== null) {
+      booking.serviceCharge = Number(serviceCharge);
+    }
+    if (paymentMethod) {
+      booking.paymentMethod = paymentMethod;
+    }
+    if (paymentStatus) {
+      booking.paymentStatus = paymentStatus;
+    }
+
+    await booking.save();
+
+    const updated = await Booking.findById(bookingId)
+      .populate('customer', 'fullName email phoneNumber')
+      .populate('vendor', 'fullName email phoneNumber');
+
+    return res.status(200).json({
+      success: true,
+      message: `Booking status updated to ${booking.bookingStatus}.`,
+      booking: updated,
+    });
+  } catch (error) {
+    console.error('Update Booking Status Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update booking status.',
       error: error.message,
     });
   }

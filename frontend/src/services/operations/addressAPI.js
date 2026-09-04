@@ -192,37 +192,18 @@ export async function deleteAddressApi(addressId, token) {
  */
 export async function saveVendorAddressApi(addressData, token) {
   try {
-    const authToken = getAuthToken(token);
     const targetId = addressData.id || addressData._id || addressData.addressId;
 
-    const endpoint = targetId && targetId !== 'undefined' && targetId !== 'null'
-      ? `${UPDATE_ADDRESS_API}/${targetId}`
-      : UPDATE_ADDRESS_API;
-
-    // Use PUT to update existing record in MongoDB
-    const res = await apiConnector(
-      'PUT',
-      endpoint,
-      addressData,
-      authToken ? { Authorization: `Bearer ${authToken}` } : {}
-    );
-
-    console.log('[addressAPI] saveVendorAddressApi response:', res.data);
-
-    if (!res.data?.success) {
-      throw new Error(res.data?.message || 'Could not update vendor address');
+    if (targetId && targetId !== 'undefined' && targetId !== 'null') {
+      return await updateAddressApi(targetId, addressData, token);
+    } else {
+      return await createAddressApi(addressData, token);
     }
-
-    return {
-      success: true,
-      address: res.data.address || res.data.data,
-      message: res.data.message || 'Vendor address updated successfully',
-    };
   } catch (error) {
     console.error('[addressAPI] saveVendorAddressApi error:', error);
     return {
       success: false,
-      message: error.response?.data?.message || error.message || 'Failed to update vendor address',
+      message: error.response?.data?.message || error.message || 'Failed to save vendor address',
     };
   }
 }

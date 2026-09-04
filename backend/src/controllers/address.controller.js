@@ -165,20 +165,23 @@ exports.updateAddress = async (req, res) => {
     const rawId = req.params.id || req.body._id || req.body.id || req.body.addressId || req.query.id;
     const cleanId = rawId && rawId !== 'undefined' && rawId !== 'null' ? rawId : null;
 
-    let existingAddress = null;
-
-    if (cleanId && mongoose.Types.ObjectId.isValid(cleanId)) {
-      existingAddress = await Address.findOne({
-        _id: cleanId,
-        user: req.user.id,
+    if (!cleanId || !mongoose.Types.ObjectId.isValid(cleanId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'A valid address ID is required to update an address.',
       });
     }
 
-    // Fallback: If no valid ID provided or not found by ID, find user's latest/default existing address
+    const existingAddress = await Address.findOne({
+      _id: cleanId,
+      user: req.user.id,
+    });
+
     if (!existingAddress) {
-      existingAddress = await Address.findOne({
-        user: req.user.id,
-      }).sort({ isDefault: -1, createdAt: -1 });
+      return res.status(404).json({
+        success: false,
+        message: 'Address not found.',
+      });
     }
 
     const updatePayload = { ...req.body };

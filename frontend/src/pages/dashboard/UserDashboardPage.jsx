@@ -367,6 +367,8 @@ export default function UserDashboardPage() {
         console.error('[UserDashboard] Address save error:', err);
         showToast(err?.response?.data?.message || err?.message || 'Failed to save address. Please try again.');
         return;
+      } finally {
+        setEditingAddress(null);
       }
     } else {
       if (editingAddress) {
@@ -378,9 +380,8 @@ export default function UserDashboardPage() {
         updateLocation(formattedStr);
       }
       showToast('Address saved locally.');
+      setEditingAddress(null);
     }
-
-    setEditingAddress(null);
   };
 
   // ── Set a saved address as the default (persists to backend) ───────────────
@@ -2042,7 +2043,10 @@ export default function UserDashboardPage() {
       {/* UserAddressModal — add / edit a saved address for the logged-in user */}
       <UserAddressModal
         isOpen={isAddressModalOpen}
-        onClose={() => setIsAddressModalOpen(false)}
+        onClose={() => {
+          setIsAddressModalOpen(false);
+          setEditingAddress(null);
+        }}
         onSave={handleSaveAddress}
         initialData={editingAddress}
       />

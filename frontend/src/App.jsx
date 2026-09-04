@@ -51,9 +51,10 @@ export default function App() {
           <Route path="/become-a-vendor" element={<BecomeAVendorPage />} />
           <Route path="/become-a-vandor" element={<BecomeAVendorPage />} />
           <Route path="/vendor-apply" element={<VendorApplyPage />} />
-          <Route path="/vendor-dashboard" element={<VendorDashboardPage />} />
-          <Route path="/vendor/dashboard" element={<VendorDashboardPage />} />
-          <Route path="/vendor-portal" element={<VendorDashboardPage />} />
+          {/* Vendor Dashboard Routes */}
+          <Route path="/vendor-dashboard" element={<ProtectedRoute allowedRoles={['vendor', 'admin']}><VendorDashboardPage /></ProtectedRoute>} />
+          <Route path="/vendor/dashboard" element={<ProtectedRoute allowedRoles={['vendor', 'admin']}><VendorDashboardPage /></ProtectedRoute>} />
+          <Route path="/vendor-portal" element={<ProtectedRoute allowedRoles={['vendor', 'admin']}><VendorDashboardPage /></ProtectedRoute>} />
           <Route path="/how-it-works" element={<HomePage />} />
           <Route path="/find-service" element={<HomePage />} />
 
@@ -63,13 +64,13 @@ export default function App() {
           <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboardPage /></ProtectedRoute>} />
 
           {/* User Dashboard & Sub-routes */}
-          <Route path="/dashboard" element={<UserDashboardPage />} />
-          <Route path="/user-dashboard" element={<UserDashboardPage />} />
-          <Route path="/user/dashboard" element={<UserDashboardPage />} />
-          <Route path="/my-bookings" element={<UserDashboardPage />} />
-          <Route path="/bookings" element={<UserDashboardPage />} />
-          <Route path="/history" element={<UserDashboardPage />} />
-          <Route path="/settings" element={<UserDashboardPage />} />
+          <Route path="/dashboard" element={<ProtectedRoute><UserDashboardPage /></ProtectedRoute>} />
+          <Route path="/user-dashboard" element={<ProtectedRoute><UserDashboardPage /></ProtectedRoute>} />
+          <Route path="/user/dashboard" element={<ProtectedRoute><UserDashboardPage /></ProtectedRoute>} />
+          <Route path="/my-bookings" element={<ProtectedRoute><UserDashboardPage /></ProtectedRoute>} />
+          <Route path="/bookings" element={<ProtectedRoute><UserDashboardPage /></ProtectedRoute>} />
+          <Route path="/history" element={<ProtectedRoute><UserDashboardPage /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><UserDashboardPage /></ProtectedRoute>} />
 
           {/* Fallback Route */}
           <Route path="*" element={<HomePage />} />

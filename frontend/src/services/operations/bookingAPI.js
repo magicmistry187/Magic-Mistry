@@ -196,3 +196,61 @@ export async function getVendorBookingsApi(token) {
     };
   }
 }
+
+// Accept Booking (Vendor)
+export async function acceptBookingApi(bookingId, token) {
+  try {
+    const authToken = getAuthToken(token);
+    const res = await apiConnector(
+      'PATCH',
+      `${BASE_URL}/booking/${bookingId}/accept`,
+      null,
+      authToken ? { Authorization: `Bearer ${authToken}` } : {}
+    );
+
+    if (!res.data?.success) {
+      throw new Error(res.data?.message || 'Failed to accept booking');
+    }
+
+    return {
+      success: true,
+      booking: res.data.booking,
+      message: res.data.message || 'Booking accepted successfully',
+    };
+  } catch (error) {
+    console.error('Error accepting booking:', error);
+    return {
+      success: false,
+      message: error.response?.data?.message || error.message || 'Failed to accept booking',
+    };
+  }
+}
+
+// Update Booking Status (Vendor)
+export async function updateBookingStatusApi(bookingId, statusData, token) {
+  try {
+    const authToken = getAuthToken(token);
+    const res = await apiConnector(
+      'PATCH',
+      `${BASE_URL}/booking/${bookingId}/status`,
+      statusData,
+      authToken ? { Authorization: `Bearer ${authToken}` } : {}
+    );
+
+    if (!res.data?.success) {
+      throw new Error(res.data?.message || 'Failed to update booking status');
+    }
+
+    return {
+      success: true,
+      booking: res.data.booking,
+      message: res.data.message || 'Booking status updated successfully',
+    };
+  } catch (error) {
+    console.error('Error updating booking status:', error);
+    return {
+      success: false,
+      message: error.response?.data?.message || error.message || 'Failed to update booking status',
+    };
+  }
+}

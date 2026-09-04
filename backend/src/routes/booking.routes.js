@@ -10,7 +10,9 @@ const {
   getBookingDetails,
   cancelBooking,
   getBookingsToAdmin,
-  getBookingsToVendor
+  getBookingsToVendor,
+  acceptBooking,
+  updateBookingStatus,
 } = require('../controllers/booking.controller');
 
 router.post('/', auth, isCustomer, upload.single('image'), createBooking);
@@ -20,6 +22,10 @@ router.get('/my-bookings', auth, isCustomer, getMyBookings);
 router.get('/admin/bookings', auth, isAdmin, getBookingsToAdmin);
 
 router.get('/vendor/bookings', auth, isVendor, getBookingsToVendor);
+
+router.patch('/:bookingId/accept', auth, isVendor, acceptBooking);
+
+router.patch('/:bookingId/status', auth, isVendor, updateBookingStatus);
 
 router.patch('/:bookingId/cancel', auth, isCustomer, cancelBooking);
 
