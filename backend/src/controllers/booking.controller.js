@@ -18,16 +18,14 @@ exports.createBooking = async (req, res) => {
       latitude,
     } = req.body;
 
-    console.log("booking address is ", address)
-
     const selectedAppliance = appliance || serviceCategory;
 
-    // console.log(
-    //   "Value of longitude and latitude came from frontend:  ",
-    //   longitude,
-    //   ",",
-    //   latitude,
-    // );
+    console.log(
+      'Value of longitude and latitude came from frontend:  ',
+      longitude,
+      ',',
+      latitude,
+    );
 
     //Here we have to first check latitude and longitude is present or not(maybe null) if not then send it to geocode api
 
@@ -36,14 +34,12 @@ exports.createBooking = async (req, res) => {
       return res.status(400).json({
         success: false,
         message:
-          "All required fields (appliance, address, serviceDate, timeSlot) must be provided.",
+          'All required fields (appliance, address, serviceDate, timeSlot) must be provided.',
       });
     }
 
-   
-
     // Upload image if provided
-    let image = "";
+    let image = '';
 
     if (req.file) {
       try {
@@ -53,33 +49,46 @@ exports.createBooking = async (req, res) => {
         );
         image = result.url;
       } catch (error) {
-        console.error("Image upload failed:", error);
+        console.error('Image upload failed:', error);
 
         return res.status(500).json({
           success: false,
-          message: "Failed to upload image.",
+          message: 'Failed to upload image.',
         });
       }
     }
 
     // Create booking
-    const booking = await Booking.create({
+    const bookingData = {
       customer: req.user.id,
       appliance: selectedAppliance,
-      issue: issue || "General Repair & Maintenance",
+      issue: issue,
       image,
       address,
-      serviceDate,
+      serviceDate, 
       timeSlot,
       serviceCategory: serviceCategory || selectedAppliance,
       serviceCategoryCharge: Number(serviceCategoryCharge) || 299,
-    });
+    };
 
-    console.log("Booking created successfully:", booking);
+   if (latitude != null && longitude != null) {
+  bookingData.location = {
+    type: 'Point',
+    coordinates: [
+      Number(longitude),
+      Number(latitude),
+    ],
+  };
+}
+
+console.log('Booking data to be saved:', bookingData);
+
+
+    const booking = await Booking.create(bookingData);
 
     return res.status(201).json({
       success: true,
-      message: "Booking created successfully.",
+      message: 'Booking created successfully.',
       booking,
     });
   } catch (error) {
@@ -204,20 +213,19 @@ exports.cancelBooking = async (req, res) => {
   }
 };
 
-exports.getBookingsToAdmin = async (req, res) =>{
-
-  try{
+exports.getBookingsToAdmin = async (req, res) => {
+  try {
     const bookings = await Booking.find()
       .populate('customer', 'fullName email phoneNumber')
       .populate('vendor', 'fullName email phoneNumber')
       .sort({ createdAt: -1 });
-      // console.log('Bookings fetched:', bookings);
+    // console.log('Bookings fetched:', bookings);
 
     return res.status(200).json({
       success: true,
       count: bookings.length,
       bookings,
-      message: "All bookings fetched successfully.",
+      message: 'All bookings fetched successfully.',
     });
   } catch (error) {
     console.error('Get All Bookings Error:', error);
@@ -228,33 +236,30 @@ exports.getBookingsToAdmin = async (req, res) =>{
       error: error.message,
     });
   }
-}
+};
 
 exports.getBookingsToVendor = async (req, res) => {
   try {
     const vendorId = req.user.id;
     const bookings = await Booking.find({
-      $or: [
-        { bookingStatus: "Pending" },
-        { vendor: vendorId },
-      ],
+      $or: [{ bookingStatus: 'Pending' }, { vendor: vendorId }],
     })
-      .populate("customer", "fullName email phoneNumber")
-      .populate("vendor", "fullName email phoneNumber")
+      .populate('customer', 'fullName email phoneNumber')
+      .populate('vendor', 'fullName email phoneNumber')
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
       count: bookings.length,
       bookings,
-      message: "Vendor bookings fetched successfully.",
+      message: 'Vendor bookings fetched successfully.',
     });
   } catch (error) {
-    console.error("Get Bookings to Vendor Error:", error);
+    console.error('Get Bookings to Vendor Error:', error);
 
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch bookings.",
+      message: 'Failed to fetch bookings.',
       error: error.message,
     });
   }

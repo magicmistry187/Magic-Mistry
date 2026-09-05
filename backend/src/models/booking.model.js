@@ -57,12 +57,24 @@ const bookingSchema = new mongoose.Schema(
     //   default: null,
     // },
 
-   // Address snapshot at the time of booking
-address: {
-  type: mongoose.Schema.Types.Mixed,
-  required: true,
-},
+    // Address snapshot at the time of booking
+    address: {
+      type: mongoose.Schema.Types.Mixed,
+      required: true,
+    },
 
+    //   GeoJSON Point for the address location
+    location: {
+      type: {
+        type: String,
+        enum: ['Point'],
+        default: 'Point',
+      },
+      coordinates: {
+        type: [Number],
+        required: true,
+      },
+    },
     serviceDate: {
       type: Date,
       required: true,
