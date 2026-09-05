@@ -18,14 +18,16 @@ exports.createBooking = async (req, res) => {
       latitude,
     } = req.body;
 
+    console.log("booking address is ", address)
+
     const selectedAppliance = appliance || serviceCategory;
 
-    console.log(
-      "Value of longitude and latitude came from frontend:  ",
-      longitude,
-      ",",
-      latitude,
-    );
+    // console.log(
+    //   "Value of longitude and latitude came from frontend:  ",
+    //   longitude,
+    //   ",",
+    //   latitude,
+    // );
 
     //Here we have to first check latitude and longitude is present or not(maybe null) if not then send it to geocode api
 
@@ -37,6 +39,8 @@ exports.createBooking = async (req, res) => {
           "All required fields (appliance, address, serviceDate, timeSlot) must be provided.",
       });
     }
+
+   
 
     // Upload image if provided
     let image = "";
@@ -70,6 +74,8 @@ exports.createBooking = async (req, res) => {
       serviceCategory: serviceCategory || selectedAppliance,
       serviceCategoryCharge: Number(serviceCategoryCharge) || 299,
     });
+
+    console.log("Booking created successfully:", booking);
 
     return res.status(201).json({
       success: true,

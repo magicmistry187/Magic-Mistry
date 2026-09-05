@@ -51,33 +51,18 @@ const bookingSchema = new mongoose.Schema(
       type: String,
     },
     //   Reference  of customer saved address in its profile
-    refAddress: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Address',
-      default: null,
-    },
+    // refAddress: {
+    //   type: mongoose.Schema.Types.ObjectId,
+    //   ref: 'Address',
+    //   default: null,
+    // },
 
-    //snapshot of the address at the time of bnooking, in case the user updates their address later
-    address: {
-       addressType: {
-    type: String,
-    enum: ['Home', 'Office', 'Other'],
-  },
-      addressLine1: String,
-      street: String,
-      city: String,
-      state: String,
-      pincode: String,
-      landmark: String,
-       country: String,
-      location: {
-        type: {
-          type: String,
-          enum: ['Point'],
-        },
-        coordinates: [Number],
-      },
-    },
+   // Address snapshot at the time of booking
+address: {
+  type: mongoose.Schema.Types.Mixed,
+  required: true,
+},
+
     serviceDate: {
       type: Date,
       required: true,
