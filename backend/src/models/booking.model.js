@@ -137,4 +137,8 @@ bookingSchema.index({ vendor: 1, bookingStatus: 1 });
 // Admin dashboard (filter bookings by status and date)
 bookingSchema.index({ bookingStatus: 1, serviceDate: 1 });
 
+
+//here Mushhh - ADD
+bookingSchema.index({location: '2dsphere'});
+
 module.exports = mongoose.model('Booking', bookingSchema);

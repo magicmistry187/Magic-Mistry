@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Booking = require('../models/booking.model');
+const Address = require("../models/address.model");
 const { uploadImageToImageKit } = require('../config/imagekit');
 
 // Create booking
@@ -71,6 +72,9 @@ exports.createBooking = async (req, res) => {
       serviceCategoryCharge: Number(serviceCategoryCharge) || 299,
     };
 
+
+  //Note: Mushhh
+  //here , we have to must send the value for longitude and latitude because these values is required true  in model...In can Create  Issue if value is going to be null
    if (latitude != null && longitude != null) {
   bookingData.location = {
     type: 'Point',
@@ -264,6 +268,100 @@ exports.getBookingsToVendor = async (req, res) => {
     });
   }
 };
+
+
+//Mushhh
+
+exports.getBookingToVendorUnderRange = async(req , res)=> {
+
+  try{
+
+    const vendorId = req.user.id;
+
+    //Radius Comes from frontend n KM
+    //Default radius = 15km
+
+    const radius = Number(req.query.radius) || 15;
+
+    const vendorAddress = await Address.findOne({user: vendorId});
+
+    if(!vendorAddress || !vendorAddress.location || !vendorAddress.location.coordinates || vendorAddress.location.coordinates.length !== 2 ){
+      return res.status(400).json({
+        success: false,
+        message: "Vendor Address Not Found"
+      })
+    }
+
+    //vendor Location = [longitude , latitude}
+    const vendorLocation = vendorAddress.location
+
+    
+const bookings = await Booking.aggregate([
+
+  //Find Bookings near Vendor address within the specified radius
+
+  {
+    $geoNear: {
+      near: vendorLocation,
+      key: "location",
+      distanceField: "distance",
+      maxDistance: radius * 1000, //Convert m to km
+      spherical: true,
+    },
+  },
+
+  //Show only pending bookings or bookimg assigned to the vendor
+  {
+    $match: {
+      $or: [
+        {bookingStatus: 'Pending'},
+        {vendor :  new mongoose.Types.ObjectId(vendorId)}
+      ]
+    },
+  },
+
+  //Shows Latest Bookings first
+  {
+    $sort: {createdAt : -1}
+  },
+]);
+
+//Populate customer and vendor  manually
+
+await Booking.populate(bookings , [
+  {
+    path : 'customer',
+    select : 'fullName email phoneNumber'
+  },
+  {
+    path : 'vendor',
+    select : 'fullName email phoneNumber'
+  }
+])
+
+
+return res.status(200).json({
+  success: true,
+  count: bookings.length,
+  bookings,
+  radius,
+  message : "Bookings fetched successfully within the specified radius"
+})
+
+  }catch(err){
+    
+    console.log("Error while fetching booking in range: ", err);
+    return res.status(500).json({
+      success: false,
+      message : "Failed to fetch Bookings within the specified radius",
+      error: err.message,
+    })
+
+  }
+}
+
+
+
 
 exports.acceptBooking = async (req, res) => {
   try {

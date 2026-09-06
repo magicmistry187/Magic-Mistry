@@ -1,10 +1,10 @@
-import { apiConnector, BASE_URL } from '../apiConnector';
+import { apiConnector, BASE_URL } from "../apiConnector";
 
 export const bookingEndpoints = {
-  CREATE_BOOKING_API: BASE_URL + '/booking',
-  GET_MY_BOOKINGS_API: BASE_URL + '/booking/my-bookings',
-  GET_BOOKING_DETAILS_API: BASE_URL + '/booking', // + /:bookingId
-  CANCEL_BOOKING_API: BASE_URL + '/booking',       // + /:bookingId/cancel
+  CREATE_BOOKING_API: BASE_URL + "/booking",
+  GET_MY_BOOKINGS_API: BASE_URL + "/booking/my-bookings",
+  GET_BOOKING_DETAILS_API: BASE_URL + "/booking", // + /:bookingId
+  CANCEL_BOOKING_API: BASE_URL + "/booking", // + /:bookingId/cancel
 };
 
 const {
@@ -16,10 +16,10 @@ const {
 
 const getAuthToken = (token) =>
   token ||
-  (typeof window !== 'undefined'
-    ? localStorage.getItem('mm_token') ||
-      localStorage.getItem('token') ||
-      localStorage.getItem('vendorToken')
+  (typeof window !== "undefined"
+    ? localStorage.getItem("mm_token") ||
+      localStorage.getItem("token") ||
+      localStorage.getItem("vendorToken")
     : null);
 
 // Create Booking
@@ -27,16 +27,16 @@ export async function createBookingApi(formData, token) {
   try {
     const authToken = getAuthToken(token);
     const res = await apiConnector(
-      'POST',
+      "POST",
       CREATE_BOOKING_API,
       formData,
-      authToken ? { Authorization: `Bearer ${authToken}` } : {}
+      authToken ? { Authorization: `Bearer ${authToken}` } : {},
     );
 
-    console.log('Create booking response:', res.data);
+    console.log("Create booking response:", res.data);
 
     if (!res.data?.success) {
-      throw new Error(res.data?.message || 'Booking failed');
+      throw new Error(res.data?.message || "Booking failed");
     }
 
     return {
@@ -45,10 +45,13 @@ export async function createBookingApi(formData, token) {
       message: res.data.message,
     };
   } catch (error) {
-    console.error('Error while creating booking:', error);
+    console.error("Error while creating booking:", error);
     return {
       success: false,
-      message: error.response?.data?.message || error.message || 'Booking could not be created',
+      message:
+        error.response?.data?.message ||
+        error.message ||
+        "Booking could not be created",
     };
   }
 }
@@ -58,14 +61,14 @@ export async function getMyBookingsApi(token) {
   try {
     const authToken = getAuthToken(token);
     const res = await apiConnector(
-      'GET',
+      "GET",
       GET_MY_BOOKINGS_API,
       null,
-      authToken ? { Authorization: `Bearer ${authToken}` } : {}
+      authToken ? { Authorization: `Bearer ${authToken}` } : {},
     );
 
     if (!res.data?.success) {
-      throw new Error(res.data?.message || 'Failed to fetch bookings');
+      throw new Error(res.data?.message || "Failed to fetch bookings");
     }
 
     return {
@@ -74,10 +77,13 @@ export async function getMyBookingsApi(token) {
       count: res.data.count,
     };
   } catch (error) {
-    console.error('Error fetching my bookings:', error);
+    console.error("Error fetching my bookings:", error);
     return {
       success: false,
-      message: error.response?.data?.message || error.message || 'Failed to fetch bookings',
+      message:
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to fetch bookings",
     };
   }
 }
@@ -87,14 +93,14 @@ export async function getBookingDetailsApi(bookingId, token) {
   try {
     const authToken = getAuthToken(token);
     const res = await apiConnector(
-      'GET',
+      "GET",
       `${GET_BOOKING_DETAILS_API}/${bookingId}`,
       null,
-      authToken ? { Authorization: `Bearer ${authToken}` } : {}
+      authToken ? { Authorization: `Bearer ${authToken}` } : {},
     );
 
     if (!res.data?.success) {
-      throw new Error(res.data?.message || 'Failed to fetch booking details');
+      throw new Error(res.data?.message || "Failed to fetch booking details");
     }
 
     return {
@@ -102,10 +108,13 @@ export async function getBookingDetailsApi(bookingId, token) {
       booking: res.data.booking,
     };
   } catch (error) {
-    console.error('Error fetching booking details:', error);
+    console.error("Error fetching booking details:", error);
     return {
       success: false,
-      message: error.response?.data?.message || error.message || 'Failed to fetch booking details',
+      message:
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to fetch booking details",
     };
   }
 }
@@ -115,14 +124,14 @@ export async function cancelBookingApi(bookingId, token) {
   try {
     const authToken = getAuthToken(token);
     const res = await apiConnector(
-      'PATCH',
+      "PATCH",
       `${CANCEL_BOOKING_API}/${bookingId}/cancel`,
       null,
-      authToken ? { Authorization: `Bearer ${authToken}` } : {}
+      authToken ? { Authorization: `Bearer ${authToken}` } : {},
     );
 
     if (!res.data?.success) {
-      throw new Error(res.data?.message || 'Failed to cancel booking');
+      throw new Error(res.data?.message || "Failed to cancel booking");
     }
 
     return {
@@ -131,10 +140,13 @@ export async function cancelBookingApi(bookingId, token) {
       message: res.data.message,
     };
   } catch (error) {
-    console.error('Error cancelling booking:', error);
+    console.error("Error cancelling booking:", error);
     return {
       success: false,
-      message: error.response?.data?.message || error.message || 'Failed to cancel booking',
+      message:
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to cancel booking",
     };
   }
 }
@@ -144,14 +156,14 @@ export async function getAdminBookingsApi(token) {
   try {
     const authToken = getAuthToken(token);
     const res = await apiConnector(
-      'GET',
+      "GET",
       `${BASE_URL}/booking/admin/bookings`,
       null,
-      authToken ? { Authorization: `Bearer ${authToken}` } : {}
+      authToken ? { Authorization: `Bearer ${authToken}` } : {},
     );
 
     if (!res.data?.success) {
-      throw new Error(res.data?.message || 'Failed to fetch admin bookings');
+      throw new Error(res.data?.message || "Failed to fetch admin bookings");
     }
 
     return {
@@ -160,27 +172,36 @@ export async function getAdminBookingsApi(token) {
       count: res.data.count,
     };
   } catch (error) {
-    console.error('Error fetching admin bookings:', error);
+    console.error("Error fetching admin bookings:", error);
     return {
       success: false,
-      message: error.response?.data?.message || error.message || 'Failed to fetch admin bookings',
+      message:
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to fetch admin bookings",
     };
   }
 }
 
+
+//Mushhh --> I replace this api to getVendorBookingUnderRange
 // Get Vendor Bookings
-export async function getVendorBookingsApi(token) {
+export async function getVendorBookingsApi(token, radius) {
   try {
     const authToken = getAuthToken(token);
     const res = await apiConnector(
-      'GET',
+      "GET",
       `${BASE_URL}/booking/vendor/bookings`,
-      null,
-      authToken ? { Authorization: `Bearer ${authToken}` } : {}
+      {
+        params: {
+          radius: radius || 15,
+        },
+      },
+      authToken ? { Authorization: `Bearer ${authToken}` } : {},
     );
 
     if (!res.data?.success) {
-      throw new Error(res.data?.message || 'Failed to fetch vendor bookings');
+      throw new Error(res.data?.message || "Failed to fetch vendor bookings");
     }
 
     return {
@@ -189,10 +210,13 @@ export async function getVendorBookingsApi(token) {
       count: res.data.count,
     };
   } catch (error) {
-    console.error('Error fetching vendor bookings:', error);
+    console.error("Error fetching vendor bookings:", error);
     return {
       success: false,
-      message: error.response?.data?.message || error.message || 'Failed to fetch vendor bookings',
+      message:
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to fetch vendor bookings",
     };
   }
 }
@@ -202,26 +226,29 @@ export async function acceptBookingApi(bookingId, token) {
   try {
     const authToken = getAuthToken(token);
     const res = await apiConnector(
-      'PATCH',
+      "PATCH",
       `${BASE_URL}/booking/${bookingId}/accept`,
       null,
-      authToken ? { Authorization: `Bearer ${authToken}` } : {}
+      authToken ? { Authorization: `Bearer ${authToken}` } : {},
     );
 
     if (!res.data?.success) {
-      throw new Error(res.data?.message || 'Failed to accept booking');
+      throw new Error(res.data?.message || "Failed to accept booking");
     }
 
     return {
       success: true,
       booking: res.data.booking,
-      message: res.data.message || 'Booking accepted successfully',
+      message: res.data.message || "Booking accepted successfully",
     };
   } catch (error) {
-    console.error('Error accepting booking:', error);
+    console.error("Error accepting booking:", error);
     return {
       success: false,
-      message: error.response?.data?.message || error.message || 'Failed to accept booking',
+      message:
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to accept booking",
     };
   }
 }
@@ -231,26 +258,29 @@ export async function updateBookingStatusApi(bookingId, statusData, token) {
   try {
     const authToken = getAuthToken(token);
     const res = await apiConnector(
-      'PATCH',
+      "PATCH",
       `${BASE_URL}/booking/${bookingId}/status`,
       statusData,
-      authToken ? { Authorization: `Bearer ${authToken}` } : {}
+      authToken ? { Authorization: `Bearer ${authToken}` } : {},
     );
 
     if (!res.data?.success) {
-      throw new Error(res.data?.message || 'Failed to update booking status');
+      throw new Error(res.data?.message || "Failed to update booking status");
     }
 
     return {
       success: true,
       booking: res.data.booking,
-      message: res.data.message || 'Booking status updated successfully',
+      message: res.data.message || "Booking status updated successfully",
     };
   } catch (error) {
-    console.error('Error updating booking status:', error);
+    console.error("Error updating booking status:", error);
     return {
       success: false,
-      message: error.response?.data?.message || error.message || 'Failed to update booking status',
+      message:
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to update booking status",
     };
   }
 }
