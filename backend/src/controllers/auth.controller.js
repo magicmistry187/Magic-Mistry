@@ -241,20 +241,6 @@ async function login(req, res) {
       });
     }
 
-    // // Vendor approval check
-    // if (user.role === "vendor" && !user.isApproved) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: "Your account is waiting for admin approval.",
-    //   });
-    // }
-
-    if (user.status === 'blocked') {
-      return res.status(403).json({
-        success: false,
-        message: 'Your account has been blocked by the administrator.',
-      });
-    }
 
     if (user.status === 'suspended') {
       return res.status(403).json({

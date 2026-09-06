@@ -16,18 +16,6 @@ const bookingSchema = new mongoose.Schema(
 
     appliance: {
       type: String,
-      // enum: [
-      //   'AC Repair',
-      //   'Refrigerator',
-      //   'Washing Machine',
-      //   'Microwave',
-      //   'Mixer Grinder',
-      //   'Water Pump',
-      //   'Air Cooler',
-      //   'Induction Cooktop',
-      //   'Stabilizer',
-      //   'Press Iron',
-      // ],
       required: true,
     },
 
@@ -50,12 +38,7 @@ const bookingSchema = new mongoose.Schema(
     image: {
       type: String,
     },
-    //   Reference  of customer saved address in its profile
-    // refAddress: {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: 'Address',
-    //   default: null,
-    // },
+    
 
     // Address snapshot at the time of booking
     address: {

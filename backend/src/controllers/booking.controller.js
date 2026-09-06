@@ -1,4 +1,3 @@
-const mongoose = require('mongoose');
 const Booking = require('../models/booking.model');
 const { uploadImageToImageKit } = require('../config/imagekit');
 
@@ -28,7 +27,12 @@ exports.createBooking = async (req, res) => {
     );
 
     // If address was sent as multipart form-data bracket fields like address[addressLine1]
-    if (!address && (req.body['address[addressLine1]'] || req.body['address[city]'] || req.body['address[street]'])) {
+    if (
+      !address &&
+      (req.body['address[addressLine1]'] ||
+        req.body['address[city]'] ||
+        req.body['address[street]'])
+    ) {
       address = {
         addressLine1: req.body['address[addressLine1]'] || '',
         street: req.body['address[street]'] || '',
@@ -85,14 +89,26 @@ exports.createBooking = async (req, res) => {
       issue: issue || 'General Repair & Maintenance',
       image,
       address,
-      serviceDate, 
+      serviceDate,
       timeSlot,
       serviceCategory: serviceCategory || selectedAppliance,
       serviceCategoryCharge: Number(serviceCategoryCharge) || 299,
     };
 
-    const latNum = (latitude !== null && latitude !== undefined && latitude !== '' && !isNaN(Number(latitude))) ? Number(latitude) : null;
-    const lngNum = (longitude !== null && longitude !== undefined && longitude !== '' && !isNaN(Number(longitude))) ? Number(longitude) : null;
+    const latNum =
+      latitude !== null &&
+      latitude !== undefined &&
+      latitude !== '' &&
+      !isNaN(Number(latitude))
+        ? Number(latitude)
+        : null;
+    const lngNum =
+      longitude !== null &&
+      longitude !== undefined &&
+      longitude !== '' &&
+      !isNaN(Number(longitude))
+        ? Number(longitude)
+        : null;
 
     if (latNum !== null && lngNum !== null) {
       bookingData.location = {
@@ -102,7 +118,6 @@ exports.createBooking = async (req, res) => {
     }
 
     console.log('Booking data to be saved:', bookingData);
-
 
     const booking = await Booking.create(bookingData);
 
