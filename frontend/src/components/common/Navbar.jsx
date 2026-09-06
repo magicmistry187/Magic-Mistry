@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, MapPin, Menu, X, LogOut, User, LayoutDashboard, ChevronDown } from 'lucide-react';
+import { Search, MapPin, Menu, X, LogOut, User, LayoutDashboard, ChevronDown, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import logo2 from '../../../public/logo2.png';
 import { useAuth } from '../../context/AuthContext';
@@ -17,9 +17,11 @@ const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+  const [isLocationPopupOpen, setIsLocationPopupOpen] = useState(false);
   const [showSearchLoginModal, setShowSearchLoginModal] = useState(false);
   const [selectedSearchAppliance, setSelectedSearchAppliance] = useState(null);
   const dropdownRef = useRef(null);
+  const locationPopupRef = useRef(null);
 
   // Hide/show navbar on scroll
   useEffect(() => {
@@ -34,11 +36,14 @@ const Navbar = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [lastScrollY]);
 
-  // Close dropdown when clicking outside
+  // Close dropdown / location popup when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setIsDropdownOpen(false);
+      }
+      if (locationPopupRef.current && !locationPopupRef.current.contains(e.target)) {
+        setIsLocationPopupOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -50,6 +55,28 @@ const Navbar = () => {
     setIsDropdownOpen(false);
     setIsMobileMenuOpen(false);
     navigate('/');
+  };
+
+  // Returns the correct dashboard path based on user role
+  const getDashboardRoute = () => {
+    const r = (user?.role || '').toLowerCase();
+    if (r === 'admin') return '/admin-dashboard';
+    if (r === 'vendor' || !!user?.vendorId) return '/vendor-dashboard';
+    return '/dashboard';
+  };
+
+  // Navigate to profile/address section and close all menus
+  const handleGoToProfile = () => {
+    setIsLocationPopupOpen(false);
+    setIsMobileMenuOpen(false);
+    const r = (user?.role || '').toLowerCase();
+    if (r === 'admin') {
+      navigate('/admin-dashboard');
+    } else if (r === 'vendor' || !!user?.vendorId) {
+      navigate('/vendor-dashboard?tab=profile', { state: { tab: 'profile' } });
+    } else {
+      navigate('/dashboard?tab=addresses', { state: { tab: 'addresses' } });
+    }
   };
 
   // Search Data with direct booking capability
@@ -310,17 +337,98 @@ const Navbar = () => {
               {/* Right Items */}
               <div className="flex items-center space-x-4 min-[930px]:space-x-6 shrink-0">
 
-                {/* Location Display */}
-                <div
-                  className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200 shadow-xs select-none"
-                  title="Location is managed in your dashboard"
-                >
-                  <MapPin className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-                  <span className="hidden min-[930px]:inline max-w-[130px] truncate">
-                    {location && location !== 'Set Your Location' ? location.replace(/^(current location|location),\s*/i, '') : 'Set Your Location'}
-                  </span>
-                </div>
+                {/* Location Display — clickable pill + popup */}
+                <div className="relative hidden sm:block" ref={locationPopupRef}>
+                  <button
+                    onClick={() => setIsLocationPopupOpen(prev => !prev)}
+                    className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-700 px-3 py-1.5 rounded-full border border-slate-200 shadow-xs transition-all duration-200 cursor-pointer select-none"
+                    title="Click to view your saved location"
+                  >
+                    <MapPin className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                    <span className="hidden min-[930px]:inline max-w-[130px] truncate">
+                      {location && location !== 'Set Your Location'
+                        ? location.replace(/^(current location|location),\s*/i, '')
+                        : 'Set Your Location'}
+                    </span>
+                    <ChevronDown className={`w-3 h-3 text-slate-400 hidden min-[930px]:inline transition-transform duration-200 ${isLocationPopupOpen ? 'rotate-180' : ''}`} />
+                  </button>
 
+                  {/* Location Popup */}
+                  <AnimatePresence>
+                    {isLocationPopupOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.92, y: -8 }}
+                        animate={{ opacity: 1, scale: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }}
+                        exit={{ opacity: 0, scale: 0.92, y: -8, transition: { duration: 0.15 } }}
+                        className="absolute left-0 top-[calc(100%+10px)] w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50"
+                        style={{ transformOrigin: 'top left' }}
+                      >
+                        {/* Header */}
+                        <div className="px-4 pt-4 pb-3 bg-gradient-to-br from-orange-50 to-amber-50 border-b border-orange-100">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center">
+                                <MapPin className="w-4 h-4 text-orange-500" />
+                              </div>
+                              <p className="text-xs font-bold text-orange-700 uppercase tracking-wide">
+                                {(user?.role || '').toLowerCase() === 'vendor' || !!user?.vendorId
+                                  ? 'Service Location'
+                                  : 'Service Address'}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => setIsLocationPopupOpen(false)}
+                              className="text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-white/60 transition-colors cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Location Text */}
+                        <div className="px-4 py-3">
+                          {location && location !== 'Set Your Location' ? (
+                            <p className="text-sm font-semibold text-slate-800 leading-relaxed">
+                              {location.replace(/^(current location|location),\s*/i, '')}
+                            </p>
+                          ) : (
+                            <p className="text-sm text-slate-400 italic">No location saved yet.</p>
+                          )}
+                        </div>
+
+                        {/* Divider */}
+                        <div className="mx-4 h-px bg-slate-100" />
+
+                        {/* Change Location Button */}
+                        <div className="px-4 py-3">
+                          <p className="text-[11px] text-slate-400 mb-2.5 leading-relaxed">
+                            {(user?.role || '').toLowerCase() === 'vendor' || !!user?.vendorId
+                              ? 'Change your service address & coverage in your vendor profile.'
+                              : 'Update your address or add new locations in your saved addresses.'}
+                          </p>
+                          {isLoggedIn ? (
+                            <button
+                              onClick={handleGoToProfile}
+                              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm font-bold rounded-xl transition-colors cursor-pointer shadow-sm"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              {(user?.role || '').toLowerCase() === 'vendor' || !!user?.vendorId
+                                ? 'Change Location in Vendor Profile'
+                                : 'Change Location in Saved Addresses'}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => { setIsLocationPopupOpen(false); navigate('/login'); }}
+                              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-colors cursor-pointer shadow-sm"
+                            >
+                              Login to set location
+                            </button>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
 
 
                 {/* ── USER AVATAR + DROPDOWN or LOGIN BUTTON ── */}
@@ -570,13 +678,33 @@ const Navbar = () => {
                   <Link to="/faq" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded cursor-pointer select-none outline-none">FAQ</Link>
 
                   <div
-                    className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-bold text-slate-700 bg-white border border-gray-200 rounded-xl mt-2 select-none"
+                    className="w-full p-3 bg-white border border-gray-200 rounded-xl mt-2 select-none shadow-2xs"
                   >
-                    <div className="flex items-center space-x-2 overflow-hidden">
-                      <MapPin className="w-4 h-4 text-orange-500 shrink-0" />
-                      <span className="truncate">
-                        {location && location !== 'Set Your Location' ? location.replace(/^(current location|location),\s*/i, '') : 'Set Your Location'}
-                      </span>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center space-x-2 overflow-hidden min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center shrink-0">
+                          <MapPin className="w-4 h-4 text-orange-500" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            {(user?.role || '').toLowerCase() === 'vendor' || !!user?.vendorId
+                              ? 'Vendor Service Location'
+                              : 'Saved Service Address'}
+                          </p>
+                          <p className="text-xs font-bold text-slate-800 truncate">
+                            {location && location !== 'Set Your Location'
+                              ? location.replace(/^(current location|location),\s*/i, '')
+                              : 'Set Your Location'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleGoToProfile}
+                        className="text-xs font-extrabold text-white bg-orange-500 hover:bg-orange-600 px-3 py-1.5 rounded-lg transition-colors shrink-0 cursor-pointer shadow-xs flex items-center gap-1"
+                        title="Change location"
+                      >
+                        <span>Change</span>
+                      </button>
                     </div>
                   </div>
 

@@ -6,7 +6,7 @@ const { uploadImageToImageKit } = require('../config/imagekit');
 exports.createBooking = async (req, res) => {
   console.log('Customer booking saved:', req.user.id);
   try {
-    const {
+    let {
       appliance,
       issue,
       address,
@@ -27,7 +27,27 @@ exports.createBooking = async (req, res) => {
       latitude,
     );
 
-    //Here we have to first check latitude and longitude is present or not(maybe null) if not then send it to geocode api
+    // If address was sent as multipart form-data bracket fields like address[addressLine1]
+    if (!address && (req.body['address[addressLine1]'] || req.body['address[city]'] || req.body['address[street]'])) {
+      address = {
+        addressLine1: req.body['address[addressLine1]'] || '',
+        street: req.body['address[street]'] || '',
+        city: req.body['address[city]'] || '',
+        state: req.body['address[state]'] || '',
+        pincode: req.body['address[pincode]'] || '',
+        landmark: req.body['address[landmark]'] || '',
+        country: req.body['address[country]'] || 'India',
+      };
+    } else if (typeof address === 'string') {
+      try {
+        const parsed = JSON.parse(address);
+        if (typeof parsed === 'object' && parsed !== null) {
+          address = parsed;
+        }
+      } catch (_) {
+        // Plain string address, retain as is
+      }
+    }
 
     // Validate required fields
     if (!selectedAppliance || !address || !serviceDate || !timeSlot) {
@@ -62,7 +82,7 @@ exports.createBooking = async (req, res) => {
     const bookingData = {
       customer: req.user.id,
       appliance: selectedAppliance,
-      issue: issue,
+      issue: issue || 'General Repair & Maintenance',
       image,
       address,
       serviceDate, 
@@ -71,17 +91,17 @@ exports.createBooking = async (req, res) => {
       serviceCategoryCharge: Number(serviceCategoryCharge) || 299,
     };
 
-   if (latitude != null && longitude != null) {
-  bookingData.location = {
-    type: 'Point',
-    coordinates: [
-      Number(longitude),
-      Number(latitude),
-    ],
-  };
-}
+    const latNum = (latitude !== null && latitude !== undefined && latitude !== '' && !isNaN(Number(latitude))) ? Number(latitude) : null;
+    const lngNum = (longitude !== null && longitude !== undefined && longitude !== '' && !isNaN(Number(longitude))) ? Number(longitude) : null;
 
-console.log('Booking data to be saved:', bookingData);
+    if (latNum !== null && lngNum !== null) {
+      bookingData.location = {
+        type: 'Point',
+        coordinates: [lngNum, latNum],
+      };
+    }
+
+    console.log('Booking data to be saved:', bookingData);
 
 
     const booking = await Booking.create(bookingData);

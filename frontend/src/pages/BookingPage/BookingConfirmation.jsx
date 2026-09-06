@@ -50,11 +50,51 @@ export default function BookingConfirmation() {
   if (!booking) return null;
 
   const rawDate = booking.serviceDate || booking.date;
-  const formattedDate = rawDate
-    ? new Date(rawDate + 'T00:00:00').toLocaleDateString('en-IN', {
+  let formattedDate = '—';
+  if (rawDate) {
+    const dateStr = typeof rawDate === 'string' && rawDate.includes('T')
+      ? rawDate
+      : `${rawDate}T00:00:00`;
+    const parsed = new Date(dateStr);
+    if (!isNaN(parsed.getTime())) {
+      formattedDate = parsed.toLocaleDateString('en-IN', {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-      })
-    : '—';
+      });
+    }
+  }
+
+  const formattedAddress = React.useMemo(() => {
+    if (!booking?.address) return '—';
+    if (typeof booking.address === 'string') {
+      try {
+        const parsed = JSON.parse(booking.address);
+        if (typeof parsed === 'object' && parsed !== null) {
+          const parts = [
+            parsed.house || parsed.flat || parsed.addressLine1,
+            parsed.street,
+            parsed.landmark,
+            parsed.city,
+            parsed.state,
+            parsed.pincode,
+          ].filter(Boolean);
+          return parts.length > 0 ? parts.join(', ') : (parsed.fullAddress || booking.address.trim() || '—');
+        }
+      } catch (_) {}
+      return booking.address.trim() || '—';
+    }
+    if (typeof booking.address === 'object') {
+      const parts = [
+        booking.address.house || booking.address.flat || booking.address.addressLine1,
+        booking.address.street,
+        booking.address.landmark,
+        booking.address.city,
+        booking.address.state,
+        booking.address.pincode,
+      ].filter(Boolean);
+      return parts.length > 0 ? parts.join(', ') : (booking.address.fullAddress || '—');
+    }
+    return '—';
+  }, [booking?.address]);
 
   const bookingIdDisplay = booking._id || booking.bookingId || 'MM-' + Date.now().toString(36).toUpperCase();
   const serviceDisplayName = booking.serviceCategory || booking.appliance || booking.serviceName || 'Appliance Repair';
@@ -160,9 +200,7 @@ export default function BookingConfirmation() {
                   <div className="flex-1">
                     <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide">Service Address</p>
                     <p className="text-slate-800 font-semibold text-sm leading-relaxed">
-                      {typeof booking.address === 'object' && booking.address !== null
-                        ? [booking.address.house || booking.address.flat || booking.address.addressLine1, booking.address.street, booking.address.landmark, booking.address.city, booking.address.state, booking.address.pincode].filter(Boolean).join(', ')
-                        : (booking.address || '—')}
+                      {formattedAddress}
                     </p>
                   </div>
                 </div>

@@ -6,6 +6,7 @@ import { Info, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 import LoginRequiredModal from '../auth/LoginRequiredModal';
 import ApplianceIcon from '../common/ApplianceIcon';
+import { parseAddressString } from '../../utils/addressParser';
 
 /* West Bengal keywords — same list as AddressForm */
 const WB_KEYWORDS = [
@@ -102,7 +103,22 @@ export default function BookingSummary() {
       formData.append('serviceCategory', serviceTitle);
       formData.append('serviceCategoryCharge', basePrice);
       formData.append('issue', bookingState.problemDescription || (bookingState.selectedSubServices.length > 0 ? bookingState.selectedSubServices.map(s => s.label).join(', ') : 'General Repair & Maintenance'));
+      const parsedAddr = parseAddressString(bookingState.address);
+      const addressLine1 = parsedAddr.flat || parsedAddr.street || bookingState.address.trim();
+      const street = parsedAddr.flat ? parsedAddr.street : '';
+
       formData.append('address', bookingState.address.trim());
+      formData.append('address[addressLine1]', addressLine1);
+      if (street) {
+        formData.append('address[street]', street);
+      }
+      formData.append('address[city]', parsedAddr.city || '');
+      formData.append('address[state]', parsedAddr.state || 'West Bengal');
+      formData.append('address[pincode]', parsedAddr.pincode || '');
+      if (parsedAddr.landmark) {
+        formData.append('address[landmark]', parsedAddr.landmark);
+      }
+      formData.append('address[country]', 'India');
       formData.append('serviceDate', bookingState.date);
       formData.append('timeSlot', bookingState.timeSlot);
 
@@ -132,7 +148,22 @@ export default function BookingSummary() {
       const res = await createBookingApi(formData, token);
 
       if (res.success && res.booking) {
-        navigate('/booking/confirmation', { state: { booking: res.booking } });
+        const fullDisplayAddress = bookingState.address.trim();
+        const hasValidReturnedAddress =
+          res.booking?.address &&
+          ((typeof res.booking.address === 'string' && res.booking.address.trim()) ||
+           (typeof res.booking.address === 'object' && Object.values(res.booking.address).some(v => typeof v === 'string' && v.trim())));
+
+        navigate('/booking/confirmation', {
+          state: {
+            booking: {
+              ...res.booking,
+              address: hasValidReturnedAddress ? res.booking.address : fullDisplayAddress,
+              serviceDate: res.booking?.serviceDate || bookingState.date,
+              timeSlot: res.booking?.timeSlot || bookingState.timeSlot,
+            },
+          },
+        });
       } else {
         setErrors([res.message || 'Failed to place booking. Please try again.']);
         document.getElementById('summary-errors')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
