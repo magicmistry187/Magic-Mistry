@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   Wrench, ShieldCheck, Star, Clock, MapPin, Phone, Navigation,
   CheckCircle2, XCircle, AlertCircle, IndianRupee, TrendingUp,
@@ -72,8 +72,23 @@ const AVAILABLE_COMPONENTS = [
 
 export default function VendorDashboardPage() {
   const navigate = useNavigate();
+  const routerLocation = useLocation();
   const { token, user, loading, location, updateProfile } = useAuth();
-  const [activeTab, setActiveTab] = useState('active'); // 'active', 'service', 'invoice', 'history', 'earnings', 'profile'
+  
+  // Navigation tabs: 'active', 'service', 'invoice', 'history', 'earnings', 'profile'
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('tab') || 'active';
+  });
+
+  // Sync activeTab if location state or search params change (e.g. from Navbar)
+  useEffect(() => {
+    const targetTab = routerLocation.state?.tab || new URLSearchParams(routerLocation.search).get('tab');
+    if (targetTab) {
+      setActiveTab(targetTab);
+    }
+  }, [routerLocation]);
+
   const [isOnline, setIsOnline] = useState(true);
 
   // Role guard — ensure user has vendor access
@@ -452,6 +467,18 @@ export default function VendorDashboardPage() {
       formData.append('serviceAddress', displayAddress);
       formData.append('location', displayAddress);
       await updateVendorProfileApi(formData, authToken);
+
+      // ── Sync Navbar location pill immediately ────────────────────────────
+      if (updateProfile) {
+        updateProfile({
+          serviceAddress: displayAddress,
+          location: displayAddress,
+          ...(addressData.latitude && addressData.longitude
+            ? { latitude: addressData.latitude, longitude: addressData.longitude }
+            : {}),
+        });
+      }
+      // ─────────────────────────────────────────────────────────────────────
 
       showToast('Service address updated successfully!', 'success');
     } catch (err) {

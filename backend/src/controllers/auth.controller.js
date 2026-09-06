@@ -20,6 +20,8 @@ function generateToken(user) {
   return jwt.sign(payload, process.env.JWT_SECRET || 'secret', {
     expiresIn: '7d',
   });
+
+  return jwt.sign;
 }
 
 // send otp
@@ -35,8 +37,9 @@ async function sendOtp(req, res) {
       });
     }
 
+ const trimmedEmail = email.toLowerCase().trim()
     const checkUser = await userModel.findOne({
-      email: email.toLowerCase().trim(),
+      email: trimmedEmail,
     });
 
     if (purpose === 'signup' && checkUser) {
@@ -50,6 +53,14 @@ async function sendOtp(req, res) {
       return res.status(400).json({
         success: false,
         message: 'User is not registered with this email',
+      });
+    }
+
+      const lastOtp = await otpModel.findOne({ email: trimmedEmail, purpose }).sort({ createdAt: -1 });
+    if (lastOtp && Date.now() - lastOtp.createdAt.getTime() < 30 * 1000) {
+      return res.status(429).json({
+        success: false,
+        message: 'Please wait before requesting another OTP.',
       });
     }
 
@@ -116,6 +127,7 @@ async function sendOtp(req, res) {
 
 // signup
 async function signup(req, res) {
+  
   try {
     const { fullName, email, password, phoneNumber, otp, role } = req.body;
 
@@ -140,6 +152,7 @@ async function signup(req, res) {
     const recentOtp = await otpModel
       .findOne({ email: email.toLowerCase().trim(), purpose: 'signup' })
       .sort({ createdAt: -1 });
+      
 
     if (!recentOtp) {
       return res.status(400).json({
@@ -155,6 +168,9 @@ async function signup(req, res) {
       });
     }
 
+    // delete the OTP after successful verification to prevent reuse
+    await otpModel.deleteOne({ _id: recentOtp._id });
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await userModel.create({
@@ -166,7 +182,7 @@ async function signup(req, res) {
       // role: "admin", // Default role is 'user' if not provided
     });
 
-    const token = generateToken(user);
+    // const token = generateToken(user);
 
     const userData = user.toObject();
     delete userData.password;
@@ -174,7 +190,7 @@ async function signup(req, res) {
     return res.status(200).json({
       success: true,
       message: 'User is Signed Up',
-      token,
+      // token,
       user: userData,
     });
   } catch (err) {
@@ -190,7 +206,7 @@ async function signup(req, res) {
 // login
 async function login(req, res) {
   try {
-    // console.log("Login controller");
+    console.log('Login controller');
     const { email, password } = req.body;
 
     // Validate input
@@ -238,21 +254,6 @@ async function login(req, res) {
         success: false,
         message:
           'Your account has been blocked. Please contact the administrator.',
-      });
-    }
-
-    // // Vendor approval check
-    // if (user.role === "vendor" && !user.isApproved) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: "Your account is waiting for admin approval.",
-    //   });
-    // }
-
-    if (user.status === 'blocked') {
-      return res.status(403).json({
-        success: false,
-        message: 'Your account has been blocked by the administrator.',
       });
     }
 
@@ -370,8 +371,7 @@ async function googleLogin(req, res) {
     }
 
     const token = generateToken(user);
-    // console.log("Google login successful. Token generated:", token);
-    // console.log("User details:", user);
+    
 
     return res
       .cookie('token', token, {
@@ -678,7 +678,11 @@ async function updateUserLocation(req, res) {
       });
     }
 
-    if (location === undefined && latitude === undefined && longitude === undefined) {
+    if (
+      location === undefined &&
+      latitude === undefined &&
+      longitude === undefined
+    ) {
       return res.status(400).json({
         success: false,
         message: 'Location or coordinates required',
@@ -686,17 +690,20 @@ async function updateUserLocation(req, res) {
     }
 
     const cleanLocation = location !== undefined ? String(location).trim() : '';
-    const isClearing = cleanLocation === '' || cleanLocation === 'Set Your Location';
+    const isClearing =
+      cleanLocation === '' || cleanLocation === 'Set Your Location';
 
     const updateFields = {};
     if (location !== undefined) {
       updateFields.location = isClearing ? '' : cleanLocation;
     }
     if (latitude !== undefined) {
-      updateFields.latitude = isClearing || latitude === null ? null : Number(latitude);
+      updateFields.latitude =
+        isClearing || latitude === null ? null : Number(latitude);
     }
     if (longitude !== undefined) {
-      updateFields.longitude = isClearing || longitude === null ? null : Number(longitude);
+      updateFields.longitude =
+        isClearing || longitude === null ? null : Number(longitude);
     }
 
     const updatedUser = await userModel.findByIdAndUpdate(

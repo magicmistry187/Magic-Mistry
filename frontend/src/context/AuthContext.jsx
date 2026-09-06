@@ -333,13 +333,35 @@ export function AuthProvider({ children }) {
     setUser(updatedUser);
     localStorage.setItem('mm_user', JSON.stringify(updatedUser));
 
+    // ── Sync Navbar location pill for vendor profile updates ─────────────────
+    // When a vendor updates their serviceAddress or location in the dashboard,
+    // reflect it immediately in the Navbar location pill (same as customer flow).
+    const newDisplayLocation =
+      (profileData.serviceAddress && profileData.serviceAddress !== 'Set Your Location'
+        ? profileData.serviceAddress
+        : null) ||
+      (profileData.location && profileData.location !== 'Set Your Location'
+        ? profileData.location
+        : null);
+
+    if (newDisplayLocation) {
+      setLocation(newDisplayLocation);
+      localStorage.setItem('mm_location', newDisplayLocation);
+      // Persist GPS coords if provided
+      if (profileData.latitude && profileData.longitude) {
+        localStorage.setItem('mm_lat', profileData.latitude);
+        localStorage.setItem('mm_lng', profileData.longitude);
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     // Persist to backend if token is available
     if (token) {
       try {
         const payload = {
           fullName: profileData.fullName,
           phoneNumber: profileData.phoneNumber,
-          location: profileData.location,
+          location: newDisplayLocation || profileData.location,
           latitude: profileData.latitude,
           longitude: profileData.longitude,
         };

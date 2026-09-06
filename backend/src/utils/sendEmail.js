@@ -25,8 +25,7 @@ const mailSender = async (email, title, body) => {
     subject: title,
     html: body,
   });
-
-  console.log(`✉️  OTP email sent to ${email} (MessageID: ${info.messageId})`);
+;
   return info;
 };
 

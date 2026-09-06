@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getAddressesApi, createAddressApi, updateAddressApi, deleteAddressApi } from '../../services/operations/addressAPI';
 import { getMyBookingsApi, cancelBookingApi } from '../../services/operations/bookingAPI';
@@ -112,6 +112,7 @@ const mapAddresses = (list) =>
 export default function UserDashboardPage() {
   const { user, token, logout, location, updateLocation, updateProfile, loading } = useAuth();
   const navigate = useNavigate();
+  const routerLocation = useLocation();
 
   // Role guard — redirect vendors/admins to their correct dashboard
   React.useEffect(() => {
@@ -166,7 +167,18 @@ export default function UserDashboardPage() {
   }, [token, user]);
 
   // Navigation tabs: 'overview', 'bookings', 'history', 'payments', 'addresses', 'support', 'settings'
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('tab') || 'overview';
+  });
+
+  // Sync activeTab if location state or search params change (e.g. from Navbar)
+  React.useEffect(() => {
+    const targetTab = routerLocation.state?.tab || new URLSearchParams(routerLocation.search).get('tab');
+    if (targetTab) {
+      setActiveTab(targetTab);
+    }
+  }, [routerLocation]);
 
   // Modals state
   const [isMapOpen, setIsMapOpen] = useState(false);
@@ -1185,9 +1197,9 @@ export default function UserDashboardPage() {
                                         {item.address && (
                                           <span className="flex items-center gap-1 text-slate-600">
                                             <MapPin className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-                                            <span className="truncate max-w-[200px] sm:max-w-xs" title={typeof item.address === 'object' ? [item.address.house || item.address.flat, item.address.street, item.address.city].filter(Boolean).join(', ') : item.address}>
+                                            <span className="truncate max-w-[200px] sm:max-w-xs" title={typeof item.address === 'object' ? [item.address.house || item.address.flat || item.address.addressLine1, item.address.street, item.address.city].filter(Boolean).join(', ') : item.address}>
                                               {typeof item.address === 'object'
-                                                ? [item.address.house || item.address.flat, item.address.street, item.address.city].filter(Boolean).join(', ')
+                                                ? [item.address.house || item.address.flat || item.address.addressLine1, item.address.street, item.address.city].filter(Boolean).join(', ')
                                                 : item.address}
                                             </span>
                                           </span>

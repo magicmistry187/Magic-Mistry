@@ -1,13 +1,12 @@
-const mongoose = require('mongoose');
-const Booking = require('../models/booking.model');
+const mongoose = require("mongoose");
+const Booking = require("../models/booking.model");
 const Address = require("../models/address.model");
-const { uploadImageToImageKit } = require('../config/imagekit');
+const { uploadImageToImageKit } = require("../config/imagekit");
 
 // Create booking
 exports.createBooking = async (req, res) => {
-  console.log('Customer booking saved:', req.user.id);
   try {
-    const {
+    let {
       appliance,
       issue,
       address,
@@ -22,25 +21,50 @@ exports.createBooking = async (req, res) => {
     const selectedAppliance = appliance || serviceCategory;
 
     console.log(
-      'Value of longitude and latitude came from frontend:  ',
+      "Value of longitude and latitude came from frontend:  ",
       longitude,
-      ',',
+      ",",
       latitude,
     );
 
-    //Here we have to first check latitude and longitude is present or not(maybe null) if not then send it to geocode api
+    // If address was sent as multipart form-data bracket fields like address[addressLine1]
+    if (
+      !address &&
+      (req.body["address[addressLine1]"] ||
+        req.body["address[city]"] ||
+        req.body["address[street]"])
+    ) {
+      address = {
+        addressLine1: req.body["address[addressLine1]"] || "",
+        street: req.body["address[street]"] || "",
+        city: req.body["address[city]"] || "",
+        state: req.body["address[state]"] || "",
+        pincode: req.body["address[pincode]"] || "",
+        landmark: req.body["address[landmark]"] || "",
+        country: req.body["address[country]"] || "India",
+      };
+    } else if (typeof address === "string") {
+      try {
+        const parsed = JSON.parse(address);
+        if (typeof parsed === "object" && parsed !== null) {
+          address = parsed;
+        }
+      } catch (_) {
+        // Plain string address, retain as is
+      }
+    }
 
     // Validate required fields
     if (!selectedAppliance || !address || !serviceDate || !timeSlot) {
       return res.status(400).json({
         success: false,
         message:
-          'All required fields (appliance, address, serviceDate, timeSlot) must be provided.',
+          "All required fields (appliance, address, serviceDate, timeSlot) must be provided.",
       });
     }
 
     // Upload image if provided
-    let image = '';
+    let image = "";
 
     if (req.file) {
       try {
@@ -50,11 +74,11 @@ exports.createBooking = async (req, res) => {
         );
         image = result.url;
       } catch (error) {
-        console.error('Image upload failed:', error);
+        console.error("Image upload failed:", error);
 
         return res.status(500).json({
           success: false,
-          message: 'Failed to upload image.',
+          message: "Failed to upload image.",
         });
       }
     }
@@ -63,44 +87,50 @@ exports.createBooking = async (req, res) => {
     const bookingData = {
       customer: req.user.id,
       appliance: selectedAppliance,
-      issue: issue,
+      issue: issue || "General Repair & Maintenance",
       image,
       address,
-      serviceDate, 
+      serviceDate,
       timeSlot,
       serviceCategory: serviceCategory || selectedAppliance,
       serviceCategoryCharge: Number(serviceCategoryCharge) || 299,
     };
 
+    const latNum =
+      latitude !== null &&
+      latitude !== undefined &&
+      latitude !== "" &&
+      !isNaN(Number(latitude))
+        ? Number(latitude)
+        : null;
+    const lngNum =
+      longitude !== null &&
+      longitude !== undefined &&
+      longitude !== "" &&
+      !isNaN(Number(longitude))
+        ? Number(longitude)
+        : null;
 
-  //Note: Mushhh
-  //here , we have to must send the value for longitude and latitude because these values is required true  in model...In can Create  Issue if value is going to be null
-   if (latitude != null && longitude != null) {
-  bookingData.location = {
-    type: 'Point',
-    coordinates: [
-      Number(longitude),
-      Number(latitude),
-    ],
-  };
-}
-
-console.log('Booking data to be saved:', bookingData);
-
+    if (latNum !== null && lngNum !== null) {
+      bookingData.location = {
+        type: "Point",
+        coordinates: [lngNum, latNum],
+      };
+    }
 
     const booking = await Booking.create(bookingData);
 
     return res.status(201).json({
       success: true,
-      message: 'Booking created successfully.',
+      message: "Booking created successfully.",
       booking,
     });
   } catch (error) {
-    console.error('Create Booking Error:', error);
+    console.error("Create Booking Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: 'Internal Server Error.',
+      message: "Internal Server Error.",
       error: error.message,
     });
   }
@@ -111,8 +141,8 @@ exports.getMyBookings = async (req, res) => {
   try {
     const userId = req.user.id;
     const bookings = await Booking.find({ customer: req.user.id })
-      .populate('customer', 'fullName email phoneNumber')
-      .populate('vendor', 'fullName email phoneNumber')
+      .populate("customer", "fullName email phoneNumber")
+      .populate("vendor", "fullName email phoneNumber")
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
@@ -121,11 +151,11 @@ exports.getMyBookings = async (req, res) => {
       bookings,
     });
   } catch (error) {
-    console.error('Get My Bookings Error:', error);
+    console.error("Get My Bookings Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to fetch bookings.',
+      message: "Failed to fetch bookings.",
       error: error.message,
     });
   }
@@ -137,13 +167,13 @@ exports.getBookingDetails = async (req, res) => {
     const { bookingId } = req.params;
 
     const booking = await Booking.findById(bookingId)
-      .populate('customer', 'fullName email phoneNumber')
-      .populate('vendor', 'fullName email phoneNumber');
+      .populate("customer", "fullName email phoneNumber")
+      .populate("vendor", "fullName email phoneNumber");
 
     if (!booking) {
       return res.status(404).json({
         success: false,
-        message: 'Booking not found.',
+        message: "Booking not found.",
       });
     }
 
@@ -152,11 +182,11 @@ exports.getBookingDetails = async (req, res) => {
       booking,
     });
   } catch (error) {
-    console.error('Get Booking Details Error:', error);
+    console.error("Get Booking Details Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to fetch booking details.',
+      message: "Failed to fetch booking details.",
       error: error.message,
     });
   }
@@ -175,43 +205,43 @@ exports.cancelBooking = async (req, res) => {
     if (!booking) {
       return res.status(404).json({
         success: false,
-        message: 'Booking not found or you are not authorized to cancel it.',
+        message: "Booking not found or you are not authorized to cancel it.",
       });
     }
 
-    if (booking.bookingStatus === 'Cancelled') {
+    if (booking.bookingStatus === "Cancelled") {
       return res.status(400).json({
         success: false,
-        message: 'Booking is already cancelled.',
+        message: "Booking is already cancelled.",
       });
     }
 
-    if (booking.bookingStatus === 'Completed') {
+    if (booking.bookingStatus === "Completed") {
       return res.status(400).json({
         success: false,
-        message: 'Completed bookings cannot be cancelled.',
+        message: "Completed bookings cannot be cancelled.",
       });
     }
-    if (booking.bookingStatus === 'Accepted') {
+    if (booking.bookingStatus === "Accepted") {
       return res.status(400).json({
         success: false,
-        message: 'Accepted bookings cannot be cancelled.',
+        message: "Accepted bookings cannot be cancelled.",
       });
     }
-    booking.bookingStatus = 'Cancelled';
+    booking.bookingStatus = "Cancelled";
     await booking.save();
 
     return res.status(200).json({
       success: true,
-      message: 'Booking cancelled successfully.',
+      message: "Booking cancelled successfully.",
       booking,
     });
   } catch (error) {
-    console.error('Cancel Booking Error:', error);
+    console.error("Cancel Booking Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to cancel booking.',
+      message: "Failed to cancel booking.",
       error: error.message,
     });
   }
@@ -220,8 +250,8 @@ exports.cancelBooking = async (req, res) => {
 exports.getBookingsToAdmin = async (req, res) => {
   try {
     const bookings = await Booking.find()
-      .populate('customer', 'fullName email phoneNumber')
-      .populate('vendor', 'fullName email phoneNumber')
+      .populate("customer", "fullName email phoneNumber")
+      .populate("vendor", "fullName email phoneNumber")
       .sort({ createdAt: -1 });
     // console.log('Bookings fetched:', bookings);
 
@@ -229,14 +259,14 @@ exports.getBookingsToAdmin = async (req, res) => {
       success: true,
       count: bookings.length,
       bookings,
-      message: 'All bookings fetched successfully.',
+      message: "All bookings fetched successfully.",
     });
   } catch (error) {
-    console.error('Get All Bookings Error:', error);
+    console.error("Get All Bookings Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to fetch bookings.',
+      message: "Failed to fetch bookings.",
       error: error.message,
     });
   }
@@ -246,36 +276,33 @@ exports.getBookingsToVendor = async (req, res) => {
   try {
     const vendorId = req.user.id;
     const bookings = await Booking.find({
-      $or: [{ bookingStatus: 'Pending' }, { vendor: vendorId }],
+      $or: [{ bookingStatus: "Pending" }, { vendor: vendorId }],
     })
-      .populate('customer', 'fullName email phoneNumber')
-      .populate('vendor', 'fullName email phoneNumber')
+      .populate("customer", "fullName email phoneNumber")
+      .populate("vendor", "fullName email phoneNumber")
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
       count: bookings.length,
       bookings,
-      message: 'Vendor bookings fetched successfully.',
+      message: "Vendor bookings fetched successfully.",
     });
   } catch (error) {
-    console.error('Get Bookings to Vendor Error:', error);
+    console.error("Get Bookings to Vendor Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to fetch bookings.',
+      message: "Failed to fetch bookings.",
       error: error.message,
     });
   }
 };
 
-
 //Mushhh
 
-exports.getBookingToVendorUnderRange = async(req , res)=> {
-
-  try{
-
+exports.getBookingToVendorUnderRange = async (req, res) => {
+  try {
     const vendorId = req.user.id;
 
     //Radius Comes from frontend n KM
@@ -283,85 +310,81 @@ exports.getBookingToVendorUnderRange = async(req , res)=> {
 
     const radius = Number(req.query.radius) || 15;
 
-    const vendorAddress = await Address.findOne({user: vendorId});
+    const vendorAddress = await Address.findOne({ user: vendorId });
 
-    if(!vendorAddress || !vendorAddress.location || !vendorAddress.location.coordinates || vendorAddress.location.coordinates.length !== 2 ){
+    if (
+      !vendorAddress ||
+      !vendorAddress.location ||
+      !vendorAddress.location.coordinates ||
+      vendorAddress.location.coordinates.length !== 2
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Vendor Address Not Found"
-      })
+        message: "Vendor Address Not Found",
+      });
     }
 
     //vendor Location = [longitude , latitude}
-    const vendorLocation = vendorAddress.location
+    const vendorLocation = vendorAddress.location;
 
-    
-const bookings = await Booking.aggregate([
+    const bookings = await Booking.aggregate([
+      //Find Bookings near Vendor address within the specified radius
 
-  //Find Bookings near Vendor address within the specified radius
+      {
+        $geoNear: {
+          near: vendorLocation,
+          key: "location",
+          distanceField: "distance",
+          maxDistance: radius * 1000, //Convert m to km
+          spherical: true,
+        },
+      },
 
-  {
-    $geoNear: {
-      near: vendorLocation,
-      key: "location",
-      distanceField: "distance",
-      maxDistance: radius * 1000, //Convert m to km
-      spherical: true,
-    },
-  },
+      //Show only pending bookings or bookimg assigned to the vendor
+      {
+        $match: {
+          $or: [
+            { bookingStatus: "Pending" },
+            { vendor: new mongoose.Types.ObjectId(vendorId) },
+          ],
+        },
+      },
 
-  //Show only pending bookings or bookimg assigned to the vendor
-  {
-    $match: {
-      $or: [
-        {bookingStatus: 'Pending'},
-        {vendor :  new mongoose.Types.ObjectId(vendorId)}
-      ]
-    },
-  },
+      //Shows Latest Bookings first
+      {
+        $sort: { createdAt: -1 },
+      },
+    ]);
 
-  //Shows Latest Bookings first
-  {
-    $sort: {createdAt : -1}
-  },
-]);
+    //Populate customer and vendor  manually
 
-//Populate customer and vendor  manually
+    await Booking.populate(bookings, [
+      {
+        path: "customer",
+        select: "fullName email phoneNumber",
+      },
+      {
+        path: "vendor",
+        select: "fullName email phoneNumber",
+      },
+    ]);
 
-await Booking.populate(bookings , [
-  {
-    path : 'customer',
-    select : 'fullName email phoneNumber'
-  },
-  {
-    path : 'vendor',
-    select : 'fullName email phoneNumber'
-  }
-])
-
-
-return res.status(200).json({
-  success: true,
-  count: bookings.length,
-  bookings,
-  radius,
-  message : "Bookings fetched successfully within the specified radius"
-})
-
-  }catch(err){
-    
+    return res.status(200).json({
+      success: true,
+      count: bookings.length,
+      bookings,
+      radius,
+      message: "Bookings fetched successfully within the specified radius",
+    });
+  } catch (err) {
     console.log("Error while fetching booking in range: ", err);
     return res.status(500).json({
       success: false,
-      message : "Failed to fetch Bookings within the specified radius",
+      message: "Failed to fetch Bookings within the specified radius",
       error: err.message,
-    })
-
+    });
   }
-}
-
-
-
+};
 
 exports.acceptBooking = async (req, res) => {
   try {
@@ -372,11 +395,11 @@ exports.acceptBooking = async (req, res) => {
     if (!booking) {
       return res.status(404).json({
         success: false,
-        message: 'Booking not found.',
+        message: "Booking not found.",
       });
     }
 
-    if (booking.bookingStatus !== 'Pending') {
+    if (booking.bookingStatus !== "Pending") {
       return res.status(400).json({
         success: false,
         message: `Booking is already ${booking.bookingStatus}.`,
@@ -384,24 +407,24 @@ exports.acceptBooking = async (req, res) => {
     }
 
     booking.vendor = vendorId;
-    booking.bookingStatus = 'Accepted';
+    booking.bookingStatus = "Accepted";
     booking.acceptedAt = new Date();
     await booking.save();
 
     const updated = await Booking.findById(bookingId)
-      .populate('customer', 'fullName email phoneNumber')
-      .populate('vendor', 'fullName email phoneNumber');
+      .populate("customer", "fullName email phoneNumber")
+      .populate("vendor", "fullName email phoneNumber");
 
     return res.status(200).json({
       success: true,
-      message: 'Booking accepted successfully.',
+      message: "Booking accepted successfully.",
       booking: updated,
     });
   } catch (error) {
-    console.error('Accept Booking Error:', error);
+    console.error("Accept Booking Error:", error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to accept booking.',
+      message: "Failed to accept booking.",
       error: error.message,
     });
   }
@@ -421,11 +444,11 @@ exports.updateBookingStatus = async (req, res) => {
     if (!booking) {
       return res.status(404).json({
         success: false,
-        message: 'Booking not found or not assigned to you.',
+        message: "Booking not found or not assigned to you.",
       });
     }
 
-    const allowedStatuses = ['In Progress', 'Completed', 'Cancelled'];
+    const allowedStatuses = ["In Progress", "Completed", "Cancelled"];
     if (status && !allowedStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -437,9 +460,9 @@ exports.updateBookingStatus = async (req, res) => {
       booking.bookingStatus = status;
     }
 
-    if (status === 'Completed') {
+    if (status === "Completed") {
       booking.completedAt = new Date();
-      booking.paymentStatus = paymentStatus || 'Paid';
+      booking.paymentStatus = paymentStatus || "Paid";
     }
 
     if (serviceCharge !== undefined && serviceCharge !== null) {
@@ -455,8 +478,8 @@ exports.updateBookingStatus = async (req, res) => {
     await booking.save();
 
     const updated = await Booking.findById(bookingId)
-      .populate('customer', 'fullName email phoneNumber')
-      .populate('vendor', 'fullName email phoneNumber');
+      .populate("customer", "fullName email phoneNumber")
+      .populate("vendor", "fullName email phoneNumber");
 
     return res.status(200).json({
       success: true,
@@ -464,10 +487,10 @@ exports.updateBookingStatus = async (req, res) => {
       booking: updated,
     });
   } catch (error) {
-    console.error('Update Booking Status Error:', error);
+    console.error("Update Booking Status Error:", error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to update booking status.',
+      message: "Failed to update booking status.",
       error: error.message,
     });
   }
