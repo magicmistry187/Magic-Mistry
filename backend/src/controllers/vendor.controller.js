@@ -129,7 +129,7 @@ exports.vendorLogin = async (req, res) => {
 
 exports.getVendorProfile = async (req, res) => {
   try {
-    // console.log("get profile is called");
+   
 
     const userId = req.user.id;
 
@@ -144,7 +144,6 @@ exports.getVendorProfile = async (req, res) => {
 
     const allAddress = await  Address.find({ user: user._id }).sort({ isDefault: -1, createdAt: -1 });
 
-    console.log('All addresses:', allAddress);
 
     const vendorProfile = await VendorProfile.findOne({
       user: user._id,

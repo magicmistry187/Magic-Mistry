@@ -4,21 +4,21 @@ const addressSchema = new mongoose.Schema(
   {
     user: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
     },
 
     addressType: {
       type: String,
-      enum: ['Home', 'Office', 'Other'],
-      default: 'Home',
+      enum: ["Home", "Office", "Other"],
+      default: "Home",
     },
 
     // house / flat / building — kept alongside addressLine1 for backwards compatibility
     house: {
       type: String,
       trim: true,
-      default: '',
+      default: "",
     },
 
     addressLine1: {
@@ -36,7 +36,7 @@ const addressSchema = new mongoose.Schema(
     landmark: {
       type: String,
       trim: true,
-      default: '',
+      default: "",
     },
 
     city: {
@@ -53,7 +53,7 @@ const addressSchema = new mongoose.Schema(
 
     country: {
       type: String,
-      default: 'India',
+      default: "India",
       trim: true,
     },
 
@@ -66,12 +66,12 @@ const addressSchema = new mongoose.Schema(
     location: {
       type: {
         type: String,
-        enum: ['Point'],
-        default: 'Point',
+        enum: ["Point"],
+        default: "Point",
       },
       coordinates: {
         type: [Number], // [longitude, latitude] — defaults provided by controller
-        default: [72.883995, 19.449832],
+        required: true,
       },
     },
 

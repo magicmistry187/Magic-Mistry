@@ -11,6 +11,7 @@ const {
   cancelBooking,
   getBookingsToAdmin,
   getBookingsToVendor,
+  getBookingToVendorUnderRange,
   acceptBooking,
   updateBookingStatus,
 } = require('../controllers/booking.controller');
@@ -21,7 +22,9 @@ router.get('/my-bookings', auth, isCustomer, getMyBookings);
 
 router.get('/admin/bookings', auth, isAdmin, getBookingsToAdmin);
 
-router.get('/vendor/bookings', auth, isVendor, getBookingsToVendor);
+// router.get('/vendor/bookings', auth, isVendor, getBookingsToVendor);
+
+router.get('/vendor/bookings' , auth , isVendor , getBookingToVendorUnderRange);
 
 router.patch('/:bookingId/accept', auth, isVendor, acceptBooking);
 
