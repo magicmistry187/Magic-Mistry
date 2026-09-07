@@ -17,11 +17,11 @@ function generateToken(user) {
     vendorId: user.vendorId || undefined,
   };
 
-  return jwt.sign(payload, process.env.JWT_SECRET || 'secret', {
+  return jwt.sign(payload, process.env.JWT_SECRET, {
     expiresIn: '7d',
   });
 
-  return jwt.sign;
+ 
 }
 
 // send otp
@@ -37,7 +37,7 @@ async function sendOtp(req, res) {
       });
     }
 
- const trimmedEmail = email.toLowerCase().trim()
+    const trimmedEmail = email.toLowerCase().trim();
     const checkUser = await userModel.findOne({
       email: trimmedEmail,
     });
@@ -56,7 +56,9 @@ async function sendOtp(req, res) {
       });
     }
 
-      const lastOtp = await otpModel.findOne({ email: trimmedEmail, purpose }).sort({ createdAt: -1 });
+    const lastOtp = await otpModel
+      .findOne({ email: trimmedEmail, purpose })
+      .sort({ createdAt: -1 });
     if (lastOtp && Date.now() - lastOtp.createdAt.getTime() < 30 * 1000) {
       return res.status(429).json({
         success: false,
@@ -127,7 +129,6 @@ async function sendOtp(req, res) {
 
 // signup
 async function signup(req, res) {
-  
   try {
     const { fullName, email, password, phoneNumber, otp, role } = req.body;
 
@@ -152,7 +153,6 @@ async function signup(req, res) {
     const recentOtp = await otpModel
       .findOne({ email: email.toLowerCase().trim(), purpose: 'signup' })
       .sort({ createdAt: -1 });
-      
 
     if (!recentOtp) {
       return res.status(400).json({
@@ -206,7 +206,7 @@ async function signup(req, res) {
 // login
 async function login(req, res) {
   try {
-    console.log('Login controller');
+    
     const { email, password } = req.body;
 
     // Validate input
@@ -371,7 +371,6 @@ async function googleLogin(req, res) {
     }
 
     const token = generateToken(user);
-    
 
     return res
       .cookie('token', token, {
@@ -401,6 +400,8 @@ async function changePassword(req, res) {
   try {
     //get user id from auth middleware or token
     const userId = req.user.id;
+    // console.log('change passwors', req.body);
+    // console.log('User ID from token:', userId);
 
     //get user info from db
 
@@ -530,7 +531,7 @@ async function verifyOtpForForgotPassword(req, res) {
         userId: user._id,
         purpose: 'resetPassword',
       },
-      process.env.JWT_SECRET || 'secret',
+      process.env.JWT_SECRET,
       {
         expiresIn: '10m',
       },
@@ -577,7 +578,7 @@ async function forgotPassword(req, res) {
 
     //verify reset token here
 
-    const decoded = jwt.verify(resetToken, process.env.JWT_SECRET || 'secret');
+    const decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
 
     // check if the token is for reset password purpose
 
@@ -692,6 +693,7 @@ async function updateUserLocation(req, res) {
     const cleanLocation = location !== undefined ? String(location).trim() : '';
     const isClearing =
       cleanLocation === '' || cleanLocation === 'Set Your Location';
+
 
     const updateFields = {};
     if (location !== undefined) {
