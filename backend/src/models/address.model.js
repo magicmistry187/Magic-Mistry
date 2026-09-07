@@ -71,7 +71,7 @@ const addressSchema = new mongoose.Schema(
       },
       coordinates: {
         type: [Number], // [longitude, latitude] — defaults provided by controller
-        required: true,
+        required: false,
       },
     },
 

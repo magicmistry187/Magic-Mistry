@@ -17,11 +17,9 @@ function generateToken(user) {
     vendorId: user.vendorId || undefined,
   };
 
-  return jwt.sign(payload, process.env.JWT_SECRET || 'secret', {
+  return jwt.sign(payload, process.env.JWT_SECRET, {
     expiresIn: '7d',
   });
-
-  return jwt.sign;
 }
 
 // send otp
@@ -36,8 +34,15 @@ async function sendOtp(req, res) {
         message: 'Email is required',
       });
     }
+    
+    if (!['signup', 'forgotPassword'].includes(purpose)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid OTP purpose.',
+      });
+    }
 
- const trimmedEmail = email.toLowerCase().trim()
+    const trimmedEmail = email.toLowerCase().trim();
     const checkUser = await userModel.findOne({
       email: trimmedEmail,
     });
@@ -56,7 +61,9 @@ async function sendOtp(req, res) {
       });
     }
 
-      const lastOtp = await otpModel.findOne({ email: trimmedEmail, purpose }).sort({ createdAt: -1 });
+    const lastOtp = await otpModel
+      .findOne({ email: trimmedEmail, purpose })
+      .sort({ createdAt: -1 });
     if (lastOtp && Date.now() - lastOtp.createdAt.getTime() < 30 * 1000) {
       return res.status(429).json({
         success: false,
@@ -127,7 +134,6 @@ async function sendOtp(req, res) {
 
 // signup
 async function signup(req, res) {
-  
   try {
     const { fullName, email, password, phoneNumber, otp, role } = req.body;
 
@@ -152,7 +158,6 @@ async function signup(req, res) {
     const recentOtp = await otpModel
       .findOne({ email: email.toLowerCase().trim(), purpose: 'signup' })
       .sort({ createdAt: -1 });
-      
 
     if (!recentOtp) {
       return res.status(400).json({
@@ -206,7 +211,6 @@ async function signup(req, res) {
 // login
 async function login(req, res) {
   try {
-    console.log('Login controller');
     const { email, password } = req.body;
 
     // Validate input
@@ -345,7 +349,7 @@ async function googleLogin(req, res) {
 
       if (user) {
         user.googleId = googleId;
-        user.isEmailVerified = true;
+        // user.isEmailVerified = true;
 
         if (!user.authProviders.includes('google')) {
           user.authProviders.push('google');
@@ -358,9 +362,25 @@ async function googleLogin(req, res) {
           email: trimmedEmail,
           googleId,
           authProviders: ['google'],
-          isEmailVerified: true,
+          // isEmailVerified: true,
         });
       }
+    }
+
+    // Check if account is blocked
+    if (user.status === 'blocked') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been blocked.',
+      });
+    }
+
+    // Check if account is suspended
+    if (user.status === 'suspended') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been suspended.',
+      });
     }
 
     if (user.role === 'vendor') {
@@ -371,7 +391,6 @@ async function googleLogin(req, res) {
     }
 
     const token = generateToken(user);
-    
 
     return res
       .cookie('token', token, {
@@ -406,6 +425,14 @@ async function changePassword(req, res) {
 
     const userDetails = await userModel.findById(userId).select('+password');
 
+    // ✅ Check if user exists
+    if (!userDetails) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
     //get old and new password from request body
     const { oldPassword, newPassword } = req.body;
 
@@ -415,6 +442,15 @@ async function changePassword(req, res) {
       return res.status(400).json({
         success: false,
         message: 'All fields are required',
+      });
+    }
+
+    // Check if user has a password
+    if (!userDetails.password) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'This account does not have a password. Please use Google login.',
       });
     }
 
@@ -530,7 +566,7 @@ async function verifyOtpForForgotPassword(req, res) {
         userId: user._id,
         purpose: 'resetPassword',
       },
-      process.env.JWT_SECRET || 'secret',
+      process.env.JWT_SECRET,
       {
         expiresIn: '10m',
       },
@@ -577,7 +613,7 @@ async function forgotPassword(req, res) {
 
     //verify reset token here
 
-    const decoded = jwt.verify(resetToken, process.env.JWT_SECRET || 'secret');
+    const decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
 
     // check if the token is for reset password purpose
 

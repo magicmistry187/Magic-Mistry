@@ -75,12 +75,36 @@ let coords = [72.883995, 19.449832]; // default location for checking functional
       city: cityVal,
       state: stateVal,
       country: (country || "India").trim(),
+// note: address phele create kro usme location add mat kro, pehle check kro if location h then usko add kro
       pincode: pincodeVal,
       location: geoPoint,
       isDefault: makeDefault,
     });
 
-    // If marked default, also sync user's active location on User model
+    // --------------------------new part---------------------
+//     const addressData = {
+//   user: userId,
+//   addressType,
+//   house,
+//   addressLine1,
+//   street,
+//   landmark,
+//   city: cityVal,
+//   state: stateVal,
+//   country,
+//   pincode: pincodeVal,
+//   isDefault,
+// };
+// if (coords) {
+//   addressData.location = {
+//     type: 'Point',
+//     coordinates: coords,
+//   };
+// }
+// -------------------------------------------------------
+
+    // If marked default, also sync u
+    // ser's active location on User model
     if (makeDefault) {
       const formattedLoc = [houseVal, streetVal, cityVal].filter(Boolean).join(', ');
       await User.findByIdAndUpdate(req.user.id, {
@@ -118,7 +142,6 @@ exports.getAddresses = async (req, res) => {
       success: true,
       message: 'Addresses fetched successfully.',
       data: addresses,
-      addresses: addresses,
       count: addresses.length,
     });
   } catch (error) {
@@ -148,7 +171,6 @@ exports.getAddress = async (req, res) => {
       success: true,
       message: 'Address fetched successfully.',
       data: address,
-      address: address,
     });
   } catch (error) {
     console.error('Get Address Error:', error);
