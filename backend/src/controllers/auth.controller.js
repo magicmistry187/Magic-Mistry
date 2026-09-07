@@ -34,6 +34,13 @@ async function sendOtp(req, res) {
         message: 'Email is required',
       });
     }
+    gi
+    if (!['signup', 'forgotPassword'].includes(purpose)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid OTP purpose.',
+      });
+    }
 
     const trimmedEmail = email.toLowerCase().trim();
     const checkUser = await userModel.findOne({
