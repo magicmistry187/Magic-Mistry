@@ -142,7 +142,6 @@ exports.getAddresses = async (req, res) => {
       success: true,
       message: 'Addresses fetched successfully.',
       data: addresses,
-      addresses: addresses,
       count: addresses.length,
     });
   } catch (error) {
@@ -172,7 +171,6 @@ exports.getAddress = async (req, res) => {
       success: true,
       message: 'Address fetched successfully.',
       data: address,
-      address: address,
     });
   } catch (error) {
     console.error('Get Address Error:', error);

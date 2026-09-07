@@ -93,7 +93,7 @@ exports.createBooking = async (req, res) => {
       serviceDate,
       timeSlot,
       serviceCategory: serviceCategory || selectedAppliance,
-      serviceCategoryCharge: Number(serviceCategoryCharge) || 299,
+      serviceCategoryCharge: Number(serviceCategoryCharge),
     };
 
     const latNum =
@@ -424,7 +424,7 @@ exports.acceptBooking = async (req, res) => {
         message: 'Booking is no longer available.',
       });
     }
-    
+
     const updated = await Booking.findById(bookingId)
       .populate('customer', 'fullName email phoneNumber')
       .populate('vendor', 'fullName email phoneNumber');
