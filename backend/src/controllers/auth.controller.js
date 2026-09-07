@@ -345,7 +345,7 @@ async function googleLogin(req, res) {
 
       if (user) {
         user.googleId = googleId;
-        user.isEmailVerified = true;
+        // user.isEmailVerified = true;
 
         if (!user.authProviders.includes('google')) {
           user.authProviders.push('google');
@@ -358,10 +358,26 @@ async function googleLogin(req, res) {
           email: trimmedEmail,
           googleId,
           authProviders: ['google'],
-          isEmailVerified: true,
+          // isEmailVerified: true,
         });
       }
     }
+
+    // Check if account is blocked
+if (user.status === 'blocked') {
+  return res.status(403).json({
+    success: false,
+    message: 'Your account has been blocked.',
+  });
+}
+
+// Check if account is suspended
+if (user.status === 'suspended') {
+  return res.status(403).json({
+    success: false,
+    message: 'Your account has been suspended.',
+  });
+}
 
     if (user.role === 'vendor') {
       return res.status(403).json({
