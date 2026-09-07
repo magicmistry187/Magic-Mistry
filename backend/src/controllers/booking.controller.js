@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Booking = require('../models/booking.model');
 const Address = require('../models/address.model');
+const VendorProfile = require('../models/vendorProfile.model');
 const { uploadImageToImageKit } = require('../config/imagekit');
 
 // Create booking
@@ -315,82 +316,126 @@ exports.getBookingToVendorUnderRange = async (req, res) => {
   try {
     const vendorId = req.user.id;
 
-    //Radius Comes from frontend n KM
-    //Default radius = 15km
+    // 1. Always fetch all bookings directly assigned to this vendor (Accepted, In Progress, Completed, Cancelled, etc.)
+    const assignedBookings = await Booking.find({
+      vendor: vendorId,
+    })
+      .populate("customer", "fullName email phoneNumber")
+      .populate("vendor", "fullName email phoneNumber")
+      .lean();
 
-    const radius = Number(req.query.radius) || 15;
+    // 2. Fetch vendor profile & determine active location and radius
+    const vendorProfile = await VendorProfile.findOne({ user: vendorId });
+    const radius =
+      Number(req.query.radius) ||
+      (vendorProfile?.serviceRadius && vendorProfile.serviceRadius > 0
+        ? vendorProfile.serviceRadius
+        : 25);
 
-    const vendorAddress = await Address.findOne({ user: vendorId });
+    let vendorLocation = null;
+    const vendorAddress = await Address.findOne({ user: vendorId }).sort({
+      isDefault: -1,
+      createdAt: -1,
+    });
 
     if (
-      !vendorAddress ||
-      !vendorAddress.location ||
-      !vendorAddress.location.coordinates ||
-      vendorAddress.location.coordinates.length !== 2
+      vendorAddress?.location?.coordinates?.length === 2 &&
+      !isNaN(vendorAddress.location.coordinates[0]) &&
+      !isNaN(vendorAddress.location.coordinates[1])
     ) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vendor Address Not Found',
-      });
+      vendorLocation = vendorAddress.location;
     }
 
-    //vendor Location = [longitude , latitude}
-    const vendorLocation = vendorAddress.location;
+    let pendingBookings = [];
 
-    const bookings = await Booking.aggregate([
-      //Find Bookings near Vendor address within the specified radius
+    if (vendorLocation) {
+      try {
+        // GeoNear query for pending bookings within radius
+        const geoPending = await Booking.aggregate([
+          {
+            $geoNear: {
+              near: vendorLocation,
+              key: "location",
+              distanceField: "distance",
+              maxDistance: radius * 1000,
+              spherical: true,
+              query: {
+                bookingStatus: "Pending",
+                $or: [{ vendor: null }, { vendor: { $exists: false } }],
+              },
+            },
+          },
+          { $sort: { createdAt: -1 } },
+        ]);
 
-      {
-        $geoNear: {
-          near: vendorLocation,
-          key: 'location',
-          distanceField: 'distance',
-          maxDistance: radius * 1000, //Convert m to km
-          spherical: true,
-        },
-      },
+        await Booking.populate(geoPending, [
+          { path: "customer", select: "fullName email phoneNumber" },
+          { path: "vendor", select: "fullName email phoneNumber" },
+        ]);
 
-      //Show only pending bookings or bookimg assigned to the vendor
-      {
-        $match: {
+        // Also fetch pending bookings without location coordinates so they are never dropped
+        const nonGeoPending = await Booking.find({
+          bookingStatus: "Pending",
+          $or: [{ vendor: null }, { vendor: { $exists: false } }],
           $or: [
-            { bookingStatus: 'Pending' },
-            { vendor: new mongoose.Types.ObjectId(vendorId) },
+            { location: { $exists: false } },
+            { location: null },
+            { "location.coordinates": { $exists: false } },
+            { "location.coordinates": { $size: 0 } },
           ],
-        },
-      },
+        })
+          .populate("customer", "fullName email phoneNumber")
+          .populate("vendor", "fullName email phoneNumber")
+          .lean();
 
-      //Shows Latest Bookings first
-      {
-        $sort: { createdAt: -1 },
-      },
-    ]);
+        pendingBookings = [...geoPending, ...nonGeoPending];
+      } catch (geoErr) {
+        console.warn("Geo query failed, falling back to all pending:", geoErr.message);
+        pendingBookings = await Booking.find({
+          bookingStatus: "Pending",
+          $or: [{ vendor: null }, { vendor: { $exists: false } }],
+        })
+          .populate("customer", "fullName email phoneNumber")
+          .populate("vendor", "fullName email phoneNumber")
+          .lean();
+      }
+    } else {
+      // Vendor has no address/coordinates configured yet -> return all pending bookings as fallback
+      pendingBookings = await Booking.find({
+        bookingStatus: "Pending",
+        $or: [{ vendor: null }, { vendor: { $exists: false } }],
+      })
+        .populate("customer", "fullName email phoneNumber")
+        .populate("vendor", "fullName email phoneNumber")
+        .lean();
+    }
 
-    //Populate customer and vendor  manually
+    // Combine and deduplicate by booking ID
+    const bookingMap = new Map();
+    for (const b of assignedBookings) {
+      bookingMap.set(String(b._id), b);
+    }
+    for (const b of pendingBookings) {
+      if (!bookingMap.has(String(b._id))) {
+        bookingMap.set(String(b._id), b);
+      }
+    }
 
-    await Booking.populate(bookings, [
-      {
-        path: 'customer',
-        select: 'fullName email phoneNumber',
-      },
-      {
-        path: 'vendor',
-        select: 'fullName email phoneNumber',
-      },
-    ]);
+    const allBookings = Array.from(bookingMap.values());
+    allBookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     return res.status(200).json({
       success: true,
-      count: bookings.length,
-      bookings,
+      count: allBookings.length,
+      bookings: allBookings,
       radius,
-      message: 'Bookings fetched successfully within the specified radius',
+      message: "Vendor bookings fetched successfully.",
     });
   } catch (err) {
-    console.log('Error while fetching booking in range: ', err);
+    console.error("Error while fetching vendor bookings: ", err);
     return res.status(500).json({
       success: false,
-      message: 'Failed to fetch Bookings within the specified radius',
+      message: "Failed to fetch vendor bookings",
       error: err.message,
     });
   }

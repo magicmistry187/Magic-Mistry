@@ -70,6 +70,46 @@ const AVAILABLE_COMPONENTS = [
   { name: 'Custom Component / Special Service', defaultPrice: 400 },
 ];
 
+const getApplianceIcon = (applianceName) => {
+  const name = String(applianceName || '').toLowerCase();
+  if (name.includes('ac')) return '❄️';
+  if (name.includes('refrigerator') || name.includes('fridge')) return '🧊';
+  if (name.includes('washing')) return '🫧';
+  if (name.includes('tv') || name.includes('television')) return '📺';
+  if (name.includes('microwave') || name.includes('oven')) return '♨️';
+  if (name.includes('geyser') || name.includes('water heater')) return '🚿';
+  if (name.includes('purifier') || name.includes('ro')) return '💧';
+  if (name.includes('chimney')) return '🍳';
+  if (name.includes('stabilizer')) return '⚡';
+  return '🔧';
+};
+
+const formatBookingAddress = (addr) => {
+  if (!addr) return '—';
+  if (typeof addr === 'string') return addr.trim();
+  if (typeof addr === 'object') {
+    if (addr[''] && typeof addr[''] === 'string' && addr[''].trim()) {
+      return addr[''].trim();
+    }
+    if (addr.formattedAddress && typeof addr.formattedAddress === 'string' && addr.formattedAddress.trim()) {
+      return addr.formattedAddress.trim();
+    }
+    if (addr.fullAddress && typeof addr.fullAddress === 'string' && addr.fullAddress.trim()) {
+      return addr.fullAddress.trim();
+    }
+    const parts = [
+      addr.house || addr.flat || addr.addressLine1,
+      addr.street,
+      addr.landmark,
+      addr.city,
+      addr.state,
+      addr.pincode,
+    ].filter(Boolean);
+    if (parts.length > 0) return parts.join(', ');
+  }
+  return '—';
+};
+
 export default function VendorDashboardPage() {
   const navigate = useNavigate();
   const routerLocation = useLocation();
@@ -138,41 +178,47 @@ export default function VendorDashboardPage() {
         try {
           const res = await getVendorBookingsApi(token);
           if (res.success && res.bookings) {
-            const formatted = res.bookings.map(b => ({
-              id: b.bookingId || b._id,
-              appliance: b.appliance || 'General',
-              applianceIcon: '🔧',
-              serviceTitle: b.serviceCategory || b.appliance || 'Service Request',
-              status: b.bookingStatus === 'Pending' ? 'New Request' : (b.bookingStatus || 'New Request'),
-              timeSlot: b.timeSlot || '—',
-              appointmentDate: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }) : '—',
-              customerName: b.customer?.fullName || 'Customer',
-              customerPhone: b.customer?.phoneNumber || '—',
-              serviceAddress: typeof b.address === 'object' && b.address !== null
-                ? [b.address.house || b.address.flat || b.address.addressLine1, b.address.street, b.address.landmark, b.address.city, b.address.state, b.address.pincode].filter(Boolean).join(', ')
-                : (b.address || '—'),
-              location: typeof b.address === 'object' && b.address !== null
-                ? [b.address.house || b.address.flat || b.address.addressLine1, b.address.street, b.address.landmark, b.address.city, b.address.state, b.address.pincode].filter(Boolean).join(', ')
-                : (b.address || '—'),
-              distance: 'Nearby',
-              issue: b.issue || b.description || 'Service required',
-              estimatedPay: b.serviceCharge || b.estimatedPay || 0,
-              amount: b.serviceCharge || 0,
-              date: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN') + (b.timeSlot ? ' ' + b.timeSlot : '') : '—',
-              rawDate: b.serviceDate ? new Date(b.serviceDate) : new Date(b.createdAt || Date.now()),
-              review: b.review || '',
-              checklist: b.checklist || [
-                { id: 1, title: 'Initial Inspection', desc: 'Inspect device and confirm reported issue with customer.', completed: false },
-                { id: 2, title: 'Diagnosis & Parts Verification', desc: 'Test electrical components and verify required replacement parts.', completed: false },
-                { id: 3, title: 'Perform Service/Repair', desc: 'Carry out required servicing or parts replacement safely.', completed: false },
-                { id: 4, title: 'Final Testing & Cleanup', desc: 'Run complete test cycle and clean work area.', completed: false },
-              ],
-              photos: b.photos || [],
-              notes: b.notes || '',
-              parts: b.parts || [
-                { id: 1, description: 'Diagnostic & Service Charge', qty: 1, price: b.serviceCharge || 450, locked: true },
-              ],
-            }));
+            const formatted = res.bookings.map(b => {
+              const displayAddr = formatBookingAddress(b.address);
+              const pay = Number(b.serviceCategoryCharge) || Number(b.serviceCharge) || Number(b.estimatedPay) || 0;
+              const formattedDist =
+                typeof b.distance === 'number'
+                  ? (b.distance < 1000 ? `${Math.round(b.distance)} m away` : `${(b.distance / 1000).toFixed(1)} km away`)
+                  : 'Nearby';
+
+              return {
+                id: b.bookingId || String(b._id),
+                displayId: b.bookingId || `WO-${String(b._id).slice(-6).toUpperCase()}`,
+                appliance: b.appliance || 'General',
+                applianceIcon: getApplianceIcon(b.appliance),
+                serviceTitle: b.serviceCategory || b.appliance || 'Service Request',
+                status: b.bookingStatus === 'Pending' ? 'New Request' : (b.bookingStatus || 'New Request'),
+                timeSlot: b.timeSlot || '—',
+                appointmentDate: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }) : '—',
+                customerName: b.customer?.fullName || 'Customer',
+                customerPhone: b.customer?.phoneNumber || '—',
+                serviceAddress: displayAddr,
+                location: displayAddr,
+                distance: formattedDist,
+                issue: b.issue || b.description || 'Service required',
+                estimatedPay: pay,
+                amount: b.serviceCharge || pay,
+                date: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN') + (b.timeSlot ? ' ' + b.timeSlot : '') : '—',
+                rawDate: b.serviceDate ? new Date(b.serviceDate) : new Date(b.createdAt || Date.now()),
+                review: b.review || '',
+                checklist: b.checklist || [
+                  { id: 1, title: 'Initial Inspection', desc: 'Inspect device and confirm reported issue with customer.', completed: false },
+                  { id: 2, title: 'Diagnosis & Parts Verification', desc: 'Test electrical components and verify required replacement parts.', completed: false },
+                  { id: 3, title: 'Perform Service/Repair', desc: 'Carry out required servicing or parts replacement safely.', completed: false },
+                  { id: 4, title: 'Final Testing & Cleanup', desc: 'Run complete test cycle and clean work area.', completed: false },
+                ],
+                photos: b.photos || [],
+                notes: b.notes || '',
+                parts: b.parts || [
+                  { id: 1, description: b.serviceCategory || b.appliance || 'Diagnostic & Service Charge', qty: 1, price: pay || 450, locked: true },
+                ],
+              };
+            });
 
             const activeList = formatted.filter(b => b.status !== 'Completed' && b.status !== 'Cancelled' && b.status !== 'Closed');
             const historyList = formatted.filter(b => b.status === 'Completed' || b.status === 'Cancelled' || b.status === 'Closed');
@@ -193,7 +239,9 @@ export default function VendorDashboardPage() {
       }
     };
     fetchBookings();
-  }, [token]);
+    const interval = setInterval(fetchBookings, 10000);
+    return () => clearInterval(interval);
+  }, [token, activeTab]);
 
   // Compute weekly earnings chart from real history data
   const weeklyEarningsData = useMemo(() => {
@@ -1255,9 +1303,11 @@ export default function VendorDashboardPage() {
                       className="text-xs font-semibold bg-slate-100 border border-slate-200 text-slate-700 rounded-xl px-3 py-1.5 focus:outline-none"
                     >
                       <option value="All">All Categories</option>
-                      <option value="AC Repair">AC Repair</option>
-                      <option value="Washing Machine">Washing Machine</option>
-                      <option value="Refrigerator">Refrigerator</option>
+                      {ALL_APPLIANCES.map((app) => (
+                        <option key={app} value={app}>
+                          {app}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -1303,7 +1353,7 @@ export default function VendorDashboardPage() {
                                 <div className="space-y-1">
                                   <div className="flex flex-wrap items-center gap-2">
                                     <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                                      {job.id}
+                                      {job.displayId || job.id}
                                     </span>
                                     <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full ${
                                       isNew ? 'bg-orange-100 text-orange-700' : 
@@ -1311,6 +1361,10 @@ export default function VendorDashboardPage() {
                                       'bg-[#061e38] text-white'
                                     }`}>
                                       {job.status}
+                                    </span>
+                                    <span className="text-xs text-slate-500 flex items-center gap-1">
+                                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                      {job.appointmentDate || '—'}
                                     </span>
                                     <span className="text-xs text-slate-500 flex items-center gap-1">
                                       <Clock className="w-3.5 h-3.5 text-slate-400" />
@@ -1324,6 +1378,19 @@ export default function VendorDashboardPage() {
                                   </p>
 
                                   <div className="flex flex-wrap items-center gap-3 pt-2 text-xs font-semibold text-slate-700">
+                                    <span className="flex items-center gap-1">
+                                      <User className="w-3.5 h-3.5 text-blue-500" />
+                                      {job.customerName}
+                                    </span>
+                                    {job.customerPhone && job.customerPhone !== '—' && (
+                                      <a
+                                        href={`tel:${job.customerPhone}`}
+                                        className="flex items-center gap-1 text-emerald-600 hover:text-emerald-700 underline"
+                                      >
+                                        <Phone className="w-3.5 h-3.5" />
+                                        {job.customerPhone}
+                                      </a>
+                                    )}
                                     <span className="flex items-center gap-1">
                                       <MapPin className="w-3.5 h-3.5 text-orange-500" />
                                       {job.location}

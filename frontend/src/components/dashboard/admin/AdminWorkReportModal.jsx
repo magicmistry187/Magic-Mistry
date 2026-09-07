@@ -185,15 +185,15 @@ export default function AdminWorkReportModal({ isOpen, onClose, reportItem }) {
                 <div className="space-y-4">
                   <div>
                     <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider">Name</p>
-                    <p className="text-sm font-bold text-slate-800">{reportItem.customer}</p>
+                    <p className="text-sm font-bold text-slate-800">{reportItem.customer || 'Guest Customer'}</p>
                   </div>
                   <div>
                     <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider flex items-center gap-1"><Phone className="w-3 h-3"/> Phone</p>
-                    <p className="text-sm font-bold text-slate-800">+91 98765 43210</p>
+                    <p className="text-sm font-bold text-slate-800">{reportItem.customerPhone || 'Not provided'}</p>
                   </div>
                   <div>
                     <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider flex items-center gap-1"><MapPin className="w-3 h-3"/> Address</p>
-                    <p className="text-sm font-bold text-slate-800">123 Service Lane, Kolkata, WB</p>
+                    <p className="text-sm font-bold text-slate-800 leading-snug">{reportItem.customerAddress || 'Address not provided'}</p>
                   </div>
                 </div>
               </div>

@@ -67,10 +67,9 @@ const addressSchema = new mongoose.Schema(
       type: {
         type: String,
         enum: ["Point"],
-        default: "Point",
       },
       coordinates: {
-        type: [Number], // [longitude, latitude] — defaults provided by controller
+        type: [Number], // [longitude, latitude]
         required: false,
       },
     },
@@ -85,8 +84,24 @@ const addressSchema = new mongoose.Schema(
   },
 );
 
+// Ensure location is omitted completely if coordinates are missing or invalid
+addressSchema.pre('validate', function (next) {
+  if (
+    !this.location ||
+    !Array.isArray(this.location.coordinates) ||
+    this.location.coordinates.length !== 2 ||
+    isNaN(Number(this.location.coordinates[0])) ||
+    isNaN(Number(this.location.coordinates[1]))
+  ) {
+    this.location = undefined;
+  } else if (!this.location.type) {
+    this.location.type = 'Point';
+  }
+  next();
+});
+
 // Indexes
 addressSchema.index({ user: 1 });
-addressSchema.index({ location: '2dsphere' });
+addressSchema.index({ location: '2dsphere' }, { sparse: true });
 
 module.exports = mongoose.model('Address', addressSchema);

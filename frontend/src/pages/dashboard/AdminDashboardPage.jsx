@@ -215,6 +215,83 @@ export const StockLevelBadge = ({ level, count }) => {
   );
 };
 
+const formatBookingAddress = (addr) => {
+  if (!addr) return 'Address not provided';
+  if (typeof addr === 'string') return addr;
+  if (typeof addr === 'object') {
+    const parts = [
+      addr.house || addr.flat,
+      addr.addressLine1 || addr.street,
+      addr.landmark,
+      addr.city,
+      addr.state,
+      addr.pincode,
+    ].filter(Boolean);
+    return parts.join(', ') || 'Address not provided';
+  }
+  return 'Address not provided';
+};
+
+const getApplianceIcon = (applianceName) => {
+  const name = String(applianceName || '').toLowerCase();
+  if (name.includes('ac') || name.includes('cooler')) return Snowflake;
+  if (name.includes('fridge') || name.includes('refrigerat')) return Snowflake;
+  if (name.includes('wash') || name.includes('pump') || name.includes('geyser')) return Droplets;
+  if (name.includes('tv') || name.includes('microwave') || name.includes('induction')) return Package;
+  return Wrench;
+};
+
+const renderBookingStatusBadge = (status) => {
+  const s = String(status || '').trim();
+  if (s === 'Completed') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100/80 text-emerald-800 border border-emerald-200">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+        Completed
+      </span>
+    );
+  }
+  if (s === 'Cancelled') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-red-100/80 text-red-800 border border-red-200">
+        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+        Cancelled
+      </span>
+    );
+  }
+  if (s === 'In Progress' || s === 'Under Diagnosis') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-100/80 text-purple-800 border border-purple-200">
+        <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+        In Progress
+      </span>
+    );
+  }
+  if (s === 'On The Way') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-indigo-100/80 text-indigo-800 border border-indigo-200">
+        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+        On The Way
+      </span>
+    );
+  }
+  if (s === 'Accepted' || s === 'Assigned') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100/80 text-blue-800 border border-blue-200">
+        <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+        Assigned
+      </span>
+    );
+  }
+  // Pending / Awaiting Tech default
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100/80 text-amber-800 border border-amber-200">
+      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+      Pending Dispatch
+    </span>
+  );
+};
+
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
   const { token } = useAuth();
@@ -228,6 +305,10 @@ export default function AdminDashboardPage() {
   const [applicationsList, setApplicationsList] = useState(INITIAL_APPLICATIONS);
   const [dispatchQueue, setDispatchQueue] = useState(INITIAL_DISPATCH_QUEUE);
   const [workHistory, setWorkHistory] = useState(INITIAL_WORK_HISTORY);
+  const [allBookings, setAllBookings] = useState([]);
+  const [isRefreshingBookings, setIsRefreshingBookings] = useState(false);
+  const [currentWorkFilter, setCurrentWorkFilter] = useState('All');
+  const [workHistoryFilter, setWorkHistoryFilter] = useState('Completed');
 
   const fetchApplications = useCallback(async () => {
     if (!token) return;
@@ -254,15 +335,44 @@ export default function AdminDashboardPage() {
     try {
       const resBookings = await getAdminBookingsApi(token);
       if (resBookings.success && resBookings.bookings) {
-        const formatted = resBookings.bookings.map(b => ({
-          id: b._id,
-          appliance: b.appliance,
-          customer: b.customer?.fullName || 'Unknown',
-          technician: b.vendor?.fullName || 'Unassigned',
-          technicianAvatar: b.vendor ? b.vendor.fullName.substring(0, 2).toUpperCase() : '',
-          status: b.bookingStatus,
-          dateCompleted: b.bookingStatus === 'Completed' ? new Date(b.updatedAt).toLocaleDateString('en-US') : null,
-        }));
+        const formatted = resBookings.bookings.map(b => {
+          const displayId = b.displayId || `#WO-${String(b._id).slice(-4).toUpperCase()}`;
+          const formattedAddr = formatBookingAddress(b.address);
+          const ApplianceIcon = getApplianceIcon(b.appliance);
+          const pay = b.serviceCategoryCharge || b.serviceCharge || 0;
+
+          return {
+            id: displayId,
+            rawId: b._id,
+            displayId: displayId,
+            appliance: b.appliance || 'Service Request',
+            applianceIcon: ApplianceIcon,
+            customer: b.customer?.fullName || 'Guest Customer',
+            customerPhone: b.customer?.phoneNumber || '—',
+            customerEmail: b.customer?.email || '—',
+            customerAddress: formattedAddr,
+            technician: b.vendor?.fullName || 'Unassigned',
+            technicianPhone: b.vendor?.phoneNumber || '—',
+            technicianAvatar: b.vendor ? b.vendor.fullName.substring(0, 2).toUpperCase() : '',
+            status: b.bookingStatus || 'Pending',
+            dateCompleted: b.completedAt
+              ? new Date(b.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+              : b.bookingStatus === 'Completed'
+              ? new Date(b.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+              : '—',
+            serviceDate: b.serviceDate
+              ? new Date(b.serviceDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+              : '—',
+            timeSlot: b.timeSlot || 'Anytime',
+            amount: pay,
+            paymentStatus: b.paymentStatus || 'Pending',
+            paymentMethod: b.paymentMethod || 'Cash After Service',
+            issue: b.issue || 'Standard Service Required',
+            rawBooking: b,
+          };
+        });
+
+        setAllBookings(formatted);
         setDispatchQueue(formatted.filter(b => b.status !== 'Completed' && b.status !== 'Cancelled' && b.status !== 'Closed'));
         setWorkHistory(formatted.filter(b => b.status === 'Completed' || b.status === 'Cancelled' || b.status === 'Closed'));
       }
@@ -271,17 +381,28 @@ export default function AdminDashboardPage() {
     }
   }, [token]);
 
+  // Initial fetch and 10-second polling for real-time live sync
   useEffect(() => {
     fetchApplications();
     fetchBookings();
+
+    const interval = setInterval(() => {
+      fetchApplications();
+      fetchBookings();
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, [fetchApplications, fetchBookings]);
 
-  // Keep applications table synchronized whenever switching to applications tab
+  // Keep tables synchronized whenever switching tabs
   useEffect(() => {
     if (activeTab === 'applications') {
       fetchApplications();
+    } else if (activeTab === 'work-history' || activeTab === 'overview') {
+      fetchBookings();
     }
-  }, [activeTab, fetchApplications]);
+  }, [activeTab, fetchApplications, fetchBookings]);
+
   const [vendorApprovals, setVendorApprovals] = useState(INITIAL_VENDOR_APPROVALS);
   const [paymentRequests, setPaymentRequests] = useState(INITIAL_PAYMENT_REQUESTS);
   const [searchTerm, setSearchTerm] = useState('');
@@ -295,11 +416,51 @@ export default function AdminDashboardPage() {
   const dispatchItemsPerPage = 4;
   const dispatchTotalPages = Math.ceil(dispatchQueue.length / dispatchItemsPerPage);
 
+  // Filtered Current Work (Active Dispatches)
+  const filteredCurrentWork = useMemo(() => {
+    if (currentWorkFilter === 'In Progress') {
+      return dispatchQueue.filter(item => item.status === 'In Progress' || item.status === 'Under Diagnosis');
+    }
+    if (currentWorkFilter === 'Assigned') {
+      return dispatchQueue.filter(item => item.status === 'Accepted' || item.status === 'Assigned' || item.status === 'On The Way');
+    }
+    if (currentWorkFilter === 'Pending') {
+      return dispatchQueue.filter(item => item.status === 'Pending' || item.status === 'Awaiting Tech');
+    }
+    return dispatchQueue;
+  }, [dispatchQueue, currentWorkFilter]);
+
+  const currentWorkCounts = useMemo(() => {
+    return {
+      all: dispatchQueue.length,
+      inProgress: dispatchQueue.filter(i => i.status === 'In Progress' || i.status === 'Under Diagnosis').length,
+      assigned: dispatchQueue.filter(i => i.status === 'Accepted' || i.status === 'Assigned' || i.status === 'On The Way').length,
+      pending: dispatchQueue.filter(i => i.status === 'Pending' || i.status === 'Awaiting Tech').length,
+    };
+  }, [dispatchQueue]);
+
   // Work History Pagination & Filters
   const [historyPage, setHistoryPage] = useState(1);
+  const filteredHistory = useMemo(() => {
+    if (workHistoryFilter === 'Completed') {
+      return workHistory.filter(item => item.status === 'Completed' || item.status === 'Closed');
+    }
+    if (workHistoryFilter === 'Cancelled') {
+      return workHistory.filter(item => item.status === 'Cancelled');
+    }
+    if (workHistoryFilter === 'All Records') {
+      return allBookings.length > 0 ? allBookings : dispatchQueue.concat(workHistory);
+    }
+    return workHistory;
+  }, [workHistory, allBookings, dispatchQueue, workHistoryFilter]);
 
-  
-  const filteredHistory = workHistory;
+  const historyCounts = useMemo(() => {
+    return {
+      completed: workHistory.filter(i => i.status === 'Completed' || i.status === 'Closed').length,
+      cancelled: workHistory.filter(i => i.status === 'Cancelled').length,
+      all: allBookings.length > 0 ? allBookings.length : dispatchQueue.concat(workHistory).length,
+    };
+  }, [workHistory, allBookings, dispatchQueue]);
 
   const historyItemsPerPage = 5;
   const historyTotalPages = Math.ceil(filteredHistory.length / historyItemsPerPage) || 1;
@@ -1118,52 +1279,54 @@ export default function AdminDashboardPage() {
                                   <th className="py-3 px-5 text-right">ACTION</th>
                                 </tr>
                               </thead>
-                              <tbody className="divide-y divide-slate-100">
-                                {paginatedDispatch.map((item) => (
-                                  <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                                    <td className="py-4 px-5 font-bold text-slate-600">{item.id}</td>
-                                    <td className="py-4 px-4">
-                                      <div className="flex items-center gap-2">
-                                        <div className="p-1.5 rounded-md bg-slate-100 text-slate-600">
-                                          <Wrench className="w-4 h-4" />
-                                        </div>
-                                        <span className="font-bold text-slate-800">{item.appliance}</span>
-                                      </div>
-                                    </td>
-                                    <td className="py-4 px-4 font-semibold text-slate-700">{item.customer}</td>
-                                    <td className="py-4 px-4">
-                                      {item.technicianAvatar ? (
-                                        <div className="flex items-center gap-2">
-                                          <div className="w-6 h-6 rounded-full bg-slate-800 text-white flex items-center justify-center text-[10px] font-bold">
-                                            {item.technicianAvatar}
+                                {paginatedDispatch.length > 0 ? (
+                                  paginatedDispatch.map((item) => {
+                                    const AppIcon = item.applianceIcon || Wrench;
+                                    return (
+                                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                                        <td className="py-4 px-5 font-bold text-slate-600">{item.id}</td>
+                                        <td className="py-4 px-4">
+                                          <div className="flex items-center gap-2">
+                                            <div className="p-1.5 rounded-md bg-slate-100 text-slate-600">
+                                              <AppIcon className="w-4 h-4" />
+                                            </div>
+                                            <span className="font-bold text-slate-800">{item.appliance}</span>
                                           </div>
-                                          <span className="font-semibold text-slate-700">{item.technician}</span>
-                                        </div>
-                                      ) : (
-                                        <span className="text-slate-400 font-medium">{item.technician}</span>
-                                      )}
-                                    </td>
-                                    <td className="py-4 px-4">
-                                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                                        item.status === 'Assigned' || item.status === 'Under Diagnosis' ? 'bg-blue-100/80 text-blue-800' : 'bg-orange-100 text-orange-800'
-                                      }`}>
-                                        <span className={`w-1.5 h-1.5 rounded-full ${
-                                          item.status === 'Assigned' || item.status === 'Under Diagnosis' ? 'bg-blue-500' : 'bg-orange-500 animate-pulse'
-                                        }`} />
-                                        {item.status}
-                                      </span>
-                                    </td>
-                                    <td className="py-4 px-5 text-right">
-                                      <button 
-                                        onClick={() => { setSelectedDispatchItem(item); setIsDispatchModalOpen(true); }}
-                                        className="text-xs font-bold cursor-pointer text-[#02182e] hover:text-[#082848]"
-                                      >
-                                        View
-                                      </button>
+                                        </td>
+                                        <td className="py-4 px-4 font-semibold text-slate-700">{item.customer}</td>
+                                        <td className="py-4 px-4">
+                                          {item.technicianAvatar ? (
+                                            <div className="flex items-center gap-2">
+                                              <div className="w-6 h-6 rounded-full bg-slate-800 text-white flex items-center justify-center text-[10px] font-bold">
+                                                {item.technicianAvatar}
+                                              </div>
+                                              <span className="font-semibold text-slate-700">{item.technician}</span>
+                                            </div>
+                                          ) : (
+                                            <span className="text-slate-400 font-medium">{item.technician}</span>
+                                          )}
+                                        </td>
+                                        <td className="py-4 px-4">
+                                          {renderBookingStatusBadge(item.status)}
+                                        </td>
+                                        <td className="py-4 px-5 text-right">
+                                          <button 
+                                            onClick={() => { setSelectedDispatchItem(item); setIsDispatchModalOpen(true); }}
+                                            className="text-xs font-bold cursor-pointer text-[#02182e] hover:text-[#082848]"
+                                          >
+                                            View
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })
+                                ) : (
+                                  <tr>
+                                    <td colSpan="6" className="py-8 text-center text-slate-500 font-medium">
+                                      No active dispatches currently in queue.
                                     </td>
                                   </tr>
-                                ))}
-                              </tbody>
+                                )}
                             </table>
                           </div>
 
@@ -2488,18 +2651,66 @@ export default function AdminDashboardPage() {
                     className="space-y-6"
                   >
                     <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-                      <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                      <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div>
-                          <h2 className="text-xl font-extrabold text-[#02182e]">Work History & Dispatches</h2>
-                          <p className="text-xs font-semibold text-slate-500 mt-1">Track ongoing and completed service requests.</p>
+                          <div className="flex items-center gap-2.5">
+                            <h2 className="text-xl font-extrabold text-[#02182e]">Work History & Dispatches</h2>
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                              Live Real-Time Sync
+                            </span>
+                          </div>
+                          <p className="text-xs font-semibold text-slate-500 mt-1">Track ongoing dispatches, incoming work requests, and completion records.</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={async () => {
+                              setIsRefreshingBookings(true);
+                              try {
+                                await fetchBookings();
+                              } finally {
+                                setIsRefreshingBookings(false);
+                              }
+                            }}
+                            className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-2 transition-colors cursor-pointer"
+                            disabled={isRefreshingBookings}
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingBookings ? 'animate-spin' : ''}`} />
+                            Sync Live Data
+                          </button>
                         </div>
                       </div>
 
                       {/* Current Work */}
                       <div className="p-5 border-b border-slate-100">
-                        <h3 className="text-sm font-extrabold text-[#02182e] mb-4 flex items-center gap-2">
-                           <Clock className="w-4 h-4 text-orange-500" /> Current Work (In Progress)
-                        </h3>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                          <h3 className="text-sm font-extrabold text-[#02182e] flex items-center gap-2">
+                             <Clock className="w-4 h-4 text-orange-500" /> Current Work & Active Dispatches ({currentWorkCounts.all})
+                          </h3>
+
+                          {/* Current Work Filter Tabs */}
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {[
+                              { id: 'All', label: `All Active (${currentWorkCounts.all})` },
+                              { id: 'In Progress', label: `In Progress (${currentWorkCounts.inProgress})` },
+                              { id: 'Assigned', label: `Assigned (${currentWorkCounts.assigned})` },
+                              { id: 'Pending', label: `Pending Dispatch (${currentWorkCounts.pending})` },
+                            ].map((tab) => (
+                              <button
+                                key={tab.id}
+                                onClick={() => setCurrentWorkFilter(tab.id)}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                  currentWorkFilter === tab.id
+                                    ? 'bg-[#02182e] text-white shadow-xs'
+                                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                                }`}
+                              >
+                                {tab.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
                         <div className="overflow-x-auto">
                           <table className="w-full text-left text-xs border-collapse min-w-[700px]">
                             <thead>
@@ -2513,28 +2724,33 @@ export default function AdminDashboardPage() {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                              {dispatchQueue.filter(item => item.status === 'Assigned' || item.status === 'Under Diagnosis').map(item => (
-                                <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                                  <td className="py-4 px-5 font-bold text-slate-600">{item.id}</td>
-                                  <td className="py-4 px-4 font-bold text-slate-800">{item.appliance}</td>
-                                  <td className="py-4 px-4 font-semibold text-slate-700">{item.customer}</td>
-                                  <td className="py-4 px-4 font-semibold text-slate-700">{item.technician}</td>
-                                  <td className="py-4 px-4">
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100/80 text-blue-800">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                                      {item.status}
-                                    </span>
-                                  </td>
-                                  <td className="py-4 px-5 text-right">
-                                    <button 
-                                      onClick={() => { setSelectedDispatchItem(item); setIsDispatchModalOpen(true); }}
-                                      className="text-xs font-bold cursor-pointer text-[#02182e] hover:text-[#082848]"
-                                    >
-                                      View
-                                    </button>
+                              {filteredCurrentWork.length > 0 ? (
+                                filteredCurrentWork.map(item => (
+                                  <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                                    <td className="py-4 px-5 font-bold text-slate-600">{item.id}</td>
+                                    <td className="py-4 px-4 font-bold text-slate-800">{item.appliance}</td>
+                                    <td className="py-4 px-4 font-semibold text-slate-700">{item.customer}</td>
+                                    <td className="py-4 px-4 font-semibold text-slate-700">{item.technician}</td>
+                                    <td className="py-4 px-4">
+                                      {renderBookingStatusBadge(item.status)}
+                                    </td>
+                                    <td className="py-4 px-5 text-right">
+                                      <button 
+                                        onClick={() => { setSelectedDispatchItem(item); setIsDispatchModalOpen(true); }}
+                                        className="text-xs font-bold cursor-pointer text-[#02182e] hover:text-[#082848]"
+                                      >
+                                        View
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))
+                              ) : (
+                                <tr>
+                                  <td colSpan="6" className="py-8 text-center text-slate-500 font-medium">
+                                    No active service requests matching &quot;{currentWorkFilter}&quot;.
                                   </td>
                                 </tr>
-                              ))}
+                              )}
                             </tbody>
                           </table>
                         </div>
@@ -2543,11 +2759,34 @@ export default function AdminDashboardPage() {
                       {/* Work Done / Full History */}
                       <div className="p-5">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-                          <h3 className="text-sm font-extrabold text-[#02182e] flex items-center gap-2">
-                             <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Work Done & Full History
-                          </h3>
-                          <div className="flex flex-wrap items-center gap-3">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                            <h3 className="text-sm font-extrabold text-[#02182e] flex items-center gap-2">
+                               <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Work Done & History
+                            </h3>
 
+                            {/* Work History Filter Tabs */}
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {[
+                                { id: 'Completed', label: `Completed (${historyCounts.completed})` },
+                                { id: 'Cancelled', label: `Cancelled (${historyCounts.cancelled})` },
+                                { id: 'All Records', label: `All Records Ledger (${historyCounts.all})` },
+                              ].map((tab) => (
+                                <button
+                                  key={tab.id}
+                                  onClick={() => { setWorkHistoryFilter(tab.id); setHistoryPage(1); }}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                    workHistoryFilter === tab.id
+                                      ? 'bg-[#02182e] text-white shadow-xs'
+                                      : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                                  }`}
+                                >
+                                  {tab.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-3">
                             <button 
                               onClick={() => {
                                 setExportType('history');
@@ -2569,7 +2808,7 @@ export default function AdminDashboardPage() {
                                 <th className="py-3 px-4">APPLIANCE</th>
                                 <th className="py-3 px-4">CUSTOMER</th>
                                 <th className="py-3 px-4">TECHNICIAN</th>
-                                <th className="py-3 px-4">DATE COMPLETED</th>
+                                <th className="py-3 px-4">DATE</th>
                                 <th className="py-3 px-4">STATUS</th>
                                 <th className="py-3 px-5 text-right">ACTION</th>
                               </tr>
@@ -2581,19 +2820,14 @@ export default function AdminDashboardPage() {
                                   <td className="py-4 px-4 font-bold text-slate-800">{item.appliance}</td>
                                   <td className="py-4 px-4 font-semibold text-slate-700">{item.customer}</td>
                                   <td className="py-4 px-4 font-semibold text-slate-700">{item.technician}</td>
-                                  <td className="py-4 px-4 font-semibold text-slate-700">{item.dateCompleted}</td>
+                                  <td className="py-4 px-4 font-semibold text-slate-700">{item.dateCompleted !== '—' ? item.dateCompleted : (item.serviceDate || '—')}</td>
                                   <td className="py-4 px-4">
-                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                                      item.status === 'Completed' ? 'bg-emerald-100/80 text-emerald-800' : 'bg-red-100/80 text-red-800'
-                                    }`}>
-                                      <span className={`w-1.5 h-1.5 rounded-full ${item.status === 'Completed' ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                                      {item.status}
-                                    </span>
+                                    {renderBookingStatusBadge(item.status)}
                                   </td>
                                   <td className="py-4 px-5 text-right">
                                     <button 
                                       onClick={() => { setSelectedReportItem(item); setIsReportModalOpen(true); }}
-                                      className="text-xs font-bold cursor-pointer text-slate-400 hover:text-slate-600"
+                                      className="text-xs font-bold cursor-pointer text-slate-500 hover:text-slate-800"
                                     >
                                       View Report
                                     </button>
@@ -2601,8 +2835,21 @@ export default function AdminDashboardPage() {
                                 </tr>
                               )) : (
                                 <tr>
-                                  <td colSpan="7" className="py-8 text-center text-slate-500 font-semibold">
-                                    No records found for the selected dates.
+                                  <td colSpan="7" className="py-8 text-center text-slate-500 font-medium">
+                                    <div className="max-w-md mx-auto space-y-2">
+                                      <CheckCircle2 className="w-8 h-8 text-slate-300 mx-auto" />
+                                      <p className="font-bold text-slate-700">No {workHistoryFilter === 'Cancelled' ? 'cancelled' : 'completed'} records found</p>
+                                      <p className="text-xs text-slate-500">
+                                        When ongoing jobs are finished, their completed reports will appear here. Switch to{' '}
+                                        <button
+                                          onClick={() => { setWorkHistoryFilter('All Records'); setHistoryPage(1); }}
+                                          className="text-blue-600 font-bold underline hover:text-blue-800 cursor-pointer"
+                                        >
+                                          All Records Ledger
+                                        </button>{' '}
+                                        to view all {historyCounts.all} service requests.
+                                      </p>
+                                    </div>
                                   </td>
                                 </tr>
                               )}
