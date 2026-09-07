@@ -166,7 +166,17 @@ exports.getBookingDetails = async (req, res) => {
   try {
     const { bookingId } = req.params;
 
-    const booking = await Booking.findById(bookingId)
+    let query = { _id: bookingId };
+    
+    if (req.user.role === "customer") {
+      query.customer = req.user.id;
+    }
+
+    if (req.user.role === "vendor") {
+      query.vendor = req.user.id;
+    }
+
+    const booking = await Booking.findById(query)
       .populate("customer", "fullName email phoneNumber")
       .populate("vendor", "fullName email phoneNumber");
 
