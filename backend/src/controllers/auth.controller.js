@@ -20,8 +20,6 @@ function generateToken(user) {
   return jwt.sign(payload, process.env.JWT_SECRET, {
     expiresIn: '7d',
   });
-
- 
 }
 
 // send otp
@@ -206,7 +204,6 @@ async function signup(req, res) {
 // login
 async function login(req, res) {
   try {
-    
     const { email, password } = req.body;
 
     // Validate input
@@ -364,20 +361,20 @@ async function googleLogin(req, res) {
     }
 
     // Check if account is blocked
-if (user.status === 'blocked') {
-  return res.status(403).json({
-    success: false,
-    message: 'Your account has been blocked.',
-  });
-}
+    if (user.status === 'blocked') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been blocked.',
+      });
+    }
 
-// Check if account is suspended
-if (user.status === 'suspended') {
-  return res.status(403).json({
-    success: false,
-    message: 'Your account has been suspended.',
-  });
-}
+    // Check if account is suspended
+    if (user.status === 'suspended') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been suspended.',
+      });
+    }
 
     if (user.role === 'vendor') {
       return res.status(403).json({
@@ -416,12 +413,18 @@ async function changePassword(req, res) {
   try {
     //get user id from auth middleware or token
     const userId = req.user.id;
-    // console.log('change passwors', req.body);
-    // console.log('User ID from token:', userId);
 
     //get user info from db
 
     const userDetails = await userModel.findById(userId).select('+password');
+
+    // ✅ Check if user exists
+    if (!userDetails) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
 
     //get old and new password from request body
     const { oldPassword, newPassword } = req.body;
@@ -432,6 +435,15 @@ async function changePassword(req, res) {
       return res.status(400).json({
         success: false,
         message: 'All fields are required',
+      });
+    }
+
+    // Check if user has a password
+    if (!userDetails.password) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'This account does not have a password. Please use Google login.',
       });
     }
 
@@ -709,7 +721,6 @@ async function updateUserLocation(req, res) {
     const cleanLocation = location !== undefined ? String(location).trim() : '';
     const isClearing =
       cleanLocation === '' || cleanLocation === 'Set Your Location';
-
 
     const updateFields = {};
     if (location !== undefined) {
