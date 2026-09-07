@@ -34,7 +34,7 @@ async function sendOtp(req, res) {
         message: 'Email is required',
       });
     }
-    gi
+    
     if (!['signup', 'forgotPassword'].includes(purpose)) {
       return res.status(400).json({
         success: false,
