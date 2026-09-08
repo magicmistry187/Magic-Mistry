@@ -15,8 +15,23 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
     return <Navigate to="/login" state={{ from: location.pathname, reason: 'Please log in to access this page.' }} replace />;
   }
 
-  if (allowedRoles.length > 0 && !allowedRoles.includes(user?.role)) {
-    return <Navigate to="/" replace />;
+  if (allowedRoles.length > 0) {
+    const userRole = (user?.role || (user?.vendorId ? 'vendor' : '')).toLowerCase();
+    const normalizedAllowed = allowedRoles.map((r) => r.toLowerCase());
+
+    if (!userRole || !normalizedAllowed.includes(userRole)) {
+      // Redirect unauthorized users to their own authorized dashboard instead of dropping to /
+      if (userRole === 'admin') {
+        return <Navigate to="/admin-dashboard" replace />;
+      }
+      if (userRole === 'vendor') {
+        return <Navigate to="/vendor-dashboard" replace />;
+      }
+      if (userRole === 'customer') {
+        return <Navigate to="/dashboard" replace />;
+      }
+      return <Navigate to="/" replace />;
+    }
   }
 
   return children;

@@ -1431,7 +1431,7 @@ export default function VendorDashboardPage() {
                                       <a
                                         href={`https://maps.google.com/?q=${encodeURIComponent(job.serviceAddress)}`}
                                         target="_blank"
-                                        rel="noreferrer"
+                                        rel="noopener noreferrer"
                                         className="flex-1 sm:flex-none px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold rounded-xl flex items-center justify-center gap-1.5 transition-colors border border-slate-200"
                                       >
                                         <Navigation className="w-3.5 h-3.5 text-blue-500" />
@@ -1737,7 +1737,7 @@ export default function VendorDashboardPage() {
                   <a
                     href={`https://maps.google.com/?q=${encodeURIComponent(selectedJob.serviceAddress)}`}
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener noreferrer"
                     className="w-full py-2.5 bg-slate-800/80 hover:bg-slate-700 text-white text-xs font-extrabold rounded-xl transition-all flex items-center justify-center gap-2 border border-slate-700 block text-center"
                   >
                     <Navigation className="w-3.5 h-3.5 text-blue-400" />
