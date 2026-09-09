@@ -216,7 +216,7 @@ export default function BookingConfirmation() {
                     <div className="flex-1">
                       <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide">Attached Photo</p>
                       <p className="text-xs text-blue-600 font-semibold hover:underline truncate">
-                        <Link to={booking.image} target="_blank" rel="noreferrer">View full image</Link>
+                        <Link to={booking.image} target="_blank" rel="noopener noreferrer">View full image</Link>
                       </p>
                     </div>
                   </div>

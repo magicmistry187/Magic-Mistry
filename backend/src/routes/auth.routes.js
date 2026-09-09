@@ -12,10 +12,12 @@ const {
   changePassword,
   verifyOtpForForgotPassword,
   forgotPassword,
+} = require("../controllers/auth.controller");
+const {
   updateUserLocation,
   getUserProfile,
   updateUserProfile,
-} = require("../controllers/auth.controller");
+} = require("../controllers/user.controller");
 
 /////////// api routes
 router.post('/signup', signup);

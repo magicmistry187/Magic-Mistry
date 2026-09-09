@@ -139,7 +139,7 @@ const FileInputField = ({ label, id, onChange, error, required, accept, file, he
           </div>
           <button
             type="button"
-            onClick={() => window.open(pdfUrl, '_blank')}
+            onClick={() => window.open(pdfUrl, '_blank', 'noopener,noreferrer')}
             className="text-[11px] font-extrabold text-[#FF6B00] hover:underline flex items-center gap-1 cursor-pointer shrink-0 ml-4"
           >
             Preview <ExternalLink className="w-3 h-3" />
@@ -637,9 +637,9 @@ export default function VendorApplyPage() {
                         />
                         <label htmlFor="agreed" className="text-sm text-slate-600 leading-relaxed cursor-pointer">
                           I agree to the Magic Mistry{' '}
-                          <Link to="/terms" target="_blank" className="text-orange-500 font-bold hover:underline">Terms of Service</Link>
+                          <Link to="/terms" target="_blank" rel="noopener noreferrer" className="text-orange-500 font-bold hover:underline">Terms of Service</Link>
                           {' '}and{' '}
-                          <Link to="/privacy" target="_blank" className="text-orange-500 font-bold hover:underline">Privacy Policy</Link>,
+                          <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="text-orange-500 font-bold hover:underline">Privacy Policy</Link>,
                           and consent to share provided information to process my vendor application.
                         </label>
                       </motion.div>

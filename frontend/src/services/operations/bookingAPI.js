@@ -184,7 +184,6 @@ export async function getAdminBookingsApi(token) {
 }
 
 
-//Mushhh --> I replace this api to getVendorBookingUnderRange
 // Get Vendor Bookings
 export async function getVendorBookingsApi(token, radius) {
   try {
@@ -192,12 +191,9 @@ export async function getVendorBookingsApi(token, radius) {
     const res = await apiConnector(
       "GET",
       `${BASE_URL}/booking/vendor/bookings`,
-      {
-        params: {
-          radius: radius || 15,
-        },
-      },
+      null,
       authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      radius ? { radius } : null,
     );
 
     if (!res.data?.success) {

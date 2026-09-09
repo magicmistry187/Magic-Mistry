@@ -21,7 +21,8 @@ exports.auth = async (req, res, next) => {
     }
 
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || "secret");
+     
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
       req.user = {
         ...decoded,
         id: decoded.id || decoded.userId,
@@ -98,4 +99,4 @@ exports.isAdmin = authorizeRoles("admin");
 exports.authorizeRoles = authorizeRoles;
 
 // Allows both customers AND vendors to access the route (e.g. saving address)
-exports.isCustomerOrVendor = authorizeRoles("customer", "vendor");
+exports.isCustomerOrVendor = authorizeRoles("customer", "vendor");

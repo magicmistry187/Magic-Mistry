@@ -22,38 +22,42 @@ exports.createAddress = async (req, res) => {
       isDefault,
     } = req.body;
 
-    const houseVal = (house || flat || street || 'Home').trim();
-    const streetVal = (street || houseVal || 'Area').trim();
-    const cityVal = (city || 'Kolkata').trim();
-    const stateVal = (state || 'West Bengal').trim();
-    const pincodeVal = (pincode || '000000').trim();
+    const houseVal = (house || flat || '').trim();
+    const streetVal = (street || '').trim();
+    const addressLine1Val = (req.body.addressLine1 || houseVal || streetVal).trim();
+    const cityVal = (city || '').trim();
+    const stateVal = (state || '').trim();
+    const pincodeVal = (pincode || '').trim();
+    const landmarkVal = (landmark || '').trim();
+    const countryVal = (country || 'India').trim();
 
+    // Validation
+    if (!addressLine1Val && !streetVal) {
+      return res.status(400).json({
+        success: false,
+        message: 'Street or address line is required.',
+      });
+    }
 
+    if (!cityVal || !stateVal || !pincodeVal) {
+      return res.status(400).json({
+        success: false,
+        message: 'City, state, and pincode are required.',
+      });
+    }
 
-
-    //Here we add geocode api to get longitude and latitude
-
-    // Parse coordinates
-    // let coords = [88.3639, 22.5726]; // default Kolkata lng, lat
-
-let coords = [72.883995, 19.449832]; // default location for checking functionality
-//First one is longitude and 2nd one is latitude
-    if (location && Array.isArray(location.coordinates) && location.coordinates.length === 2) {
+    // Parse coordinates if provided
+    let coords = null;
+    if (location && Array.isArray(location.coordinates) && location.coordinates.length === 2 && !isNaN(Number(location.coordinates[0])) && !isNaN(Number(location.coordinates[1]))) {
       coords = [Number(location.coordinates[0]), Number(location.coordinates[1])];
-    } else if (longitude !== undefined && latitude !== undefined) {
+    } else if (longitude !== undefined && latitude !== undefined && !isNaN(Number(longitude)) && !isNaN(Number(latitude))) {
       coords = [Number(longitude), Number(latitude)];
-    } else if (lng !== undefined && lat !== undefined) {
+    } else if (lng !== undefined && lat !== undefined && !isNaN(Number(lng)) && !isNaN(Number(lat))) {
       coords = [Number(lng), Number(lat)];
     }
 
-    const geoPoint = {
-      type: 'Point',
-      coordinates: coords,
-    };
-
     const addressCount = await Address.countDocuments({
-      user: req.user.id
-
+      user: req.user.id,
     });
 
     const makeDefault = addressCount === 0 ? true : !!isDefault;
@@ -65,32 +69,28 @@ let coords = [72.883995, 19.449832]; // default location for checking functional
       );
     }
 
-    const address = await Address.create({
+    const addressData = {
       user: req.user.id,
-      addressType: addressType || "Home",
+      addressType: addressType || 'Home',
       house: houseVal,
-      addressLine1: houseVal,
-      street: streetVal,
-      landmark: (landmark || "").trim(),
+      addressLine1: addressLine1Val,
+      street: streetVal || addressLine1Val,
+      landmark: landmarkVal,
       city: cityVal,
       state: stateVal,
-      country: (country || "India").trim(),
+      country: countryVal,
       pincode: pincodeVal,
-      location: geoPoint,
       isDefault: makeDefault,
-    });
+    };
 
-    // If marked default, also sync user's active location on User model
-    if (makeDefault) {
-      const formattedLoc = [houseVal, streetVal, cityVal].filter(Boolean).join(', ');
-      await User.findByIdAndUpdate(req.user.id, {
-        $set: {
-          location: formattedLoc,
-          latitude: coords[1],
-          longitude: coords[0],
-        },
-      });
+    if (coords) {
+      addressData.location = {
+        type: 'Point',
+        coordinates: coords,
+      };
     }
+
+    const address = await Address.create(addressData);
 
     return res.status(201).json({
       success: true,
@@ -118,7 +118,6 @@ exports.getAddresses = async (req, res) => {
       success: true,
       message: 'Addresses fetched successfully.',
       data: addresses,
-      addresses: addresses,
       count: addresses.length,
     });
   } catch (error) {
@@ -148,7 +147,6 @@ exports.getAddress = async (req, res) => {
       success: true,
       message: 'Address fetched successfully.',
       data: address,
-      address: address,
     });
   } catch (error) {
     console.error('Get Address Error:', error);
@@ -235,50 +233,52 @@ exports.updateAddress = async (req, res) => {
       );
     } else {
       // If no address exists yet for this user/vendor, create it
-      const houseVal = (req.body.house || req.body.flat || req.body.street || 'Home').trim();
-      const streetVal = (req.body.street || houseVal || 'Area').trim();
-      const cityVal = (req.body.city || 'Kolkata').trim();
-      const stateVal = (req.body.state || 'West Bengal').trim();
-      const pincodeVal = (req.body.pincode || '000000').trim();
+      const houseVal = (req.body.house || req.body.flat || '').trim();
+      const streetVal = (req.body.street || '').trim();
+      const addressLine1Val = (req.body.addressLine1 || houseVal || streetVal).trim();
+      const cityVal = (req.body.city || '').trim();
+      const stateVal = (req.body.state || '').trim();
+      const pincodeVal = (req.body.pincode || '').trim();
 
-      let coords = [88.3639, 22.5726];
-      if (req.body.location?.coordinates?.length === 2) {
+      if (!addressLine1Val && !streetVal) {
+        return res.status(400).json({
+          success: false,
+          message: 'Street or address line is required.',
+        });
+      }
+      if (!cityVal || !stateVal || !pincodeVal) {
+        return res.status(400).json({
+          success: false,
+          message: 'City, state, and pincode are required.',
+        });
+      }
+
+      let coords = null;
+      if (req.body.location?.coordinates?.length === 2 && !isNaN(Number(req.body.location.coordinates[0])) && !isNaN(Number(req.body.location.coordinates[1]))) {
         coords = [Number(req.body.location.coordinates[0]), Number(req.body.location.coordinates[1])];
-      } else if (req.body.longitude !== undefined && req.body.latitude !== undefined) {
+      } else if (req.body.longitude !== undefined && req.body.latitude !== undefined && !isNaN(Number(req.body.longitude)) && !isNaN(Number(req.body.latitude))) {
         coords = [Number(req.body.longitude), Number(req.body.latitude)];
       }
 
-      updatedAddress = await Address.create({
+      const newAddrData = {
         user: req.user.id,
         addressType: req.body.addressType || req.body.type || 'Home',
         house: houseVal,
-        addressLine1: houseVal,
-        street: streetVal,
+        addressLine1: addressLine1Val,
+        street: streetVal || addressLine1Val,
         landmark: (req.body.landmark || '').trim(),
         city: cityVal,
         state: stateVal,
         country: (req.body.country || 'India').trim(),
         pincode: pincodeVal,
-        location: { type: 'Point', coordinates: coords },
         isDefault: true,
-      });
-    }
+      };
 
-    if (updatedAddress && (updatedAddress.isDefault || req.body.isDefault)) {
-      const formattedLoc = [
-        updatedAddress.house || updatedAddress.addressLine1,
-        updatedAddress.street,
-        updatedAddress.city,
-      ]
-        .filter(Boolean)
-        .join(", ");
-      await User.findByIdAndUpdate(req.user.id, {
-        $set: {
-          location: formattedLoc,
-          latitude: updatedAddress.location?.coordinates?.[1] || null,
-          longitude: updatedAddress.location?.coordinates?.[0] || null,
-        },
-      });
+      if (coords) {
+        newAddrData.location = { type: 'Point', coordinates: coords };
+      }
+
+      updatedAddress = await Address.create(newAddrData);
     }
 
     return res.status(200).json({
