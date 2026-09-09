@@ -1,13 +1,13 @@
-const mongoose = require('mongoose');
-const userModel = require('../models/user.model');
-const addressModel = require('../models/address.model');
-const otpModel = require('../models/otp.model');
-const otpGenerator = require('otp-generator');
-const bcrypt = require('bcrypt');
-const userVerification = require('../templates/userVerifcationTemplate');
-const sendEmail = require('../utils/sendEmail');
-const jwt = require('jsonwebtoken');
-const axios = require('axios');
+const mongoose = require("mongoose");
+const userModel = require("../models/user.model");
+const addressModel = require("../models/address.model");
+const otpModel = require("../models/otp.model");
+const otpGenerator = require("otp-generator");
+const bcrypt = require("bcrypt");
+const userVerification = require("../templates/userVerifcationTemplate");
+const sendEmail = require("../utils/sendEmail");
+const jwt = require("jsonwebtoken");
+const axios = require("axios");
 
 function generateToken(user) {
   const payload = {
@@ -17,8 +17,8 @@ function generateToken(user) {
     vendorId: user.vendorId || undefined,
   };
 
-  return jwt.sign(payload, process.env.JWT_SECRET || 'secret', {
-    expiresIn: '7d',
+  return jwt.sign(payload, process.env.JWT_SECRET || "secret", {
+    expiresIn: "7d",
   });
 
   return jwt.sign;
@@ -33,34 +33,37 @@ async function sendOtp(req, res) {
     if (!email) {
       return res.status(400).json({
         success: false,
-        message: 'Email is required',
+        message: "Email is required",
       });
     }
 
- const trimmedEmail = email.toLowerCase().trim()
+    const trimmedEmail = email.toLowerCase().trim();
     const checkUser = await userModel.findOne({
       email: trimmedEmail,
     });
 
-    if (purpose === 'signup' && checkUser) {
+    if (purpose === "signup" && checkUser) {
       return res.status(400).json({
         success: false,
-        message: 'User already exists',
+        message: "User already exists",
       });
     }
 
-    if (purpose === 'forgotPassword' && !checkUser) {
+    if (purpose === "forgotPassword" && !checkUser) {
       return res.status(400).json({
         success: false,
-        message: 'User is not registered with this email',
+        message: "User is not registered with this email",
       });
     }
 
-      const lastOtp = await otpModel.findOne({ email: trimmedEmail, purpose }).sort({ createdAt: -1 });
+    const lastOtp = await otpModel
+      .findOne({ email: trimmedEmail, purpose })
+      .sort({ createdAt: -1 });
+
     if (lastOtp && Date.now() - lastOtp.createdAt.getTime() < 30 * 1000) {
       return res.status(429).json({
         success: false,
-        message: 'Please wait before requesting another OTP.',
+        message: "Please wait before requesting another OTP.",
       });
     }
 
@@ -91,50 +94,49 @@ async function sendOtp(req, res) {
     const emailBody = userVerification(otp);
     await sendEmail(
       email.toLowerCase().trim(),
-      'Verification Code - Magic Mistry',
+      "Verification Code - Magic Mistry",
       emailBody,
     );
 
     return res.status(200).json({
       success: true,
-      message: 'OTP Sent Successfully to your email',
+      message: "OTP Sent Successfully to your email",
       email,
     });
   } catch (err) {
-    console.log('Error in OTP Send:', err);
+    console.log("Error in OTP Send:", err);
 
     if (
       err.message &&
-      (err.message.includes('Mail_User') ||
-        err.message.includes('Missing credentials') ||
-        err.message.includes('Invalid login') ||
-        err.message.includes('535'))
+      (err.message.includes("Mail_User") ||
+        err.message.includes("Missing credentials") ||
+        err.message.includes("Invalid login") ||
+        err.message.includes("535"))
     ) {
       return res.status(500).json({
         success: false,
         message:
-          'Email credentials are invalid. Check Mail_User and Mail_Pass in .env',
+          "Email credentials are invalid. Check Mail_User and Mail_Pass in .env",
       });
     }
 
     return res.status(500).json({
       success: false,
       error: err.message,
-      message: 'Something went wrong while sending OTP. Please try again.',
+      message: "Something went wrong while sending OTP. Please try again.",
     });
   }
 }
 
 // signup
 async function signup(req, res) {
-  
   try {
     const { fullName, email, password, phoneNumber, otp, role } = req.body;
 
     if (!fullName || !email || !password || !phoneNumber || !otp) {
       return res.status(400).json({
         success: false,
-        message: 'All fields are required',
+        message: "All fields are required",
       });
     }
 
@@ -145,26 +147,25 @@ async function signup(req, res) {
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: 'User already exists',
+        message: "User already exists",
       });
     }
 
     const recentOtp = await otpModel
-      .findOne({ email: email.toLowerCase().trim(), purpose: 'signup' })
+      .findOne({ email: email.toLowerCase().trim(), purpose: "signup" })
       .sort({ createdAt: -1 });
-      
 
     if (!recentOtp) {
       return res.status(400).json({
         success: false,
-        message: 'OTP not Found',
+        message: "OTP not Found",
       });
     }
 
     if (otp !== recentOtp.otp) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid OTP',
+        message: "Invalid OTP",
       });
     }
 
@@ -178,7 +179,7 @@ async function signup(req, res) {
       email: email.toLowerCase().trim(),
       password: hashedPassword,
       phoneNumber,
-      authProviders: ['email'],
+      authProviders: ["email"],
       // role: "admin", // Default role is 'user' if not provided
     });
 
@@ -189,16 +190,16 @@ async function signup(req, res) {
 
     return res.status(200).json({
       success: true,
-      message: 'User is Signed Up',
+      message: "User is Signed Up",
       // token,
       user: userData,
     });
   } catch (err) {
-    console.log('Error while signing up:', err);
+    console.log("Error while signing up:", err);
 
     return res.status(500).json({
       success: false,
-      message: 'Error occurred while signing up',
+      message: "Error occurred while signing up",
     });
   }
 }
@@ -206,14 +207,14 @@ async function signup(req, res) {
 // login
 async function login(req, res) {
   try {
-    console.log('Login controller');
+    console.log("Login controller");
     const { email, password } = req.body;
 
     // Validate input
     if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Email and password are required.',
+        message: "Email and password are required.",
       });
     }
 
@@ -222,20 +223,20 @@ async function login(req, res) {
     // Find user
     const user = await userModel
       .findOne({ email: trimmedEmail })
-      .select('+password');
+      .select("+password");
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password.',
+        message: "Invalid email or password.",
       });
     }
 
     // Vendors must use vendor login
-    if (user.role === 'vendor') {
+    if (user.role === "vendor") {
       return res.status(403).json({
         success: false,
-        message: 'Vendors must use the vendor login.',
+        message: "Vendors must use the vendor login.",
       });
     }
 
@@ -244,23 +245,23 @@ async function login(req, res) {
       return res.status(400).json({
         success: false,
         message:
-          'This account was created using Google. Please sign in with Google.',
+          "This account was created using Google. Please sign in with Google.",
       });
     }
 
     // Check account status
-    if (user.status === 'blocked') {
+    if (user.status === "blocked") {
       return res.status(403).json({
         success: false,
         message:
-          'Your account has been blocked. Please contact the administrator.',
+          "Your account has been blocked. Please contact the administrator.",
       });
     }
 
-    if (user.status === 'suspended') {
+    if (user.status === "suspended") {
       return res.status(403).json({
         success: false,
-        message: 'Your account has been suspended by the administrator.',
+        message: "Your account has been suspended by the administrator.",
       });
     }
 
@@ -270,7 +271,7 @@ async function login(req, res) {
     if (!isPasswordCorrect) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password.',
+        message: "Invalid email or password.",
       });
     }
 
@@ -282,24 +283,24 @@ async function login(req, res) {
     delete userData.password;
 
     return res
-      .cookie('token', token, {
+      .cookie("token", token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
       })
       .status(200)
       .json({
         success: true,
-        message: 'Login successful.',
+        message: "Login successful.",
         token,
         user: userData,
       });
   } catch (error) {
-    console.error('Login Error:', error);
+    console.error("Login Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: 'Internal server error.',
+      message: "Internal server error.",
     });
   }
 }
@@ -312,12 +313,12 @@ async function googleLogin(req, res) {
     if (!accessToken) {
       return res.status(400).json({
         success: false,
-        message: 'Access token is required.',
+        message: "Access token is required.",
       });
     }
 
     const { data: googleUser } = await axios.get(
-      'https://www.googleapis.com/oauth2/v3/userinfo',
+      "https://www.googleapis.com/oauth2/v3/userinfo",
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -330,7 +331,7 @@ async function googleLogin(req, res) {
     if (!email_verified) {
       return res.status(400).json({
         success: false,
-        message: 'Google email is not verified.',
+        message: "Google email is not verified.",
       });
     }
 
@@ -347,8 +348,8 @@ async function googleLogin(req, res) {
         user.googleId = googleId;
         user.isEmailVerified = true;
 
-        if (!user.authProviders.includes('google')) {
-          user.authProviders.push('google');
+        if (!user.authProviders.includes("google")) {
+          user.authProviders.push("google");
         }
 
         await user.save();
@@ -357,41 +358,40 @@ async function googleLogin(req, res) {
           fullName: name,
           email: trimmedEmail,
           googleId,
-          authProviders: ['google'],
+          authProviders: ["google"],
           isEmailVerified: true,
         });
       }
     }
 
-    if (user.role === 'vendor') {
+    if (user.role === "vendor") {
       return res.status(403).json({
         success: false,
-        message: 'Vendors cannot use Google login. Please use vendor login.',
+        message: "Vendors cannot use Google login. Please use vendor login.",
       });
     }
 
     const token = generateToken(user);
-    
 
     return res
-      .cookie('token', token, {
+      .cookie("token", token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
       })
       .status(200)
       .json({
         success: true,
-        message: 'Google login successful.',
+        message: "Google login successful.",
         token,
         user,
       });
   } catch (error) {
-    console.error('Google Login Error:', error);
+    console.error("Google Login Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: 'Internal server error.',
+      message: "Internal server error.",
     });
   }
 }
@@ -404,7 +404,7 @@ async function changePassword(req, res) {
 
     //get user info from db
 
-    const userDetails = await userModel.findById(userId).select('+password');
+    const userDetails = await userModel.findById(userId).select("+password");
 
     //get old and new password from request body
     const { oldPassword, newPassword } = req.body;
@@ -414,7 +414,7 @@ async function changePassword(req, res) {
     if (!oldPassword || !newPassword) {
       return res.status(400).json({
         success: false,
-        message: 'All fields are required',
+        message: "All fields are required",
       });
     }
 
@@ -429,7 +429,7 @@ async function changePassword(req, res) {
       return res.status(400).json({
         success: false,
         message:
-          'Password does not match, please enter your correct current password',
+          "Password does not match, please enter your correct current password",
       });
     }
 
@@ -452,24 +452,24 @@ async function changePassword(req, res) {
 
       await sendEmail(
         updateUserDetails.email,
-        'Password Changed Successfully',
+        "Password Changed Successfully",
         `Password Changed Successfully for ${updateUserDetails.fullName}`,
       );
     } catch (err) {
-      console.error('Email notification failed on password change:', err);
+      console.error("Email notification failed on password change:", err);
     }
 
     return res.status(200).json({
       success: true,
-      message: 'Password Changed Successfully',
+      message: "Password Changed Successfully",
     });
   } catch (err) {
-    console.log('Error while changing password: ', err);
+    console.log("Error while changing password: ", err);
 
     return res.status(500).json({
       success: false,
       error: err.message,
-      message: 'Something went wrong while changing password',
+      message: "Something went wrong while changing password",
     });
   }
 }
@@ -482,7 +482,7 @@ async function verifyOtpForForgotPassword(req, res) {
     if (!email) {
       return res.status(400).json({
         success: false,
-        message: 'Email is required',
+        message: "Email is required",
       });
     }
 
@@ -493,46 +493,46 @@ async function verifyOtpForForgotPassword(req, res) {
     if (!user) {
       return res.status(400).json({
         success: false,
-        message: 'User is not registered with this email',
+        message: "User is not registered with this email",
       });
     }
 
     if (!otp) {
       return res.status(400).json({
         success: false,
-        message: 'OTP is required',
+        message: "OTP is required",
       });
     }
 
     const recentOtp = await otpModel
       .findOne({
         email: email.toLowerCase().trim(),
-        purpose: 'forgotPassword',
+        purpose: "forgotPassword",
       })
       .sort({ createdAt: -1 });
 
     if (!recentOtp) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid or expired OTP',
+        message: "Invalid or expired OTP",
       });
     }
 
     if (otp !== recentOtp.otp) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid OTP',
+        message: "Invalid OTP",
       });
     }
 
     const resetToken = jwt.sign(
       {
         userId: user._id,
-        purpose: 'resetPassword',
+        purpose: "resetPassword",
       },
-      process.env.JWT_SECRET || 'secret',
+      process.env.JWT_SECRET || "secret",
       {
-        expiresIn: '10m',
+        expiresIn: "10m",
       },
     );
 
@@ -542,16 +542,16 @@ async function verifyOtpForForgotPassword(req, res) {
 
     return res.status(200).json({
       success: true,
-      message: 'OTP verified Successfully',
+      message: "OTP verified Successfully",
       resetToken,
     });
   } catch (err) {
-    console.error('Error while verifying  OTP: ', err);
+    console.error("Error while verifying  OTP: ", err);
 
     return res.status(500).json({
       success: false,
       error: err.message,
-      message: 'Something went wrong while verifying OTP',
+      message: "Something went wrong while verifying OTP",
     });
   }
 }
@@ -564,27 +564,27 @@ async function forgotPassword(req, res) {
     if (!resetToken) {
       return res.status(400).json({
         success: false,
-        message: 'Password reset session is missing. Please request a new OTP.',
+        message: "Password reset session is missing. Please request a new OTP.",
       });
     }
 
     if (!newPassword) {
       return res.status(400).json({
         success: false,
-        message: 'New Password is required',
+        message: "New Password is required",
       });
     }
 
     //verify reset token here
 
-    const decoded = jwt.verify(resetToken, process.env.JWT_SECRET || 'secret');
+    const decoded = jwt.verify(resetToken, process.env.JWT_SECRET || "secret");
 
     // check if the token is for reset password purpose
 
-    if (decoded.purpose !== 'resetPassword') {
+    if (decoded.purpose !== "resetPassword") {
       return res.status(400).json({
         success: false,
-        message: 'Invalid password reset session',
+        message: "Invalid password reset session",
       });
     }
 
@@ -595,7 +595,7 @@ async function forgotPassword(req, res) {
     if (!user) {
       return res.status(400).json({
         success: false,
-        message: 'User not found',
+        message: "User not found",
       });
     }
 
@@ -607,7 +607,7 @@ async function forgotPassword(req, res) {
       return res.status(400).json({
         success: false,
         message:
-          'Password must contain at least 8 characters, 1 uppercase letter, 1 number, and 1 special character.',
+          "Password must contain at least 8 characters, 1 uppercase letter, 1 number, and 1 special character.",
       });
     }
 
@@ -620,34 +620,34 @@ async function forgotPassword(req, res) {
 
     return res.status(200).json({
       success: true,
-      message: 'Password Changed Successfully',
+      message: "Password Changed Successfully",
     });
   } catch (err) {
-    console.error('Error while processing forgot password: ', err);
+    console.error("Error while processing forgot password: ", err);
 
     //JWT EXPRIED
 
-    if (err.name === 'TokenExpiredError') {
+    if (err.name === "TokenExpiredError") {
       return res.status(400).json({
         success: false,
 
         message:
-          'Password reset session has expired. Please request a new OTP.',
+          "Password reset session has expired. Please request a new OTP.",
       });
     }
 
     // JWT invalid
-    if (err.name === 'JsonWebTokenError') {
+    if (err.name === "JsonWebTokenError") {
       return res.status(400).json({
         success: false,
-        message: 'Invalid password reset session. Please request a new OTP.',
+        message: "Invalid password reset session. Please request a new OTP.",
       });
     }
 
     return res.status(500).json({
       success: false,
       error: err.message,
-      message: 'Something went wrong while processing forgot password',
+      message: "Something went wrong while processing forgot password",
     });
   }
 }
@@ -674,7 +674,7 @@ async function updateUserLocation(req, res) {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found',
+        message: "User not found",
       });
     }
 
@@ -685,17 +685,17 @@ async function updateUserLocation(req, res) {
     ) {
       return res.status(400).json({
         success: false,
-        message: 'Location or coordinates required',
+        message: "Location or coordinates required",
       });
     }
 
-    const cleanLocation = location !== undefined ? String(location).trim() : '';
+    const cleanLocation = location !== undefined ? String(location).trim() : "";
     const isClearing =
-      cleanLocation === '' || cleanLocation === 'Set Your Location';
+      cleanLocation === "" || cleanLocation === "Set Your Location";
 
     const updateFields = {};
     if (location !== undefined) {
-      updateFields.location = isClearing ? '' : cleanLocation;
+      updateFields.location = isClearing ? "" : cleanLocation;
     }
     if (latitude !== undefined) {
       updateFields.latitude =
@@ -715,13 +715,13 @@ async function updateUserLocation(req, res) {
     if (!updatedUser) {
       return res.status(404).json({
         success: false,
-        message: 'User not found',
+        message: "User not found",
       });
     }
 
     return res.status(200).json({
       success: true,
-      message: 'User location updated successfully',
+      message: "User location updated successfully",
       user: {
         id: updatedUser._id,
         _id: updatedUser._id,
@@ -735,10 +735,10 @@ async function updateUserLocation(req, res) {
       },
     });
   } catch (error) {
-    console.error('Update User Location Error:', error);
+    console.error("Update User Location Error:", error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to update location: ' + (error.message || error),
+      message: "Failed to update location: " + (error.message || error),
     });
   }
 }
@@ -763,7 +763,7 @@ async function getUserProfile(req, res) {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found',
+        message: "User not found",
       });
     }
 
@@ -776,16 +776,16 @@ async function getUserProfile(req, res) {
         email: user.email,
         phoneNumber: user.phoneNumber,
         role: user.role,
-        location: user.location || '',
+        location: user.location || "",
         latitude: user.latitude,
         longitude: user.longitude,
       },
     });
   } catch (error) {
-    console.error('Get User Profile Error:', error);
+    console.error("Get User Profile Error:", error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to fetch user profile',
+      message: "Failed to fetch user profile",
     });
   }
 }
@@ -810,7 +810,7 @@ async function updateUserProfile(req, res) {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found',
+        message: "User not found",
       });
     }
 
@@ -834,13 +834,13 @@ async function updateUserProfile(req, res) {
     if (!updatedUser) {
       return res.status(404).json({
         success: false,
-        message: 'User not found',
+        message: "User not found",
       });
     }
 
     return res.status(200).json({
       success: true,
-      message: 'Profile updated successfully',
+      message: "Profile updated successfully",
       user: {
         id: updatedUser._id,
         _id: updatedUser._id,
@@ -854,10 +854,10 @@ async function updateUserProfile(req, res) {
       },
     });
   } catch (error) {
-    console.error('Update User Profile Error:', error);
+    console.error("Update User Profile Error:", error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to update profile',
+      message: "Failed to update profile",
     });
   }
 }
