@@ -330,7 +330,7 @@ exports.getBookingToVendorUnderRange = async (req, res) => {
       Number(req.query.radius) ||
       (vendorProfile?.serviceRadius && vendorProfile.serviceRadius > 0
         ? vendorProfile.serviceRadius
-        : 25);
+        : 15);
 
     let vendorLocation = null;
     const vendorAddress = await Address.findOne({ user: vendorId }).sort({

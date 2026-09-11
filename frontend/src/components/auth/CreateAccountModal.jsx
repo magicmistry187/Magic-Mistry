@@ -7,6 +7,7 @@ import OTPVerificationModal from './OTPVerificationModal';
 import { sendOtp, googleLogin } from '../../services/api';
 import { useGoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../../context/AuthContext';
+import { getOtpRemainingCooldown } from '../../utils/otpCooldown';
 
 export default function CreateAccountModal({ isOpen = true, onClose }) {
   const navigate = useNavigate();
@@ -77,6 +78,12 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
     e.preventDefault();
     setApiError('');
     if (validateForm()) {
+      const cooldown = getOtpRemainingCooldown('signup', formData.email);
+      if (cooldown > 0) {
+        setApiError(`Please wait ${cooldown}s before requesting another OTP.`);
+        return;
+      }
+
       setIsLoading(true);
       const res = await sendOtp({ email: formData.email, purpose: 'signup' });
       setIsLoading(false);
@@ -120,6 +127,7 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
         formData={formData}
         phoneNumber={formData.phone}
         onClose={onClose} 
+        onBack={() => setIsOTPVisible(false)}
       />
     );
   }
@@ -191,8 +199,17 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5" noValidate>
 
               {apiError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs font-medium">
-                  {apiError}
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs font-medium flex items-center justify-between">
+                  <span>{apiError}</span>
+                  {getOtpRemainingCooldown('signup', formData.email) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setIsOTPVisible(true)}
+                      className="text-[#FF6A00] hover:underline font-semibold ml-2 cursor-pointer whitespace-nowrap"
+                    >
+                      Enter Code
+                    </button>
+                  )}
                 </div>
               )}
 

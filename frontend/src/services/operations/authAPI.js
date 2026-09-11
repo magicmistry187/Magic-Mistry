@@ -1,4 +1,5 @@
 import { apiConnector, BASE_URL } from "../apiConnector";
+import { getOtpRemainingCooldown, setOtpCooldown } from "../../utils/otpCooldown";
 
 export const authEndpoints = {
   SENDOTP_API: BASE_URL + "/auth/sendOtp",
@@ -24,12 +25,23 @@ const {
 export async function sendOtp(data) {
   try {
     const payload = typeof data === 'string' ? { email: data, purpose: 'signup' } : data;
+    const cooldown = getOtpRemainingCooldown(payload.purpose || 'signup', payload.email);
+    if (cooldown > 0) {
+      return {
+        success: false,
+        message: `Please wait ${cooldown}s before requesting another OTP.`,
+        remainingSeconds: cooldown,
+      };
+    }
+
     const response = await apiConnector("POST", SENDOTP_API, payload);
     console.log("SENDOTP API RESPONSE............", response);
 
     if (!response.data?.success) {
       throw new Error(response.data?.message || "Could not send OTP");
     }
+
+    setOtpCooldown(payload.purpose || 'signup', payload.email);
 
     return {
       success: true,

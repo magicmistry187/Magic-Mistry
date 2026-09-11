@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { IoClose } from "react-icons/io5";
@@ -19,6 +19,7 @@ import {
   verifyOtpForForgotPassword,
   forgotPassword,
 } from "../../services/api";
+import { useOtpCooldown, getOtpRemainingCooldown } from "../../utils/otpCooldown";
 
 /* ─────────────────────────────────────────────────────────
    Password-strength helper
@@ -71,6 +72,13 @@ function StepEmail({ onNext }) {
       setError(err);
       return;
     }
+
+    const cooldown = getOtpRemainingCooldown("forgotPassword", email.trim());
+    if (cooldown > 0) {
+      setError(`Please wait ${cooldown}s before requesting another OTP.`);
+      return;
+    }
+
     setError("");
     setLoading(true);
     const res = await sendOtp({
@@ -136,14 +144,23 @@ function StepEmail({ onNext }) {
           />
           <AnimatePresence>
             {error && (
-              <motion.span
+              <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
-                className="text-xs font-medium text-red-500 mt-0.5"
+                className="flex items-center justify-between text-xs font-medium text-red-500 mt-0.5"
               >
-                {error}
-              </motion.span>
+                <span>{error}</span>
+                {getOtpRemainingCooldown("forgotPassword", email.trim()) > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onNext(email.trim())}
+                    className="text-[#b86118] hover:underline font-semibold ml-2 cursor-pointer whitespace-nowrap"
+                  >
+                    Enter Code
+                  </button>
+                )}
+              </motion.div>
             )}
           </AnimatePresence>
         </div>
@@ -173,6 +190,10 @@ function StepEmail({ onNext }) {
    STEP 2 — Verify OTP
 ───────────────────────────────────────────────────────── */
 function StepOTP({ email, onNext, onBack }) {
+  const { remainingTime, isCooldownActive, startCooldown } = useOtpCooldown(
+    "forgotPassword",
+    email
+  );
   const [otp, setOtp] = useState(new Array(6).fill(""));
   const [error, setError] = useState("");
   const [verifying, setVerifying] = useState(false);
@@ -252,6 +273,7 @@ function StepOTP({ email, onNext, onBack }) {
   };
 
   const handleResend = async () => {
+    if (isCooldownActive || resending) return;
     setResending(true);
     setResendMsg("");
     setError("");
@@ -262,6 +284,7 @@ function StepOTP({ email, onNext, onBack }) {
     });
     setResending(false);
     if (res.success) {
+      startCooldown();
       setResendMsg("A new code has been sent to your inbox.");
       setOtp(new Array(6).fill(""));
       inputRefs.current[0]?.focus();
@@ -368,15 +391,23 @@ function StepOTP({ email, onNext, onBack }) {
       <div className="flex flex-col items-center gap-2.5 mt-5">
         <button
           onClick={handleResend}
-          disabled={resending}
-          className="flex items-center gap-1.5 text-sm font-semibold text-[#b86118] hover:text-[#914b10] transition-colors disabled:opacity-50"
+          disabled={resending || isCooldownActive}
+          className={`flex items-center gap-1.5 text-sm font-semibold transition-colors ${
+            isCooldownActive
+              ? "text-gray-400 cursor-not-allowed"
+              : "text-[#b86118] hover:text-[#914b10] cursor-pointer disabled:opacity-50"
+          }`}
         >
           <FiRefreshCcw size={13} className={resending ? "animate-spin" : ""} />
-          {resending ? "Resending…" : "Resend Code"}
+          {resending 
+            ? "Resending…" 
+            : isCooldownActive 
+              ? `Resend Code in ${remainingTime}s` 
+              : "Resend Code"}
         </button>
         <button
           onClick={onBack}
-          className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors font-medium"
+          className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors font-medium cursor-pointer"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           Change email address

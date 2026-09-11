@@ -5,12 +5,16 @@ import { FiX, FiRefreshCcw, FiArrowRight } from "react-icons/fi";
 import { HiShieldCheck, HiCheckCircle } from "react-icons/hi2";
 import { signUp, sendOtp } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
+import { useOtpCooldown } from "../../utils/otpCooldown";
 
-export default function OTPVerificationModal({ phoneNumber, email, onClose, formData }) {
+export default function OTPVerificationModal({ phoneNumber, email, onClose, formData, onBack }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
   const targetPath = location.state?.from || '/dashboard';
+  const targetEmail = formData?.email || email || "";
+  const { remainingTime, isCooldownActive, startCooldown } = useOtpCooldown('signup', targetEmail);
+
   const [isOpen, setIsOpen] = useState(true);
   const [otp, setOtp] = useState(new Array(6).fill(""));
   const [isVerifying, setIsVerifying] = useState(false);
@@ -104,14 +108,14 @@ export default function OTPVerificationModal({ phoneNumber, email, onClose, form
   };
 
   const handleResendOtp = async () => {
-    const targetEmail = formData?.email || email;
-    if (!targetEmail) return;
+    if (!targetEmail || isCooldownActive || isResending) return;
     setIsResending(true);
     setResendMsg("");
     setApiError("");
     const res = await sendOtp({ email: targetEmail, purpose: "signup" });
     setIsResending(false);
     if (res.success) {
+      startCooldown();
       setResendMsg("OTP re-sent! Check your Gmail inbox.");
     } else {
       setApiError(res.message);
@@ -230,15 +234,27 @@ export default function OTPVerificationModal({ phoneNumber, email, onClose, form
               <div className="mt-6 flex flex-col items-center gap-3">
                 <button 
                   onClick={handleResendOtp}
-                  disabled={isResending}
-                  className="flex items-center gap-2 text-slate-800 font-semibold text-sm hover:text-slate-600 transition-colors disabled:opacity-50"
+                  disabled={isResending || isCooldownActive}
+                  className={`flex items-center gap-2 font-semibold text-sm transition-colors ${
+                    isCooldownActive
+                      ? "text-slate-400 cursor-not-allowed"
+                      : "text-slate-800 hover:text-slate-600 cursor-pointer disabled:opacity-50"
+                  }`}
                 >
                   <FiRefreshCcw size={16} className={isResending ? "animate-spin" : ""} />
-                  {isResending ? "Resending..." : "Resend Code"}
+                  {isResending
+                    ? "Resending..."
+                    : isCooldownActive
+                      ? `Resend Code in ${remainingTime}s`
+                      : "Resend Code"}
                 </button>
                 <button 
                   onClick={() => {
-                    if (onClose) onClose();
+                    if (onBack) {
+                      onBack();
+                    } else if (onClose) {
+                      onClose();
+                    }
                   }}
                   className="text-slate-500 font-medium text-sm hover:text-slate-700 transition-colors"
                 >
