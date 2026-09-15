@@ -93,7 +93,7 @@ export default function AdminRestockModal({
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Purchase Price per Unit *</label>
                   <div className="relative">
-                    <span className="text-xs font-bold text-slate-400 absolute left-3 top-1/2 -translate-y-1/2">$</span>
+                    <span className="text-xs font-bold text-slate-400 absolute left-3 top-1/2 -translate-y-1/2">₹</span>
                     <input
                       type="number"
                       value={purchasePrice}
