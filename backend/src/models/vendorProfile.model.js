@@ -15,11 +15,12 @@ const vendorProfileSchema = new mongoose.Schema(
       sparse: true,
       trim: true,
     },
-    temporaryPassword: {
-      type: String,
-      default: null,
-      select: false,
-    },
+    // -----password store in user profle-----
+    // temporaryPassword: {
+    //   type: String,
+    //   default: null,
+    //   select: false,
+    // },
     profileImage: {
       url: {
         type: String,

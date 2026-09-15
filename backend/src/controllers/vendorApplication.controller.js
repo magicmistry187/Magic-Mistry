@@ -379,7 +379,7 @@ const getVendorCredentials = async (req, res) => {
     let user = null;
 
     if (application && application.vendor) {
-      vendorProfile = await VendorProfile.findById(application.vendor).select('+temporaryPassword');
+      vendorProfile = await VendorProfile.findById(application.vendor);
     }
 
     // 2. Fallback: Search directly via User (by vendorId, email, or _id)
@@ -398,7 +398,7 @@ const getVendorCredentials = async (req, res) => {
       });
 
       if (user) {
-        vendorProfile = await VendorProfile.findOne({ user: user._id }).select('+temporaryPassword');
+        vendorProfile = await VendorProfile.findOne({ user: user._id });
         if (!vendorProfile) {
           vendorProfile = await VendorProfile.create({
             user: user._id,
@@ -426,20 +426,21 @@ const getVendorCredentials = async (req, res) => {
       });
     }
 
+    // **------------ ITs create uncessaryly new password---------------**
     // 3. If temporary password was never saved in DB (e.g. legacy vendor), auto-generate temporary password and sync to user
-    let temporaryPassword = vendorProfile.temporaryPassword;
-    if (!temporaryPassword) {
-      temporaryPassword = `FixIt_${new Date().getFullYear()}_!${crypto
-        .randomBytes(2)
-        .toString('hex')}`;
+    // let temporaryPassword = vendorProfile.temporaryPassword;
+    // if (!temporaryPassword) {
+    //   temporaryPassword = `FixIt_${new Date().getFullYear()}_!${crypto
+    //     .randomBytes(2)
+    //     .toString('hex')}`;
 
-      vendorProfile.temporaryPassword = temporaryPassword;
-      await vendorProfile.save();
+    //   vendorProfile.temporaryPassword = temporaryPassword;
+    //   await vendorProfile.save();
 
-      const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
-      user.password = hashedPassword;
-      await user.save();
-    }
+    //   const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+    //   user.password = hashedPassword;
+    //   await user.save();
+    // }
 
     return res.status(200).json({
       success: true,
@@ -453,7 +454,7 @@ const getVendorCredentials = async (req, res) => {
       },
       credentials: {
         vendorId: user.vendorId,
-        temporaryPassword: temporaryPassword,
+        // temporaryPassword: temporaryPassword,
       },
     });
   } catch (error) {

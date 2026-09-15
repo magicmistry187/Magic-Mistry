@@ -71,23 +71,30 @@ async function sendOtp(req, res) {
       });
     }
 
-    let otp = otpGenerator.generate(6, {
-      upperCaseAlphabets: false,
-      lowerCaseAlphabets: false,
-      specialChars: false,
-    });
+    // -----------this part will be removed-----------
+    // let otp = otpGenerator.generate(6, {
+    //   upperCaseAlphabets: false,
+    //   lowerCaseAlphabets: false,
+    //   specialChars: false,
+    // });
 
-    let result = await otpModel.findOne({ otp });
+    // let result = await otpModel.findOne({ otp });
 
-    while (result) {
-      otp = otpGenerator.generate(6, {
-        upperCaseAlphabets: false,
-        lowerCaseAlphabets: false,
-        specialChars: false,
-      });
+    // while (result) {
+    //   otp = otpGenerator.generate(6, {
+    //     upperCaseAlphabets: false,
+    //     lowerCaseAlphabets: false,
+    //     specialChars: false,
+    //   });
 
-      result = await otpModel.findOne({ otp });
-    }
+    //   result = await otpModel.findOne({ otp });
+    // }
+
+    const otp = otpGenerator.generate(6, {
+  upperCaseAlphabets: false,
+  lowerCaseAlphabets: false,
+  specialChars: false,
+});
 
     await otpModel.create({
       email: email.toLowerCase().trim(),
@@ -396,7 +403,7 @@ async function googleLogin(req, res) {
       .cookie("token", token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       })
       .status(200)
       .json({

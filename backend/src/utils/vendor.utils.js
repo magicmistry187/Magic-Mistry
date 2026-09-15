@@ -59,9 +59,19 @@ const createOrUpdateVendorAccount = async ({
 }) => {
   const trimmedEmail = email.toLowerCase().trim();
 
-  let user = await User.findOne({
-    email: trimmedEmail,
-  }).select('+password');
+  // let user = await User.findOne({
+  //   email: trimmedEmail,
+  // }).select('+password');
+
+ let user = await User.findOne({
+  email: trimmedEmail,
+}).select('+password');
+
+if (user && user.role === 'customer') {
+  throw new Error(
+    'This email already belongs to a customer account. Please use a different email for the vendor account.'
+  );
+}
 
   let vendorId;
   const rawPassword = `FixIt_${new Date().getFullYear()}_!${crypto
@@ -113,7 +123,8 @@ const createOrUpdateVendorAccount = async ({
     vendorProfile = await VendorProfile.create({
       user: user._id,
       vendorId: user.vendorId,
-      temporaryPassword: rawPassword,
+      // -----unncesary part-----
+      // temporaryPassword: rawPassword,
       professionalTitle: specialization || 'Service Technician',
       serviceType: serviceType || specialization || 'General',
       experience: Number(experience) || 0,
@@ -141,7 +152,8 @@ const createOrUpdateVendorAccount = async ({
     });
   } else {
     vendorProfile.vendorId = user.vendorId;
-    vendorProfile.temporaryPassword = rawPassword;
+    // ------------unncesary part-------------
+    // vendorProfile.temporaryPassword = rawPassword;
 
     if (specialization) {
       vendorProfile.professionalTitle = specialization;
