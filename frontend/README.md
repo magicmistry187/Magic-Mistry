@@ -1,14 +1,14 @@
 <div align="center">
 
-<!-- Animated SVG Header -->
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:02182e,50:0ea5e9,100:10b981&height=220&section=header&text=Magic%20Mistry&fontSize=52&fontColor=ffffff&fontAlignY=35&desc=On-Demand%20Home%20Services%20%26%20Repair%20Platform&descSize=18&descAlignY=55&animation=fadeIn" width="100%" />
+# 🛠️ Magic Mistry
+
+### On-Demand Home Services & Repair Platform
 
 <!-- Animated Typing Effect -->
 <a href="#">
-  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=22&pause=1000&color=0EA5E9&center=true&vCenter=true&multiline=true&repeat=true&width=700&height=60&lines=%E2%9A%A1+Built+with+React+19+%7C+Vite+8+%7C+Tailwind+CSS+v4;%F0%9F%8E%AC+Framer+Motion+Powered+Animations" alt="Typing SVG" />
+  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=22&pause=1000&color=0EA5E9&center=true&vCenter=true&repeat=true&width=700&height=35&lines=%E2%9A%A1+React+19+%7C+Vite+8+%7C+Tailwind+CSS+v4+%7C+Framer+Motion" alt="Typing SVG" />
 </a>
 
-<br/>
 
 <!-- Tech Stack Badges -->
 [![React](https://img.shields.io/badge/React-19.2.7-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
@@ -555,8 +555,7 @@ This project is proprietary software. All rights reserved.
 
 <div align="center">
 
-<!-- Animated Footer -->
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:02182e,50:0ea5e9,100:10b981&height=120&section=footer&animation=fadeIn" width="100%" />
+---
 
 **Built with ❤️ by the Magic Mistry Team**
 
