@@ -867,7 +867,7 @@ export default function AdminDashboardPage() {
     autofillVendorForm(app);
   };
 
-  // Open "View Vendor ID & Pass" modal
+  // Open "View Vendor ID" modal
   const handleViewVendorCreds = async (app) => {
     setIsApplicationModalOpen(false);
     const appId = typeof app === 'object' && app !== null ? (app.applicationId || app.id || app._id) : app;
@@ -877,33 +877,46 @@ export default function AdminDashboardPage() {
     }
 
     let creds = vendorCredentials[appId];
-    if (creds && creds.tempPassword) {
+    if (creds && creds.id) {
       setViewingCreds(creds);
       setIsViewCredsModalOpen(true);
       return;
     }
 
+    const appObj = typeof app === 'object' && app !== null ? app : applicationsList.find(a => a.id === appId || a.applicationId === appId || a._id === appId);
+    if (appObj && appObj.vendorId) {
+      const existingCreds = {
+        name: `${appObj?.name || appObj?.fullName || 'Vendor'} - ${appObj?.service || appObj?.serviceType || 'Service Technician'}`,
+        id: appObj.vendorId,
+        email: appObj.email,
+        appId: appId,
+      };
+      setVendorCredentials(prev => ({ ...prev, [appId]: existingCreds }));
+      setViewingCreds(existingCreds);
+      setIsViewCredsModalOpen(true);
+      return;
+    }
+
     try {
-      showToast('Fetching vendor credentials...');
+      showToast('Fetching vendor ID...');
       const res = await getVendorCredentialsApi(appId, token);
-      if (res.success && res.credentials) {
-        const appObj = typeof app === 'object' && app !== null ? app : applicationsList.find(a => a.id === appId || a.applicationId === appId || a._id === appId);
+      if (res.success && (res.credentials?.vendorId || res.vendor?.vendorId)) {
+        const vendorId = res.credentials?.vendorId || res.vendor?.vendorId;
         const newCreds = {
           name: `${appObj?.name || appObj?.fullName || res.vendor?.fullName || 'Vendor'} - ${appObj?.service || appObj?.serviceType || 'Service Technician'}`,
-          id: res.credentials.vendorId,
+          id: vendorId,
           email: res.vendor?.email || appObj?.email,
-          tempPassword: res.credentials.temporaryPassword || res.credentials.password || '',
           appId: appId,
         };
         setVendorCredentials(prev => ({ ...prev, [appId]: newCreds }));
         setViewingCreds(newCreds);
         setIsViewCredsModalOpen(true);
       } else {
-        showToast(res.message || 'Credentials not available');
+        showToast(res.message || 'Vendor ID not available');
       }
     } catch (e) {
       console.error('Error fetching credentials:', e);
-      showToast('Could not fetch credentials');
+      showToast('Could not fetch vendor ID');
     }
   };
 
@@ -1795,7 +1808,7 @@ export default function AdminDashboardPage() {
                                       <Eye className="w-3.5 h-3.5 text-orange-400" /> View Application
                                     </button>
 
-                                    {/* View Vendor ID & Pass — shown when approved or ID has been generated */}
+                                    {/* View Vendor ID — shown when approved or ID has been generated */}
                                     {(app.status === 'Approved' || vendorCredentials[app.id]) && (
                                       <button
                                         type="button"
@@ -1805,9 +1818,9 @@ export default function AdminDashboardPage() {
                                           handleViewVendorCreds(app.id);
                                         }}
                                         className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-                                        title="View Vendor ID & Password"
+                                        title="View Vendor ID"
                                       >
-                                        <ShieldCheck className="w-3.5 h-3.5" /> View ID & Pass
+                                        <ShieldCheck className="w-3.5 h-3.5" /> View Vendor ID
                                       </button>
                                     )}
 
