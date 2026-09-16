@@ -2,12 +2,7 @@
 
 # 🛠️ Magic Mistry
 
-### On-Demand Home Services & Repair Platform
-
-<!-- Animated Typing Effect -->
-<a href="#">
-  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=22&pause=1000&color=0EA5E9&center=true&vCenter=true&repeat=true&width=700&height=35&lines=%E2%9A%A1+React+19+%7C+Vite+8+%7C+Tailwind+CSS+v4+%7C+Framer+Motion" alt="Typing SVG" />
-</a>
+### ⚡ On-Demand Home Services & Repair Platform
 
 
 <!-- Tech Stack Badges -->
@@ -559,8 +554,6 @@ This project is proprietary software. All rights reserved.
 
 **Built with ❤️ by the Magic Mistry Team**
 
-<a href="#">
-  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=500&size=14&pause=1000&color=64748B&center=true&vCenter=true&repeat=true&width=400&height=30&lines=React+19+%E2%80%A2+Vite+8+%E2%80%A2+Tailwind+CSS+v4+%E2%80%A2+Framer+Motion" alt="Footer Typing" />
-</a>
+`React 19` • `Vite 8` • `Tailwind CSS v4` • `Framer Motion`
 
 </div>
