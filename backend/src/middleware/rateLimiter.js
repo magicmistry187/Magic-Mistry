@@ -19,7 +19,17 @@ const otpLimiter = rateLimit({
   },
 });
 
+const vendorApplicationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3, // 3 applications per hour
+  message: {
+    success: false,
+    message: 'Too many vendor application requests. Please try again later.',
+  },
+});
+
 module.exports = {
   loginLimiter,
   otpLimiter,
+  vendorApplicationLimiter,
 };
