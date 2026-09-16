@@ -80,36 +80,40 @@ export default function AdminCredsSuccessModal({
                 </div>
               )}
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-400 uppercase">Temporary Password (Backend-Generated)</label>
-                <div className="flex items-center gap-2 mt-1">
-                  <input
-                    type="text"
-                    readOnly
-                    value={generatedCreds.tempPassword}
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800"
-                  />
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(generatedCreds.tempPassword);
-                      showToast('Password copied!');
-                    }}
-                    className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shrink-0"
-                    title="Copy Password"
-                  >
-                    <Copy className="w-4 h-4 text-slate-600" />
-                  </button>
+              {generatedCreds.tempPassword ? (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase">Temporary Password</label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      type="text"
+                      readOnly
+                      value={generatedCreds.tempPassword}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800"
+                    />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedCreds.tempPassword);
+                        showToast('Password copied!');
+                      }}
+                      className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shrink-0"
+                      title="Copy Password"
+                    >
+                      <Copy className="w-4 h-4 text-slate-600" />
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : null}
             </div>
 
             {/* Security Alert Box */}
-            <div className="bg-rose-50 p-4 rounded-2xl border border-rose-200 text-left flex items-start gap-3">
-              <Shield className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-              <p className="text-xs text-rose-800 font-semibold leading-relaxed">
-                Security: This password is shown only once. Share it with the vendor immediately. It expires in 24 hours.
-              </p>
-            </div>
+            {generatedCreds.tempPassword ? (
+              <div className="bg-rose-50 p-4 rounded-2xl border border-rose-200 text-left flex items-start gap-3">
+                <Shield className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <p className="text-xs text-rose-800 font-semibold leading-relaxed">
+                  Security: This password is shown only once. Share it with the vendor immediately. It expires in 24 hours.
+                </p>
+              </div>
+            ) : null}
 
             {/* Modal Buttons */}
             <div className="grid sm:grid-cols-2 gap-3 pt-2">

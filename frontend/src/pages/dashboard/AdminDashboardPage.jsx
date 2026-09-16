@@ -7,6 +7,7 @@ import {
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
 import AdminRestockModal from '../../components/dashboard/admin/AdminRestockModal';
+import AdminAddInventoryModal from '../../components/dashboard/admin/AdminAddInventoryModal';
 import AdminCredsSuccessModal from '../../components/dashboard/admin/AdminCredsSuccessModal';
 import AdminViewCredsModal from '../../components/dashboard/admin/AdminViewCredsModal';
 import AdminApplicationModal from '../../components/dashboard/admin/AdminApplicationModal';
@@ -56,11 +57,11 @@ const INITIAL_INVENTORY = [
     category: 'Appliance',
     stockLevel: 'In Stock',
     stockCount: 45,
-    unitPrice: 185.00,
+    unitPrice: 1850.00,
     lastUpdated: 'Today, 10:23 AM',
     sku: 'ACC-2T-X9',
     reorderPoint: 20,
-    supplier: 'Select Supplier...'
+    supplier: 'BlueStar Components'
   },
   {
     id: '#INV-0915',
@@ -68,7 +69,7 @@ const INITIAL_INVENTORY = [
     category: 'Appliance',
     stockLevel: 'Low Stock',
     stockCount: 4,
-    unitPrice: 24.50,
+    unitPrice: 350.00,
     lastUpdated: 'Yesterday, 14:05',
     sku: 'REF-TH-04',
     reorderPoint: 10,
@@ -80,7 +81,7 @@ const INITIAL_INVENTORY = [
     category: 'Electrical',
     stockLevel: 'In Stock',
     stockCount: 120,
-    unitPrice: 3.20,
+    unitPrice: 120.00,
     lastUpdated: 'Oct 24, 2023',
     sku: 'ELE-SW-15A',
     reorderPoint: 30,
@@ -92,7 +93,7 @@ const INITIAL_INVENTORY = [
     category: 'Plumbing',
     stockLevel: 'Out of Stock',
     stockCount: 0,
-    unitPrice: 28.00,
+    unitPrice: 450.00,
     lastUpdated: 'Oct 20, 2023',
     sku: 'PLM-CP-34',
     reorderPoint: 15,
@@ -104,7 +105,7 @@ const INITIAL_INVENTORY = [
     category: 'Appliance',
     stockLevel: 'Low Stock',
     stockCount: 2,
-    unitPrice: 45.00,
+    unitPrice: 750.00,
     lastUpdated: 'Oct 18, 2023',
     sku: 'WM-PUMP-88',
     reorderPoint: 5,
@@ -300,7 +301,26 @@ export default function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState('overview');
 
   // Data states
-  const [inventoryList, setInventoryList] = useState(INITIAL_INVENTORY);
+  const [inventoryList, setInventoryList] = useState(() => {
+    try {
+      const saved = localStorage.getItem('mm_inventory_data');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Error loading inventory from localStorage:', e);
+    }
+    return INITIAL_INVENTORY;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('mm_inventory_data', JSON.stringify(inventoryList));
+    } catch (e) {
+      console.error('Error saving inventory to localStorage:', e);
+    }
+  }, [inventoryList]);
 
   const [applicationsList, setApplicationsList] = useState(INITIAL_APPLICATIONS);
   const [dispatchQueue, setDispatchQueue] = useState(INITIAL_DISPATCH_QUEUE);
@@ -467,8 +487,9 @@ export default function AdminDashboardPage() {
   const paginatedHistory = filteredHistory.slice((historyPage - 1) * historyItemsPerPage, historyPage * historyItemsPerPage);
   const paginatedDispatch = dispatchQueue.slice((dispatchPage - 1) * dispatchItemsPerPage, dispatchPage * dispatchItemsPerPage);
 
-  // Restock modal state (Screenshot 2)
+  // Restock & Inventory modal state
   const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
+  const [isAddInventoryModalOpen, setIsAddInventoryModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [restockQty, setRestockQty] = useState('');
   const [purchasePrice, setPurchasePrice] = useState('');
@@ -744,10 +765,13 @@ export default function AdminDashboardPage() {
     setInventoryList(prev => prev.map(inv => {
       if (inv.id === selectedItem.id) {
         const newCount = inv.stockCount + addedCount;
+        const threshold = inv.reorderPoint || 10;
         return {
           ...inv,
           stockCount: newCount,
-          stockLevel: newCount > 10 ? 'In Stock' : newCount > 0 ? 'Low Stock' : 'Out of Stock',
+          stockLevel: newCount > threshold ? 'In Stock' : newCount > 0 ? 'Low Stock' : 'Out of Stock',
+          unitPrice: purchasePrice && Number(purchasePrice) > 0 ? Number(purchasePrice) : inv.unitPrice,
+          supplier: selectedSupplier || inv.supplier,
           lastUpdated: 'Today, Just now'
         };
       }
@@ -755,6 +779,26 @@ export default function AdminDashboardPage() {
     }));
     setIsRestockModalOpen(false);
     showToast(`Inventory restocked for ${selectedItem.name}! (+${addedCount} units)`);
+  };
+
+  // Add New Inventory Item handler
+  const handleAddNewInventoryItem = (newItemData) => {
+    const threshold = Number(newItemData.reorderPoint) || 10;
+    const initialCount = Number(newItemData.stockCount) || 0;
+    const newItem = {
+      id: `#INV-${Math.floor(1000 + Math.random() * 9000)}`,
+      name: newItemData.name,
+      category: newItemData.category,
+      stockLevel: initialCount > threshold ? 'In Stock' : initialCount > 0 ? 'Low Stock' : 'Out of Stock',
+      stockCount: initialCount,
+      unitPrice: Number(newItemData.unitPrice) || 0,
+      lastUpdated: 'Today, Just now',
+      sku: newItemData.sku,
+      reorderPoint: threshold,
+      supplier: newItemData.supplier,
+    };
+    setInventoryList(prev => [newItem, ...prev]);
+    showToast(`Added "${newItem.name}" to inventory!`);
   };
 
   // View Vendor Application Details Modal
@@ -823,7 +867,7 @@ export default function AdminDashboardPage() {
     autofillVendorForm(app);
   };
 
-  // Open "View Vendor ID & Pass" modal
+  // Open "View Vendor ID" modal
   const handleViewVendorCreds = async (app) => {
     setIsApplicationModalOpen(false);
     const appId = typeof app === 'object' && app !== null ? (app.applicationId || app.id || app._id) : app;
@@ -833,33 +877,46 @@ export default function AdminDashboardPage() {
     }
 
     let creds = vendorCredentials[appId];
-    if (creds && creds.tempPassword) {
+    if (creds && creds.id) {
       setViewingCreds(creds);
       setIsViewCredsModalOpen(true);
       return;
     }
 
+    const appObj = typeof app === 'object' && app !== null ? app : applicationsList.find(a => a.id === appId || a.applicationId === appId || a._id === appId);
+    if (appObj && appObj.vendorId) {
+      const existingCreds = {
+        name: `${appObj?.name || appObj?.fullName || 'Vendor'} - ${appObj?.service || appObj?.serviceType || 'Service Technician'}`,
+        id: appObj.vendorId,
+        email: appObj.email,
+        appId: appId,
+      };
+      setVendorCredentials(prev => ({ ...prev, [appId]: existingCreds }));
+      setViewingCreds(existingCreds);
+      setIsViewCredsModalOpen(true);
+      return;
+    }
+
     try {
-      showToast('Fetching vendor credentials...');
+      showToast('Fetching vendor ID...');
       const res = await getVendorCredentialsApi(appId, token);
-      if (res.success && res.credentials) {
-        const appObj = typeof app === 'object' && app !== null ? app : applicationsList.find(a => a.id === appId || a.applicationId === appId || a._id === appId);
+      if (res.success && (res.credentials?.vendorId || res.vendor?.vendorId)) {
+        const vendorId = res.credentials?.vendorId || res.vendor?.vendorId;
         const newCreds = {
           name: `${appObj?.name || appObj?.fullName || res.vendor?.fullName || 'Vendor'} - ${appObj?.service || appObj?.serviceType || 'Service Technician'}`,
-          id: res.credentials.vendorId,
+          id: vendorId,
           email: res.vendor?.email || appObj?.email,
-          tempPassword: res.credentials.temporaryPassword || res.credentials.password || '',
           appId: appId,
         };
         setVendorCredentials(prev => ({ ...prev, [appId]: newCreds }));
         setViewingCreds(newCreds);
         setIsViewCredsModalOpen(true);
       } else {
-        showToast(res.message || 'Credentials not available');
+        showToast(res.message || 'Vendor ID not available');
       }
     } catch (e) {
       console.error('Error fetching credentials:', e);
-      showToast('Could not fetch credentials');
+      showToast('Could not fetch vendor ID');
     }
   };
 
@@ -982,7 +1039,7 @@ export default function AdminDashboardPage() {
               <td>${item.category}</td>
               <td class="${statusClass}">${item.stockLevel}</td>
               <td>${item.stockCount}</td>
-              <td>$${item.unitPrice.toFixed(2)}</td>
+              <td>₹${item.unitPrice.toFixed(2)}</td>
               <td>${item.lastUpdated}</td>
             </tr>
           `}).join('')}
@@ -1083,13 +1140,24 @@ export default function AdminDashboardPage() {
     }
   };
 
-  // Filtered inventory list
+  // Filtered inventory list with broader search across name, ID, SKU, and supplier
   const filteredInventory = inventoryList.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.id.toLowerCase().includes(searchTerm.toLowerCase());
+    const q = (searchTerm || '').toLowerCase().trim();
+    const matchesSearch = !q ||
+      (item.name || '').toLowerCase().includes(q) ||
+      (item.id || '').toLowerCase().includes(q) ||
+      (item.sku || '').toLowerCase().includes(q) ||
+      (item.supplier || '').toLowerCase().includes(q);
     const matchesCategory = selectedCategory === 'All Categories' || item.category === selectedCategory;
     const matchesStatus = selectedStatus === 'All Status' || item.stockLevel === selectedStatus;
     return matchesSearch && matchesCategory && matchesStatus;
   });
+
+  // Dynamic Inventory KPI Metrics
+  const totalInventoryCount = inventoryList.length;
+  const lowStockInventoryCount = inventoryList.filter(item => (Number(item.stockCount) || 0) <= (Number(item.reorderPoint) || 10)).length;
+  const recentRestocksCount = inventoryList.filter(item => item.lastUpdated && (item.lastUpdated.toLowerCase().includes('today') || item.lastUpdated.toLowerCase().includes('just now'))).length;
+  const totalInventoryValuation = inventoryList.reduce((acc, item) => acc + (Number(item.stockCount || 0) * Number(item.unitPrice || 0)), 0);
 
   // Sidebar navigation menu items (Exact match to reference screenshots)
   const sidebarNavItems = [
@@ -1462,7 +1530,7 @@ export default function AdminDashboardPage() {
                           <Download className="w-4 h-4 text-slate-500" /> Export Report
                         </button>
                         <button
-                          onClick={() => handleOpenRestock(inventoryList[0])}
+                          onClick={() => setIsAddInventoryModalOpen(true)}
                           className="px-4 py-2.5 bg-[#02182e] hover:bg-[#082848] text-white font-extrabold text-xs rounded-xl shadow-md transition-colors flex items-center gap-2 cursor-pointer"
                         >
                           <Plus className="w-4 h-4 text-orange-400" /> Add New Item
@@ -1485,9 +1553,9 @@ export default function AdminDashboardPage() {
                           <Package className="w-5 h-5 text-slate-600" />
                         </div>
                         <div className="mt-3">
-                          <span className="text-3xl font-black text-slate-900 tracking-tight">1,248</span>
+                          <span className="text-3xl font-black text-slate-900 tracking-tight">{totalInventoryCount}</span>
                           <p className="text-xs font-bold text-emerald-600 flex items-center gap-1 mt-1">
-                            <TrendingUp className="w-3.5 h-3.5" /> +5% from last month
+                            <TrendingUp className="w-3.5 h-3.5" /> Tracked SKUs in catalog
                           </p>
                         </div>
                       </motion.div>
@@ -1504,9 +1572,9 @@ export default function AdminDashboardPage() {
                           <AlertTriangle className="w-5 h-5 text-rose-500" />
                         </div>
                         <div className="mt-3">
-                          <span className="text-3xl font-black text-slate-900 tracking-tight">24</span>
+                          <span className="text-3xl font-black text-slate-900 tracking-tight">{lowStockInventoryCount}</span>
                           <p className="text-xs font-bold text-rose-600 flex items-center gap-1 mt-1">
-                            ↑ +2 require attention
+                            {lowStockInventoryCount > 0 ? `↑ ${lowStockInventoryCount} require attention` : 'All stocks healthy'}
                           </p>
                         </div>
                       </motion.div>
@@ -1523,9 +1591,9 @@ export default function AdminDashboardPage() {
                           <Truck className="w-5 h-5 text-blue-600" />
                         </div>
                         <div className="mt-3">
-                          <span className="text-3xl font-black text-slate-900 tracking-tight">12</span>
+                          <span className="text-3xl font-black text-slate-900 tracking-tight">{recentRestocksCount}</span>
                           <p className="text-xs font-medium text-slate-500 mt-1">
-                            In the last 7 days
+                            Updated recently
                           </p>
                         </div>
                       </motion.div>
@@ -1539,10 +1607,10 @@ export default function AdminDashboardPage() {
                           <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
                             TOTAL VALUE
                           </span>
-                          <DollarSign className="w-5 h-5 text-slate-700" />
+                          <IndianRupee className="w-5 h-5 text-slate-700" />
                         </div>
                         <div className="mt-3">
-                          <span className="text-3xl font-black text-slate-900 tracking-tight">$45.8k</span>
+                          <span className="text-3xl font-black text-slate-900 tracking-tight">₹{totalInventoryValuation.toLocaleString('en-IN')}</span>
                           <p className="text-xs font-medium text-slate-500 mt-1">
                             Estimated inventory value
                           </p>
@@ -1628,7 +1696,7 @@ export default function AdminDashboardPage() {
                                 <td className="py-4 px-4">
                                   <StockLevelBadge level={row.stockLevel} count={row.stockCount} />
                                 </td>
-                                <td className="py-4 px-4 font-extrabold text-slate-900">${row.unitPrice.toFixed(2)}</td>
+                                <td className="py-4 px-4 font-extrabold text-slate-900">₹{Number(row.unitPrice || 0).toLocaleString('en-IN')}</td>
                                 <td className="py-4 px-4 font-medium text-slate-500">{row.lastUpdated}</td>
                                 <td className="py-4 px-6 text-right">
                                   <div className="flex items-center justify-end gap-2">
@@ -1656,7 +1724,7 @@ export default function AdminDashboardPage() {
 
                       {/* Pagination Bar (Matching Screenshot 1) */}
                       <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-semibold text-slate-500">
-                        <span>Showing 1 to 5 of 1,248 results</span>
+                        <span>Showing {filteredInventory.length} of {inventoryList.length} item{inventoryList.length === 1 ? '' : 's'}</span>
                         <div className="flex items-center gap-1.5">
                           <button className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-400 cursor-not-allowed">Previous</button>
                           <button className="px-3 py-1.5 rounded-lg bg-[#02182e] text-white font-bold">1</button>
@@ -1740,7 +1808,7 @@ export default function AdminDashboardPage() {
                                       <Eye className="w-3.5 h-3.5 text-orange-400" /> View Application
                                     </button>
 
-                                    {/* View Vendor ID & Pass — shown when approved or ID has been generated */}
+                                    {/* View Vendor ID — shown when approved or ID has been generated */}
                                     {(app.status === 'Approved' || vendorCredentials[app.id]) && (
                                       <button
                                         type="button"
@@ -1750,9 +1818,9 @@ export default function AdminDashboardPage() {
                                           handleViewVendorCreds(app.id);
                                         }}
                                         className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-                                        title="View Vendor ID & Password"
+                                        title="View Vendor ID"
                                       >
-                                        <ShieldCheck className="w-3.5 h-3.5" /> View ID & Pass
+                                        <ShieldCheck className="w-3.5 h-3.5" /> View Vendor ID
                                       </button>
                                     )}
 
@@ -2924,6 +2992,13 @@ export default function AdminDashboardPage() {
         restockNotes={restockNotes}
         setRestockNotes={setRestockNotes}
         onConfirm={handleConfirmRestock}
+      />
+
+      {/* 1B. Add New Inventory Item Modal */}
+      <AdminAddInventoryModal
+        isOpen={isAddInventoryModalOpen}
+        onClose={() => setIsAddInventoryModalOpen(false)}
+        onAdd={handleAddNewInventoryItem}
       />
 
       {/* 2. Vendor Credentials Created Success Modal */}

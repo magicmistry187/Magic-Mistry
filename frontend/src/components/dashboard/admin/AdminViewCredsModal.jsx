@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, X, CheckCircle2, Mail, Lock, Copy, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, X, CheckCircle2, Mail, Copy } from 'lucide-react';
 
 export default function AdminViewCredsModal({
   isOpen,
@@ -40,7 +40,7 @@ export default function AdminViewCredsModal({
             {/* Approved badge */}
             <div className="flex items-center gap-2 px-3 py-2.5 bg-emerald-50 rounded-xl border border-emerald-200">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span className="text-xs font-bold text-emerald-800">Vendor is Approved — ID & password have been generated.</span>
+              <span className="text-xs font-bold text-emerald-800">Vendor is Approved — ID has been generated.</span>
             </div>
 
             {/* Copyable Fields */}
@@ -86,35 +86,7 @@ export default function AdminViewCredsModal({
                   </div>
                 </div>
               )}
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5">Temporary Password</label>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl">
-                    <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span className="text-xs font-mono font-bold text-slate-800 truncate">{viewingCreds.tempPassword}</span>
-                  </div>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(viewingCreds.tempPassword);
-                      showToast('Password copied!');
-                    }}
-                    className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer shrink-0"
-                    title="Copy Password"
-                  >
-                    <Copy className="w-4 h-4 text-slate-600" />
-                  </button>
-                </div>
-              </div>
             </div>
-
-            {/* Warning */}
-            {/* <div className="flex items-start gap-2.5 px-4 py-3 bg-amber-50 rounded-xl border border-amber-200">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-[11px] text-amber-800 font-semibold leading-relaxed">
-                Ensure the vendor has changed their temporary password. If not, the password can be reset from the vendor portal.
-              </p>
-            </div> */}
 
             <button
               onClick={onClose}
