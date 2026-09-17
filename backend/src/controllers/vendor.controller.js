@@ -345,6 +345,8 @@ exports.updateVendorProfile = async (req, res) => {
 
 exports.updateVendorProfileImage = async (req, res) => {
   try {
+    console.log("update profile is called")
+    console.log("req.file", req.file)
     const userId = req.user.id;
 
     if (!req.file) {

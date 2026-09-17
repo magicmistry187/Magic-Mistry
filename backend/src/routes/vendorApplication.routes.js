@@ -14,8 +14,11 @@ const {
   createVendorByAdmin,
 } = require('../controllers/vendorApplication.controller');
 
+const { vendorApplicationLimiter } = require('../middleware/rateLimiter');
+
 router.post(
   '/apply',
+  vendorApplicationLimiter,
   documentUpload.array('documents', 5),
   createVendorApplication,
 );
