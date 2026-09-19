@@ -19,6 +19,7 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [apiError, setApiError] = useState('');
+  const [googleError, setGoogleError] = useState('');
   
   const [formData, setFormData] = useState({
     fullName: '',
@@ -36,6 +37,9 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
     }
     if (apiError) {
       setApiError('');
+    }
+    if (googleError) {
+      setGoogleError('');
     }
   };
 
@@ -77,6 +81,7 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setApiError('');
+    setGoogleError('');
     if (validateForm()) {
       const cooldown = getOtpRemainingCooldown('signup', formData.email);
       if (cooldown > 0) {
@@ -95,27 +100,29 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
     }
   };
 
-    const handleGoogleLogin = useGoogleLogin({
+  const handleGoogleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       try {
         setIsGoogleLoading(true);
+        setGoogleError('');
         const response = await googleLogin(tokenResponse.access_token);
 
         if (response.success) {
           login(response.user, response.token);
           navigate(targetPath, { state: location.state, replace: true });
         } else {
-          setApiError(response.message || 'Google login failed. Please try again.');
+          setGoogleError(response.message || 'Google sign-up failed. Please try again.');
         }
       } catch (err) {
-        console.error('Google Login Error:', err);
-        setApiError('Google login failed. Please try again.');
+        console.error('Google Sign-up Error:', err);
+        setGoogleError('Google sign-up failed. Please try again.');
       } finally {
         setIsGoogleLoading(false);
       }
     },
-    onError: () => {
-      setApiError('Google sign-up was cancelled or failed.');
+    onError: (errorResponse) => {
+      console.error('Google Sign-up Popup/Auth Error:', errorResponse);
+      setGoogleError('Google sign-up was cancelled or failed. Please check browser popups or try again.');
     },
   });
 
@@ -184,6 +191,12 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
                 </>
               )}
             </motion.button>
+
+            {googleError && (
+              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs font-medium text-center">
+                {googleError}
+              </div>
+            )}
 
             {/* Divider */}
             <div className="relative my-6 text-center">
