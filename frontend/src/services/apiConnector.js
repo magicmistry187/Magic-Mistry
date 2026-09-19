@@ -1,6 +1,13 @@
 import axios from 'axios';
 
-export const BASE_URL =  import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const rawBaseUrl =
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  'https://magic-mistry.onrender.com/api';
+
+export const BASE_URL = rawBaseUrl.replace(/\/+$/, '').endsWith('/api')
+  ? rawBaseUrl.replace(/\/+$/, '')
+  : `${rawBaseUrl.replace(/\/+$/, '')}/api`;
 
 export const axiosInstance = axios.create({
   withCredentials: true,

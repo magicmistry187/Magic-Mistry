@@ -145,7 +145,7 @@ Ensure you have the following installed on your development machine:
 Create a `.env` file inside the `frontend` directory based on the `.env.example` template:
 
 ```env
-VITE_API_BASE_URL=http://localhost:5000/api
+VITE_API_BASE_URL=https://magic-mistry.localhost/api
 VITE_APP_NAME="Magic Mistry"
 ```
 
