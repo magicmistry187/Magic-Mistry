@@ -9,7 +9,7 @@ import ErrorBoundary from './components/common/ErrorBoundary.jsx';
 
 const GOOGLE_CLIENT_ID =
   (import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim() ||
-  '32012918657-5mgp58rjr297k88k1a538ad9gau6q7ta.apps.googleusercontent.com';
+  '32012918657-fr7d5f2k7sj4g9vu2vqdn9mo648oq5r3.apps.googleusercontent.com';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
