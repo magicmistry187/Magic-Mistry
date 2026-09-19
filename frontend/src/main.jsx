@@ -5,17 +5,22 @@ import './index.css';
 import App from './App.jsx';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider } from './context/AuthContext.jsx';
+import ErrorBoundary from './components/common/ErrorBoundary.jsx';
 
-// console.log('google client id is', import.meta.env.VITE_GOOGLE_CLIENT_ID);
+const GOOGLE_CLIENT_ID =
+  (import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim() ||
+  '32012918657-5mgp58rjr297k88k1a538ad9gau6q7ta.apps.googleusercontent.com';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
-      <BrowserRouter>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </BrowserRouter>
-    </GoogleOAuthProvider>
+    <ErrorBoundary>
+      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+        <BrowserRouter>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </BrowserRouter>
+      </GoogleOAuthProvider>
+    </ErrorBoundary>
   </StrictMode>,
 );

@@ -9,6 +9,7 @@ app.use(helmet());
 
 const allowedOrigins = [
   'https://magic-mistry.onrender.com',
+  'https://magic-mistry.vercel.app',
   process.env.CLIENT_URL,
   ...(process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
@@ -22,6 +23,7 @@ app.use(
       if (
         !origin ||
         allowedOrigins.includes(origin) ||
+        origin.endsWith('.vercel.app') ||
         process.env.NODE_ENV !== 'production'
       ) {
         callback(null, true);
