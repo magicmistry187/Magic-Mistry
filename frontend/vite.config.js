@@ -11,6 +11,9 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 1600,
     rolldownOptions: {
+      onwarn(warning, defaultHandler) {
+        if (warning.code === 'MODULE_LEVEL_DIRECTIVE' || warning.code === 'SOURCEMAP_ERROR') return;
+      },
       output: {
         codeSplitting: {
           groups: [
@@ -34,6 +37,9 @@ export default defineConfig({
       },
     },
     rollupOptions: {
+      onwarn(warning, defaultHandler) {
+        if (warning.code === 'MODULE_LEVEL_DIRECTIVE' || warning.code === 'SOURCEMAP_ERROR') return;
+      },
       output: {
         manualChunks(id) {
           if (id.includes('node_modules/react') || id.includes('node_modules/react-dom') || id.includes('node_modules/react-router-dom')) {
