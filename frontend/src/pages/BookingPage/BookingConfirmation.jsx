@@ -47,22 +47,6 @@ export default function BookingConfirmation() {
     }
   }, [booking]);
 
-  if (!booking) return null;
-
-  const rawDate = booking.serviceDate || booking.date;
-  let formattedDate = '—';
-  if (rawDate) {
-    const dateStr = typeof rawDate === 'string' && rawDate.includes('T')
-      ? rawDate
-      : `${rawDate}T00:00:00`;
-    const parsed = new Date(dateStr);
-    if (!isNaN(parsed.getTime())) {
-      formattedDate = parsed.toLocaleDateString('en-IN', {
-        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-      });
-    }
-  }
-
   const formattedAddress = React.useMemo(() => {
     if (!booking?.address) return '—';
     if (typeof booking.address === 'string') {
@@ -95,6 +79,22 @@ export default function BookingConfirmation() {
     }
     return '—';
   }, [booking?.address]);
+
+  if (!booking) return null;
+
+  const rawDate = booking.serviceDate || booking.date;
+  let formattedDate = '—';
+  if (rawDate) {
+    const dateStr = typeof rawDate === 'string' && rawDate.includes('T')
+      ? rawDate
+      : `${rawDate}T00:00:00`;
+    const parsed = new Date(dateStr);
+    if (!isNaN(parsed.getTime())) {
+      formattedDate = parsed.toLocaleDateString('en-IN', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+      });
+    }
+  }
 
   const bookingIdDisplay = booking._id || booking.bookingId || 'MM-' + Date.now().toString(36).toUpperCase();
   const serviceDisplayName = booking.serviceCategory || booking.appliance || booking.serviceName || 'Appliance Repair';
