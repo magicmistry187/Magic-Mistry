@@ -8,12 +8,11 @@ const app = express();
 app.use(helmet());
 
 const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://localhost:3000',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:5174',
+  'https://magic-mistry.onrender.com',
   process.env.CLIENT_URL,
+  ...(process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
+    : []),
 ].filter(Boolean);
 
 // CORS must be before all routes

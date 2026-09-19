@@ -9,7 +9,7 @@ async function connectDB() {
     const dbURI =
       process.env.MongoDB_URI ||
       process.env.MONGODB_URI ||
-      'mongodb://127.0.0.1:27017/magic_mistry';
+      'mongodb+srv://magicmistry187_db_user:98DLQu7pFsqgEQLf@cluster0.rhwdqkm.mongodb.net/Magic-Mistry';
     await mongoose.connect(dbURI);
     console.log('Connected to MongoDB');
 

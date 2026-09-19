@@ -385,7 +385,7 @@ Create a `.env` file in the `frontend/` root:
 
 ```env
 # ── API Configuration ──────────────────────────
-VITE_API_BASE_URL=https://magic-mistry.localhost/api
+VITE_API_BASE_URL=https://magic-mistry.onrender.com/api
 
 # ── Google OAuth ───────────────────────────────
 VITE_GOOGLE_CLIENT_ID=your_google_client_id_here
