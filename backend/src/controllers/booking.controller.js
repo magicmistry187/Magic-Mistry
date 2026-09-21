@@ -3,8 +3,13 @@ const Booking = require('../models/booking.model');
 const Address = require('../models/address.model');
 const VendorProfile = require('../models/vendorProfile.model');
 const { uploadImageToImageKit } = require('../config/imagekit');
+const {
+  emitNewBooking,
+  emitBookingStatusUpdated,
+  emitBookingTaken,
+  emitBookingCancelled,
+} = require('../socket/socketEmitter');
 
-// Create booking
 exports.createBooking = async (req, res) => {
   try {
     let {
@@ -121,10 +126,16 @@ exports.createBooking = async (req, res) => {
 
     const booking = await Booking.create(bookingData);
 
+    const populatedBooking = await Booking.findById(booking._id)
+      .populate('customer', 'fullName email phoneNumber');
+
+    // Real-time: notify vendors and admin immediately
+    emitNewBooking(populatedBooking || booking);
+
     return res.status(201).json({
       success: true,
       message: 'Booking created successfully.',
-      booking,
+      booking: populatedBooking || booking,
     });
   } catch (error) {
     console.error('Create Booking Error:', error);
@@ -242,10 +253,16 @@ exports.cancelBooking = async (req, res) => {
     booking.bookingStatus = 'Cancelled';
     await booking.save();
 
+    const populatedBooking = await Booking.findById(booking._id)
+      .populate('customer', 'fullName email phoneNumber')
+      .populate('vendor', 'fullName email phoneNumber');
+
+    emitBookingCancelled(populatedBooking || booking);
+
     return res.status(200).json({
       success: true,
       message: 'Booking cancelled successfully.',
-      booking,
+      booking: populatedBooking || booking,
     });
   } catch (error) {
     console.error('Cancel Booking Error:', error);
@@ -474,6 +491,10 @@ exports.acceptBooking = async (req, res) => {
       .populate('customer', 'fullName email phoneNumber')
       .populate('vendor', 'fullName email phoneNumber');
 
+    // Real-time: update customer & admin, and remove from other vendors' pools
+    emitBookingStatusUpdated(updated);
+    emitBookingTaken(bookingId, vendorId);
+
     return res.status(200).json({
       success: true,
       message: 'Booking accepted successfully.',
@@ -539,6 +560,9 @@ exports.updateBookingStatus = async (req, res) => {
     const updated = await Booking.findById(bookingId)
       .populate('customer', 'fullName email phoneNumber')
       .populate('vendor', 'fullName email phoneNumber');
+
+    // Real-time: inform customer, vendor, and admin
+    emitBookingStatusUpdated(updated);
 
     return res.status(200).json({
       success: true,

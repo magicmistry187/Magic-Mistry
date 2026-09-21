@@ -14,7 +14,7 @@ export default function UserDataTablePassing() {
         setIsLoading(true);
         
         // 3. Fetch the raw data (REPLACE THIS URL WITH YOUR ACTUAL BACKEND API)
-        // Example: 'http://localhost:5000/api/users'
+        // Example: 'https://magic-mistry.onrender.com/api/users'
         const response = await fetch('https://jsonplaceholder.typicode.com/users'); 
         
         if (!response.ok) {

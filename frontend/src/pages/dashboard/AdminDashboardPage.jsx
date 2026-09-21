@@ -25,6 +25,7 @@ import {
   Snowflake, Droplets, Store, Star, BadgeCheck, BadgeIcon, Contact, Ban, UserMinus
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useSocket, useSocketEvent } from '../../context/SocketContext';
 import { approveVendorApplication, getAllVendorApplications, rejectVendorApplication, createVendorByAdminApi, getVendorCredentialsApi } from '../../services/api';
 import { getAdminBookingsApi } from '../../services/operations/bookingAPI';
 
@@ -296,6 +297,7 @@ const renderBookingStatusBadge = (status) => {
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
   const { token } = useAuth();
+  const { playNotificationSound } = useSocket();
 
   // Navigation tab state: 'overview', 'users', 'applications', 'id-creation', 'analytics', 'settings'
   const [activeTab, setActiveTab] = useState('overview');
@@ -401,17 +403,10 @@ export default function AdminDashboardPage() {
     }
   }, [token]);
 
-  // Initial fetch and 10-second polling for real-time live sync
+  // Initial fetch on mount (real-time socket events keep data up-to-date)
   useEffect(() => {
     fetchApplications();
     fetchBookings();
-
-    const interval = setInterval(() => {
-      fetchApplications();
-      fetchBookings();
-    }, 10000);
-
-    return () => clearInterval(interval);
   }, [fetchApplications, fetchBookings]);
 
   // Keep tables synchronized whenever switching tabs
@@ -749,6 +744,31 @@ export default function AdminDashboardPage() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
+
+  // ── Real-Time Socket Listeners for Admin ──────────────────────────────────
+  useSocketEvent('admin:new_booking', (newBooking) => {
+    fetchBookings();
+    if (playNotificationSound) playNotificationSound();
+    const customerName = newBooking?.customer?.fullName || 'Customer';
+    showToast(`🔔 Real-Time: New booking created by ${customerName}!`);
+  });
+
+  useSocketEvent('admin:booking_updated', (updatedBooking) => {
+    fetchBookings();
+    const status = updatedBooking?.bookingStatus || 'Updated';
+    showToast(`🔔 Real-Time: Booking status changed to "${status}"`);
+  });
+
+  useSocketEvent('admin:new_application', (newApp) => {
+    fetchApplications();
+    if (playNotificationSound) playNotificationSound();
+    const applicantName = newApp?.fullName || 'A vendor';
+    showToast(`🔔 Real-Time: New vendor application from ${applicantName}!`);
+  });
+
+  useSocketEvent('admin:application_updated', () => {
+    fetchApplications();
+  });
 
   // Open Restock Modal (Screenshot 2)
   const handleOpenRestock = (item) => {

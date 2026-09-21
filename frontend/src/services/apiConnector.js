@@ -1,6 +1,26 @@
 import axios from 'axios';
 
-export const BASE_URL =  import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+// Dynamic URL Resolution: Seamlessly supports localhost and Render production
+const isBrowser = typeof window !== 'undefined';
+const isLocalhost = isBrowser && (
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === '127.0.0.1'
+);
+
+const customOverride = isBrowser ? localStorage.getItem('mm_api_url') : null;
+let resolvedUrl = customOverride || import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
+
+if (!resolvedUrl || (isLocalhost && !customOverride && resolvedUrl.includes('onrender.com'))) {
+  resolvedUrl = isLocalhost ? 'http://localhost:5000/api' : 'https://magic-mistry.onrender.com/api';
+}
+
+const rawBaseUrl = resolvedUrl;
+
+export const BASE_URL = rawBaseUrl.replace(/\/+$/, '').endsWith('/api')
+  ? rawBaseUrl.replace(/\/+$/, '')
+  : `${rawBaseUrl.replace(/\/+$/, '')}/api`;
+
+export const SOCKET_URL = BASE_URL.replace(/\/api\/?$/, '');
 
 export const axiosInstance = axios.create({
   withCredentials: true,

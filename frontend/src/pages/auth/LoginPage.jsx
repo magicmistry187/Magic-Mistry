@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FcGoogle } from 'react-icons/fc';
@@ -16,12 +16,21 @@ const WelcomeModal = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
+  const [googleError, setGoogleError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isVendorLogin, setIsVendorLogin] = useState(location.state?.isVendorLogin || false);
 
   const from = location.state?.from || '/';
   const reason = location.state?.reason || (from === '/booking' ? 'A user cannot make a booking until they log in.' : null);
+
+  // Clear errors and form fields on mode switch
+  useEffect(() => {
+    setErrors({});
+    setGoogleError('');
+    setEmail('');
+    setPassword('');
+  }, [isVendorLogin]);
 
   const validate = () => {
     const newErrors = {};
@@ -46,6 +55,7 @@ const WelcomeModal = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrors({});
+    setGoogleError('');
 
     const validationErrors = validate();
     if (Object.keys(validationErrors).length > 0) {
@@ -83,6 +93,7 @@ const WelcomeModal = () => {
     onSuccess: async (tokenResponse) => {
       try {
         setIsGoogleLoading(true);
+        setGoogleError('');
         const response = await googleLogin(tokenResponse.access_token);
 
         if (response.success) {
@@ -96,17 +107,18 @@ const WelcomeModal = () => {
             navigate(from, { replace: true });
           }
         } else {
-          setErrors({ password: response.message || 'Google login failed. Please try again.' });
+          setGoogleError(response.message || 'Google login failed. Please try again.');
         }
       } catch (err) {
         console.error('Google Login Error:', err);
-        setErrors({ password: 'Google login failed. Please try again.' });
+        setGoogleError('Google login failed. Please try again.');
       } finally {
         setIsGoogleLoading(false);
       }
     },
-    onError: () => {
-      setErrors({ password: 'Google login was cancelled or failed.' });
+    onError: (errorResponse) => {
+      console.error('Google Sign-In Error:', errorResponse);
+      setGoogleError('Google login was cancelled or failed. Please check browser popups or try again.');
     },
   });
 
@@ -237,6 +249,19 @@ const WelcomeModal = () => {
                     </>
                   )}
                 </motion.button>
+
+                <AnimatePresence>
+                  {googleError && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                      animate={{ opacity: 1, height: 'auto', marginTop: 10 }}
+                      exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                      className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-red-600 text-xs font-medium text-center"
+                    >
+                      {googleError}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Or Divider */}
                 <div className="flex items-center justify-center gap-4 my-7">

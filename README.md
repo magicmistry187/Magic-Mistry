@@ -145,7 +145,7 @@ Ensure you have the following installed on your development machine:
 Create a `.env` file inside the `frontend` directory based on the `.env.example` template:
 
 ```env
-VITE_API_BASE_URL=http://localhost:5000/api
+VITE_API_BASE_URL=https://localhost:5000/api
 VITE_APP_NAME="Magic Mistry"
 ```
 
@@ -214,3 +214,4 @@ Distributed under the **MIT License**. See `LICENSE` for more information.
 <div align="center">
   <sub>Built with ❤️ for hassle-free home service booking.</sub>
 </div>
+"# magic-mistary-testinbg" 

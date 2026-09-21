@@ -8,7 +8,7 @@ import {
   FileText, Check, Plus, Search, Filter, RefreshCw, Bell,
   Tv, Zap, Thermometer, ArrowUpRight, ChevronDown, Building,
   Sliders, Shield, MessageSquare, ExternalLink, AlertTriangle,
-  Play, Pause, Square, Camera, Trash2, Send, Eye, Lock,
+  Play, Square, Camera, Trash2, Send, Eye, Lock,
   PlusCircle, CheckSquare, Square as SquareOutline, QrCode, Smartphone,
   Printer, X, Download, Fuel, Compass
 } from 'lucide-react';
@@ -22,6 +22,7 @@ import VendorRadiusModal from '../../components/dashboard/vendor/VendorRadiusMod
 import VendorStartServiceModal from '../../components/dashboard/vendor/VendorStartServiceModal';
 import VendorFuelClaimModal from '../../components/dashboard/vendor/VendorFuelClaimModal';
 import { useAuth } from '../../context/AuthContext';
+import { useSocket, useSocketEvent } from '../../context/SocketContext';
 import { getVendorBookingsApi, acceptBookingApi, updateBookingStatusApi } from '../../services/operations/bookingAPI';
 import { saveVendorAddressApi, getAddressesApi, updateAddressApi, createAddressApi } from '../../services/operations/addressAPI';
 import { updateVendorProfileApi, getVendorProfileApi, updateVendorProfileImageApi } from '../../services/operations/vendorAPI';
@@ -111,6 +112,49 @@ const formatBookingAddress = (addr) => {
     if (parts.length > 0) return parts.join(', ');
   }
   return '—';
+};
+
+// Reusable formatter for vendor bookings (both initial fetch and real-time socket events)
+export const formatVendorBooking = (b) => {
+  const displayAddr = formatBookingAddress(b.address);
+  const pay = Number(b.serviceCategoryCharge) || Number(b.serviceCharge) || Number(b.estimatedPay) || 0;
+  const formattedDist =
+    typeof b.distance === 'number'
+      ? (b.distance < 1000 ? `${Math.round(b.distance)} m away` : `${(b.distance / 1000).toFixed(1)} km away`)
+      : 'Nearby';
+
+  return {
+    id: b.bookingId || String(b._id),
+    displayId: b.bookingId || `WO-${String(b._id).slice(-6).toUpperCase()}`,
+    appliance: b.appliance || 'General',
+    applianceIcon: getApplianceIcon(b.appliance),
+    serviceTitle: b.serviceCategory || b.appliance || 'Service Request',
+    status: b.bookingStatus === 'Pending' ? 'New Request' : (b.bookingStatus || 'New Request'),
+    timeSlot: b.timeSlot || '—',
+    appointmentDate: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }) : '—',
+    customerName: b.customer?.fullName || 'Customer',
+    customerPhone: b.customer?.phoneNumber || '—',
+    serviceAddress: displayAddr,
+    location: displayAddr,
+    distance: formattedDist,
+    issue: b.issue || b.description || 'Service required',
+    estimatedPay: pay,
+    amount: b.serviceCharge || pay,
+    date: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN') + (b.timeSlot ? ' ' + b.timeSlot : '') : '—',
+    rawDate: b.serviceDate ? new Date(b.serviceDate) : new Date(b.createdAt || Date.now()),
+    review: b.review || '',
+    checklist: b.checklist || [
+      { id: 1, title: 'Initial Inspection', desc: 'Inspect device and confirm reported issue with customer.', completed: false },
+      { id: 2, title: 'Diagnosis & Parts Verification', desc: 'Test electrical components and verify required replacement parts.', completed: false },
+      { id: 3, title: 'Perform Service/Repair', desc: 'Carry out required servicing or parts replacement safely.', completed: false },
+      { id: 4, title: 'Final Testing & Cleanup', desc: 'Run complete test cycle and clean work area.', completed: false },
+    ],
+    photos: b.photos || [],
+    notes: b.notes || '',
+    parts: b.parts || [
+      { id: 1, description: b.serviceCategory || b.appliance || 'Diagnostic & Service Charge', qty: 1, price: pay || 450, locked: true },
+    ],
+  };
 };
 
 // ── Financial Calculation Helper: 50% Service Payout, 0% Components, 100% Fuel Payout ──
@@ -384,6 +428,7 @@ export default function VendorDashboardPage() {
   const navigate = useNavigate();
   const routerLocation = useLocation();
   const { token, user, loading, location, updateProfile } = useAuth();
+  const { playNotificationSound } = useSocket();
   
   // Navigation tabs: 'active', 'service', 'invoice', 'history', 'earnings', 'profile'
   const [activeTab, setActiveTab] = useState(() => {
@@ -523,47 +568,7 @@ export default function VendorDashboardPage() {
         try {
           const res = await getVendorBookingsApi(token);
           if (res.success && res.bookings && res.bookings.length > 0) {
-            const formatted = res.bookings.map(b => {
-              const displayAddr = formatBookingAddress(b.address);
-              const pay = Number(b.serviceCategoryCharge) || Number(b.serviceCharge) || Number(b.estimatedPay) || 0;
-              const formattedDist =
-                typeof b.distance === 'number'
-                  ? (b.distance < 1000 ? `${Math.round(b.distance)} m away` : `${(b.distance / 1000).toFixed(1)} km away`)
-                  : 'Nearby';
-
-              return {
-                id: b.bookingId || String(b._id),
-                displayId: b.bookingId || `WO-${String(b._id).slice(-6).toUpperCase()}`,
-                appliance: b.appliance || 'General',
-                applianceIcon: getApplianceIcon(b.appliance),
-                serviceTitle: b.serviceCategory || b.appliance || 'Service Request',
-                status: b.bookingStatus === 'Pending' ? 'New Request' : (b.bookingStatus || 'New Request'),
-                timeSlot: b.timeSlot || '—',
-                appointmentDate: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }) : '—',
-                customerName: b.customer?.fullName || 'Customer',
-                customerPhone: b.customer?.phoneNumber || '—',
-                serviceAddress: displayAddr,
-                location: displayAddr,
-                distance: formattedDist,
-                issue: b.issue || b.description || 'Service required',
-                estimatedPay: pay,
-                amount: b.serviceCharge || pay,
-                date: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN') + (b.timeSlot ? ' ' + b.timeSlot : '') : '—',
-                rawDate: b.serviceDate ? new Date(b.serviceDate) : new Date(b.createdAt || Date.now()),
-                review: b.review || '',
-                checklist: b.checklist || [
-                  { id: 1, title: 'Initial Inspection', desc: 'Inspect device and confirm reported issue with customer.', completed: false },
-                  { id: 2, title: 'Diagnosis & Parts Verification', desc: 'Test electrical components and verify required replacement parts.', completed: false },
-                  { id: 3, title: 'Perform Service/Repair', desc: 'Carry out required servicing or parts replacement safely.', completed: false },
-                  { id: 4, title: 'Final Testing & Cleanup', desc: 'Run complete test cycle and clean work area.', completed: false },
-                ],
-                photos: b.photos || [],
-                notes: b.notes || '',
-                parts: b.parts || [
-                  { id: 1, description: b.serviceCategory || b.appliance || 'Diagnostic & Service Charge', qty: 1, price: pay || 450, locked: true },
-                ],
-              };
-            });
+            const formatted = res.bookings.map(formatVendorBooking);
 
             const activeList = formatted.filter(b => b.status !== 'Completed' && b.status !== 'Cancelled' && b.status !== 'Closed');
             const historyList = formatted.filter(b => b.status === 'Completed' || b.status === 'Cancelled' || b.status === 'Closed');
@@ -577,8 +582,7 @@ export default function VendorDashboardPage() {
       }
     };
     fetchBookings();
-    const interval = setInterval(fetchBookings, 15000);
-    return () => clearInterval(interval);
+    // Real-time socket events now handle updates without HTTP polling
   }, [token, activeTab]);
 
   // Compute weekly earnings chart from real history data (using vendor payout)
@@ -634,10 +638,6 @@ export default function VendorDashboardPage() {
   // Active Work Order execution state
   const [selectedJob, setSelectedJob] = useState(null);
   
-  // Timer state for service execution
-  const [timerSeconds, setTimerSeconds] = useState(0);
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
-
   // Invoice state
   const [invoiceParts, setInvoiceParts] = useState([]);
   const [invoiceDiscount, setInvoiceDiscount] = useState(0);
@@ -1073,7 +1073,7 @@ export default function VendorDashboardPage() {
                   rawBooking: b,
                 };
               });
-              setAvailableJobs(formatted.filter(b => b.status === 'New Request'));
+              setJobs(formatted.filter(b => b.status === 'New Request'));
             }
           } catch (bErr) {
             console.warn('Booking refresh error after radius update:', bErr);
@@ -1092,25 +1092,7 @@ export default function VendorDashboardPage() {
   };
 
 
-  // Timer Effect - interval created once when running, not recreated every second
-  useEffect(() => {
-    let interval = null;
-    if (isTimerRunning) {
-      interval = setInterval(() => {
-        setTimerSeconds(sec => sec + 1);
-      }, 1000);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isTimerRunning]);
 
-  const formatTimer = (totalSec) => {
-    const hrs = Math.floor(totalSec / 3600);
-    const mins = Math.floor((totalSec % 3600) / 60);
-    const secs = totalSec % 60;
-    return `${hrs.toString().padStart(2, '0')} : ${mins.toString().padStart(2, '0')} : ${secs.toString().padStart(2, '0')}`;
-  };
 
   const showToast = (msg, type = 'success') => {
     setToastMessage({ msg, type });
@@ -1118,6 +1100,58 @@ export default function VendorDashboardPage() {
       setToastMessage(null);
     }, 3500);
   };
+
+  // ── Real-Time Socket Listeners for Vendor ─────────────────────────────────
+  // 1. New booking request available nearby
+  useSocketEvent('booking:new', (newBooking) => {
+    if (!newBooking) return;
+    const bId = String(newBooking._id || newBooking.id);
+
+    setJobs((prevJobs) => {
+      const alreadyExists = prevJobs.some((j) => String(j.id) === bId);
+      if (alreadyExists) return prevJobs;
+      const formatted = formatVendorBooking(newBooking);
+      return [formatted, ...prevJobs];
+    });
+
+    if (playNotificationSound) playNotificationSound();
+    showToast('🔔 New service booking request received!', 'success');
+  });
+
+  // 2. Booking accepted by another vendor or withdrawn
+  useSocketEvent('booking:taken', (data) => {
+    if (!data?.bookingId) return;
+    const targetId = String(data.bookingId);
+    setJobs((prevJobs) => prevJobs.filter((j) => String(j.id) !== targetId || j.status !== 'New Request'));
+  });
+
+  // 3. Status changed on an assigned booking (e.g. Completed, In Progress)
+  useSocketEvent('booking:status_changed', (updatedBooking) => {
+    if (!updatedBooking) return;
+    const bId = String(updatedBooking._id || updatedBooking.id);
+    const formatted = formatVendorBooking(updatedBooking);
+
+    if (updatedBooking.bookingStatus === 'Completed' || updatedBooking.bookingStatus === 'Cancelled') {
+      setJobs((prev) => prev.filter((j) => String(j.id) !== bId));
+      setHistory((prev) => {
+        const exists = prev.some((h) => String(h.id) === bId);
+        return exists ? prev.map((h) => String(h.id) === bId ? formatted : h) : [formatted, ...prev];
+      });
+    } else {
+      setJobs((prev) => {
+        const exists = prev.some((j) => String(j.id) === bId);
+        return exists ? prev.map((j) => String(j.id) === bId ? formatted : j) : [formatted, ...prev];
+      });
+    }
+  });
+
+  // 4. Booking cancelled by customer
+  useSocketEvent('booking:cancelled', (cancelledBooking) => {
+    if (!cancelledBooking) return;
+    const bId = String(cancelledBooking._id || cancelledBooking.id);
+    setJobs((prev) => prev.filter((j) => String(j.id) !== bId));
+    showToast('A booking was cancelled by the customer.', 'warning');
+  });
 
   // Toggle Online/Offline
   const handleToggleOnline = () => {
@@ -1256,8 +1290,6 @@ export default function VendorDashboardPage() {
   const openServiceExecution = (job) => {
     setSelectedJob(job);
     setActiveTab('service');
-    setTimerSeconds(0);
-    setIsTimerRunning(true);
     setCustomerNotes(
       job.notes || 'Recommended regular maintenance every 6 months to ensure optimal performance. All debris cleared from unit.'
     );
@@ -1300,7 +1332,6 @@ export default function VendorDashboardPage() {
   // Open Invoice Generation screen
   const openGenerateInvoiceScreen = () => {
     if (!selectedJob) return;
-    setIsTimerRunning(false);
     // Sync current customer notes into selectedJob and jobs
     const updatedJob = { ...selectedJob, notes: customerNotes };
     setSelectedJob(updatedJob);
@@ -2133,42 +2164,36 @@ export default function VendorDashboardPage() {
             {/* Service Main Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
 
-              {/* Left Column (8 Cols): Timer, Checklist, Customer Notes */}
+              {/* Left Column (8 Cols): Status & Actions, Checklist, Customer Notes */}
               <div className="lg:col-span-8 space-y-6">
 
-                {/* 1. SERVICE DURATION TIMER CARD */}
+                {/* 1. SERVICE STATUS & ACTION CARD */}
                 <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 sm:p-6 flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6">
                   <div>
                     <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider block">
-                      SERVICE DURATION
+                      SERVICE STATUS
                     </span>
-                    <span className="text-4xl sm:text-5xl font-mono font-extrabold text-slate-900 tracking-wider">
-                      {formatTimer(timerSeconds)}
+                    <span className="text-xl sm:text-2xl font-extrabold text-slate-900 flex items-center gap-2 mt-1">
+                      <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Service In Progress
                     </span>
                   </div>
 
                   <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
-                    <button
-                      onClick={() => {
-                        if (!selectedJob?.travelVerified && !isTimerRunning) {
-                          handlePromptStartService(selectedJob);
-                        } else {
-                          setIsTimerRunning(prev => !prev);
-                        }
-                      }}
-                      className={`w-full sm:w-auto px-6 py-3 rounded-2xl font-extrabold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                        isTimerRunning
-                          ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                          : 'bg-orange-600 hover:bg-orange-700 text-white'
-                      }`}
-                    >
-                      {isTimerRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-white" />}
-                      {isTimerRunning ? 'Pause Diagnostic Timer' : 'Start Service'}
-                    </button>
+                    {!selectedJob?.travelVerified && (
+                      <button
+                        type="button"
+                        onClick={() => handlePromptStartService(selectedJob)}
+                        className="w-full sm:w-auto px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-extrabold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <Navigation className="w-4 h-4" />
+                        Log Travel / KM
+                      </button>
+                    )}
 
                     <button
                       onClick={openGenerateInvoiceScreen}
-                      className="w-full sm:w-auto px-6 py-3 bg-[#061e38] hover:bg-[#0a2f57] text-white rounded-2xl font-extrabold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full sm:w-auto px-6 py-3.5 bg-[#061e38] hover:bg-[#0a2f57] text-white rounded-2xl font-extrabold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <FileText className="w-4 h-4 text-orange-400" />
                       Finish & Generate Invoice &rarr;
