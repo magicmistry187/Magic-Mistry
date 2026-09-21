@@ -370,6 +370,7 @@ async function googleLogin(req, res) {
           googleId,
           authProviders: ['google'],
           // isEmailVerified: true,
+          // role: "admin", // Default role is 'user'
         });
       }
     }
