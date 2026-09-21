@@ -3,6 +3,7 @@ const Booking = require('../models/booking.model');
 const Address = require('../models/address.model');
 const VendorProfile = require('../models/vendorProfile.model');
 const { uploadImageToImageKit } = require('../config/imagekit');
+const ServiceExecution= require('../models/serviceExcecution.model');
 const {
   emitNewBooking,
   emitBookingStatusUpdated,
@@ -486,6 +487,13 @@ exports.acceptBooking = async (req, res) => {
         message: 'Booking is no longer available.',
       });
     }
+
+    // updated part
+     await ServiceExecution.create({
+      booking: booking._id,
+      vendor: vendorId,
+      status: 'Route Pending',
+    });
 
     const updated = await Booking.findById(bookingId)
       .populate('customer', 'fullName email phoneNumber')
