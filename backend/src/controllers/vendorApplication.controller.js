@@ -12,6 +12,10 @@ const {
   createOrUpdateVendorAccount,
 } = require('../utils/vendor.utils');
 const sendEmail = require('../utils/sendEmail');
+const {
+  emitNewVendorApplication,
+  emitVendorApplicationStatus,
+} = require('../socket/socketEmitter');
 
 const createVendorApplication = async (req, res) => {
   try {
@@ -126,6 +130,9 @@ const createVendorApplication = async (req, res) => {
 
       status: 'Pending',
     });
+
+    // Real-time: notify admin dashboard
+    emitNewVendorApplication(application);
 
     return res.status(201).json({
       success: true,
@@ -327,7 +334,8 @@ const approveVendorApplication = async (req, res) => {
       console.warn('[Vendor Approval] Email notification failed (credentials still created):', emailErr.message);
     }
 
-    // 5. Send response with valid vendor credentials
+    // Real-time: update admin dashboard
+    emitVendorApplicationStatus(application);
 
     return res.status(200).json({
       success: true,
@@ -501,6 +509,9 @@ const rejectVendorApplication = async (req, res) => {
 
     // Save changes
     await application.save();
+
+    // Real-time: update admin dashboard
+    emitVendorApplicationStatus(application);
 
     return res.status(200).json({
       success: true,

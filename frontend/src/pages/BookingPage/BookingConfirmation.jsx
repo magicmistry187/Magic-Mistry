@@ -1,18 +1,48 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
 import LazyImage from '../../components/common/LazyImage';
+import { useSocketEvent } from '../../context/SocketContext';
 import {
   CheckCircle2, Calendar, Clock, MapPin, Wrench,
   CreditCard, Phone, Download, Home, ArrowRight,
+  UserCheck, AlertCircle, Loader2, Sparkles, LayoutDashboard
 } from 'lucide-react';
 
 export default function BookingConfirmation() {
   const location = useLocation();
   const navigate = useNavigate();
   const booking  = location.state?.booking || null;
+  const [currentBooking, setCurrentBooking] = useState(booking);
   const confettiRef = useRef(false);
+
+  // Sync state if navigation location updates
+  useEffect(() => {
+    if (location.state?.booking) {
+      setCurrentBooking(location.state.booking);
+    }
+  }, [location.state?.booking]);
+
+  // Listen to real-time status updates (e.g. technician accepts booking)
+  useSocketEvent('booking:status_changed', (updatedBooking) => {
+    if (!updatedBooking || !currentBooking) return;
+    const updateId = String(updatedBooking._id || updatedBooking.id);
+    const targetId = String(currentBooking._id || currentBooking.id);
+    if (updateId === targetId) {
+      setCurrentBooking(prev => ({ ...prev, ...updatedBooking }));
+    }
+  });
+
+  // Listen to real-time cancellation
+  useSocketEvent('booking:cancelled', (cancelledBooking) => {
+    if (!cancelledBooking || !currentBooking) return;
+    const cancelId = String(cancelledBooking._id || cancelledBooking.id);
+    const targetId = String(currentBooking._id || currentBooking.id);
+    if (cancelId === targetId) {
+      setCurrentBooking(prev => ({ ...prev, ...cancelledBooking, bookingStatus: 'Cancelled' }));
+    }
+  });
 
   // Redirect if accessed directly without booking data
   useEffect(() => {
@@ -47,11 +77,13 @@ export default function BookingConfirmation() {
     }
   }, [booking]);
 
+  const activeBooking = currentBooking || booking;
+
   const formattedAddress = React.useMemo(() => {
-    if (!booking?.address) return '—';
-    if (typeof booking.address === 'string') {
+    if (!activeBooking?.address) return '—';
+    if (typeof activeBooking.address === 'string') {
       try {
-        const parsed = JSON.parse(booking.address);
+        const parsed = JSON.parse(activeBooking.address);
         if (typeof parsed === 'object' && parsed !== null) {
           const parts = [
             parsed.house || parsed.flat || parsed.addressLine1,
@@ -61,28 +93,28 @@ export default function BookingConfirmation() {
             parsed.state,
             parsed.pincode,
           ].filter(Boolean);
-          return parts.length > 0 ? parts.join(', ') : (parsed.fullAddress || booking.address.trim() || '—');
+          return parts.length > 0 ? parts.join(', ') : (parsed.fullAddress || activeBooking.address.trim() || '—');
         }
       } catch (_) {}
-      return booking.address.trim() || '—';
+      return activeBooking.address.trim() || '—';
     }
-    if (typeof booking.address === 'object') {
+    if (typeof activeBooking.address === 'object') {
       const parts = [
-        booking.address.house || booking.address.flat || booking.address.addressLine1,
-        booking.address.street,
-        booking.address.landmark,
-        booking.address.city,
-        booking.address.state,
-        booking.address.pincode,
+        activeBooking.address.house || activeBooking.address.flat || activeBooking.address.addressLine1,
+        activeBooking.address.street,
+        activeBooking.address.landmark,
+        activeBooking.address.city,
+        activeBooking.address.state,
+        activeBooking.address.pincode,
       ].filter(Boolean);
-      return parts.length > 0 ? parts.join(', ') : (booking.address.fullAddress || '—');
+      return parts.length > 0 ? parts.join(', ') : (activeBooking.address.fullAddress || '—');
     }
     return '—';
-  }, [booking?.address]);
+  }, [activeBooking?.address]);
 
-  if (!booking) return null;
+  if (!activeBooking) return null;
 
-  const rawDate = booking.serviceDate || booking.date;
+  const rawDate = activeBooking.serviceDate || activeBooking.date;
   let formattedDate = '—';
   if (rawDate) {
     const dateStr = typeof rawDate === 'string' && rawDate.includes('T')
@@ -96,14 +128,14 @@ export default function BookingConfirmation() {
     }
   }
 
-  const bookingIdDisplay = booking._id || booking.bookingId || 'MM-' + Date.now().toString(36).toUpperCase();
-  const serviceDisplayName = booking.serviceCategory || booking.appliance || booking.serviceName || 'Appliance Repair';
-  const priceDisplay = booking.serviceCategoryCharge ?? booking.basePrice ?? 299;
+  const bookingIdDisplay = activeBooking._id || activeBooking.bookingId || 'MM-' + Date.now().toString(36).toUpperCase();
+  const serviceDisplayName = activeBooking.serviceCategory || activeBooking.appliance || activeBooking.serviceName || 'Appliance Repair';
+  const priceDisplay = activeBooking.serviceCategoryCharge ?? activeBooking.basePrice ?? 299;
 
   const paymentLabel =
-    booking.paymentMethod === 'upi'
+    activeBooking.paymentMethod === 'upi'
       ? 'Pay via UPI After Service'
-      : booking.paymentMethod === 'cash'
+      : activeBooking.paymentMethod === 'cash'
       ? 'Pay Cash After Service'
       : 'Cash / UPI After Service';
 
@@ -132,13 +164,13 @@ export default function BookingConfirmation() {
           <div className="w-full max-w-lg">
 
             {/* ── Success hero ─────────────────────── */}
-            <div className="text-center mb-8">
-              <div className="pop-in inline-flex items-center justify-center w-24 h-24 rounded-full bg-emerald-100 border-4 border-emerald-300 shadow-lg mb-5">
-                <CheckCircle2 className="w-12 h-12 text-emerald-500" />
+            <div className="text-center mb-6">
+              <div className="pop-in inline-flex items-center justify-center w-20 h-20 rounded-full bg-emerald-100 border-4 border-emerald-300 shadow-lg mb-4">
+                <CheckCircle2 className="w-10 h-10 text-emerald-500" />
               </div>
-              <h1 className="text-3xl font-extrabold text-[#0B1E40]">Booking Confirmed! 🎉</h1>
+              <h1 className="text-3xl font-extrabold text-[#0B1E40]">Booking Placed! 🎉</h1>
               <p className="text-slate-500 mt-2 text-sm">
-                Your service request has been placed. A verified technician will reach you at the scheduled time.
+                Your service request is active in our technician network.
               </p>
 
               {/* Booking ID pill */}
@@ -149,6 +181,65 @@ export default function BookingConfirmation() {
                 </span>
               </div>
             </div>
+
+            {/* ── Live Technician Status Tracker (Real-Time) ── */}
+            {activeBooking.bookingStatus === 'Accepted' || activeBooking.bookingStatus === 'In Progress' ? (
+              <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-5 mb-5 shadow-sm transition-all duration-300">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping mr-0.5" />
+                    Technician Assigned
+                  </span>
+                  <span className="text-xs font-semibold text-emerald-700 bg-white/70 px-2.5 py-0.5 rounded-md border border-emerald-200">
+                    {activeBooking.bookingStatus}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-sm shadow">
+                      {activeBooking.vendor?.fullName ? activeBooking.vendor.fullName.charAt(0).toUpperCase() : 'T'}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">
+                        {activeBooking.vendor?.fullName || 'Assigned Technician'}
+                      </p>
+                      <p className="text-xs text-slate-500">Verified Service Partner</p>
+                    </div>
+                  </div>
+                  {activeBooking.vendor?.phoneNumber && (
+                    <a
+                      href={`tel:${activeBooking.vendor.phoneNumber}`}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors"
+                    >
+                      <Phone className="w-3.5 h-3.5" /> Call
+                    </a>
+                  )}
+                </div>
+              </div>
+            ) : activeBooking.bookingStatus === 'Cancelled' ? (
+              <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 mb-5 flex items-center gap-3 text-rose-800">
+                <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-bold">Booking Cancelled</p>
+                  <p className="text-xs text-rose-600">This service request has been cancelled.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4 mb-5 flex items-center gap-3.5 text-amber-900 shadow-sm">
+                <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                  <Loader2 className="w-4 h-4 text-amber-600 animate-spin" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-amber-800">Matching Nearby Technician</span>
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  </div>
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    Your request is broadcasting live. When a specialist accepts, their details will appear here instantly.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* ── Details card ──────────────────────── */}
             <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden mb-5">
@@ -188,7 +279,7 @@ export default function BookingConfirmation() {
                   </span>
                   <div className="flex-1">
                     <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide">Time Slot</p>
-                    <p className="text-slate-800 font-semibold text-sm">{booking.timeSlot || '—'}</p>
+                    <p className="text-slate-800 font-semibold text-sm">{activeBooking.timeSlot || '—'}</p>
                   </div>
                 </div>
 
@@ -206,17 +297,17 @@ export default function BookingConfirmation() {
                 </div>
 
                 {/* Uploaded Image if available */}
-                {booking.image && (
+                {activeBooking.image && (
                   <div className="flex items-center gap-4 px-6 py-4">
                     <LazyImage
-                      src={booking.image}
+                      src={activeBooking.image}
                       alt="Uploaded problem issue"
                       className="w-14 h-14 rounded-xl border border-slate-200"
                     />
                     <div className="flex-1">
                       <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide">Attached Photo</p>
                       <p className="text-xs text-blue-600 font-semibold hover:underline truncate">
-                        <Link to={booking.image} target="_blank" rel="noopener noreferrer">View full image</Link>
+                        <Link to={activeBooking.image} target="_blank" rel="noopener noreferrer">View full image</Link>
                       </p>
                     </div>
                   </div>
@@ -283,10 +374,10 @@ export default function BookingConfirmation() {
                 <Home className="w-4 h-4" /> Back to Home
               </Link>
               <Link
-                to="/booking"
-                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[#0B1E40] text-white font-semibold text-sm hover:bg-[#1a3a70] transition-colors"
+                to="/dashboard"
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[#0B1E40] text-white font-semibold text-sm hover:bg-[#1a3a70] transition-colors shadow-sm"
               >
-                Book Another Service <ArrowRight className="w-4 h-4" />
+                <LayoutDashboard className="w-4 h-4" /> Track in Dashboard
               </Link>
             </div>
           </div>

@@ -8,6 +8,9 @@ const app = express();
 app.use(helmet());
 
 const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000',
   'https://magic-mistry.onrender.com',
   'https://magic-mistry.vercel.app',
   process.env.CLIENT_URL,
@@ -24,11 +27,13 @@ app.use(
         !origin ||
         allowedOrigins.includes(origin) ||
         origin.endsWith('.vercel.app') ||
+        origin.includes('localhost') ||
+        origin.includes('127.0.0.1') ||
         process.env.NODE_ENV !== 'production'
       ) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        callback(null, false);
       }
     },
     credentials: true,

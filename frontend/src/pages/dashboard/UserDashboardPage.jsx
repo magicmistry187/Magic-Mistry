@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useSocket, useSocketEvent } from '../../context/SocketContext';
 import { getAddressesApi, createAddressApi, updateAddressApi, deleteAddressApi } from '../../services/operations/addressAPI';
 import { getMyBookingsApi, cancelBookingApi } from '../../services/operations/bookingAPI';
 import Navbar from '../../components/common/Navbar';
@@ -111,6 +112,7 @@ const mapAddresses = (list) =>
 
 export default function UserDashboardPage() {
   const { user, token, logout, location, updateLocation, updateProfile, loading } = useAuth();
+  const { playNotificationSound } = useSocket();
   const navigate = useNavigate();
   const routerLocation = useLocation();
 
@@ -248,6 +250,66 @@ export default function UserDashboardPage() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
+
+  // ── Real-Time Booking Event Listeners ─────────────────────────────────────
+  const formatUserBooking = React.useCallback((b) => ({
+    id: b._id || 'BK-' + Date.now().toString().slice(-6),
+    service: b.serviceCategory || b.appliance || 'Appliance Service',
+    applianceIcon: '🔧',
+    technician: b.vendor?.fullName || 'Verification Pending',
+    techRating: '4.9',
+    techJobs: '100+',
+    techAvatar: 'MM',
+    date: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—',
+    time: b.timeSlot || 'Scheduled Slot',
+    status: b.bookingStatus || 'Pending',
+    price: `₹${b.serviceCategoryCharge ?? 299}`,
+    customerName: user?.fullName || 'Customer',
+    address: b.address,
+    image: b.image,
+    rawBooking: b,
+  }), [user?.fullName]);
+
+  // Live updates when technician accepts or updates booking status
+  useSocketEvent('booking:status_changed', (updatedBooking) => {
+    if (!updatedBooking) return;
+    const bId = String(updatedBooking._id || updatedBooking.id);
+
+    setBookingsList((prev) => {
+      const idx = prev.findIndex((b) => String(b.id) === bId || String(b.rawBooking?._id) === bId);
+      const formatted = formatUserBooking(updatedBooking);
+      if (idx !== -1) {
+        const next = [...prev];
+        next[idx] = formatted;
+        return next;
+      }
+      return [formatted, ...prev];
+    });
+
+    if (playNotificationSound) playNotificationSound();
+    showToast(`Booking Update: Status is now "${updatedBooking.bookingStatus}"`);
+  });
+
+  // Live updates if booking is cancelled
+  useSocketEvent('booking:cancelled', (cancelledBooking) => {
+    if (!cancelledBooking) return;
+    const bId = String(cancelledBooking._id || cancelledBooking.id);
+
+    setBookingsList((prev) =>
+      prev.map((b) => {
+        if (String(b.id) === bId || String(b.rawBooking?._id) === bId) {
+          return {
+            ...b,
+            status: 'Cancelled',
+            rawBooking: { ...b.rawBooking, bookingStatus: 'Cancelled' },
+          };
+        }
+        return b;
+      })
+    );
+
+    showToast('Booking has been cancelled.');
+  });
 
   const handleSaveProfile = async () => {
     if (!fullName || !fullName.trim()) {
