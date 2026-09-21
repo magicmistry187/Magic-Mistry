@@ -3,7 +3,7 @@ const Booking = require('../models/booking.model');
 const Address = require('../models/address.model');
 const VendorProfile = require('../models/vendorProfile.model');
 const { uploadImageToImageKit } = require('../config/imagekit');
-const ServiceExecution= require('../models/serviceExcecution.model');
+const ServiceExecution = require('../models/serviceExecution.model');
 const {
   emitNewBooking,
   emitBookingStatusUpdated,
