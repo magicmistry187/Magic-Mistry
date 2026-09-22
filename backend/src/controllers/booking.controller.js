@@ -3,7 +3,7 @@ const Booking = require('../models/booking.model');
 const Address = require('../models/address.model');
 const VendorProfile = require('../models/vendorProfile.model');
 const { uploadImageToImageKit } = require('../config/imagekit');
-const ServiceExecution= require('../models/serviceExcecution.model');
+const ServiceExecution = require('../models/serviceExecution.model');
 const {
   emitNewBooking,
   emitBookingStatusUpdated,
@@ -127,8 +127,10 @@ exports.createBooking = async (req, res) => {
 
     const booking = await Booking.create(bookingData);
 
-    const populatedBooking = await Booking.findById(booking._id)
-      .populate('customer', 'fullName email phoneNumber');
+    const populatedBooking = await Booking.findById(booking._id).populate(
+      'customer',
+      'fullName email phoneNumber',
+    );
 
     // Real-time: notify vendors and admin immediately
     emitNewBooking(populatedBooking || booking);
@@ -338,8 +340,8 @@ exports.getBookingToVendorUnderRange = async (req, res) => {
     const assignedBookings = await Booking.find({
       vendor: vendorId,
     })
-      .populate("customer", "fullName email phoneNumber")
-      .populate("vendor", "fullName email phoneNumber")
+      .populate('customer', 'fullName email phoneNumber')
+      .populate('vendor', 'fullName email phoneNumber')
       .lean();
 
     // 2. Fetch vendor profile & determine active location and radius
@@ -373,12 +375,12 @@ exports.getBookingToVendorUnderRange = async (req, res) => {
           {
             $geoNear: {
               near: vendorLocation,
-              key: "location",
-              distanceField: "distance",
+              key: 'location',
+              distanceField: 'distance',
               maxDistance: radius * 1000,
               spherical: true,
               query: {
-                bookingStatus: "Pending",
+                bookingStatus: 'Pending',
                 $or: [{ vendor: null }, { vendor: { $exists: false } }],
               },
             },
@@ -387,44 +389,47 @@ exports.getBookingToVendorUnderRange = async (req, res) => {
         ]);
 
         await Booking.populate(geoPending, [
-          { path: "customer", select: "fullName email phoneNumber" },
-          { path: "vendor", select: "fullName email phoneNumber" },
+          { path: 'customer', select: 'fullName email phoneNumber' },
+          { path: 'vendor', select: 'fullName email phoneNumber' },
         ]);
 
         // Also fetch pending bookings without location coordinates so they are never dropped
         const nonGeoPending = await Booking.find({
-          bookingStatus: "Pending",
+          bookingStatus: 'Pending',
           $or: [{ vendor: null }, { vendor: { $exists: false } }],
           $or: [
             { location: { $exists: false } },
             { location: null },
-            { "location.coordinates": { $exists: false } },
-            { "location.coordinates": { $size: 0 } },
+            { 'location.coordinates': { $exists: false } },
+            { 'location.coordinates': { $size: 0 } },
           ],
         })
-          .populate("customer", "fullName email phoneNumber")
-          .populate("vendor", "fullName email phoneNumber")
+          .populate('customer', 'fullName email phoneNumber')
+          .populate('vendor', 'fullName email phoneNumber')
           .lean();
 
         pendingBookings = [...geoPending, ...nonGeoPending];
       } catch (geoErr) {
-        console.warn("Geo query failed, falling back to all pending:", geoErr.message);
+        console.warn(
+          'Geo query failed, falling back to all pending:',
+          geoErr.message,
+        );
         pendingBookings = await Booking.find({
-          bookingStatus: "Pending",
+          bookingStatus: 'Pending',
           $or: [{ vendor: null }, { vendor: { $exists: false } }],
         })
-          .populate("customer", "fullName email phoneNumber")
-          .populate("vendor", "fullName email phoneNumber")
+          .populate('customer', 'fullName email phoneNumber')
+          .populate('vendor', 'fullName email phoneNumber')
           .lean();
       }
     } else {
       // Vendor has no address/coordinates configured yet -> return all pending bookings as fallback
       pendingBookings = await Booking.find({
-        bookingStatus: "Pending",
+        bookingStatus: 'Pending',
         $or: [{ vendor: null }, { vendor: { $exists: false } }],
       })
-        .populate("customer", "fullName email phoneNumber")
-        .populate("vendor", "fullName email phoneNumber")
+        .populate('customer', 'fullName email phoneNumber')
+        .populate('vendor', 'fullName email phoneNumber')
         .lean();
     }
 
@@ -447,13 +452,13 @@ exports.getBookingToVendorUnderRange = async (req, res) => {
       count: allBookings.length,
       bookings: allBookings,
       radius,
-      message: "Vendor bookings fetched successfully.",
+      message: 'Vendor bookings fetched successfully.',
     });
   } catch (err) {
-    console.error("Error while fetching vendor bookings: ", err);
+    console.error('Error while fetching vendor bookings: ', err);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch vendor bookings",
+      message: 'Failed to fetch vendor bookings',
       error: err.message,
     });
   }
@@ -461,6 +466,7 @@ exports.getBookingToVendorUnderRange = async (req, res) => {
 
 exports.acceptBooking = async (req, res) => {
   try {
+    
     const { bookingId } = req.params;
     const vendorId = req.user.id;
 
@@ -489,7 +495,8 @@ exports.acceptBooking = async (req, res) => {
     }
 
     // updated part
-     await ServiceExecution.create({
+   
+    await ServiceExecution.create({
       booking: booking._id,
       vendor: vendorId,
       status: 'Route Pending',
@@ -582,6 +589,109 @@ exports.updateBookingStatus = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to update booking status.',
+      error: error.message,
+    });
+  }
+};
+
+exports.routeVerification = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const vendorId = req.user.id;
+    const { distanceKm } = req.body;
+
+    if (!distanceKm) {
+      return res.status(400).json({
+        success: false,
+        message: 'Distance is required for route verification.',
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Route screenshot is required.',
+      });
+    }
+
+    const execution = await ServiceExecution.findOne({
+      booking: bookingId,
+      vendor: vendorId,
+      status: 'Route Pending',
+    });
+
+    if (!execution) {
+      return res.status(404).json({
+        success: false,
+        message: 'Service execution not found.',
+      });
+    }
+
+    const distanceNum = Number(distanceKm);
+
+    if (!Number.isFinite(distanceNum) || distanceNum < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Distance must be a valid  number.',
+      });
+    }
+
+    let screenshot = {
+      url: null,
+      fileId: null,
+    };
+
+    if (req.file) {
+      try {
+        console.log("uploading scsreeshot")
+        const result = await uploadImageToImageKit(
+          req.file.buffer,
+          req.file.originalname || `route-${Date.now()}.jpg`,
+        );
+
+        screenshot.url = result.url;
+        screenshot.fileId = result.fileId;
+
+      } catch (error) {
+        console.error('Route screenshot upload failed:', error);
+
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to upload route screenshot.',
+        });
+      }
+    }
+
+    
+    const ratePerKm = execution.route.ratePerKm || 10;
+    const travelCharge = distanceNum * ratePerKm;
+
+    execution.route.screenshot = screenshot;
+
+    execution.route.distanceKm = distanceNum;
+    execution.route.travelCharge = travelCharge;
+
+
+    execution.route.verified = true;
+    execution.route.verifiedAt = new Date();
+
+    execution.status = 'Route Verified';
+
+    await execution.save();
+
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Route verified successfully.',
+      serviceExecution: execution,
+    });
+
+  } catch (error) {
+      console.error('Submit Route Verification Error:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to submit route verification.',
       error: error.message,
     });
   }

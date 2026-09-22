@@ -14,6 +14,7 @@ const {
   getBookingToVendorUnderRange,
   acceptBooking,
   updateBookingStatus,
+  routeVerification
 } = require('../controllers/booking.controller');
 
 router.post('/', auth, isCustomer, upload.single('image'), createBooking);
@@ -34,6 +35,8 @@ router.patch('/:bookingId/cancel', auth, isCustomer, cancelBooking);
 
 router.get('/:bookingId', auth, getBookingDetails);
 
+router.post('/:bookingId/route-verification',auth,isVendor,upload.single('image'),routeVerification);
+
 module.exports = router;
 
-// address model banana h
+
