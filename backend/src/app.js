@@ -5,6 +5,9 @@ const helmet = require('helmet');
 
 const app = express();
 
+// Trust reverse proxy (Render, Cloudflare, Heroku) for accurate IP rate limiting and secure cookies
+app.set('trust proxy', 1);
+
 app.use(helmet());
 
 const allowedOrigins = [

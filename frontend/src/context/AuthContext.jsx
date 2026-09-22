@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { createAddressApi, getAddressesApi } from '../services/operations/addressAPI';
-import { updateUserLocationApi, getUserProfileApi, updateUserProfileApi } from '../services/operations/authAPI';
+import { updateUserLocationApi, getUserProfileApi, updateUserProfileApi, logoutApi } from '../services/operations/authAPI';
 import { getVendorProfileApi } from '../services/operations/vendorAPI';
 import { parseAddressString } from '../utils/addressParser';
 
@@ -77,9 +77,7 @@ export function AuthProvider({ children }) {
                 if (profileRes?.success && profileRes?.vendorProfile) {
                   profileData = profileRes.vendorProfile;
                 }
-              }
-
-              if (!profileData) {
+              } else {
                 profileRes = await getUserProfileApi(storedToken);
                 if (profileRes?.success && profileRes?.user) {
                   profileData = profileRes.user;
@@ -231,8 +229,12 @@ export function AuthProvider({ children }) {
     fetchAddresses(authToken);
   };
 
-  const logout = () => {
-    
+  const logout = async () => {
+    try {
+      await logoutApi();
+    } catch (apiErr) {
+      console.warn('Backend logout API error:', apiErr);
+    }
     setUser(null);
     setToken(null);
     setIsLoggedIn(false);
@@ -355,8 +357,16 @@ export function AuthProvider({ children }) {
     }
     // ─────────────────────────────────────────────────────────────────────────
 
+    const isVendorUser = updatedUser.role === 'vendor' || !!updatedUser.vendorId || !!updatedUser.serviceRadius;
+
     // Persist to backend if token is available
     if (token) {
+      if (isVendorUser) {
+        // Vendors use updateVendorProfileApi in VendorDashboardPage to persist data.
+        // updateProfile for vendors only needs to keep client state and Navbar synced.
+        return { success: true, user: updatedUser };
+      }
+
       try {
         const payload = {
           fullName: profileData.fullName,
@@ -370,6 +380,7 @@ export function AuthProvider({ children }) {
           const syncedUser = {
             ...updatedUser,
             ...res.user,
+            role: updatedUser.role || res.user.role || 'customer',
           };
           setUser(syncedUser);
           localStorage.setItem('mm_user', JSON.stringify(syncedUser));

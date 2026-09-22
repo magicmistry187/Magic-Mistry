@@ -10,6 +10,7 @@ export const authEndpoints = {
   FORGOT_PASSWORD_API: BASE_URL + "/auth/forgotPassword",
   GET_USER_PROFILE_API: BASE_URL + "/auth/profile",
   UPDATE_USER_PROFILE_API: BASE_URL + "/auth/profile",
+  LOGOUT_API: BASE_URL + "/auth/logout",
 };
 
 const {
@@ -266,6 +267,20 @@ export async function updateUserProfileApi(profileData, token) {
     return {
       success: false,
       message: err.response?.data?.message || err.message || "Failed to update profile",
+    };
+  }
+}
+
+export async function logoutApi() {
+  try {
+    const res = await apiConnector("POST", BASE_URL + "/auth/logout");
+    console.log("LOGOUT API RESPONSE .......", res.data);
+    return res.data;
+  } catch (err) {
+    console.warn("LOGOUT API ERROR .......", err);
+    return {
+      success: false,
+      message: err.response?.data?.message || err.message || "Logout failed",
     };
   }
 }

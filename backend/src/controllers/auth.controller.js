@@ -292,11 +292,19 @@ async function login(req, res) {
     const userData = user.toObject();
     delete userData.password;
 
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      path: "/",
+    };
+    // Clear any conflicting vendor cookie so sessions never mix
+    res.clearCookie("vendorToken", cookieOptions);
+
     return res
       .cookie("token", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
+        ...cookieOptions,
+        maxAge: 7 * 24 * 60 * 60 * 1000,
       })
       .status(200)
       .json({
@@ -400,11 +408,19 @@ async function googleLogin(req, res) {
 
     const token = generateToken(user);
 
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      path: "/",
+    };
+    // Clear any conflicting vendor cookie so sessions never mix
+    res.clearCookie("vendorToken", cookieOptions);
+
     return res
       .cookie("token", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+        ...cookieOptions,
+        maxAge: 7 * 24 * 60 * 60 * 1000,
       })
       .status(200)
       .json({
@@ -696,11 +712,37 @@ async function forgotPassword(req, res) {
   }
 }
 
+// logout
+async function logout(req, res) {
+  try {
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      path: "/",
+    };
+    res.clearCookie("token", cookieOptions);
+    res.clearCookie("vendorToken", cookieOptions);
+
+    return res.status(200).json({
+      success: true,
+      message: "Logged out successfully.",
+    });
+  } catch (error) {
+    console.error("Logout Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error during logout.",
+    });
+  }
+}
+
 module.exports = {
   signup,
   sendOtp,
   login,
   googleLogin,
+  logout,
   changePassword,
   verifyOtpForForgotPassword,
   forgotPassword,

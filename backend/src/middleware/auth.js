@@ -8,10 +8,32 @@ exports.auth = async (req, res, next) => {
   // console.log("Cookies:", req.cookies);
   try {
 
-    const token =
-      req.cookies?.token ||
-      req.cookies?.vendorToken ||
-      req.header("Authorization")?.replace("Bearer ", "");
+    // 1. Authorization header (Bearer token) MUST take highest priority.
+    // Client-side SPAs explicitly pass the active session token in this header.
+    const authHeader = req.header("Authorization");
+    const bearerToken =
+      authHeader && authHeader.startsWith("Bearer ")
+        ? authHeader.replace("Bearer ", "").trim()
+        : null;
+
+    const validBearer =
+      bearerToken &&
+      bearerToken !== "null" &&
+      bearerToken !== "undefined" &&
+      bearerToken !== ""
+        ? bearerToken
+        : null;
+
+    // 2. Fallback to cookies only if no Bearer token was provided
+    const isVendorRoute =
+      req.baseUrl?.includes("/vendor") ||
+      req.originalUrl?.includes("/api/vendor");
+
+    const cookieToken = isVendorRoute
+      ? req.cookies?.vendorToken || req.cookies?.token
+      : req.cookies?.token || req.cookies?.vendorToken;
+
+    const token = validBearer || cookieToken;
 
     if (!token) {
       return res.status(401).json({
