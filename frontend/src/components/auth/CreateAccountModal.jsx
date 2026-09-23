@@ -108,8 +108,16 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
         const response = await googleLogin(tokenResponse.access_token);
 
         if (response.success) {
+          const isAdmin = response.user?.email && response.user.email.toLowerCase().trim() === 'magicmistry187@gmail.com';
+          if (isAdmin) {
+            response.user.role = 'admin';
+          }
           login(response.user, response.token);
-          navigate(targetPath, { state: location.state, replace: true });
+          if (isAdmin || response.user?.role === 'admin') {
+            navigate('/admin-dashboard', { replace: true });
+          } else {
+            navigate(targetPath, { state: location.state, replace: true });
+          }
         } else {
           setGoogleError(response.message || 'Google sign-up failed. Please try again.');
         }

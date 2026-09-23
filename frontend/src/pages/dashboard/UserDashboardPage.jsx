@@ -119,10 +119,11 @@ export default function UserDashboardPage() {
   // Role guard — redirect vendors/admins to their correct dashboard
   React.useEffect(() => {
     if (loading) return; // wait for auth to rehydrate
-    if (user?.role === 'vendor') {
-      navigate('/vendor-dashboard', { replace: true });
-    } else if (user?.role === 'admin') {
+    const isAdminEmail = user?.email && user.email.toLowerCase().trim() === 'magicmistry187@gmail.com';
+    if (user?.role === 'admin' || isAdminEmail) {
       navigate('/admin-dashboard', { replace: true });
+    } else if (user?.role === 'vendor' || !!user?.vendorId) {
+      navigate('/vendor-dashboard', { replace: true });
     }
   }, [user, loading, navigate]);
 

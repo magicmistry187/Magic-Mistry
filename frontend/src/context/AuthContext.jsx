@@ -18,7 +18,12 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     try {
       const stored = localStorage.getItem('mm_user');
-      return stored ? JSON.parse(stored) : null;
+      if (!stored) return null;
+      const parsed = JSON.parse(stored);
+      if (parsed?.email && parsed.email.toLowerCase().trim() === 'magicmistry187@gmail.com') {
+        parsed.role = 'admin';
+      }
+      return parsed;
     } catch {
       return null;
     }
@@ -54,6 +59,9 @@ export function AuthProvider({ children }) {
         if (storedToken && storedUser) {
           setToken(storedToken);
           const parsedUser = JSON.parse(storedUser);
+          if (parsedUser?.email && parsedUser.email.toLowerCase().trim() === 'magicmistry187@gmail.com') {
+            parsedUser.role = 'admin';
+          }
           setUser(parsedUser);
           setIsLoggedIn(true);
 
@@ -63,8 +71,12 @@ export function AuthProvider({ children }) {
           setLocation(initialResolvedLoc);
 
           // Rehydrate fresh profile data from backend (AUTHORITATIVE SOURCE)
-          if (parsedUser.role === 'admin') {
-            // Nothing to sync — keep what's in localStorage as the source of truth
+          const isAdminUser = parsedUser.role === 'admin' || (parsedUser.email && parsedUser.email.toLowerCase().trim() === 'magicmistry187@gmail.com');
+          if (isAdminUser) {
+            parsedUser.role = 'admin';
+            setUser(parsedUser);
+            localStorage.setItem('mm_user', JSON.stringify(parsedUser));
+            // Admin role is preserved
           } else {
             try {
               let profileRes;
@@ -90,7 +102,9 @@ export function AuthProvider({ children }) {
                   ...parsedUser,
                   ...profileData,
                   ...nestedUser,
-                  role: parsedUser.role || profileData.role || (isVendor ? 'vendor' : 'customer'),
+                  role: (profileData?.email?.toLowerCase().trim() === 'magicmistry187@gmail.com' || parsedUser?.email?.toLowerCase().trim() === 'magicmistry187@gmail.com')
+                    ? 'admin'
+                    : (profileData.role || parsedUser.role || (isVendor ? 'vendor' : 'customer')),
                 };
 
                 // Check authoritative database location
@@ -195,11 +209,15 @@ export function AuthProvider({ children }) {
   }, [token]);
 
   const login = (userData, authToken) => {
+    const isAdminEmail = userData?.email && userData.email.toLowerCase().trim() === 'magicmistry187@gmail.com';
+    const role = isAdminEmail ? 'admin' : (userData.role || 'customer');
+
     // Database location is the authoritative source:
     const dbLoc = userData.location && userData.location !== 'Set Your Location' ? userData.location.trim() : '';
 
     const updatedUser = {
       ...userData,
+      role,
       location: dbLoc,
     };
 
@@ -229,12 +247,8 @@ export function AuthProvider({ children }) {
     fetchAddresses(authToken);
   };
 
-  const logout = async () => {
-    try {
-      await logoutApi();
-    } catch (apiErr) {
-      console.warn('Backend logout API error:', apiErr);
-    }
+  const logout = () => {
+    // 1. Immediately & synchronously clear all client auth state and storage
     setUser(null);
     setToken(null);
     setIsLoggedIn(false);
@@ -246,6 +260,11 @@ export function AuthProvider({ children }) {
     } catch (storageErr) {
       console.warn('Storage clear error on logout:', storageErr);
     }
+
+    // 2. Dispatch backend logout API in background (fire-and-forget) to invalidate server cookie/session
+    logoutApi().catch((apiErr) => {
+      console.warn('Backend logout API error:', apiErr);
+    });
   };
 
   /**
@@ -377,10 +396,12 @@ export function AuthProvider({ children }) {
         };
         const res = await updateUserProfileApi(payload, token);
         if (res.success && res.user) {
+          const isAdminEmail = (res.user?.email && res.user.email.toLowerCase().trim() === 'magicmistry187@gmail.com') ||
+            (updatedUser?.email && updatedUser.email.toLowerCase().trim() === 'magicmistry187@gmail.com');
           const syncedUser = {
             ...updatedUser,
             ...res.user,
-            role: updatedUser.role || res.user.role || 'customer',
+            role: isAdminEmail ? 'admin' : (updatedUser.role || res.user.role || 'customer'),
           };
           setUser(syncedUser);
           localStorage.setItem('mm_user', JSON.stringify(syncedUser));

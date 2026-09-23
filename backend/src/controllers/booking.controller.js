@@ -103,20 +103,54 @@ exports.createBooking = async (req, res) => {
       serviceCategoryCharge: Number(serviceCategoryCharge),
     };
 
-    const latNum =
+    let latNum =
       latitude !== null &&
       latitude !== undefined &&
       latitude !== '' &&
       !isNaN(Number(latitude))
         ? Number(latitude)
         : null;
-    const lngNum =
+    let lngNum =
       longitude !== null &&
       longitude !== undefined &&
       longitude !== '' &&
       !isNaN(Number(longitude))
         ? Number(longitude)
         : null;
+
+    // Fallback: If coordinates were omitted, attempt extraction from address object or customer default Address
+    if (latNum === null || lngNum === null) {
+      if (typeof address === 'object' && address !== null) {
+        if (
+          address.location?.coordinates?.length === 2 &&
+          !isNaN(Number(address.location.coordinates[0])) &&
+          !isNaN(Number(address.location.coordinates[1]))
+        ) {
+          lngNum = Number(address.location.coordinates[0]);
+          latNum = Number(address.location.coordinates[1]);
+        } else if (
+          address.latitude &&
+          address.longitude &&
+          !isNaN(Number(address.latitude)) &&
+          !isNaN(Number(address.longitude))
+        ) {
+          latNum = Number(address.latitude);
+          lngNum = Number(address.longitude);
+        }
+      }
+    }
+
+    if (latNum === null || lngNum === null) {
+      try {
+        const defaultAddr = await Address.findOne({ user: req.user.id, isDefault: true });
+        if (defaultAddr?.location?.coordinates?.length === 2) {
+          lngNum = Number(defaultAddr.location.coordinates[0]);
+          latNum = Number(defaultAddr.location.coordinates[1]);
+        }
+      } catch (addrErr) {
+        console.warn('[Booking] Could not fallback to default address coordinates:', addrErr);
+      }
+    }
 
     if (latNum !== null && lngNum !== null) {
       bookingData.location = {
@@ -391,41 +425,86 @@ exports.getBookingToVendorUnderRange = async (req, res) => {
           { path: "vendor", select: "fullName email phoneNumber" },
         ]);
 
-        // Also fetch pending bookings without location coordinates so they are never dropped
-        const nonGeoPending = await Booking.find({
-          bookingStatus: "Pending",
-          $or: [{ vendor: null }, { vendor: { $exists: false } }],
-          $or: [
-            { location: { $exists: false } },
-            { location: null },
-            { "location.coordinates": { $exists: false } },
-            { "location.coordinates": { $size: 0 } },
+        // Also fetch pending bookings without location coordinates ONLY if in the same city as vendor
+        let nonGeoPending = [];
+        const vendorCity = (vendorAddress?.city || "").trim();
+
+        if (vendorCity) {
+          const escapedCity = vendorCity.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          nonGeoPending = await Booking.find({
+            $and: [
+              { bookingStatus: "Pending" },
+              { $or: [{ vendor: null }, { vendor: { $exists: false } }] },
+              {
+                $or: [
+                  { location: { $exists: false } },
+                  { location: null },
+                  { "location.coordinates": { $exists: false } },
+                  { "location.coordinates": { $size: 0 } },
+                ],
+              },
+              {
+                $or: [
+                  { "address.city": new RegExp(`^${escapedCity}$`, "i") },
+                  { "address": new RegExp(`\\b${escapedCity}\\b`, "i") },
+                ],
+              },
+            ],
+          })
+            .populate("customer", "fullName email phoneNumber")
+            .populate("vendor", "fullName email phoneNumber")
+            .lean();
+        }
+
+        pendingBookings = [...geoPending, ...nonGeoPending];
+      } catch (geoErr) {
+        console.warn("Geo query failed, falling back to city match:", geoErr.message);
+        const vendorCity = (vendorAddress?.city || "").trim();
+        if (vendorCity) {
+          const escapedCity = vendorCity.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          pendingBookings = await Booking.find({
+            $and: [
+              { bookingStatus: "Pending" },
+              { $or: [{ vendor: null }, { vendor: { $exists: false } }] },
+              {
+                $or: [
+                  { "address.city": new RegExp(`^${escapedCity}$`, "i") },
+                  { "address": new RegExp(`\\b${escapedCity}\\b`, "i") },
+                ],
+              },
+            ],
+          })
+            .populate("customer", "fullName email phoneNumber")
+            .populate("vendor", "fullName email phoneNumber")
+            .lean();
+        } else {
+          pendingBookings = [];
+        }
+      }
+    } else {
+      // Vendor has no coordinates configured yet -> match by city if available, otherwise return empty
+      const vendorCity = (vendorAddress?.city || "").trim();
+      if (vendorCity) {
+        const escapedCity = vendorCity.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        pendingBookings = await Booking.find({
+          $and: [
+            { bookingStatus: "Pending" },
+            { $or: [{ vendor: null }, { vendor: { $exists: false } }] },
+            {
+              $or: [
+                { "address.city": new RegExp(`^${escapedCity}$`, "i") },
+                { "address": new RegExp(`\\b${escapedCity}\\b`, "i") },
+              ],
+            },
           ],
         })
           .populate("customer", "fullName email phoneNumber")
           .populate("vendor", "fullName email phoneNumber")
           .lean();
-
-        pendingBookings = [...geoPending, ...nonGeoPending];
-      } catch (geoErr) {
-        console.warn("Geo query failed, falling back to all pending:", geoErr.message);
-        pendingBookings = await Booking.find({
-          bookingStatus: "Pending",
-          $or: [{ vendor: null }, { vendor: { $exists: false } }],
-        })
-          .populate("customer", "fullName email phoneNumber")
-          .populate("vendor", "fullName email phoneNumber")
-          .lean();
+      } else {
+        // Vendor has no service address or city -> do not leak nationwide bookings
+        pendingBookings = [];
       }
-    } else {
-      // Vendor has no address/coordinates configured yet -> return all pending bookings as fallback
-      pendingBookings = await Booking.find({
-        bookingStatus: "Pending",
-        $or: [{ vendor: null }, { vendor: { $exists: false } }],
-      })
-        .populate("customer", "fullName email phoneNumber")
-        .populate("vendor", "fullName email phoneNumber")
-        .lean();
     }
 
     // Combine and deduplicate by booking ID

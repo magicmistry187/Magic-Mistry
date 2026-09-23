@@ -296,7 +296,7 @@ const renderBookingStatusBadge = (status) => {
 
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token, logout } = useAuth();
   const { playNotificationSound } = useSocket();
 
   // Navigation tab state: 'overview', 'users', 'applications', 'id-creation', 'analytics', 'settings'
@@ -1240,13 +1240,23 @@ export default function AdminDashboardPage() {
                 </nav>
 
                 {/* Divider */}
-                <div className="pt-4 border-t border-slate-100">
+                <div className="pt-4 border-t border-slate-100 space-y-1">
                   <button
                     onClick={() => navigate('/')}
                     className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-extrabold text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer"
                   >
-                    <LogOut className="w-4 h-4 text-slate-400" />
+                    <ExternalLink className="w-4 h-4 text-slate-400" />
                     <span>Back to Portal</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      logout();
+                      navigate('/');
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-extrabold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                  >
+                    <LogOut className="w-4 h-4 text-rose-500" />
+                    <span>Logout</span>
                   </button>
                 </div>
 

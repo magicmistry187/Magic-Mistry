@@ -73,11 +73,13 @@ const WelcomeModal = () => {
     setIsLoading(false);
 
     if (res.success) {
-      if (res.user?.email === 'magicmistry187@gmail.com') {
+      const isAdmin = (res.user?.email && res.user.email.toLowerCase().trim() === 'magicmistry187@gmail.com') ||
+                      (email && email.toLowerCase().trim() === 'magicmistry187@gmail.com');
+      if (isAdmin) {
         res.user.role = 'admin';
       }
       login(res.user, res.token);
-      if (res.user?.role === 'admin') {
+      if (isAdmin || res.user?.role === 'admin') {
         navigate('/admin-dashboard', { replace: true });
       } else if (res.user?.role === 'vendor' || isVendorLogin) {
         navigate('/vendor-dashboard', { replace: true });
@@ -97,11 +99,12 @@ const WelcomeModal = () => {
         const response = await googleLogin(tokenResponse.access_token);
 
         if (response.success) {
-          if (response.user?.email === 'magicmistry187@gmail.com') {
+          const isAdmin = response.user?.email && response.user.email.toLowerCase().trim() === 'magicmistry187@gmail.com';
+          if (isAdmin) {
             response.user.role = 'admin';
           }
           login(response.user, response.token);
-          if (response.user?.role === 'admin') {
+          if (isAdmin || response.user?.role === 'admin') {
             navigate('/admin-dashboard', { replace: true });
           } else {
             navigate(from, { replace: true });
