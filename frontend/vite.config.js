@@ -9,7 +9,7 @@ export default defineConfig({
     react()
   ],
   build: {
-    chunkSizeWarningLimit: 1600,
+    chunkSizeWarningLimit: 2000,
     rolldownOptions: {
       onwarn(warning, defaultHandler) {
         if (warning.code === 'MODULE_LEVEL_DIRECTIVE' || warning.code === 'SOURCEMAP_ERROR') return;
@@ -18,18 +18,18 @@ export default defineConfig({
         codeSplitting: {
           groups: [
             {
+              name: 'vendor-charts',
+              test: /node_modules[\\/](recharts|react-is)[\\/]/,
+              priority: 25,
+            },
+            {
               name: 'vendor-react',
-              test: /node_modules[\\/](react|react-dom|react-router-dom)/,
+              test: /node_modules[\\/](react|react-dom|react-router-dom)[\\/]/,
               priority: 20,
             },
             {
-              name: 'vendor-charts',
-              test: /node_modules[\\/]recharts/,
-              priority: 15,
-            },
-            {
               name: 'vendor-ui',
-              test: /node_modules[\\/](framer-motion|lucide-react|react-icons)/,
+              test: /node_modules[\\/](framer-motion|lucide-react|react-icons)[\\/]/,
               priority: 10,
             },
           ],
@@ -42,13 +42,13 @@ export default defineConfig({
       },
       output: {
         manualChunks(id) {
-          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom') || id.includes('node_modules/react-router-dom')) {
-            return 'vendor-react';
-          }
-          if (id.includes('node_modules/recharts')) {
+          if (id.includes('node_modules/recharts') || id.includes('node_modules/react-is')) {
             return 'vendor-charts';
           }
-          if (id.includes('node_modules/framer-motion') || id.includes('node_modules/lucide-react')) {
+          if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/') || id.includes('node_modules/react-router-dom/')) {
+            return 'vendor-react';
+          }
+          if (id.includes('node_modules/framer-motion') || id.includes('node_modules/lucide-react') || id.includes('node_modules/react-icons')) {
             return 'vendor-ui';
           }
         },
