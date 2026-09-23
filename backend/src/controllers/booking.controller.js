@@ -642,13 +642,10 @@ exports.routeVerification = async (req, res) => {
       });
     }
     if (!Number.isFinite(rateNum) || rateNum < 0) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message:
-            'Rate per kilometer must be a valid number.',
-        });
+      return res.status(400).json({
+        success: false,
+        message: 'Rate per kilometer must be a valid number.',
+      });
     }
 
     let screenshot = {
@@ -677,14 +674,13 @@ exports.routeVerification = async (req, res) => {
     }
 
     // calculating travel charge
-   const travelCharge = distanceNum * rateNum;
+    const travelCharge = distanceNum * rateNum;
 
-
-   //saving the ddata to the database
+    //saving the ddata to the database
     execution.route.screenshot = screenshot;
 
     execution.route.distanceKm = distanceNum;
-    execution.route.ratePerKm = rateNum
+    execution.route.ratePerKm = rateNum;
     execution.route.travelCharge = travelCharge;
 
     execution.route.verified = true;
@@ -705,6 +701,120 @@ exports.routeVerification = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to submit route verification.',
+      error: error.message,
+    });
+  }
+};
+
+exports.submitServiceDetails = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const vendorId = req.user.id;
+
+    const { checklist, customerNote } = req.body;
+
+    const execution = await ServiceExecution.findOne({
+      booking: bookingId,
+      vendor: vendorId,
+      status: 'Route Verified',
+    });
+
+    if (!execution) {
+      return res.status(404).json({
+        success: false,
+        message:
+          'Service execution not found or route verification is not completed.',
+      });
+    }
+
+    let parsedChecklist;
+
+    try {
+      parsedChecklist =
+        typeof checklist === 'string' ? JSON.parse(checklist) : checklist;
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid checklist format.',
+      });
+    }
+
+    if (!parsedChecklist || typeof parsedChecklist !== 'object') {
+      return res.status(400).json({
+        success: false,
+        message: 'Checklist is required.',
+      });
+    }
+
+    const checklistFields = [
+      'service',
+      'inspection',
+      'diagnosis',
+      'testingCleanup',
+    ];
+
+    for (const field of checklistFields) {
+      if (typeof parsedChecklist[field] !== 'boolean') {
+        return res.status(400).json({
+          success: false,
+          message: `${field} must be true or false.`,
+        });
+      }
+    }
+
+    execution.checklist = {
+      service: parsedChecklist.service,
+      inspection: parsedChecklist.inspection,
+      diagnosis: parsedChecklist.diagnosis,
+      testingCleanup: parsedChecklist.testingCleanup,
+    };
+
+    execution.customerNote = customerNote || '';
+
+    const beforeImage = req.files?.beforeImage?.[0];
+
+    if (beforeImage) {
+      const beforeUpload = await uploadImageToImageKit(
+        beforeImage.buffer,
+        beforeImage.originalname || `before-${Date.now()}.jpg`,
+      );
+
+      execution.documentation.beforeImage = {
+        url: beforeUpload.url,
+        fileId: beforeUpload.fileId,
+      };
+    }
+
+    const afterImage = req.files?.afterImage?.[0];
+
+    if (afterImage) {
+      const afterUpload = await uploadImageToImageKit(
+        afterImage.buffer,
+        afterImage.originalname || `after-${Date.now()}.jpg`,
+      );
+
+      execution.documentation.afterImage = {
+        url: afterUpload.url,
+        fileId: afterUpload.fileId,
+      };
+    }
+
+    // Route Verified -> In Progress
+    execution.status = 'In Progress';
+
+    await execution.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Service details submitted successfully.',
+      serviceExecution: execution,
+    });
+  } catch (error) {
+    console.error('Submit Service Details Error:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to submit service details.',
       error: error.message,
     });
   }

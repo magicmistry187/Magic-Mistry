@@ -91,83 +91,77 @@ const serviceExecutionSchema = new mongoose.Schema(
     // SERVICE TIME
     // ==========================================
 
-    arrivedAt: {
-      type: Date,
-      default: null,
-    },
+    // arrivedAt: {
+    //   type: Date,
+    //   default: null,
+    // },
 
-    serviceStartedAt: {
-      type: Date,
-      default: null,
-    },
+    // serviceStartedAt: {
+    //   type: Date,
+    //   default: null,
+    // },
 
-    serviceCompletedAt: {
-      type: Date,
-      default: null,
-    },
+    // serviceCompletedAt: {
+    //   type: Date,
+    //   default: null,
+    // },
 
     // ==========================================
     // SERVICE CHECKLIST
     // ==========================================
 
-    checklist: [
-      {
-        key: {
-          type: String,
-          required: true,
-        },
+   checklist: {
+  service: {
+    type: Boolean,
+    default: false,
+  },
 
-        title: {
-          type: String,
-          required: true,
-        },
+  inspection: {
+    type: Boolean,
+    default: false,
+  },
 
-        completed: {
-          type: Boolean,
-          default: false,
-        },
+  diagnosis: {
+    type: Boolean,
+    default: false,
+  },
 
-        completedAt: {
-          type: Date,
-          default: null,
-        },
-      },
-    ],
-
+  testingCleanup: {
+    type: Boolean,
+    default: false,
+  },
+},
     // ==========================================
     // BEFORE / AFTER DOCUMENTATION
     // ==========================================
 
-    documentation: {
-      beforeImages: [
-        {
-          url: {
-            type: String,
-            required: true,
-          },
-
-          fileId: {
-            type: String,
-            required: true,
-          },
-        },
-      ],
-
-      afterImages: [
-        {
-          url: {
-            type: String,
-            required: true,
-          },
-
-          fileId: {
-            type: String,
-            required: true,
-          },
-        },
-      ],
+   documentation: {
+  beforeImage: {
+    url: {
+      type: String,
+      default: null,
+    
     },
+    fileId: {
+      type: String,
+      default: null,
+      
+    },
+  },
 
+  afterImage: {
+    url: {
+      type: String,
+       default: null,
+      
+    },
+    fileId: {
+      type: String,
+       default: null,
+      
+    },
+  },
+},
     // ==========================================
     // NOTES
     // ==========================================
@@ -178,11 +172,11 @@ const serviceExecutionSchema = new mongoose.Schema(
       default: '',
     },
 
-    vendorNote: {
-      type: String,
-      trim: true,
-      default: '',
-    },
+    // vendorNote: {
+    //   type: String,
+    //   trim: true,
+    //   default: '',
+    // },
 
     // ==========================================
     // SERVICE STATUS
