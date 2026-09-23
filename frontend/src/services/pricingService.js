@@ -295,16 +295,14 @@ export function getLiveFuelRate() {
 }
 
 /**
- * Saves updated service catalog and dispatches reactive events to all open components & tabs
+ * Saves updated service catalog and dispatches reactive events
  */
 export function saveLiveServicePricing(updatedList) {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem('mm_admin_service_pricing', JSON.stringify(updatedList));
-    // Dispatch in current window
+    // CustomEvent works reliably for same-window reactivity
     window.dispatchEvent(new CustomEvent(MM_PRICING_EVENT, { detail: { services: updatedList } }));
-    // Dispatch across tabs
-    window.dispatchEvent(new StorageEvent('storage', { key: 'mm_admin_service_pricing', newValue: JSON.stringify(updatedList) }));
   } catch (e) {
     console.error('[PricingService] Error saving pricing:', e);
   }
@@ -319,7 +317,6 @@ export function saveLiveFuelRate(rate) {
     const numRate = Number(rate) || 10;
     localStorage.setItem('mm_admin_fuel_rate_per_km', String(numRate));
     window.dispatchEvent(new CustomEvent(MM_FUEL_EVENT, { detail: { fuelRate: numRate } }));
-    window.dispatchEvent(new StorageEvent('storage', { key: 'mm_admin_fuel_rate_per_km', newValue: String(numRate) }));
   } catch (e) {
     console.error('[PricingService] Error saving fuel rate:', e);
   }
