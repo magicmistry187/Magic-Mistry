@@ -5,6 +5,7 @@ export const bookingEndpoints = {
   GET_MY_BOOKINGS_API: BASE_URL + "/booking/my-bookings",
   GET_BOOKING_DETAILS_API: BASE_URL + "/booking", // + /:bookingId
   CANCEL_BOOKING_API: BASE_URL + "/booking", // + /:bookingId/cancel
+  ACCEPT_BOOKING_API: BASE_URL + "/booking", // + /:bookingId/accept
 };
 
 const {

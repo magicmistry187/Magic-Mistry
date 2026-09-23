@@ -137,9 +137,11 @@ export const formatVendorBooking = (b) => {
       ? (b.distance < 1000 ? `${Math.round(b.distance)} m away` : `${(b.distance / 1000).toFixed(1)} km away`)
       : 'Nearby';
 
+  const mongoId = b._id ? String(b._id) : (b.id && /^[0-9a-fA-F]{24}$/.test(b.id) ? String(b.id) : '');
   return {
-    id: b.bookingId || String(b._id),
-    displayId: b.bookingId || `WO-${String(b._id).slice(-6).toUpperCase()}`,
+    _id: mongoId || undefined,
+    id: b.bookingId || mongoId || String(b._id || b.id || ''),
+    displayId: b.displayId || (mongoId ? `WO-${mongoId.slice(-6).toUpperCase()}` : (b.bookingId || 'WO-JOB')),
     appliance: b.appliance || 'General',
     applianceIcon: getApplianceIcon(b.appliance),
     serviceTitle: b.serviceCategory || b.appliance || 'Service Request',
@@ -666,6 +668,7 @@ export default function VendorDashboardPage() {
 
   // Toast / Notifications
   const [toastMessage, setToastMessage] = useState(null);
+  const [acceptingJobId, setAcceptingJobId] = useState(null);
   
   // Payout Request State
   const [payoutRequested, setPayoutRequested] = useState(false);
@@ -1144,7 +1147,10 @@ export default function VendorDashboardPage() {
   useSocketEvent('booking:taken', (data) => {
     if (!data?.bookingId) return;
     const targetId = String(data.bookingId);
-    setJobs((prevJobs) => prevJobs.filter((j) => String(j.id) !== targetId || j.status !== 'New Request'));
+    if (data.assignedVendorId && String(data.assignedVendorId) === String(user?._id || user?.id)) {
+      return;
+    }
+    setJobs((prevJobs) => prevJobs.filter((j) => (String(j.id) !== targetId && String(j._id) !== targetId) || j.status !== 'New Request'));
   });
 
   // 3. Status changed on an assigned booking (e.g. Completed, In Progress)
@@ -1226,20 +1232,49 @@ export default function VendorDashboardPage() {
 
   // Accept / Reject
   const handleAcceptJob = async (jobId) => {
-    setJobs(prevJobs =>
-      prevJobs.map(job =>
-        job.id === jobId ? { ...job, status: 'Accepted' } : job
-      )
-    );
-    showToast(`Work Order ${jobId} accepted! Navigation route ready.`, 'success');
+    const targetJob = jobs.find(j => String(j.id) === String(jobId) || String(j._id) === String(jobId));
+    const backendBookingId = targetJob?._id || (targetJob?.id && /^[0-9a-fA-F]{24}$/.test(String(targetJob.id)) ? String(targetJob.id) : null) || (/^[0-9a-fA-F]{24}$/.test(String(jobId)) ? String(jobId) : null);
 
     const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') : null);
-    if (authToken && jobId) {
+
+    if (backendBookingId) {
+      if (!authToken) {
+        showToast('Please log in as a vendor to accept bookings.', 'error');
+        return;
+      }
+      setAcceptingJobId(jobId);
       try {
-        await acceptBookingApi(jobId, authToken);
+        const res = await acceptBookingApi(backendBookingId, authToken);
+        if (res.success && res.booking) {
+          const formatted = formatVendorBooking(res.booking);
+          setJobs(prevJobs =>
+            prevJobs.map(job =>
+              (String(job.id) === String(jobId) || String(job._id) === String(backendBookingId) || String(job.id) === String(backendBookingId))
+                ? { ...job, ...formatted, status: 'Accepted' }
+                : job
+            )
+          );
+          showToast(`Work Order ${targetJob?.displayId || formatted.displayId || jobId} accepted! Navigation route ready.`, 'success');
+        } else {
+          showToast(res.message || 'Booking is no longer available.', 'error');
+          if (res.message && res.message.toLowerCase().includes('no longer available')) {
+            setJobs(prevJobs => prevJobs.filter(job => String(job.id) !== String(jobId) && String(job._id) !== String(backendBookingId)));
+          }
+        }
       } catch (err) {
         console.error('[Vendor Dashboard] Accept booking error:', err);
+        showToast(err.message || 'Failed to accept booking.', 'error');
+      } finally {
+        setAcceptingJobId(null);
       }
+    } else {
+      // Local mock job acceptance for sample preview data
+      setJobs(prevJobs =>
+        prevJobs.map(job =>
+          job.id === jobId ? { ...job, status: 'Accepted' } : job
+        )
+      );
+      showToast(`Work Order ${targetJob?.displayId || jobId} accepted! Navigation route ready.`, 'success');
     }
   };
 
@@ -2043,9 +2078,17 @@ export default function VendorDashboardPage() {
                                     <>
                                       <button
                                         onClick={() => handleAcceptJob(job.id)}
-                                        className="flex-1 sm:flex-none px-5 py-2 bg-orange-600 hover:bg-orange-700 text-white text-xs font-extrabold rounded-xl shadow-sm cursor-pointer"
+                                        disabled={acceptingJobId === job.id}
+                                        className={`flex-1 sm:flex-none px-5 py-2 bg-orange-600 hover:bg-orange-700 text-white text-xs font-extrabold rounded-xl shadow-sm cursor-pointer transition-all ${acceptingJobId === job.id ? 'opacity-70 cursor-not-allowed' : ''}`}
                                       >
-                                        Accept
+                                        {acceptingJobId === job.id ? (
+                                          <span className="flex items-center gap-1.5">
+                                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                            Accepting...
+                                          </span>
+                                        ) : (
+                                          'Accept'
+                                        )}
                                       </button>
                                       <button
                                         onClick={() => handleRejectJob(job.id)}
