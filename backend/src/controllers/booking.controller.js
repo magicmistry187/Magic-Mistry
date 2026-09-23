@@ -466,7 +466,6 @@ exports.getBookingToVendorUnderRange = async (req, res) => {
 
 exports.acceptBooking = async (req, res) => {
   try {
-    
     const { bookingId } = req.params;
     const vendorId = req.user.id;
 
@@ -495,7 +494,7 @@ exports.acceptBooking = async (req, res) => {
     }
 
     // updated part
-   
+
     await ServiceExecution.create({
       booking: booking._id,
       vendor: vendorId,
@@ -598,13 +597,19 @@ exports.routeVerification = async (req, res) => {
   try {
     const { bookingId } = req.params;
     const vendorId = req.user.id;
-    const { distanceKm } = req.body;
+    const { distanceKm, ratePerKm } = req.body;
 
-    if (!distanceKm) {
+    if (distanceKm === undefined || distanceKm === '') {
       return res.status(400).json({
         success: false,
         message: 'Distance is required for route verification.',
       });
+    }
+
+    if (ratePerKm === undefined || ratePerKm === '') {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Rate per kilometer is required.' });
     }
 
     if (!req.file) {
@@ -628,12 +633,22 @@ exports.routeVerification = async (req, res) => {
     }
 
     const distanceNum = Number(distanceKm);
+    const rateNum = Number(ratePerKm);
 
     if (!Number.isFinite(distanceNum) || distanceNum < 0) {
       return res.status(400).json({
         success: false,
         message: 'Distance must be a valid  number.',
       });
+    }
+    if (!Number.isFinite(rateNum) || rateNum < 0) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            'Rate per kilometer must be a valid number.',
+        });
     }
 
     let screenshot = {
@@ -643,7 +658,7 @@ exports.routeVerification = async (req, res) => {
 
     if (req.file) {
       try {
-        console.log("uploading scsreeshot")
+        console.log('uploading scsreeshot');
         const result = await uploadImageToImageKit(
           req.file.buffer,
           req.file.originalname || `route-${Date.now()}.jpg`,
@@ -651,7 +666,6 @@ exports.routeVerification = async (req, res) => {
 
         screenshot.url = result.url;
         screenshot.fileId = result.fileId;
-
       } catch (error) {
         console.error('Route screenshot upload failed:', error);
 
@@ -662,15 +676,16 @@ exports.routeVerification = async (req, res) => {
       }
     }
 
-    
-    const ratePerKm = execution.route.ratePerKm || 10;
-    const travelCharge = distanceNum * ratePerKm;
+    // calculating travel charge
+   const travelCharge = distanceNum * rateNum;
 
+
+   //saving the ddata to the database
     execution.route.screenshot = screenshot;
 
     execution.route.distanceKm = distanceNum;
+    execution.route.ratePerKm = rateNum
     execution.route.travelCharge = travelCharge;
-
 
     execution.route.verified = true;
     execution.route.verifiedAt = new Date();
@@ -679,15 +694,13 @@ exports.routeVerification = async (req, res) => {
 
     await execution.save();
 
-    
     return res.status(200).json({
       success: true,
       message: 'Route verified successfully.',
       serviceExecution: execution,
     });
-
   } catch (error) {
-      console.error('Submit Route Verification Error:', error);
+    console.error('Submit Route Verification Error:', error);
 
     return res.status(500).json({
       success: false,

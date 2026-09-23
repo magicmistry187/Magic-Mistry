@@ -62,7 +62,7 @@ const serviceExecutionSchema = new mongoose.Schema(
       ratePerKm: {
         type: Number,
         min: 0,
-        default: 10,
+        required: true,
       },
 
       travelCharge: {
