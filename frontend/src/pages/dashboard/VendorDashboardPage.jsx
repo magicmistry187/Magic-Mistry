@@ -10,7 +10,7 @@ import {
   Sliders, Shield, MessageSquare, ExternalLink, AlertTriangle,
   Play, Square, Camera, Trash2, Send, Eye, Lock,
   PlusCircle, CheckSquare, Square as SquareOutline, QrCode, Smartphone,
-  Printer, X, Download, Fuel, Compass, LayoutDashboard
+  Printer, X, Download, Fuel, Compass
 } from 'lucide-react';
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
@@ -1818,17 +1818,6 @@ export default function VendorDashboardPage() {
                     </span>
                     {isOnline ? 'ONLINE' : 'OFFLINE'}
                   </div>
-
-                  {((user?.role || '').toLowerCase() === 'admin' || (user?.email && user.email.toLowerCase().trim() === 'magicmistry187@gmail.com')) && (
-                    <button
-                      onClick={() => navigate('/admin-dashboard')}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold hover:bg-indigo-100 transition-colors shadow-2xs cursor-pointer ml-1"
-                      title="Return to Admin Dashboard"
-                    >
-                      <LayoutDashboard className="w-3.5 h-3.5" />
-                      <span>Admin Mode</span>
-                    </button>
-                  )}
                 </div>
 
                 {/* Navigation Tabs - scrollable on mobile */}

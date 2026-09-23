@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, MapPin, Menu, X, LogOut, User, LayoutDashboard, ChevronDown, ExternalLink, Wrench } from 'lucide-react';
+import { Search, MapPin, Menu, X, LogOut, User, LayoutDashboard, ChevronDown, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 const logo2 = '/logo2.png';
 import { useAuth } from '../../context/AuthContext';
@@ -539,30 +539,6 @@ const Navbar = () => {
                               </div>
                             </motion.button>
 
-                            {/* Additional Vendor Dashboard link for Admin */}
-                            {isAdmin && (
-                              <motion.button
-                                custom={0.5}
-                                variants={dropdownItemVariants}
-                                initial="hidden"
-                                animate="visible"
-                                whileHover={{ x: 4, backgroundColor: '#FFF7ED' }}
-                                onClick={() => {
-                                  setIsDropdownOpen(false);
-                                  navigate('/vendor-dashboard');
-                                }}
-                                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 transition-colors"
-                              >
-                                <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
-                                  <Wrench className="w-4 h-4 text-orange-600" />
-                                </div>
-                                <div className="text-left">
-                                  <p className="font-semibold text-gray-800">Vendor Dashboard</p>
-                                  <p className="text-xs text-gray-400">Technician portal & live jobs</p>
-                                </div>
-                              </motion.button>
-                            )}
-
                             <div className="mx-3 my-1 h-px bg-gray-100" />
 
                             <motion.button
@@ -782,18 +758,6 @@ const Navbar = () => {
                         <span>{isAdmin ? 'Admin Dashboard' : 'My Profile / Dashboard'}</span>
                       </button>
 
-                      {isAdmin && (
-                        <button
-                          onClick={() => {
-                            setIsMobileMenuOpen(false);
-                            navigate('/vendor-dashboard');
-                          }}
-                          className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-emerald-700 border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors"
-                        >
-                          <Wrench className="w-4 h-4 text-emerald-600" />
-                          <span>Vendor Dashboard</span>
-                        </button>
-                      )}
                       {/* Mobile Logout Button */}
                       <button
                         onClick={handleLogout}

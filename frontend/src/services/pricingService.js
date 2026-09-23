@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 
 // Master default catalog of appliances, categories, base prices, and sub-services
 export const DEFAULT_SERVICES_CATALOG = [
@@ -382,7 +382,9 @@ export function getLiveBasePriceForAppliance(applianceName, fallback = 299) {
 }
 
 /**
- * React Hook for automatic data updates anywhere in the UI
+ * React Hook for automatic data updates anywhere in the UI.
+ * When admin saves any pricing change, all components using this hook
+ * automatically re-render with the new values — no page reload needed.
  */
 export function useLivePricing() {
   const [services, setServices] = useState(getLiveServicePricing);
@@ -413,8 +415,32 @@ export function useLivePricing() {
     };
   }, []);
 
-  const applianceSubServices = getLiveApplianceSubServices();
-  const appliancePricing = getLiveAppliancePricing();
+  // Derived reactively from services state — auto-updates when admin changes pricing
+  const applianceSubServices = useMemo(() => {
+    const result = {};
+    services.forEach((item, index) => {
+      const numericId = typeof item.id === 'number' ? item.id : (index + 1);
+      result[numericId] = {
+        id: numericId,
+        name: item.name,
+        icon: item.icon || '🔧',
+        subServices: Array.isArray(item.subServices) ? item.subServices : []
+      };
+    });
+    return result;
+  }, [services]);
+
+  const appliancePricing = useMemo(() => {
+    const result = {};
+    services.forEach((item, index) => {
+      const numericId = typeof item.id === 'number' ? item.id : (index + 1);
+      result[numericId] = {
+        basePrice: Number(item.basePrice) || 199,
+        label: item.name
+      };
+    });
+    return result;
+  }, [services]);
 
   return {
     services,

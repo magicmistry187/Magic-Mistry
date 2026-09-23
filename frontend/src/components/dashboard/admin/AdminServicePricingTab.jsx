@@ -674,8 +674,8 @@ export default function AdminServicePricingTab({ showToast }) {
                                     <span className="text-xs font-bold text-slate-400">₹</span>
                                     <input
                                       type="number"
-                                      value={sub.price}
-                                      onChange={(e) => handleUpdateSubServicePrice(service.id, sub.id, e.target.value)}
+                                      defaultValue={sub.price}
+                                      onBlur={(e) => handleUpdateSubServicePrice(service.id, sub.id, e.target.value)}
                                       className="w-20 px-2 py-1 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-orange-500 rounded-lg text-xs font-black text-slate-900 text-right focus:outline-none"
                                     />
                                   </div>
