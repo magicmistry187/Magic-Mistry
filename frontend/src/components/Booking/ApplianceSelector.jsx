@@ -1,48 +1,35 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useBooking, APPLIANCE_SUB_SERVICES } from './BookingContext';
+import { useBooking } from './BookingContext';
+import { useLivePricing } from '../../services/pricingService';
 import { ChevronRight } from 'lucide-react';
 import ApplianceIcon from '../common/ApplianceIcon';
 
 export default function ApplianceSelector() {
   const { bookingState, updateBooking, scrollToNextStep } = useBooking();
+  const { applianceSubServices, services } = useLivePricing();
 
-  // All appliance categories matching home page & diagram flow
-  const defaultServices = [
-    { id: 1, name: 'AC Repair' },
-    { id: 2, name: 'Refrigerator' },
-    { id: 3, name: 'Washing Machine' },
-    { id: 4, name: 'Microwave' },
-    { id: 5, name: 'Mixer Grinder' },
-    { id: 6, name: 'Pump Motor' },
-    { id: 7, name: 'Air Cooler' },
-    { id: 8, name: 'Induction Cooktop' },
-    { id: 9, name: 'Stabilizer' },
-    { id: 10, name: 'Press Iron' },
-    { id: 11, name: 'TV' },
-    { id: 12, name: 'Ceiling Fan' },
-    { id: 13, name: 'Geyser' },
-    { id: 14, name: 'Stand Fan' },
-    { id: 15, name: 'Table Fan' },
-    { id: 16, name: 'Switch Board' },
-  ];
+  // All appliance categories dynamic from live pricing
+  const defaultServices = services.map((s, idx) => ({
+    id: typeof s.id === 'number' ? s.id : (idx + 1),
+    name: s.name,
+    icon: s.icon
+  }));
 
   // null means user came directly to booking page — no pre-selection
   const currentCatId = bookingState.serviceId || null;
-  const currentCatData = currentCatId ? (APPLIANCE_SUB_SERVICES[currentCatId] || null) : null;
+  const currentCatData = currentCatId ? (applianceSubServices[currentCatId] || null) : null;
   const subServicesList = currentCatData?.subServices || [];
 
   const handleSelectCategory = (cat) => {
-
     updateBooking('serviceId', cat.id);
     updateBooking('serviceName', cat.name);
 
-    // Auto-select first sub-service of new category
-    const catData = APPLIANCE_SUB_SERVICES[cat.id];
+    // Auto-select first sub-service of new category with live updated price
+    const catData = applianceSubServices[cat.id];
     if (catData?.subServices?.length) {
       const firstSub = catData.subServices[0];
-      updateBooking('selectedSubService', firstSub.label);
-      updateBooking('priceInfo', { basePrice: firstSub.price, visitCharge: 0, total: firstSub.price });
+      updateBooking('selectedSubServices', [firstSub]);
     }
   };
 

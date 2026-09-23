@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { getLiveAppliancePricing, getLiveApplianceSubServices } from '../../services/pricingService';
 
 const BookingContext = createContext();
 
@@ -216,8 +217,19 @@ export const scrollToNextStep = (targetId) => {
 const DEFAULT_BASE_PRICE = 299;
 
 export const BookingProvider = ({ children, initialAppliance = null }) => {
-  const getBasePrice = (id) =>
-    APPLIANCE_PRICING[id]?.basePrice ?? DEFAULT_BASE_PRICE;
+  const getBasePrice = (id) => {
+    try {
+      const saved = localStorage.getItem('mm_admin_service_pricing');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const match = parsed.find(p => p.id === id || String(p.name).toLowerCase().includes(String(APPLIANCE_PRICING[id]?.label || '').toLowerCase()));
+        if (match && typeof match.basePrice === 'number') {
+          return match.basePrice;
+        }
+      }
+    } catch {}
+    return APPLIANCE_PRICING[id]?.basePrice ?? DEFAULT_BASE_PRICE;
+  };
 
   const storedLoc = typeof window !== 'undefined' ? localStorage.getItem('mm_location') : null;
   const savedLocation = storedLoc && storedLoc !== 'Set Your Location' ? storedLoc : '';
@@ -260,6 +272,43 @@ export const BookingProvider = ({ children, initialAppliance = null }) => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialAppliance]);
+
+  // Automatically update prices if the admin updates them in the dashboard
+  useEffect(() => {
+    const handlePricingUpdate = () => {
+      if (bookingState.serviceId) {
+        const livePricing = getLiveAppliancePricing();
+        const liveSubs = getLiveApplianceSubServices();
+        const base = livePricing[bookingState.serviceId]?.basePrice || DEFAULT_BASE_PRICE;
+
+        if (bookingState.selectedSubServices?.length > 0) {
+          const currentCatSubs = liveSubs[bookingState.serviceId]?.subServices || [];
+          const updatedSelected = bookingState.selectedSubServices.map(selected => {
+            const found = currentCatSubs.find(s => s.label === selected.label || s.id === selected.id);
+            return found ? { ...selected, price: found.price } : selected;
+          });
+          const newTotal = updatedSelected.reduce((acc, curr) => acc + curr.price, 0);
+          setBookingState(prev => ({
+            ...prev,
+            selectedSubServices: updatedSelected,
+            priceInfo: { basePrice: newTotal, visitCharge: 0, total: newTotal }
+          }));
+        } else {
+          setBookingState(prev => ({
+            ...prev,
+            priceInfo: { basePrice: base, visitCharge: 0, total: base }
+          }));
+        }
+      }
+    };
+
+    window.addEventListener('mm_pricing_updated', handlePricingUpdate);
+    window.addEventListener('storage', handlePricingUpdate);
+    return () => {
+      window.removeEventListener('mm_pricing_updated', handlePricingUpdate);
+      window.removeEventListener('storage', handlePricingUpdate);
+    };
+  }, [bookingState.serviceId, bookingState.selectedSubServices]);
 
   const updateBooking = (key, value) => {
     setBookingState((prev) => {

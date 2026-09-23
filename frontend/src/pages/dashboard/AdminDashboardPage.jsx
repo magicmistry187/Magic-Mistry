@@ -15,6 +15,7 @@ import AdminDispatchModal from '../../components/dashboard/admin/AdminDispatchMo
 import AdminWorkReportModal from '../../components/dashboard/admin/AdminWorkReportModal';
 import AdminExportModal from '../../components/dashboard/admin/AdminExportModal';
 import AdminEditUserModal from '../../components/dashboard/admin/AdminEditUserModal';
+import AdminServicePricingTab from '../../components/dashboard/admin/AdminServicePricingTab';
 import {
   LayoutDashboard, Users, FileText, UserPlus, TrendingUp, Settings,
   Package, AlertTriangle, Truck, DollarSign, Search, ChevronDown,
@@ -1182,6 +1183,7 @@ export default function AdminDashboardPage() {
   // Sidebar navigation menu items (Exact match to reference screenshots)
   const sidebarNavItems = [
     { id: 'overview',     label: 'Dashboard Overview', icon: LayoutDashboard },
+    { id: 'service-pricing', label: 'Services & Fuel Pricing', icon: IndianRupee },
     { id: 'work-history', label: 'Work History',       icon: Clock },
     { id: 'inventory',    label: 'Inventory Management',icon: Package },
     { id: 'users',        label: 'User Management',    icon: Users },
@@ -1241,6 +1243,13 @@ export default function AdminDashboardPage() {
 
                 {/* Divider */}
                 <div className="pt-4 border-t border-slate-100 space-y-1">
+                  <button
+                    onClick={() => navigate('/vendor-dashboard')}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-extrabold text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
+                  >
+                    <Wrench className="w-4 h-4 text-emerald-500" />
+                    <span>Vendor Dashboard</span>
+                  </button>
                   <button
                     onClick={() => navigate('/')}
                     className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-extrabold text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer"
@@ -2737,6 +2746,11 @@ export default function AdminDashboardPage() {
                       </button>
                     </div>
                   </motion.div>
+                )}
+
+                {/* ── SERVICES & FUEL PRICING TAB ── */}
+                {activeTab === 'service-pricing' && (
+                  <AdminServicePricingTab showToast={showToast} />
                 )}
 
                 {/* 9. WORK HISTORY */}

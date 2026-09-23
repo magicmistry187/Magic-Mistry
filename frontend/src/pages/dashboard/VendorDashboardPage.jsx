@@ -10,7 +10,7 @@ import {
   Sliders, Shield, MessageSquare, ExternalLink, AlertTriangle,
   Play, Square, Camera, Trash2, Send, Eye, Lock,
   PlusCircle, CheckSquare, Square as SquareOutline, QrCode, Smartphone,
-  Printer, X, Download, Fuel, Compass
+  Printer, X, Download, Fuel, Compass, LayoutDashboard
 } from 'lucide-react';
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
@@ -26,6 +26,7 @@ import { useSocket, useSocketEvent } from '../../context/SocketContext';
 import { getVendorBookingsApi, acceptBookingApi, updateBookingStatusApi } from '../../services/operations/bookingAPI';
 import { saveVendorAddressApi, getAddressesApi, updateAddressApi, createAddressApi } from '../../services/operations/addressAPI';
 import { updateVendorProfileApi, getVendorProfileApi, updateVendorProfileImageApi } from '../../services/operations/vendorAPI';
+import { useLivePricing, getLiveFuelRate, getLiveBasePriceForAppliance } from '../../services/pricingService';
 
 
 // Predefined Indian Banks for Profile
@@ -131,7 +132,8 @@ export const haversineDistanceMeters = (lat1, lon1, lat2, lon2) => {
 // Reusable formatter for vendor bookings (both initial fetch and real-time socket events)
 export const formatVendorBooking = (b) => {
   const displayAddr = formatBookingAddress(b.address);
-  const pay = Number(b.serviceCategoryCharge) || Number(b.serviceCharge) || Number(b.estimatedPay) || 0;
+  const fallbackPay = getLiveBasePriceForAppliance(b.serviceCategory || b.appliance, 450);
+  const pay = Number(b.serviceCategoryCharge) || Number(b.serviceCharge) || Number(b.estimatedPay) || fallbackPay;
   const formattedDist =
     typeof b.distance === 'number'
       ? (b.distance < 1000 ? `${Math.round(b.distance)} m away` : `${(b.distance / 1000).toFixed(1)} km away`)
@@ -168,7 +170,7 @@ export const formatVendorBooking = (b) => {
     photos: b.photos || [],
     notes: b.notes || '',
     parts: b.parts || [
-      { id: 1, description: b.serviceCategory || b.appliance || 'Diagnostic & Service Charge', qty: 1, price: pay || 450, locked: true },
+      { id: 1, description: b.serviceCategory || b.appliance || 'Diagnostic & Service Charge', qty: 1, price: pay, locked: true },
     ],
   };
 };
@@ -182,7 +184,8 @@ export const calculateJobFinancials = (job) => {
   let travelCharges = 0;
 
   let distanceKm = Number(job?.travelDistanceKm) || Number(job?.invoiceData?.travelDistanceKm) || 0;
-  let ratePerKm = Number(job?.travelRatePerKm) || Number(job?.invoiceData?.travelRatePerKm) || 10;
+  const adminFuelRate = getLiveFuelRate();
+  let ratePerKm = Number(job?.travelRatePerKm) || Number(job?.invoiceData?.travelRatePerKm) || adminFuelRate;
 
   if (parts.length > 0) {
     parts.forEach(part => {
@@ -482,7 +485,9 @@ export default function VendorDashboardPage() {
 
     if (storedUser) {
       const role = (storedUser.role || storedUser.user?.role || '').toLowerCase();
-      const hasVendorAccess = role === 'vendor' || role === 'admin' || !!storedUser.vendorId || !!storedUser.user?.vendorId;
+      const isAdmin = (storedUser?.email && storedUser.email.toLowerCase().trim() === 'magicmistry187@gmail.com') ||
+                      (user?.email && user.email.toLowerCase().trim() === 'magicmistry187@gmail.com');
+      const hasVendorAccess = role === 'vendor' || role === 'admin' || isAdmin || !!storedUser.vendorId || !!storedUser.user?.vendorId;
       if (!hasVendorAccess) {
         navigate('/dashboard', { replace: true });
       }
@@ -512,6 +517,9 @@ export default function VendorDashboardPage() {
     return DEFAULT_SAMPLE_HISTORY;
   });
 
+  // Master reactive dynamic pricing and fuel reimbursement rate hook
+  const { fuelRate, services } = useLivePricing();
+
   // Persist jobs and history locally so uploaded map screenshots and completed orders are saved
   useEffect(() => {
     try {
@@ -524,6 +532,57 @@ export default function VendorDashboardPage() {
       localStorage.setItem('mm_vendor_history', JSON.stringify(history));
     } catch {}
   }, [history]);
+
+  // Reactively synchronize active jobs when fuelRate is updated by admin
+  useEffect(() => {
+    setJobs(prevJobs => prevJobs.map(job => {
+      const dist = Number(job.travelDistanceKm) || 0;
+      const updatedParts = (job.parts || []).map(p => {
+        const desc = String(p.description || '').toLowerCase();
+        const isTravel = p.isTravel || desc.includes('travel') || desc.includes('distance') || desc.includes('km ') || desc.endsWith('km');
+        if (isTravel) {
+          return {
+            ...p,
+            price: fuelRate,
+            description: `Travel & Distance Charge (${dist} km @ ₹${fuelRate}/km)`
+          };
+        }
+        return p;
+      });
+
+      return {
+        ...job,
+        travelRatePerKm: fuelRate,
+        travelCharges: dist * fuelRate,
+        parts: updatedParts
+      };
+    }));
+  }, [fuelRate]);
+
+  // Reactively synchronize active jobs when service catalog/pricing is updated by admin
+  useEffect(() => {
+    setJobs(prevJobs => prevJobs.map(job => {
+      const match = services.find(s =>
+        s.name.toLowerCase() === (job.appliance || '').toLowerCase() ||
+        (job.serviceTitle || '').toLowerCase().includes(s.name.toLowerCase())
+      );
+      if (!match) return job;
+      const newBase = Number(match.basePrice) || job.amount;
+      const updatedParts = (job.parts || []).map(p => {
+        if (p.locked || p.isService) {
+          return { ...p, price: newBase };
+        }
+        return p;
+      });
+
+      return {
+        ...job,
+        estimatedPay: newBase,
+        amount: newBase,
+        parts: updatedParts
+      };
+    }));
+  }, [services]);
 
   // Detailed earnings and payout calculation according to exact user rules:
   // 1. Service charges: strictly 50% vendor payout
@@ -653,6 +712,16 @@ export default function VendorDashboardPage() {
   
   // Active Work Order execution state
   const [selectedJob, setSelectedJob] = useState(null);
+
+  // Keep selectedJob synced with updated active jobs
+  useEffect(() => {
+    if (selectedJob) {
+      const refreshed = jobs.find(j => j.id === selectedJob.id);
+      if (refreshed && (refreshed.travelRatePerKm !== selectedJob.travelRatePerKm || refreshed.amount !== selectedJob.amount)) {
+        setSelectedJob(refreshed);
+      }
+    }
+  }, [jobs, selectedJob]);
   
   // Invoice state
   const [invoiceParts, setInvoiceParts] = useState([]);
@@ -1749,6 +1818,17 @@ export default function VendorDashboardPage() {
                     </span>
                     {isOnline ? 'ONLINE' : 'OFFLINE'}
                   </div>
+
+                  {((user?.role || '').toLowerCase() === 'admin' || (user?.email && user.email.toLowerCase().trim() === 'magicmistry187@gmail.com')) && (
+                    <button
+                      onClick={() => navigate('/admin-dashboard')}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold hover:bg-indigo-100 transition-colors shadow-2xs cursor-pointer ml-1"
+                      title="Return to Admin Dashboard"
+                    >
+                      <LayoutDashboard className="w-3.5 h-3.5" />
+                      <span>Admin Mode</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Navigation Tabs - scrollable on mobile */}

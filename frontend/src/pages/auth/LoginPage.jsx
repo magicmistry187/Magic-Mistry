@@ -80,7 +80,11 @@ const WelcomeModal = () => {
       }
       login(res.user, res.token);
       if (isAdmin || res.user?.role === 'admin') {
-        navigate('/admin-dashboard', { replace: true });
+        if (from === '/vendor-dashboard' || isVendorLogin) {
+          navigate('/vendor-dashboard', { replace: true });
+        } else {
+          navigate('/admin-dashboard', { replace: true });
+        }
       } else if (res.user?.role === 'vendor' || isVendorLogin) {
         navigate('/vendor-dashboard', { replace: true });
       } else {
@@ -105,7 +109,11 @@ const WelcomeModal = () => {
           }
           login(response.user, response.token);
           if (isAdmin || response.user?.role === 'admin') {
-            navigate('/admin-dashboard', { replace: true });
+            if (from === '/vendor-dashboard' || isVendorLogin) {
+              navigate('/vendor-dashboard', { replace: true });
+            } else {
+              navigate('/admin-dashboard', { replace: true });
+            }
           } else {
             navigate(from, { replace: true });
           }

@@ -9,6 +9,7 @@ import {
   CreditCard, Phone, Download, Home, ArrowRight,
   UserCheck, AlertCircle, Loader2, Sparkles, LayoutDashboard
 } from 'lucide-react';
+import { getLiveBasePriceForAppliance } from '../../services/pricingService';
 
 export default function BookingConfirmation() {
   const location = useLocation();
@@ -130,7 +131,7 @@ export default function BookingConfirmation() {
 
   const bookingIdDisplay = activeBooking._id || activeBooking.bookingId || 'MM-' + Date.now().toString(36).toUpperCase();
   const serviceDisplayName = activeBooking.serviceCategory || activeBooking.appliance || activeBooking.serviceName || 'Appliance Repair';
-  const priceDisplay = activeBooking.serviceCategoryCharge ?? activeBooking.basePrice ?? 299;
+  const priceDisplay = activeBooking.serviceCategoryCharge ?? activeBooking.basePrice ?? getLiveBasePriceForAppliance(serviceDisplayName, 299);
 
   const paymentLabel =
     activeBooking.paymentMethod === 'upi'

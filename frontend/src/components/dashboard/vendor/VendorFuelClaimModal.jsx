@@ -4,13 +4,7 @@ import {
   Fuel, IndianRupee, Camera, Upload, AlertCircle,
   X, Check, FileText, CheckCircle2, ShieldCheck, Sparkles
 } from 'lucide-react';
-
-const VEHICLE_TYPES = [
-  { id: '2w', name: '2-Wheeler (Motorcycle / Scooter)', defaultRate: 3.5, icon: '🛵' },
-  { id: '3w', name: '3-Wheeler (Auto / Cargo)', defaultRate: 6.0, icon: '🛺' },
-  { id: '4w', name: '4-Wheeler (Car / Utility Van)', defaultRate: 9.0, icon: '🚗' },
-  { id: 'custom', name: 'Custom Rate / Flat Allowance', defaultRate: 5.0, icon: '⚡' },
-];
+import { useLivePricing } from '../../../services/pricingService';
 
 // Default sample petrol receipt svg for testing
 const SAMPLE_FUEL_BILL_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="500" height="300" viewBox="0 0 500 300">
@@ -36,14 +30,30 @@ export default function VendorFuelClaimModal({
   vendorProfile,
   onSubmitClaim
 }) {
+  const { fuelRate } = useLivePricing();
+
+  const VEHICLE_TYPES = [
+    { id: 'custom', name: `Company Standard Rate (₹${fuelRate}/km)`, defaultRate: fuelRate, icon: '⚡' },
+    { id: '2w', name: '2-Wheeler (Motorcycle / Scooter)', defaultRate: 3.5, icon: '🛵' },
+    { id: '3w', name: '3-Wheeler (Auto / Cargo)', defaultRate: 6.0, icon: '🛺' },
+    { id: '4w', name: '4-Wheeler (Car / Utility Van)', defaultRate: 9.0, icon: '🚗' },
+  ];
+
   const [selectedJobId, setSelectedJobId] = useState('');
-  const [vehicleType, setVehicleType] = useState('2w');
-  const [ratePerKm, setRatePerKm] = useState(3.5);
+  const [vehicleType, setVehicleType] = useState('custom');
+  const [ratePerKm, setRatePerKm] = useState(fuelRate);
   const [distanceKm, setDistanceKm] = useState(5.0);
   const [fuelReceiptImage, setFuelReceiptImage] = useState(null);
   const [receiptFileName, setReceiptFileName] = useState('');
   const [notes, setNotes] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Update rate when fuelRate changes
+  useEffect(() => {
+    if (vehicleType === 'custom') {
+      setRatePerKm(fuelRate);
+    }
+  }, [fuelRate, vehicleType]);
 
   // Auto-fill when job is selected
   useEffect(() => {
@@ -53,6 +63,11 @@ export default function VendorFuelClaimModal({
         if (found.travelDistanceKm) {
           setDistanceKm(Number(found.travelDistanceKm));
         }
+        if (found.travelRatePerKm) {
+          setRatePerKm(Number(found.travelRatePerKm));
+        } else {
+          setRatePerKm(fuelRate);
+        }
         if (found.mapScreenshot) {
           setFuelReceiptImage(found.mapScreenshot);
           setReceiptFileName(`Map Proof: ${found.displayId || found.id}`);
@@ -60,7 +75,7 @@ export default function VendorFuelClaimModal({
         setNotes(`Fuel reimbursement for ${found.serviceTitle || 'service'} at ${found.location || found.customerName}`);
       }
     }
-  }, [selectedJobId, completedJobs]);
+  }, [selectedJobId, completedJobs, fuelRate]);
 
   // Update default rate when vehicle type changes
   const handleVehicleChange = (newType) => {
@@ -70,6 +85,7 @@ export default function VendorFuelClaimModal({
       setRatePerKm(v.defaultRate);
     }
   };
+
 
   const calculatedAmount = Math.max(0, (Number(distanceKm) || 0) * (Number(ratePerKm) || 0));
 

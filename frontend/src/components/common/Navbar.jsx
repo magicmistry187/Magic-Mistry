@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, MapPin, Menu, X, LogOut, User, LayoutDashboard, ChevronDown, ExternalLink } from 'lucide-react';
+import { Search, MapPin, Menu, X, LogOut, User, LayoutDashboard, ChevronDown, ExternalLink, Wrench } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 const logo2 = '/logo2.png';
 import { useAuth } from '../../context/AuthContext';
 
 import LoginRequiredModal from '../auth/LoginRequiredModal';
 import ApplianceIcon from './ApplianceIcon';
+import { useLivePricing } from '../../services/pricingService';
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -82,26 +83,23 @@ const Navbar = () => {
     }
   };
 
-  // Search Data with direct booking capability
-  const searchServices = [
-    { id: 1, name: 'AC Service & Repair', category: 'AC Repair' },
-    { id: 1, name: 'AC Installation', category: 'AC Repair' },
-    { id: 2, name: 'Refrigerator Repair', category: 'Refrigerator' },
-    { id: 3, name: 'Washing Machine Repair', category: 'Washing Machine' },
-    { id: 4, name: 'Microwave Repair', category: 'Microwave' },
-    { id: 5, name: 'Mixer Grinder Repair', category: 'Mixer Grinder' },
-    { id: 6, name: 'Pump Motor Repair', category: 'Pump Motor' },
-    { id: 7, name: 'Air Cooler Repair', category: 'Air Cooler' },
-    { id: 8, name: 'Induction Cooktop Repair', category: 'Induction Cooktop' },
-    { id: 9, name: 'Stabilizer Repair', category: 'Stabilizer' },
-    { id: 10, name: 'Press Iron Repair', category: 'Press Iron' },
-    { id: 11, name: 'TV Repair', category: 'TV' },
-    { id: 12, name: 'Ceiling Fan Repair', category: 'Ceiling Fan' },
-    { id: 13, name: 'Geyser Repair', category: 'Geyser' },
-    { id: 14, name: 'Stand Fan Repair', category: 'Stand Fan' },
-    { id: 15, name: 'Table/Wall Fan Repair', category: 'Table Fan' },
-    { id: 16, name: 'Wiring & Switch Board', category: 'Switch Board' },
-  ];
+  const { services } = useLivePricing();
+
+  // Search Data dynamically computed from live service catalog
+  const searchServices = useMemo(() => {
+    const list = [];
+    services.forEach((s, idx) => {
+      const catId = typeof s.id === 'number' ? s.id : (idx + 1);
+      list.push({ id: catId, name: `${s.name} Service & Repair`, category: s.name });
+      if (Array.isArray(s.subServices)) {
+        s.subServices.forEach(sub => {
+          list.push({ id: catId, name: `${s.name} - ${sub.label}`, category: s.name, price: sub.price });
+        });
+      }
+    });
+    return list;
+  }, [services]);
+
 
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
@@ -541,6 +539,30 @@ const Navbar = () => {
                               </div>
                             </motion.button>
 
+                            {/* Additional Vendor Dashboard link for Admin */}
+                            {isAdmin && (
+                              <motion.button
+                                custom={0.5}
+                                variants={dropdownItemVariants}
+                                initial="hidden"
+                                animate="visible"
+                                whileHover={{ x: 4, backgroundColor: '#FFF7ED' }}
+                                onClick={() => {
+                                  setIsDropdownOpen(false);
+                                  navigate('/vendor-dashboard');
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 transition-colors"
+                              >
+                                <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                                  <Wrench className="w-4 h-4 text-orange-600" />
+                                </div>
+                                <div className="text-left">
+                                  <p className="font-semibold text-gray-800">Vendor Dashboard</p>
+                                  <p className="text-xs text-gray-400">Technician portal & live jobs</p>
+                                </div>
+                              </motion.button>
+                            )}
+
                             <div className="mx-3 my-1 h-px bg-gray-100" />
 
                             <motion.button
@@ -759,6 +781,19 @@ const Navbar = () => {
                         <LayoutDashboard className="w-4 h-4" />
                         <span>{isAdmin ? 'Admin Dashboard' : 'My Profile / Dashboard'}</span>
                       </button>
+
+                      {isAdmin && (
+                        <button
+                          onClick={() => {
+                            setIsMobileMenuOpen(false);
+                            navigate('/vendor-dashboard');
+                          }}
+                          className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-emerald-700 border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors"
+                        >
+                          <Wrench className="w-4 h-4 text-emerald-600" />
+                          <span>Vendor Dashboard</span>
+                        </button>
+                      )}
                       {/* Mobile Logout Button */}
                       <button
                         onClick={handleLogout}
