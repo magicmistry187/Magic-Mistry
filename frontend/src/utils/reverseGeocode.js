@@ -102,7 +102,7 @@ export async function reverseGeocode(latitude, longitude) {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // ── TIER 2: Direct Client Nominatim at zoom=18 (Safe Browser Headers) ──────
+  // ── TIER 2: Direct Client LocationIQ (High-Precision Indian Villages & PINs) 
   // ═══════════════════════════════════════════════════════════════════════════
   let flat = '';
   let street = '';
@@ -112,9 +112,64 @@ export async function reverseGeocode(latitude, longitude) {
   let pincode = '';
   let fullAddress = '';
 
-  try {
-    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timeoutId = controller ? setTimeout(() => controller.abort(), 7000) : null;
+  const locationIqKey = import.meta?.env?.VITE_LOCATIONIQ_API_KEY || 'pk.43b9346c8e8046d3fdc74a70f9d0c1b1';
+
+  if (locationIqKey) {
+    try {
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timeoutId = controller ? setTimeout(() => controller.abort(), 6500) : null;
+
+      const liqUrl = `https://us1.locationiq.com/v1/reverse?key=${locationIqKey}&lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`;
+      const liqRes = await fetch(liqUrl, { signal: controller ? controller.signal : undefined });
+      if (timeoutId) clearTimeout(timeoutId);
+
+      if (liqRes.ok) {
+        const data = await liqRes.json();
+        const a = data.address || {};
+
+        flat = a.house_number || a.building || a.flat || a.room || a.house_name || a.shop || a.apartments || '';
+
+        const road = a.road || a.pedestrian || a.footway || a.street || a.path || a.highway || a.lane || a.alley || '';
+        const locality =
+          a.suburb ||
+          a.neighbourhood ||
+          a.residential ||
+          a.subdistrict ||
+          a.city_district ||
+          a.quarter ||
+          a.hamlet ||
+          a.village_district ||
+          a.village ||
+          a.colony ||
+          '';
+
+        const streetParts = [road, locality].filter(Boolean);
+        street = streetParts.length ? streetParts.join(', ') : (data.name || '');
+
+        city = a.city || a.town || a.village || a.municipality || a.county || a.state_district || a.district || '';
+        state = a.state || a.province || a.region || '';
+        landmark = a.landmark || a.amenity || a.attraction || a.place || a.historic || a.leisure || '';
+        pincode = (a.postcode || '').replace(/\D/g, '').slice(0, 6);
+
+        if (!pincode && data.display_name) {
+          const pinMatch = data.display_name.match(/\b[1-9]\d{5}\b/);
+          if (pinMatch) pincode = pinMatch[0];
+        }
+
+        fullAddress = data.display_name || '';
+      }
+    } catch (liqErr) {
+      console.warn('[ReverseGeocode] Client LocationIQ failed, trying fallback...', liqErr);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ── TIER 3: Direct Client Nominatim at zoom=18 (Fallback) ─────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (!city || !pincode) {
+    try {
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timeoutId = controller ? setTimeout(() => controller.abort(), 7000) : null;
 
     // Use zoom=18 for building/road level precision (without forbidden headers!)
     const nomUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`;
@@ -173,6 +228,8 @@ export async function reverseGeocode(latitude, longitude) {
   } catch (err) {
     console.warn('[ReverseGeocode] Client Nominatim lookup failed:', err);
   }
+}
+
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ── TIER 3: Photon Reverse Geocoder (High-Accuracy Indian Pincodes) ────────
@@ -234,6 +291,33 @@ export async function reverseGeocode(latitude, longitude) {
       }
     } catch (bdcErr) {
       console.warn('[ReverseGeocode] BigDataCloud fallback failed:', bdcErr);
+    }
+  }
+
+  // ── Enrich with India Post PostOffice & Village directory ────────────────
+  if (pincode) {
+    try {
+      const pinRes = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
+      if (pinRes.ok) {
+        const pinData = await pinRes.json();
+        if (Array.isArray(pinData) && pinData[0]?.Status === 'Success' && pinData[0]?.PostOffice?.length) {
+          const offices = pinData[0].PostOffice;
+          const subOffice = offices.find((o) => o.BranchType === 'Sub Post Office') || offices[0];
+          if (subOffice) {
+            const cleanOfficeName = subOffice.Name.replace(/\s*\(.*?\)/, '').trim();
+            if (!street || street === city) {
+              street = cleanOfficeName;
+            } else if (!street.toLowerCase().includes(cleanOfficeName.toLowerCase())) {
+              street = `${cleanOfficeName}, ${street}`;
+            }
+            if (subOffice.Division && !city.toLowerCase().includes(subOffice.Division.toLowerCase())) {
+              city = `${subOffice.Division}${city ? ` (${city})` : ''}`;
+            }
+          }
+        }
+      }
+    } catch (pinErr) {
+      console.warn('[ReverseGeocode] India Post enrichment failed:', pinErr);
     }
   }
 
