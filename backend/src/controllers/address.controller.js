@@ -339,3 +339,192 @@ exports.deleteAddress = async (req, res) => {
     });
   }
 };
+
+// ── Reverse Geocode Controller with High-Accuracy Pincode & Small Area Resolution ──
+const geocodeCache = new Map();
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+exports.reverseGeocode = async (req, res) => {
+  try {
+    const lat = Number(req.query.lat || req.query.latitude);
+    const lng = Number(req.query.lng || req.query.lon || req.query.longitude);
+
+    if (isNaN(lat) || isNaN(lng)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid latitude and longitude are required.',
+      });
+    }
+
+    // Check cache
+    const cacheKey = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+    const cached = geocodeCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return res.status(200).json({ success: true, data: cached.data });
+    }
+
+    let flat = '';
+    let street = '';
+    let city = '';
+    let state = '';
+    let landmark = '';
+    let pincode = '';
+    let fullAddress = '';
+
+    // ── 1. Nominatim at zoom=18 (high-detail street/building level) ──────────
+    try {
+      const nomUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`;
+      const nomRes = await fetch(nomUrl, {
+        headers: {
+          'User-Agent': 'MagicMistry/1.0 (contact@magicmistry.com)',
+          'Accept-Language': 'en',
+        },
+      });
+
+      if (nomRes.ok) {
+        const data = await nomRes.json();
+        const a = data.address || {};
+
+        flat = a.house_number || a.building || a.flat || a.room || a.house_name || a.shop || a.apartments || '';
+
+        // Extract detailed street & small area (road + suburb / neighbourhood)
+        const road = a.road || a.pedestrian || a.footway || a.street || a.path || a.highway || a.lane || a.alley || '';
+        const locality =
+          a.suburb ||
+          a.neighbourhood ||
+          a.residential ||
+          a.subdistrict ||
+          a.city_district ||
+          a.quarter ||
+          a.hamlet ||
+          a.village_district ||
+          a.colony ||
+          '';
+
+        const streetParts = [road, locality].filter(Boolean);
+        street = streetParts.length ? streetParts.join(', ') : (data.name || '');
+
+        city = a.city || a.town || a.village || a.municipality || a.state_district || a.county || a.district || '';
+        state = a.state || a.province || a.region || '';
+        landmark = a.landmark || a.amenity || a.attraction || a.place || a.historic || a.leisure || '';
+        pincode = (a.postcode || '').replace(/\D/g, '').slice(0, 6);
+
+        // If road was empty, check if first part of display_name is the street
+        if (!street && data.display_name) {
+          const firstPart = data.display_name.split(',')[0]?.trim();
+          if (firstPart && firstPart !== city && firstPart !== state) {
+            street = firstPart;
+          }
+        }
+
+        // If pincode was not in a.postcode, look for 6-digit pincode in display_name
+        if (!pincode && data.display_name) {
+          const pinMatch = data.display_name.match(/\b[1-9]\d{5}\b/);
+          if (pinMatch) pincode = pinMatch[0];
+        }
+
+        fullAddress = data.display_name || '';
+      }
+    } catch (err) {
+      console.warn('[ReverseGeocode] Nominatim zoom=18 failed:', err.message);
+    }
+
+    // ── 2. Fallback / Enrichment for missing Pincode or Small Area via Photon ──
+    if (!pincode || !street) {
+      try {
+        const photonUrl = `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`;
+        const photonRes = await fetch(photonUrl);
+        if (photonRes.ok) {
+          const pdata = await photonRes.json();
+          const feat = pdata?.features?.[0]?.properties;
+          if (feat) {
+            if (!pincode && feat.postcode) {
+              pincode = String(feat.postcode).replace(/\D/g, '').slice(0, 6);
+            }
+            if (!street) {
+              street = [feat.street, feat.district || feat.locality || feat.name].filter(Boolean).join(', ');
+            }
+            if (!city) city = feat.city || feat.town || feat.county || '';
+            if (!state) state = feat.state || '';
+          }
+        }
+      } catch (err) {
+        console.warn('[ReverseGeocode] Photon enrichment failed:', err.message);
+      }
+    }
+
+    // ── 3. Fallback for Pincode via Nominatim zoom=14 (Area/Postcode level) ────
+    if (!pincode) {
+      try {
+        const nom14Url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=14`;
+        const nom14Res = await fetch(nom14Url, {
+          headers: {
+            'User-Agent': 'MagicMistry/1.0 (contact@magicmistry.com)',
+            'Accept-Language': 'en',
+          },
+        });
+        if (nom14Res.ok) {
+          const data14 = await nom14Res.json();
+          const a14 = data14.address || {};
+          pincode = (a14.postcode || '').replace(/\D/g, '').slice(0, 6);
+          if (!pincode && data14.display_name) {
+            const pinMatch = data14.display_name.match(/\b[1-9]\d{5}\b/);
+            if (pinMatch) pincode = pinMatch[0];
+          }
+        }
+      } catch (err) {
+        console.warn('[ReverseGeocode] Nominatim zoom=14 failed:', err.message);
+      }
+    }
+
+    // ── 4. Fallback for Indian Post Office Pincode API if still missing ───────
+    if (!pincode && (street || city)) {
+      try {
+        const searchTarget = (street.split(',')[0] || city).trim();
+        const pinRes = await fetch(`https://api.postalpincode.in/postoffice/${encodeURIComponent(searchTarget)}`);
+        if (pinRes.ok) {
+          const pinData = await pinRes.json();
+          if (Array.isArray(pinData) && pinData[0]?.Status === 'Success' && pinData[0]?.PostOffice?.length) {
+            pincode = pinData[0].PostOffice[0].Pincode || '';
+          }
+        }
+      } catch (err) {
+        console.warn('[ReverseGeocode] PostalPincode API failed:', err.message);
+      }
+    }
+
+    // Ensure street is never empty if we have city or locality
+    if (!street) {
+      street = city || 'Area';
+    }
+
+    const fullParts = [flat, street, landmark, city, state, pincode].filter(Boolean);
+    const result = {
+      flat: flat || '',
+      street: street || '',
+      city: city || '',
+      state: state || '',
+      landmark: landmark || '',
+      pincode: pincode || '',
+      fullAddress: fullParts.length ? fullParts.join(', ') : fullAddress,
+    };
+
+    // Cache result
+    geocodeCache.set(cacheKey, { timestamp: Date.now(), data: result });
+    if (geocodeCache.size > 500) {
+      const oldest = geocodeCache.keys().next().value;
+      geocodeCache.delete(oldest);
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error('Reverse Geocode Controller Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to reverse-geocode coordinates.',
+    });
+  }
+};

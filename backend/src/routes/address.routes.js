@@ -9,7 +9,11 @@ const {
   getAddresses,
   updateAddress,
   deleteAddress,
+  reverseGeocode,
 } = require('../controllers/address.controller');
+
+// Public reverse-geocode endpoint (for all users, guests, and technicians)
+router.get('/reverse-geocode', reverseGeocode);
 
 // All address endpoints are protected with standard auth middleware
 router.post('/', auth, createAddress);
