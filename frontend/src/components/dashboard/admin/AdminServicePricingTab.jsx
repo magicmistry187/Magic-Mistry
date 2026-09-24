@@ -4,7 +4,7 @@ import {
   Wrench, IndianRupee, Fuel, Plus, Trash2, Edit3, Check, X,
   Search, RefreshCw, AlertCircle, CheckCircle2, ChevronDown,
   ChevronUp, Sparkles, Sliders, ShieldCheck, DollarSign, Layers,
-  Compass, ArrowUpRight, Save, Info
+  ArrowUpRight, Save, Info, Eye, EyeOff
 } from 'lucide-react';
 import {
   useLivePricing,
@@ -13,7 +13,14 @@ import {
   DEFAULT_SERVICES_CATALOG
 } from '../../../services/pricingService';
 export default function AdminServicePricingTab({ showToast }) {
-  const { services, fuelRate, saveServices, saveFuel } = useLivePricing();
+  const {
+    services,
+    fuelRate,
+    saveServices,
+    saveFuel,
+    toggleCategoryVisibility,
+    toggleSubServiceVisibility
+  } = useLivePricing({ includeHidden: true });
 
   // ── Fuel Charge Per KM State ──
   const [fuelRatePerKm, setFuelRatePerKm] = useState(fuelRate);
@@ -30,11 +37,9 @@ export default function AdminServicePricingTab({ showToast }) {
     return 0;
   });
 
-  // Simulator test distance
-  const [testDistance, setTestDistance] = useState(12);
-
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [visibilityFilter, setVisibilityFilter] = useState('All'); // 'All' | 'Visible' | 'Hidden'
   const [expandedServiceId, setExpandedServiceId] = useState(null);
 
   // Modal State for adding a new service category
@@ -56,6 +61,10 @@ export default function AdminServicePricingTab({ showToast }) {
   const [editingBasePriceId, setEditingBasePriceId] = useState(null);
   const [tempBasePrice, setTempBasePrice] = useState('');
 
+  // ── Visibility & Metric Counts ──
+  const activeCount = useMemo(() => services.filter(s => s.isActive !== false).length, [services]);
+  const hiddenCount = useMemo(() => services.filter(s => s.isActive === false).length, [services]);
+
   // ── Filtered Services ──
   const filteredServices = useMemo(() => {
     return services.filter((srv) => {
@@ -64,25 +73,45 @@ export default function AdminServicePricingTab({ showToast }) {
         srv.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (srv.subServices && srv.subServices.some(s => s.label.toLowerCase().includes(searchQuery.toLowerCase())));
       const matchesCategory = selectedCategory === 'All' || srv.category === selectedCategory;
-      return matchesSearch && matchesCategory;
+      const isVisible = srv.isActive !== false;
+      const matchesVisibility =
+        visibilityFilter === 'All' ||
+        (visibilityFilter === 'Visible' && isVisible) ||
+        (visibilityFilter === 'Hidden' && !isVisible);
+      return matchesSearch && matchesCategory && matchesVisibility;
     });
-  }, [services, searchQuery, selectedCategory]);
+  }, [services, searchQuery, selectedCategory, visibilityFilter]);
 
   const categoriesList = useMemo(() => {
     const set = new Set(services.map(s => s.category));
     return ['All', ...Array.from(set)];
   }, [services]);
 
-  // Summary Metrics
-  const avgBasePrice = useMemo(() => {
-    if (services.length === 0) return 0;
-    const sum = services.reduce((acc, s) => acc + (Number(s.basePrice) || 0), 0);
-    return Math.round(sum / services.length);
-  }, [services]);
+  // ── Toggle Category Visibility (Hide from users without deleting) ──
+  const handleToggleCategoryVisibility = (service) => {
+    const nextState = service.isActive === false ? true : false;
+    toggleCategoryVisibility(service.id, nextState);
+    if (showToast) {
+      showToast(
+        nextState
+          ? `"${service.name}" is now VISIBLE to all customers.`
+          : `"${service.name}" is now HIDDEN from customers (safe in database).`
+      );
+    }
+  };
 
-  const totalSubServicesCount = useMemo(() => {
-    return services.reduce((acc, s) => acc + (s.subServices?.length || 0), 0);
-  }, [services]);
+  // ── Toggle Sub-Service Visibility ──
+  const handleToggleSubServiceVisibility = (serviceId, sub) => {
+    const nextState = sub.isActive === false ? true : false;
+    toggleSubServiceVisibility(serviceId, sub.id, nextState);
+    if (showToast) {
+      showToast(
+        nextState
+          ? `Repair item "${sub.label}" is now VISIBLE to customers.`
+          : `Repair item "${sub.label}" is now HIDDEN from checkout.`
+      );
+    }
+  };
 
   // ── Save Fuel Settings ──
   const handleSaveFuelSettings = () => {
@@ -161,7 +190,8 @@ export default function AdminServicePricingTab({ showToast }) {
     const newSubObj = {
       id: `sub_${Date.now()}`,
       label: newSubLabel.trim(),
-      price: price
+      price: price,
+      isActive: true,
     };
 
     const updated = services.map(s => {
@@ -213,13 +243,15 @@ export default function AdminServicePricingTab({ showToast }) {
       icon: newServiceIcon || '🔧',
       basePrice: basePriceNum,
       estimatedMax: basePriceNum * 4,
+      isActive: true,
       description: newServiceDesc.trim() || 'Professional repair and servicing.',
       subServices: newServiceSubLabel.trim()
         ? [
             {
               id: `sub_${Date.now()}_1`,
               label: newServiceSubLabel.trim(),
-              price: Number(newServiceSubPrice) || basePriceNum
+              price: Number(newServiceSubPrice) || basePriceNum,
+              isActive: true,
             }
           ]
         : []
@@ -304,47 +336,8 @@ export default function AdminServicePricingTab({ showToast }) {
         </div>
       </div>
 
-      {/* ── Metric Summary Cards ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-sm space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider">Active Services</span>
-            <Layers className="w-4 h-4 text-orange-500" />
-          </div>
-          <div className="text-2xl font-black text-slate-900">{services.length}</div>
-          <div className="text-[11px] text-slate-500 font-semibold">{totalSubServicesCount} itemized sub-services</div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-sm space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider">Avg Base Amount</span>
-            <IndianRupee className="w-4 h-4 text-emerald-500" />
-          </div>
-          <div className="text-2xl font-black text-slate-900">₹{avgBasePrice}</div>
-          <div className="text-[11px] text-slate-500 font-semibold">Standard diagnostic fee</div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-sm space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider">Fuel Allowance</span>
-            <Fuel className="w-4 h-4 text-blue-500" />
-          </div>
-          <div className="text-2xl font-black text-blue-600">₹{Number(fuelRatePerKm).toFixed(2)}<span className="text-xs text-slate-500 font-bold">/km</span></div>
-          <div className="text-[11px] text-slate-500 font-semibold">Per travel verified km</div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-sm space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider">Payout Formula</span>
-            <ShieldCheck className="w-4 h-4 text-indigo-500" />
-          </div>
-          <div className="text-2xl font-black text-slate-900">50% + 100%</div>
-          <div className="text-[11px] text-slate-500 font-semibold">50% service + 100% fuel</div>
-        </div>
-      </div>
-
       {/* ── 1. FUEL REIMBURSEMENT CHARGES CONFIGURATION ── */}
-      <div className="bg-gradient-to-br from-white to-slate-50/80 rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm space-y-6">
+      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
@@ -355,7 +348,7 @@ export default function AdminServicePricingTab({ showToast }) {
                 Per-Kilometer Fuel & Travel Reimbursement Rate
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Technicians automatically earn this allowance for distance traveled on accepted and verified work orders.
+                Technicians automatically earn this allowance for distance traveled on accepted work orders.
               </p>
             </div>
           </div>
@@ -369,106 +362,55 @@ export default function AdminServicePricingTab({ showToast }) {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-          {/* Fuel Input & Quick Presets */}
-          <div className="lg:col-span-7 space-y-5">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                Standard Fuel Allowance (₹ Per KM)
-              </label>
-              <div className="relative max-w-sm">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-extrabold text-lg">₹</span>
-                <input
-                  type="number"
-                  min="1"
-                  max="100"
-                  step="0.5"
-                  value={fuelRatePerKm}
-                  onChange={(e) => setFuelRatePerKm(Number(e.target.value) || 0)}
-                  className="w-full pl-9 pr-16 py-3.5 bg-white border-2 border-slate-200 rounded-2xl text-xl font-black text-slate-900 focus:outline-none focus:border-blue-500 shadow-sm"
-                />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-extrabold text-slate-400">/ km</span>
-              </div>
-            </div>
-
-            {/* Quick Presets */}
-            <div className="space-y-2">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Quick Presets</span>
-              <div className="flex flex-wrap items-center gap-2">
-                {[8, 10, 12, 14, 15, 20].map((rate) => {
-                  const isSelected = Number(fuelRatePerKm) === rate;
-                  return (
-                    <button
-                      key={rate}
-                      type="button"
-                      onClick={() => setFuelRatePerKm(rate)}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                        isSelected
-                          ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 scale-105'
-                          : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-                      }`}
-                    >
-                      ₹{rate}/km
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-blue-50/70 border border-blue-100 text-blue-900 text-xs">
-              <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-              <span>
-                <strong>System Rule:</strong> Technicians receive 100% of fuel reimbursement directly. It is never subjected to platform commissions or service splits.
-              </span>
+        <div className="max-w-xl space-y-5">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+              Standard Fuel Allowance (₹ Per KM)
+            </label>
+            <div className="relative max-w-sm">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-extrabold text-lg">₹</span>
+              <input
+                type="number"
+                min="1"
+                max="100"
+                step="0.5"
+                value={fuelRatePerKm}
+                onChange={(e) => setFuelRatePerKm(Number(e.target.value) || 0)}
+                className="w-full pl-9 pr-16 py-3.5 bg-white border-2 border-slate-200 rounded-2xl text-xl font-black text-slate-900 focus:outline-none focus:border-blue-500 shadow-sm"
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-extrabold text-slate-400">/ km</span>
             </div>
           </div>
 
-          {/* Interactive Payout Calculator */}
-          <div className="lg:col-span-5 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <Compass className="w-4 h-4 text-orange-500" />
-                <span className="text-xs font-extrabold uppercase tracking-wider text-slate-800">
-                  Live Route Fuel Calculator
-                </span>
-              </div>
-              <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
-                ₹{fuelRatePerKm}/km
-              </span>
+          {/* Quick Presets */}
+          <div className="space-y-2">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Quick Presets</span>
+            <div className="flex flex-wrap items-center gap-2">
+              {[8, 10, 12, 14, 15, 20].map((rate) => {
+                const isSelected = Number(fuelRatePerKm) === rate;
+                return (
+                  <button
+                    key={rate}
+                    type="button"
+                    onClick={() => setFuelRatePerKm(rate)}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 scale-105'
+                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    ₹{rate}/km
+                  </button>
+                );
+              })}
             </div>
+          </div>
 
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs font-bold text-slate-600">
-                <span>Trip Travel Distance</span>
-                <span className="text-slate-900 font-extrabold">{testDistance} KM</span>
-              </div>
-              <input
-                type="range"
-                min="1"
-                max="40"
-                step="0.5"
-                value={testDistance}
-                onChange={(e) => setTestDistance(Number(e.target.value))}
-                className="w-full accent-blue-600 cursor-pointer"
-              />
-              <div className="flex justify-between text-[10px] text-slate-400 font-bold">
-                <span>1 km</span>
-                <span>20 km</span>
-                <span>40 km</span>
-              </div>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Reimbursement Total</span>
-                <span className="text-xs font-bold text-slate-600">{testDistance} km × ₹{fuelRatePerKm}/km</span>
-              </div>
-              <div className="text-right">
-                <span className="text-xl font-black text-emerald-600">
-                  ₹{(testDistance * (Number(fuelRatePerKm) || 0)).toFixed(2)}
-                </span>
-              </div>
-            </div>
+          <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-blue-50/70 border border-blue-100 text-blue-900 text-xs">
+            <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+            <span>
+              <strong>System Rule:</strong> Technicians receive 100% of fuel reimbursement directly. It is never subjected to platform commissions or service splits.
+            </span>
           </div>
         </div>
       </div>
@@ -496,6 +438,27 @@ export default function AdminServicePricingTab({ showToast }) {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
+            </div>
+
+            {/* Visibility State Filter Pills */}
+            <div className="flex items-center p-0.5 bg-slate-100 rounded-xl border border-slate-200 shrink-0">
+              {[
+                { id: 'All', label: `All (${services.length})` },
+                { id: 'Visible', label: `Visible (${activeCount})` },
+                { id: 'Hidden', label: `Hidden (${hiddenCount})` },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setVisibilityFilter(f.id)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    visibilityFilter === f.id
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
             </div>
 
             <div className="flex items-center gap-1.5 overflow-x-auto">
@@ -530,22 +493,43 @@ export default function AdminServicePricingTab({ showToast }) {
               return (
                 <div
                   key={service.id}
-                  className="rounded-2xl border border-slate-200/90 overflow-hidden bg-white hover:border-slate-300 transition-all shadow-xs"
+                  className={`rounded-2xl border transition-all shadow-xs overflow-hidden ${
+                    service.isActive === false
+                      ? 'border-amber-200 bg-amber-50/20'
+                      : 'border-slate-200/90 bg-white hover:border-slate-300'
+                  }`}
                 >
                   {/* Top Bar for Service */}
                   <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-start sm:items-center gap-3.5">
-                      <span className="text-3xl p-2.5 rounded-2xl bg-slate-50 border border-slate-200/80 shrink-0">
+                      <span className={`text-3xl p-2.5 rounded-2xl border shrink-0 transition-opacity ${
+                        service.isActive === false
+                          ? 'bg-amber-100/60 border-amber-200 opacity-60'
+                          : 'bg-slate-50 border-slate-200/80'
+                      }`}>
                         {service.icon || '🔧'}
                       </span>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className={`font-extrabold text-sm sm:text-base ${
+                            service.isActive === false ? 'text-slate-600' : 'text-slate-900'
+                          }`}>
                             {service.name}
                           </h3>
                           <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600">
                             {service.category}
                           </span>
+                          {service.isActive === false ? (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+                              <EyeOff className="w-3 h-3 text-amber-700" />
+                              Hidden from Users
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                              <Eye className="w-3 h-3 text-emerald-600" />
+                              Visible
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-slate-500 mt-0.5 line-clamp-1 max-w-xl">
                           {service.description}
@@ -554,7 +538,7 @@ export default function AdminServicePricingTab({ showToast }) {
                     </div>
 
                     {/* Pricing & Actions */}
-                    <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-100">
+                    <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-100 flex-wrap">
                       {/* Base Service Amount Control */}
                       <div className="text-left sm:text-right">
                         <span className="text-[10px] font-extrabold uppercase text-slate-400 block">
@@ -600,6 +584,33 @@ export default function AdminServicePricingTab({ showToast }) {
                         )}
                       </div>
 
+                      {/* Toggle Visibility Button (Soft Disable / Enable) */}
+                      <button
+                        onClick={() => handleToggleCategoryVisibility(service)}
+                        className={`px-3 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer ${
+                          service.isActive !== false
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                            : 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
+                        }`}
+                        title={
+                          service.isActive !== false
+                            ? 'Currently visible to customers. Click to hide from website without deleting.'
+                            : 'Currently hidden from customers. Click to show on website.'
+                        }
+                      >
+                        {service.isActive !== false ? (
+                          <>
+                            <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Visible</span>
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff className="w-3.5 h-3.5 text-amber-700" />
+                            <span>Hidden</span>
+                          </>
+                        )}
+                      </button>
+
                       {/* Expand Sub-Services Button */}
                       <button
                         onClick={() => setExpandedServiceId(isExpanded ? null : service.id)}
@@ -617,7 +628,7 @@ export default function AdminServicePricingTab({ showToast }) {
                       <button
                         onClick={() => handleDeleteCategory(service.id, service.name)}
                         className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
-                        title="Delete category"
+                        title="Permanently remove category"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -640,7 +651,7 @@ export default function AdminServicePricingTab({ showToast }) {
                               Itemized Repair Rates for {service.name}
                             </h4>
                             <p className="text-[11px] text-slate-400">
-                              These amounts are billed to customers during checkout and displayed on technician job cards.
+                              Toggle visibility to show/hide items without deleting. Visible amounts appear in booking checkout.
                             </p>
                           </div>
 
@@ -663,13 +674,24 @@ export default function AdminServicePricingTab({ showToast }) {
                             service.subServices.map((sub) => (
                               <div
                                 key={sub.id}
-                                className="p-3 sm:px-4 flex items-center justify-between gap-4 hover:bg-slate-50 transition-colors"
+                                className={`p-3 sm:px-4 flex items-center justify-between gap-4 transition-colors ${
+                                  sub.isActive === false ? 'bg-amber-50/30' : 'hover:bg-slate-50'
+                                }`}
                               >
-                                <span className="text-xs font-bold text-slate-800">
-                                  {sub.label}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-xs font-bold ${
+                                    sub.isActive === false ? 'text-slate-500 line-through' : 'text-slate-800'
+                                  }`}>
+                                    {sub.label}
+                                  </span>
+                                  {sub.isActive === false && (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-100 text-amber-800">
+                                      Hidden
+                                    </span>
+                                  )}
+                                </div>
 
-                                <div className="flex items-center gap-3 shrink-0">
+                                <div className="flex items-center gap-2 shrink-0">
                                   <div className="flex items-center gap-1">
                                     <span className="text-xs font-bold text-slate-400">₹</span>
                                     <input
@@ -680,9 +702,30 @@ export default function AdminServicePricingTab({ showToast }) {
                                     />
                                   </div>
 
+                                  {/* Toggle Sub-Service Visibility */}
+                                  <button
+                                    onClick={() => handleToggleSubServiceVisibility(service.id, sub)}
+                                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                      sub.isActive !== false
+                                        ? 'text-emerald-600 hover:bg-emerald-50'
+                                        : 'text-amber-700 bg-amber-100/70 hover:bg-amber-200'
+                                    }`}
+                                    title={
+                                      sub.isActive !== false
+                                        ? 'Visible in booking checkout. Click to hide.'
+                                        : 'Hidden from booking checkout. Click to show.'
+                                    }
+                                  >
+                                    {sub.isActive !== false ? (
+                                      <Eye className="w-3.5 h-3.5" />
+                                    ) : (
+                                      <EyeOff className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
+
                                   <button
                                     onClick={() => handleDeleteSubService(service.id, sub.id)}
-                                    className="p-1 text-slate-300 hover:text-red-500 rounded-md transition-colors cursor-pointer"
+                                    className="p-1.5 text-slate-300 hover:text-red-500 rounded-lg transition-colors cursor-pointer"
                                     title="Delete repair item"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />

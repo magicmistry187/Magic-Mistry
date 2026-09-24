@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapPin, X, LocateFixed, Loader2, Check, Search, CheckCircle2 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { getCurrentCoordinates, reverseGeocode } from "../../utils/reverseGeocode";
 
 const POPULAR_CITIES = [
   { name: "Kolkata, West Bengal", icon: "🏰" },
@@ -45,59 +46,30 @@ export default function LocationSelectorModal({ isOpen, onClose }) {
     }
   };
 
-  const handleDetectLocation = () => {
-    if (!navigator.geolocation) {
-      setDetectError("Geolocation is not supported by your browser.");
-      return;
-    }
+  const handleDetectLocation = async () => {
     setIsDetecting(true);
     setDetectError("");
     setDetectedAddress("");
     setDetectedCoords(null);
 
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        try {
-          console.log(
-            `[Magic Mistry] 📍 Browser GPS coords: Lat ${coords.latitude}, Lng ${coords.longitude}`
-          );
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${coords.latitude}&lon=${coords.longitude}&format=json&addressdetails=1`,
-            { headers: { "Accept-Language": "en" } }
-          );
-          const data = await res.json();
-          const a = data.address || {};
-          const parts = [
-            a.house_number,
-            a.road || a.pedestrian || a.footway,
-            a.neighbourhood || a.suburb,
-            a.city || a.town || a.village || a.county,
-            a.state,
-            a.postcode,
-          ].filter(Boolean);
-
-          const fullAddress = parts.length ? parts.join(", ") : data.display_name;
-          console.log(`[Magic Mistry] 🗺️ Detected address: ${fullAddress}`);
-          setDetectedAddress(fullAddress);
-          setDetectedCoords({ lat: coords.latitude, lng: coords.longitude });
-          setIsDetecting(false);
-        } catch {
-          setDetectError("Could not resolve your address. Please enter it manually.");
-          setIsDetecting(false);
-        }
-      },
-      (err) => {
-        setIsDetecting(false);
-        if (err.code === 1) {
-          setDetectError("Location permission denied. Please allow location access in your browser settings and try again.");
-        } else if (err.code === 3) {
-          setDetectError("Location request timed out. Please try again or enter your address manually.");
-        } else {
-          setDetectError("Unable to detect your position. Please enter your address manually.");
-        }
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    );
+    try {
+      const coords = await getCurrentCoordinates({ timeout: 15000 });
+      console.log(
+        `[Magic Mistry] 📍 Browser GPS coords: Lat ${coords.latitude}, Lng ${coords.longitude}`
+      );
+      const address = await reverseGeocode(coords.latitude, coords.longitude);
+      const fullAddress =
+        address.fullAddress ||
+        [address.street, address.city, address.state, address.pincode].filter(Boolean).join(", ");
+      console.log(`[Magic Mistry] 🗺️ Detected address: ${fullAddress}`);
+      setDetectedAddress(fullAddress);
+      setDetectedCoords({ lat: coords.latitude, lng: coords.longitude });
+      setIsDetecting(false);
+    } catch (err) {
+      console.error("[LocationSelectorModal] Error:", err);
+      setDetectError(err.message || "Could not resolve your address. Please enter it manually.");
+      setIsDetecting(false);
+    }
   };
 
   const filteredCities = POPULAR_CITIES.filter((c) =>

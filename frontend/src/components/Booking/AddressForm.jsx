@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAddressesApi } from "../../services/operations/addressAPI";
+import { getCurrentCoordinates, reverseGeocode } from "../../utils/reverseGeocode";
 
 const LOC = { IDLE: "idle", LOADING: "loading", SUCCESS: "success", ERROR: "error" };
 const MODE = { CHOOSE: "choose", SAVED: "saved", MANUAL: "manual" };
@@ -126,67 +127,37 @@ export default function AddressForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flat, street, landmark, city, state, pincode, addrType, mode]);
 
-  const handleUseLocation = () => {
-    if (!navigator.geolocation) {
-      setLocState(LOC.ERROR);
-      setLocError("Geolocation is not supported by your browser.");
-      return;
-    }
+  const handleUseLocation = async () => {
     setLocState(LOC.LOADING);
     setLocError("");
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${coords.latitude}&lon=${coords.longitude}&format=json&addressdetails=1`,
-            { headers: { "Accept-Language": "en" } }
-          );
-          const detectedCity =
-            a.city || a.town || a.village || a.municipality || a.county || a.state_district || "";
-          const detectedState = a.state || "";
-          const detectedHouse = a.house_number || a.building || a.flat || a.room || "";
-          const detectedStreet = [
-            a.road || a.pedestrian || a.footway || a.street,
-            a.neighbourhood || a.suburb || a.residential || a.subdistrict || a.city_district,
-          ]
-            .filter(Boolean)
-            .join(", ");
-          const detectedLandmark = a.landmark || a.attraction || a.amenity || "";
-          const detectedPincode = a.postcode ? a.postcode.replace(/\D/g, "").slice(0, 6) : "";
+    try {
+      const coords = await getCurrentCoordinates({ timeout: 15000 });
+      const address = await reverseGeocode(coords.latitude, coords.longitude);
 
-          const parts = [
-            detectedHouse,
-            detectedStreet || data.display_name?.split(",")?.[0]?.trim(),
-            detectedLandmark,
-            detectedCity,
-            detectedState,
-            detectedPincode,
-          ].filter(Boolean);
-          const fullAddress = parts.length ? parts.join(", ") : data.display_name;
+      setFlat(address.flat || "");
+      setStreet(address.street || "");
+      setCity(address.city || "");
+      setState(address.state || "");
+      setLandmark(address.landmark || "");
+      setPincode(address.pincode || "");
 
-          setFlat(detectedHouse);
-          setStreet(detectedStreet || data.display_name?.split(",")?.[0]?.trim() || "");
-          setCity(detectedCity);
-          setState(detectedState);
-          setLandmark(detectedLandmark);
-          setPincode(detectedPincode);
-          updateBooking("address", fullAddress);
-          updateBooking("latitude", coords.latitude);
-          updateBooking("longitude", coords.longitude);
-          updateLocation(fullAddress, { lat: coords.latitude, lng: coords.longitude });
-          setLocState(LOC.SUCCESS);
-          setLocError("");
-        } catch {
-          setLocState(LOC.ERROR);
-          setLocError("Could not fetch address. Please enter manually.");
-        }
-      },
-      (err) => {
-        setLocState(LOC.ERROR);
-        setLocError(err.code === 1 ? "Location permission denied. Please allow access and try again." : "Unable to retrieve your location. Please enter manually.");
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+      const fullAddress =
+        address.fullAddress ||
+        [address.flat, address.street, address.landmark, address.city, address.state, address.pincode]
+          .filter(Boolean)
+          .join(", ");
+
+      updateBooking("address", fullAddress);
+      updateBooking("latitude", coords.latitude);
+      updateBooking("longitude", coords.longitude);
+      updateLocation(fullAddress, { lat: coords.latitude, lng: coords.longitude });
+      setLocState(LOC.SUCCESS);
+      setLocError("");
+    } catch (err) {
+      console.error("[AddressForm] Geolocation error:", err);
+      setLocState(LOC.ERROR);
+      setLocError(err.message || "Could not fetch address. Please enter manually.");
+    }
   };
 
   const savedAddressLine = savedAddress

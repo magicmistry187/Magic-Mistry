@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, CheckCircle2, AlertCircle, X, ArrowRight, Wrench } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { SOCKET_URL } from '../services/apiConnector';
+import { saveLiveServicePricing, saveLiveFuelRate } from '../services/pricingService';
 
 const SocketContext = createContext({
   socket: null,
@@ -134,6 +135,21 @@ export const SocketProvider = ({ children }) => {
         actionUrl: '/dashboard',
         actionLabel: 'View Details',
       });
+    });
+
+    // ── Platform-Wide Real-Time Pricing & Fuel Synchronization ──
+    newSocket.on('pricing:updated', (payload) => {
+      const incomingList = payload?.meta?.allServices || payload?.services;
+      if (Array.isArray(incomingList) && incomingList.length > 0) {
+        saveLiveServicePricing(incomingList, false);
+      }
+    });
+
+    newSocket.on('pricing:fuel_rate_updated', (payload) => {
+      const rate = payload?.fuelRate;
+      if (rate !== undefined && !isNaN(Number(rate))) {
+        saveLiveFuelRate(rate, false);
+      }
     });
 
     // Vendor events

@@ -9,7 +9,7 @@ const BookingContext = createContext();
 // they always return the latest admin-saved values.
 // ---------------------------------------------------------
 function buildLiveAppliancePricing() {
-  const catalog = getLiveServicePricing();
+  const catalog = getLiveServicePricing(true); // Only active categories for customer checkout
   const result = {};
   catalog.forEach((item, index) => {
     const id = typeof item.id === 'number' ? item.id : (index + 1);
@@ -19,7 +19,7 @@ function buildLiveAppliancePricing() {
 }
 
 function buildLiveApplianceSubServices() {
-  const catalog = getLiveServicePricing();
+  const catalog = getLiveServicePricing(true); // Only active categories & sub-services
   const result = {};
   catalog.forEach((item, index) => {
     const id = typeof item.id === 'number' ? item.id : (index + 1);
