@@ -3,6 +3,8 @@ const User = require("../models/user.model");
 //Update User Account Status
 exports.updateUserStatus = async (req, res) => {
   try {
+
+    
     const { status } = req.body;
     const { userId } = req.params;
 
