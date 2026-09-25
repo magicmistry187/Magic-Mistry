@@ -262,20 +262,20 @@ async function login(req, res) {
     }
 
     // Check account status
-    if (user.status === "blocked") {
-      return res.status(403).json({
-        success: false,
-        message:
-          "Your account has been blocked. Please contact the administrator.",
-      });
-    }
+    // if (user.status === "blocked") {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message:
+    //       "Your account has been blocked. Please contact the administrator.",
+    //   });
+    // }
 
-    if (user.status === "suspended") {
-      return res.status(403).json({
-        success: false,
-        message: "Your account has been suspended by the administrator.",
-      });
-    }
+    // if (user.status === "suspended") {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: "Your account has been suspended by the administrator.",
+    //   });
+    // }
 
     // Compare password
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
@@ -394,20 +394,20 @@ async function googleLogin(req, res) {
     }
 
     // Check if account is blocked
-    if (user.status === 'blocked') {
-      return res.status(403).json({
-        success: false,
-        message: 'Your account has been blocked.',
-      });
-    }
+    // if (user.status === 'blocked') {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: 'Your account has been blocked.',
+    //   });
+    // }
 
     // Check if account is suspended
-    if (user.status === 'suspended') {
-      return res.status(403).json({
-        success: false,
-        message: 'Your account has been suspended.',
-      });
-    }
+    // if (user.status === 'suspended') {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: 'Your account has been suspended.',
+    //   });
+    // }
 
     if (user.role === 'vendor') {
       return res.status(403).json({

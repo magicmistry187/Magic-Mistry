@@ -13,13 +13,15 @@ const {
   createVendorByAdmin,
 } = require('../controllers/vendorApplication.controller');
 
+const { checkBlockedUser } = require('../middleware/checkBlockUser');
+
 
 
 router.post('/login', vendorLogin);
 router.post('/create', auth, isAdmin, createVendorByAdmin);
 
 router.get('/profile', auth, getVendorProfile);
-router.put('/profile-update',  auth, isVendor,upload.single('profileImage'), updateVendorProfile);
-router.post('/profile-image-update', auth, isVendor, upload.single('profileImage'), updateVendorProfileImage);
+router.put('/profile-update',  auth, isVendor, checkBlockedUser,upload.single('profileImage'), updateVendorProfile);
+router.post('/profile-image-update', auth, isVendor, checkBlockedUser, upload.single('profileImage'), updateVendorProfileImage);
 
 module.exports = router;

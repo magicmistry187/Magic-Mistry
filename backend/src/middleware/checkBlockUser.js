@@ -4,7 +4,9 @@ exports.checkBlockedUser = async (req, res, next) => {
   try {
     const userId = req.user?.id;
 
-    if (userId) {
+    console.log("Checking blocked user middleware for userId:", userId);
+
+    if (!userId) {
       return res.status(401).json({
         success: false,
         message: "User authentication failed",
