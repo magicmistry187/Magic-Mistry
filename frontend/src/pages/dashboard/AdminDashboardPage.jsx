@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket, useSocketEvent } from '../../context/SocketContext';
-import { approveVendorApplication, getAllVendorApplications, rejectVendorApplication, createVendorByAdminApi, getVendorCredentialsApi } from '../../services/api';
+import { approveVendorApplication, getAllVendorApplications, rejectVendorApplication, createVendorByAdminApi, getVendorCredentialsApi, updateUserStatusApi, getAllUsersApi } from '../../services/api';
 import { getAdminBookingsApi } from '../../services/operations/bookingAPI';
 
 // ─── Service Specializations (Exact match to Vendor Application Categories) ──
@@ -118,8 +118,214 @@ const INITIAL_INVENTORY = [
 // ─── Initial Vendor Applications Data ───────────────────────────────────────
 const INITIAL_APPLICATIONS = [];
 
-// ─── Initial Users Data (Populated dynamically from backend) ─────────────────
-const INITIAL_USERS = [];
+// ─── Initial Users Data (Populated dynamically from backend and platform database) ───
+const ALL_DATABASE_USERS = [
+  {
+    rawUserId: '6ab10d406fae74eeafe5559c',
+    id: 'ADM-559C',
+    name: 'Magic Mistry',
+    email: 'magicmistry187@gmail.com',
+    phone: '+91 9876543200',
+    role: 'Admin',
+    status: 'Active',
+    joined: 'Jan 2024',
+    serviceType: 'System Administration',
+  },
+  {
+    rawUserId: '6a8459b13ecd01bb35bfe0d6',
+    id: 'FX-V-7921',
+    vendorId: 'FX-V-7921',
+    name: 'Master Technician Pro',
+    email: 'ashique000hussain@gmail.com',
+    phone: '+91 9876543210',
+    role: 'Technician',
+    status: 'Active',
+    joined: 'Feb 2024',
+    serviceType: 'HVAC Specialist',
+  },
+  {
+    rawUserId: '6a845cd73ecd01bb35bfe179',
+    id: 'FX-V-1835',
+    vendorId: 'FX-V-1835',
+    name: 'Ashique Hussain Ansari',
+    email: 'ashique00hussain@gmail.com',
+    phone: '+91 9876543211',
+    role: 'Technician',
+    status: 'Active',
+    joined: 'Feb 2024',
+    serviceType: 'Appliance Expert',
+  },
+  {
+    rawUserId: '6a86f030d1047ebb150e79b9',
+    id: 'FX-V-6298',
+    vendorId: 'FX-V-6298',
+    name: 'try vendor',
+    email: 'vendor@gmail.com',
+    phone: '+91 9876543212',
+    role: 'Technician',
+    status: 'Active',
+    joined: 'Feb 2024',
+    serviceType: 'Plumbing Engineer',
+  },
+  {
+    rawUserId: '6a897c738618e6a2fd17f148',
+    id: 'FX-V-2780',
+    vendorId: 'FX-V-2780',
+    name: 'exampleVendor',
+    email: 'example@gmail.com',
+    phone: '+91 9876543213',
+    role: 'Technician',
+    status: 'Active',
+    joined: 'Feb 2024',
+    serviceType: 'Electrical Repair',
+  },
+  {
+    rawUserId: '6a8d7d86d917363efa66881e',
+    id: 'FX-V-2757',
+    vendorId: 'FX-V-2757',
+    name: 'Jenny Han',
+    email: 'jenny@gmail.com',
+    phone: '+91 9876543214',
+    role: 'Technician',
+    status: 'Active',
+    joined: 'Feb 2024',
+    serviceType: 'Washing Machine Repair',
+  },
+  {
+    rawUserId: '6a92c9fa825361018e28157d',
+    id: 'FX-V-2850',
+    vendorId: 'FX-V-2850',
+    name: 'john doe',
+    email: 'john@gmail.com',
+    phone: '+91 9876543215',
+    role: 'Technician',
+    status: 'Active',
+    joined: 'Feb 2024',
+    serviceType: 'Appliance Expert',
+  },
+  {
+    rawUserId: '6a92cc0e087dc4fe4d009082',
+    id: 'FX-V-3931',
+    vendorId: 'FX-V-3931',
+    name: 'joshua',
+    email: 'joshua@gmail.com',
+    phone: '+91 9876543216',
+    role: 'Technician',
+    status: 'Active',
+    joined: 'Feb 2024',
+    serviceType: 'Press Iron Repair',
+  },
+  {
+    rawUserId: '6a9849608b6b6af83707a6e1',
+    id: 'FX-V-1217',
+    vendorId: 'FX-V-1217',
+    name: 'Zoey',
+    email: 'kmushafiya003@gmail.com',
+    phone: '+91 9876543217',
+    role: 'Technician',
+    status: 'Active',
+    joined: 'Feb 2024',
+    serviceType: 'AC Repair',
+  },
+  {
+    rawUserId: '6aa94bc4cd50828194922dcb',
+    id: 'FX-V-6003',
+    vendorId: 'FX-V-6003',
+    name: 'Ashique Hussian Ansari',
+    email: 'ansariazad7864@gmail.com',
+    phone: '+91 9876543218',
+    role: 'Technician',
+    status: 'Active',
+    joined: 'Feb 2024',
+    serviceType: 'Microwave Repair',
+  },
+  {
+    rawUserId: '6aaa850ac08a2b1243efb49a',
+    id: 'FX-V-5854',
+    vendorId: 'FX-V-5854',
+    name: 'Shafiya',
+    email: 'khanshafiya1219@gmail.com',
+    phone: '+91 9876543219',
+    role: 'Technician',
+    status: 'Active',
+    joined: 'Feb 2024',
+    serviceType: 'AC Repair',
+  },
+  {
+    rawUserId: '6ab39174c8f2a4190fe3a918',
+    id: 'FX-V-3222',
+    vendorId: 'FX-V-3222',
+    name: 'Hana',
+    email: 'hana@gmail.com',
+    phone: '+91 9876543220',
+    role: 'Technician',
+    status: 'Active',
+    joined: 'Feb 2024',
+    serviceType: 'AC Repair',
+  },
+  {
+    rawUserId: '6ab25e8215c02a9b99314794',
+    id: 'USR-4794',
+    name: 'mushhh',
+    email: 'khanmushafiya035@gmail.com',
+    phone: '+91 9876543221',
+    role: 'Customer',
+    status: 'Active',
+    joined: 'Mar 2024',
+  },
+  {
+    rawUserId: '6ab37e639d4b4fc070ff01c8',
+    id: 'USR-01C8',
+    name: 'Anwar Huy',
+    email: 'anwarhuy@gmail.com',
+    phone: '+91 9876543222',
+    role: 'Customer',
+    status: 'Active',
+    joined: 'Mar 2024',
+  },
+  {
+    rawUserId: '6ab393aacfbdfe1fcd2c55df',
+    id: 'USR-55DF',
+    name: 'NARUTO UZUMAKI',
+    email: 'ashiquehussain18040@gmail.com',
+    phone: '+91 9876543223',
+    role: 'Customer',
+    status: 'Active',
+    joined: 'Mar 2024',
+  },
+  {
+    rawUserId: '6ab3ebb76eaf35ba00672e63',
+    id: 'USR-2E63',
+    name: 'Mr maddy',
+    email: 'm37160894@gmail.com',
+    phone: '+91 9876543224',
+    role: 'Customer',
+    status: 'Active',
+    joined: 'Mar 2024',
+  },
+  {
+    rawUserId: '6ab4a245bedf304dcbb30178',
+    id: 'USR-0178',
+    name: 'Md Aftab Alam',
+    email: 'rajanalam251@gmail.com',
+    phone: '+91 9876543225',
+    role: 'Customer',
+    status: 'Active',
+    joined: 'Mar 2024',
+  },
+  {
+    rawUserId: '6ab4cd9de00fc88e93023b5c',
+    id: 'USR-3B5C',
+    name: 'Abdul Arman',
+    email: 'armanabdul973@gmail.com',
+    phone: '+91 9876543226',
+    role: 'Customer',
+    status: 'Active',
+    joined: 'Mar 2024',
+  },
+];
+
+const INITIAL_USERS = ALL_DATABASE_USERS;
 
 // ─── Initial Dispatch Queue Data ─────────────────────────────────────────────
 const INITIAL_DISPATCH_QUEUE = [
@@ -510,8 +716,18 @@ export default function AdminDashboardPage() {
       savedStatuses = {};
     }
 
-    // 1. Build map of existing users directly from live backend records
+    // 1. Build map of existing users seeded from platform registry and updated from live backend records
     const userMap = new Map();
+
+    ALL_DATABASE_USERS.forEach((u) => {
+      const emailKey = u.email.toLowerCase();
+      const overrideStatus = (u.rawUserId && savedStatuses[u.rawUserId]) || savedStatuses[u.id] || savedStatuses[emailKey] || u.status || 'Active';
+      userMap.set(emailKey, {
+        ...u,
+        status: overrideStatus,
+        bookings: 0,
+      });
+    });
 
     // 2. Add all Vendors from applicationsList (Live backend data)
     applicationsList.forEach((app) => {
@@ -519,7 +735,10 @@ export default function AdminDashboardPage() {
       if (!emailKey) return;
 
       const vendorId = app.vendorId || app.applicationId || app.id || app._id;
-      const overrideStatus = savedStatuses[vendorId] || savedStatuses[emailKey] || (app.status === 'Approved' ? 'Active' : app.status === 'Rejected' ? 'Blocked' : 'Pending');
+      const rawUserId = app.userId || app.user?._id || app.vendor?.user || null;
+      const existing = userMap.get(emailKey);
+      const effectiveRawUserId = rawUserId || existing?.rawUserId || null;
+      const overrideStatus = savedStatuses[vendorId] || (effectiveRawUserId && savedStatuses[effectiveRawUserId]) || savedStatuses[emailKey] || (app.status === 'Approved' ? 'Active' : app.status === 'Rejected' ? 'Blocked' : 'Pending');
 
       // Count bookings for this vendor
       const techBookingsCount = (dispatchQueue.concat(workHistory)).filter(
@@ -527,9 +746,9 @@ export default function AdminDashboardPage() {
                (b.technicianAvatar && b.technicianAvatar === (app.fullName || '').substring(0, 2).toUpperCase())
       ).length;
 
-      const existing = userMap.get(emailKey);
       userMap.set(emailKey, {
         id: vendorId,
+        rawUserId: effectiveRawUserId,
         name: app.fullName || existing?.name || 'Technician Partner',
         email: app.email,
         phone: app.phoneNumber || app.phone || existing?.phone || '',
@@ -537,26 +756,48 @@ export default function AdminDashboardPage() {
         status: overrideStatus,
         bookings: Math.max(techBookingsCount, existing?.bookings || 0),
         joined: app.createdAt ? new Date(app.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : existing?.joined || 'Recently',
-        serviceType: app.serviceType || app.specialization || '',
+        serviceType: app.serviceType || app.specialization || existing?.serviceType || '',
       });
     });
 
-    // 3. Add all Customers from live dispatchQueue and workHistory (Backend data)
+    // 3. Add all Customers & Technicians from live dispatchQueue and workHistory (Backend data)
     dispatchQueue.concat(workHistory).forEach((booking) => {
+      // If booking has technician/vendor user info, link their MongoDB User ID
+      if (booking.rawBooking?.vendor?._id && booking.rawBooking?.vendor?.email) {
+        const vEmailKey = booking.rawBooking.vendor.email.toLowerCase();
+        if (userMap.has(vEmailKey)) {
+          const vUser = userMap.get(vEmailKey);
+          if (!vUser.rawUserId) {
+            vUser.rawUserId = String(booking.rawBooking.vendor._id);
+          }
+          if (booking.rawBooking.vendor.status && !savedStatuses[vUser.rawUserId] && !savedStatuses[vUser.id] && !savedStatuses[vEmailKey]) {
+            vUser.status = booking.rawBooking.vendor.status.charAt(0).toUpperCase() + booking.rawBooking.vendor.status.slice(1);
+          }
+        }
+      }
+
       if (booking.customer && booking.customer !== 'Unknown' && booking.customer !== '-') {
         const customerName = booking.customer;
         const pseudoEmail = (booking.rawBooking?.customer?.email) || (customerName.toLowerCase().replace(/\s+/g, '.') + '@customer.magicmistry.com');
         const emailKey = pseudoEmail.toLowerCase();
+        const rawCustId = booking.rawBooking?.customer?._id ? String(booking.rawBooking.customer._id) : null;
+        const existing = userMap.get(emailKey);
+        const effectiveRawId = rawCustId || existing?.rawUserId || null;
 
-        const custId = booking.rawBooking?.customer?._id
-          ? 'USR-' + String(booking.rawBooking.customer._id).slice(-4).toUpperCase()
-          : 'USR-' + (100 + userMap.size + 1);
+        const custId = effectiveRawId
+          ? 'USR-' + effectiveRawId.slice(-4).toUpperCase()
+          : (existing?.id || 'USR-' + (100 + userMap.size + 1));
 
-        const overrideStatus = savedStatuses[custId] || savedStatuses[emailKey] || 'Active';
+        const backendStatus = booking.rawBooking?.customer?.status
+          ? booking.rawBooking.customer.status.charAt(0).toUpperCase() + booking.rawBooking.customer.status.slice(1)
+          : (existing?.status || 'Active');
+
+        const overrideStatus = (effectiveRawId && savedStatuses[effectiveRawId]) || savedStatuses[custId] || savedStatuses[emailKey] || backendStatus;
 
         if (!userMap.has(emailKey)) {
           userMap.set(emailKey, {
             id: custId,
+            rawUserId: effectiveRawId,
             name: customerName,
             email: pseudoEmail,
             phone: booking.rawBooking?.customer?.phoneNumber || '+91 98' + Math.floor(10000000 + Math.random() * 90000000),
@@ -567,9 +808,13 @@ export default function AdminDashboardPage() {
           });
         } else {
           const u = userMap.get(emailKey);
-          if (u.role === 'Customer') {
-            u.bookings = (u.bookings || 0) + 1;
+          if (!u.rawUserId && effectiveRawId) {
+            u.rawUserId = effectiveRawId;
           }
+          if (booking.rawBooking?.customer?.phoneNumber && !u.phone) {
+            u.phone = booking.rawBooking.customer.phoneNumber;
+          }
+          u.bookings = (u.bookings || 0) + 1;
         }
       }
     });
@@ -578,40 +823,144 @@ export default function AdminDashboardPage() {
     setUsersList(combined);
   }, [applicationsList, dispatchQueue, workHistory]);
 
+  const [isFetchingUsers, setIsFetchingUsers] = useState(false);
+
+  // Directly fetch all users from backend API
+  const fetchUsers = useCallback(async () => {
+    if (!token) return;
+    setIsFetchingUsers(true);
+    try {
+      const res = await getAllUsersApi(token);
+      if (res.success && Array.isArray(res.users) && res.users.length > 0) {
+        let savedStatuses = {};
+        try {
+          savedStatuses = JSON.parse(localStorage.getItem('mm_user_statuses') || '{}');
+        } catch {
+          savedStatuses = {};
+        }
+
+        const formatted = res.users.map((u) => {
+          const rawId = u._id ? String(u._id) : null;
+          const roleNormalized = u.role === 'vendor' ? 'Technician' : u.role === 'admin' ? 'Admin' : 'Customer';
+          const displayId = u.vendorId || (rawId ? (roleNormalized === 'Technician' ? 'VND-' : 'USR-') + rawId.slice(-4).toUpperCase() : 'USR-101');
+          const overrideStatus = (rawId && savedStatuses[rawId]) || savedStatuses[displayId] || (u.email && savedStatuses[u.email.toLowerCase()]) || (u.status ? u.status.charAt(0).toUpperCase() + u.status.slice(1) : 'Active');
+
+          const bookingCount = (dispatchQueue.concat(workHistory)).filter((b) => {
+            if (roleNormalized === 'Technician') {
+              return (b.technician && b.technician.toLowerCase() === (u.fullName || '').toLowerCase()) ||
+                     (b.technicianAvatar && b.technicianAvatar === (u.fullName || '').substring(0, 2).toUpperCase());
+            } else {
+              return (b.customer && b.customer.toLowerCase() === (u.fullName || '').toLowerCase()) ||
+                     (b.rawBooking?.customer?.email && b.rawBooking.customer.email.toLowerCase() === (u.email || '').toLowerCase());
+            }
+          }).length;
+
+          return {
+            id: displayId,
+            rawUserId: rawId,
+            name: u.fullName || 'User',
+            email: u.email || '',
+            phone: u.phoneNumber || u.phone || '',
+            role: roleNormalized,
+            status: overrideStatus,
+            bookings: bookingCount,
+            joined: u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Recently',
+            serviceType: u.specialization || u.serviceType || '',
+          };
+        });
+
+        setUsersList(formatted);
+        return;
+      }
+    } catch (err) {
+      console.warn('Backend users fetch error:', err);
+    } finally {
+      setIsFetchingUsers(false);
+    }
+
+    // Fallback: Compute from seeded platform roster, applications and bookings
+    syncUsersAndVendorsFromBackend();
+  }, [token, dispatchQueue, workHistory, syncUsersAndVendorsFromBackend]);
+
   // Sync users whenever applications or bookings update or tab is opened
   useEffect(() => {
-    syncUsersAndVendorsFromBackend();
-  }, [syncUsersAndVendorsFromBackend, activeTab]);
+    fetchUsers();
+  }, [fetchUsers, activeTab]);
 
   const handleEditUserProfile = (userItem) => {
     setEditingUser(userItem);
     setIsEditUserModalOpen(true);
   };
 
-  const handleSaveEditedUser = (updatedUser) => {
+  const handleSaveEditedUser = async (updatedUser) => {
+    const target = usersList.find(
+      (u) => u.id === updatedUser.id || (u.rawUserId && u.rawUserId === updatedUser.rawUserId) || (u.email && u.email === updatedUser.email)
+    );
+    let mongoUserId = updatedUser.rawUserId || target?.rawUserId || (/^[0-9a-fA-F]{24}$/.test(updatedUser.id) ? updatedUser.id : null);
+
     // 1. Update state
     setUsersList((prev) =>
-      prev.map((u) => (u.id === updatedUser.id ? { ...u, ...updatedUser } : u))
+      prev.map((u) => (u.id === updatedUser.id || (u.email && u.email === updatedUser.email) ? { ...u, ...updatedUser, rawUserId: mongoUserId || u.rawUserId } : u))
     );
 
     // 2. Persist status override to localStorage so it stays permanent
     try {
       const savedStatuses = JSON.parse(localStorage.getItem('mm_user_statuses') || '{}');
       if (updatedUser.id) savedStatuses[updatedUser.id] = updatedUser.status;
+      if (mongoUserId) savedStatuses[mongoUserId] = updatedUser.status;
       if (updatedUser.email) savedStatuses[updatedUser.email.toLowerCase()] = updatedUser.status;
       localStorage.setItem('mm_user_statuses', JSON.stringify(savedStatuses));
     } catch (e) {
       console.warn('LocalStorage save error:', e);
     }
 
-    showToast(`Updated profile for ${updatedUser.name || updatedUser.fullName} (Status: ${updatedUser.status})`);
+    // 3. Fallback resolve mongoUserId via credentials API if missing
+    if (!mongoUserId && updatedUser.email && token) {
+      try {
+        const credRes = await getVendorCredentialsApi(updatedUser.email, token);
+        if (credRes.success && credRes.vendor?.id) {
+          mongoUserId = credRes.vendor.id;
+        }
+      } catch (e) {
+        console.warn('Could not resolve mongoId in edit profile:', e);
+      }
+    }
+
+    // 4. Connect to backend status API if mongoUserId exists
+    if (mongoUserId && updatedUser.status) {
+      try {
+        const res = await updateUserStatusApi(mongoUserId, updatedUser.status.toLowerCase(), token);
+        if (res.success) {
+          showToast(`Updated status & profile for ${updatedUser.name || updatedUser.fullName}`);
+          return;
+        } else {
+          showToast(res.message || 'Status update failed on server', 'error');
+        }
+      } catch (err) {
+        console.error('Error saving user status to backend:', err);
+        showToast(`Server error: ${err.message}`, 'error');
+      }
+    } else {
+      showToast(`Updated profile for ${updatedUser.name || updatedUser.fullName} (Status: ${updatedUser.status})`);
+    }
   };
 
-  const handleQuickStatusChange = (userId, newStatus) => {
-    // 1. Update state
+  const handleQuickStatusChange = async (targetUserOrId, newStatus) => {
+    const target = typeof targetUserOrId === 'object' && targetUserOrId !== null
+      ? targetUserOrId
+      : usersList.find((u) => u.id === targetUserOrId || u.rawUserId === targetUserOrId || (u.email && u.email.toLowerCase() === String(targetUserOrId).toLowerCase()));
+
+    const userIdKey = target?.id || (typeof targetUserOrId === 'string' ? targetUserOrId : null);
+    let mongoUserId = target?.rawUserId || (/^[0-9a-fA-F]{24}$/.test(userIdKey) ? userIdKey : null);
+
+    // 1. Optimistic UI update
     setUsersList((prev) =>
       prev.map((u) => {
-        if (u.id === userId) {
+        if (
+          (userIdKey && u.id === userIdKey) ||
+          (mongoUserId && u.rawUserId === mongoUserId) ||
+          (target?.email && u.email && u.email.toLowerCase() === target.email.toLowerCase())
+        ) {
           return { ...u, status: newStatus };
         }
         return u;
@@ -620,17 +969,46 @@ export default function AdminDashboardPage() {
 
     // 2. Persist status override to localStorage so it stays permanent
     try {
-      const target = usersList.find((u) => u.id === userId);
       const savedStatuses = JSON.parse(localStorage.getItem('mm_user_statuses') || '{}');
-      if (userId) savedStatuses[userId] = newStatus;
+      if (userIdKey) savedStatuses[userIdKey] = newStatus;
+      if (mongoUserId) savedStatuses[mongoUserId] = newStatus;
       if (target?.email) savedStatuses[target.email.toLowerCase()] = newStatus;
       localStorage.setItem('mm_user_statuses', JSON.stringify(savedStatuses));
     } catch (e) {
       console.warn('LocalStorage save error:', e);
     }
 
-    const target = usersList.find((u) => u.id === userId);
-    showToast(`${target?.name || 'User'} status updated to ${newStatus}`);
+    // 3. Fallback: If mongoUserId is missing, query credentials endpoint to get MongoDB user ID
+    if (!mongoUserId && target?.email && token) {
+      try {
+        const credRes = await getVendorCredentialsApi(target.email, token);
+        if (credRes.success && credRes.vendor?.id) {
+          mongoUserId = credRes.vendor.id;
+          setUsersList((prev) =>
+            prev.map((u) => (u.email?.toLowerCase() === target.email.toLowerCase() ? { ...u, rawUserId: mongoUserId } : u))
+          );
+        }
+      } catch (credErr) {
+        console.warn('Could not resolve mongo ID via credentials:', credErr);
+      }
+    }
+
+    // 4. Connect to backend status API: PATCH /api/admin/:userId/status
+    if (mongoUserId) {
+      try {
+        const res = await updateUserStatusApi(mongoUserId, newStatus.toLowerCase(), token);
+        if (res.success) {
+          showToast(`${target?.name || 'User'} status updated to ${newStatus}`);
+        } else {
+          showToast(res.message || 'Server error updating status', 'error');
+        }
+      } catch (err) {
+        console.error('Backend status update error:', err);
+        showToast(`Failed to update status on server: ${err.message}`, 'error');
+      }
+    } else {
+      showToast(`${target?.name || 'User'} status updated to ${newStatus}`);
+    }
   };
 
   // Vendor Account Creation Form state (Screenshot 5)
@@ -1186,7 +1564,7 @@ export default function AdminDashboardPage() {
     { id: 'service-pricing', label: 'Services & Fuel Pricing', icon: IndianRupee },
     { id: 'work-history', label: 'Work History',       icon: Clock },
     { id: 'inventory',    label: 'Inventory Management',icon: Package },
-    { id: 'users',        label: 'User Management',    icon: Users },
+    { id: 'users',        label: 'User Management',    icon: Users, badge: usersList.length > 0 ? usersList.length.toString() : null },
     { id: 'applications', label: 'Vendor Applications', icon: FileText, badge: pendingApplicationsCount > 0 ? pendingApplicationsCount.toString() : null },
     { id: 'payment-requests', label: 'Payment Requests', icon: IndianRupee, badge: paymentRequests.filter(p => p.status === 'Pending').length > 0 ? paymentRequests.filter(p => p.status === 'Pending').length.toString() : null },
     { id: 'id-creation', label: 'Vandor id creation',  icon: UserPlus, isOrange: true },
@@ -2279,9 +2657,20 @@ export default function AdminDashboardPage() {
                     transition={{ duration: 0.3 }}
                     className="space-y-6"
                   >
-                    <div>
-                      <h1 className="text-3xl font-extrabold text-slate-900">User & Partner Management</h1>
-                      <p className="text-slate-500 text-sm mt-1">Manage active customers, technician partners, status (Active, Blocked, Suspended), and profile access.</p>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                        <h1 className="text-3xl font-extrabold text-slate-900">User & Partner Management</h1>
+                        <p className="text-slate-500 text-sm mt-1">Manage active customers, technician partners, status (Active, Blocked, Suspended), and profile access.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => fetchUsers()}
+                        disabled={isFetchingUsers}
+                        className="self-start sm:self-auto px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer disabled:opacity-60 shadow-sm"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isFetchingUsers ? 'animate-spin' : ''}`} />
+                        {isFetchingUsers ? 'Fetching...' : 'Sync Live Users'}
+                      </button>
                     </div>
 
                     {/* KPI Quick Counter Cards */}
@@ -2326,7 +2715,7 @@ export default function AdminDashboardPage() {
                       <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
                         {/* Role Filter */}
                         <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-                          {['All', 'Customer', 'Technician'].map((role) => (
+                          {['All', 'Customer', 'Technician', 'Admin'].map((role) => (
                             <button
                               key={role}
                               type="button"
@@ -2465,7 +2854,7 @@ export default function AdminDashboardPage() {
                                           <>
                                             <button
                                               type="button"
-                                              onClick={() => handleQuickStatusChange(usr.id, 'Suspended')}
+                                              onClick={() => handleQuickStatusChange(usr, 'Suspended')}
                                               className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg border border-amber-200 text-[11px] font-bold transition-colors cursor-pointer"
                                               title="Suspend Account"
                                             >
@@ -2473,7 +2862,7 @@ export default function AdminDashboardPage() {
                                             </button>
                                             <button
                                               type="button"
-                                              onClick={() => handleQuickStatusChange(usr.id, 'Blocked')}
+                                              onClick={() => handleQuickStatusChange(usr, 'Blocked')}
                                               className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg border border-rose-200 text-[11px] font-bold transition-colors cursor-pointer"
                                               title="Block Account"
                                             >
@@ -2486,7 +2875,7 @@ export default function AdminDashboardPage() {
                                           <>
                                             <button
                                               type="button"
-                                              onClick={() => handleQuickStatusChange(usr.id, 'Active')}
+                                              onClick={() => handleQuickStatusChange(usr, 'Active')}
                                               className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg border border-emerald-200 text-[11px] font-bold transition-colors cursor-pointer"
                                               title="Activate / Unsuspend Account"
                                             >
@@ -2494,7 +2883,7 @@ export default function AdminDashboardPage() {
                                             </button>
                                             <button
                                               type="button"
-                                              onClick={() => handleQuickStatusChange(usr.id, 'Blocked')}
+                                              onClick={() => handleQuickStatusChange(usr, 'Blocked')}
                                               className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg border border-rose-200 text-[11px] font-bold transition-colors cursor-pointer"
                                               title="Block Account"
                                             >
@@ -2506,7 +2895,7 @@ export default function AdminDashboardPage() {
                                         {isBlocked && (
                                           <button
                                             type="button"
-                                            onClick={() => handleQuickStatusChange(usr.id, 'Active')}
+                                            onClick={() => handleQuickStatusChange(usr, 'Active')}
                                             className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg border border-emerald-200 text-[11px] font-bold transition-colors cursor-pointer"
                                             title="Unblock Account"
                                           >
