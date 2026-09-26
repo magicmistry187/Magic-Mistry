@@ -3,13 +3,13 @@ const User = require("../models/user.model");
 //Update User Account Status
 exports.updateUserStatus = async (req, res) => {
   try {
-
-    
-    const { status } = req.body;
+    const { status, durationDays } = req.body;
     const { userId } = req.params;
 
     //Validate the status
     const allowedStatus = ["active", "blocked", "suspended"];
+
+    // console.log("Duraton Days : ", durationDays);
 
     if (!allowedStatus.includes(status.toLowerCase())) {
       return res.status(400).json({
@@ -36,8 +36,42 @@ exports.updateUserStatus = async (req, res) => {
       });
     }
 
-    //update user status
-    user.status = status.toLowerCase();
+    //Handle each status
+
+    if (status === "suspended") {
+
+      if(durationDays === undefined || !Number.isInteger(durationDays) || durationDays <= 0){
+        return res.status(403).json({
+          success: false,
+          message : "Valid suspension duration is required"
+        })
+      }
+
+      const suspendedUntil = new Date();
+
+      suspendedUntil.setDate(
+        suspendedUntil.getDate() + durationDays
+      )
+
+      // console.log("SUSPENSION DATE : ", suspendedUntil);
+
+      user.status = "suspended";
+      user.suspendedUntil = suspendedUntil;
+
+
+
+    } else if (status === "active") {
+      user.status = "active";
+      user.suspendedUntil = null;
+
+
+    } else if (status === "blocked") {
+      user.status = "blocked";
+      user.suspendedUntil = null;
+    }
+
+
+    //Save Changes
     await user.save();
 
     return res.status(200).json({
@@ -49,13 +83,14 @@ exports.updateUserStatus = async (req, res) => {
         email: user.email,
         role: user.role,
         status: user.status,
+        suspendedUntil: user.suspendedUntil,
       },
     });
   } catch (err) {
     console.log("Error while Updating user account status:  ", err);
     return res.status(500).json({
-        success: false,
-        message: "Failed to update user account",
-    })
+      success: false,
+      message: "Failed to update user account",
+    });
   }
 };
