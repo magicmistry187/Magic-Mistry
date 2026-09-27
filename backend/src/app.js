@@ -5,6 +5,9 @@ const helmet = require('helmet');
 
 const app = express();
 
+// Trust reverse proxy (Render, Cloudflare, Heroku) for accurate IP rate limiting and secure cookies
+app.set('trust proxy', 1);
+
 app.use(helmet());
 
 const allowedOrigins = [
@@ -56,11 +59,13 @@ const bookingRoutes = require('./routes/booking.routes');
 const addressRoutes = require('./routes/address.routes');
 const vendorApplicationRoutes = require('./routes/vendorApplication.routes');
 const vendorRoutes = require('./routes/vendor.routes');
+const adminRoutes = require('./routes/admin.routes')
 
 app.use('/api/auth', authRoutes);
 app.use('/api/booking', bookingRoutes);
 app.use('/api/address', addressRoutes);
 app.use('/api/vendor-application', vendorApplicationRoutes);
 app.use('/api/vendor', vendorRoutes);
+app.use('/api/admin', adminRoutes);
 
 module.exports = app;

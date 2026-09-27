@@ -18,6 +18,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { parseAddressString, INDIAN_STATES } from '../../../utils/addressParser';
+import { getCurrentCoordinates, reverseGeocode } from '../../../utils/reverseGeocode';
 
 export default function UserAddressModal({ isOpen, onClose, onSave, initialData }) {
   const [type, setType] = useState('Home');
@@ -80,102 +81,27 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
     setLocError('');
   }, [initialData, isOpen]);
 
-  const handleUseLocation = () => {
-    if (!navigator.geolocation) {
-      setLocState('error');
-      setLocError('Geolocation is not supported by your browser.');
-      return;
-    }
+  const handleUseLocation = async () => {
     setLocState('loading');
     setLocError('');
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${coords.latitude}&lon=${coords.longitude}&format=json&addressdetails=1`,
-            { headers: { 'Accept-Language': 'en' } }
-          );
-          const data = await res.json();
-          const a = data.address || {};
+    try {
+      const coords = await getCurrentCoordinates({ timeout: 15000 });
+      const address = await reverseGeocode(coords.latitude, coords.longitude);
 
-          // 1. House / Flat / Building / Shop
-          const detectedHouse =
-            a.house_number ||
-            a.building ||
-            a.flat ||
-            a.room ||
-            a.house_name ||
-            a.shop ||
-            a.commercial ||
-            a.apartments ||
-            '';
-
-          // 2. Road / Street
-          const road = a.road || a.pedestrian || a.footway || a.street || a.path || a.highway || '';
-
-          // 3. Locality / Suburb / Area
-          const locality =
-            a.suburb ||
-            a.neighbourhood ||
-            a.residential ||
-            a.subdistrict ||
-            a.city_district ||
-            a.quarter ||
-            a.hamlet ||
-            a.village_district ||
-            '';
-
-          const detectedStreet = [road, locality].filter(Boolean).join(', ');
-
-          // 4. City / Town
-          const detectedCity =
-            a.city ||
-            a.town ||
-            a.village ||
-            a.municipality ||
-            a.state_district ||
-            a.county ||
-            a.district ||
-            '';
-
-          // 5. State
-          const detectedState = a.state || a.province || a.region || '';
-
-          // 6. Landmark
-          const detectedLandmark =
-            a.landmark || a.attraction || a.amenity || a.place || a.historic || a.leisure || '';
-
-          // 7. Pincode
-          const detectedPincode = (a.postcode || '').replace(/\D/g, '').slice(0, 6);
-
-          // Fallback parsing from full display_name if needed
-          const combinedStr = data.display_name || '';
-          const parsedCombined = parseAddressString(combinedStr);
-
-          setFlat(detectedHouse || parsedCombined.flat || '');
-          setStreet(detectedStreet || parsedCombined.street || '');
-          setCity(detectedCity || parsedCombined.city || '');
-          setState(detectedState || parsedCombined.state || '');
-          setLandmark(detectedLandmark || parsedCombined.landmark || '');
-          setPincode(detectedPincode || parsedCombined.pincode || '');
-          setGeoCoords({ lat: coords.latitude, lng: coords.longitude });
-          setLocState('success');
-          setLocError('');
-        } catch {
-          setLocState('error');
-          setLocError('Could not fetch location details. Please enter manually.');
-        }
-      },
-      (err) => {
-        setLocState('error');
-        setLocError(
-          err.code === 1
-            ? 'Location permission denied. Please allow access and try again.'
-            : 'Unable to retrieve your location. Please enter manually.'
-        );
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+      setFlat(address.flat || '');
+      setStreet(address.street || '');
+      setCity(address.city || '');
+      setState(address.state || '');
+      setLandmark(address.landmark || '');
+      setPincode(address.pincode || '');
+      setGeoCoords({ lat: coords.latitude, lng: coords.longitude });
+      setLocState('success');
+      setLocError('');
+    } catch (err) {
+      console.error('[UserAddressModal] Geolocation error:', err);
+      setLocState('error');
+      setLocError(err.message || 'Could not fetch location details. Please enter manually.');
+    }
   };
 
   if (!isOpen) return null;

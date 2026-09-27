@@ -9,6 +9,7 @@ const {
   sendOtp,
   login,
   googleLogin,
+  logout,
   changePassword,
   verifyOtpForForgotPassword,
   forgotPassword,
@@ -30,6 +31,8 @@ router.post('/signup', signup);
 router.post('/sendOtp', otpLimiter, sendOtp);
 router.post('/login', loginLimiter, login);
 router.post('/googleLogin', googleLogin);
+router.post('/logout', logout);
+router.get('/logout', logout);
 router.post('/changePassword', auth, changePassword);
 router.post('/forgotPassword/verifyOtp', verifyOtpForForgotPassword);
 router.post('/forgotPassword', forgotPassword);

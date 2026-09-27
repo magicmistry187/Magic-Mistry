@@ -1,21 +1,18 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import ApplianceIcon from '../common/ApplianceIcon';
+import { useLivePricing } from '../../services/pricingService';
 
 export default function ServiceCategories() {
   const navigate = useNavigate();
+  const { services } = useLivePricing();
 
-  const categories = [
-    { id: 1, name: 'AC Repair' },
-    { id: 2, name: 'Refrigerator' },
-    { id: 3, name: 'Washing Machine' },
-    { id: 4, name: 'Microwave' },
-    { id: 5, name: 'Mixer Grinder' },
-    { id: 6, name: 'Pump Motor' },
-    { id: 7, name: 'Air Cooler' },
-    { id: 8, name: 'Induction Cooktop' },
-    { id: 9, name: 'Stabilizer' },
-  ];
+  const categories = services.map((s, idx) => ({
+    id: typeof s.id === 'number' ? s.id : (idx + 1),
+    name: s.name,
+    icon: s.icon,
+    basePrice: s.basePrice
+  }));
 
   const handleServiceClick = (appliance) => {
     navigate('/booking', {
@@ -24,6 +21,7 @@ export default function ServiceCategories() {
       }
     });
   };
+
 
   return (
     <section id="services" className="max-w-6xl mx-auto px-4 py-8">

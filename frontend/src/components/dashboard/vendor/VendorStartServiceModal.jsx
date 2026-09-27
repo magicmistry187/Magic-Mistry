@@ -4,6 +4,7 @@ import {
   MapPin, Navigation, Camera, Upload, Check, AlertCircle,
   X, ExternalLink, IndianRupee, ShieldCheck, Image as ImageIcon
 } from 'lucide-react';
+import { useLivePricing } from '../../../services/pricingService';
 
 // Default mock map route screenshot for instant testing without manual file selection
 const SAMPLE_MAP_ROUTE_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="340" viewBox="0 0 600 340">
@@ -42,8 +43,9 @@ export default function VendorStartServiceModal({
   vendorProfile,
   onConfirmStartService
 }) {
+  const { fuelRate } = useLivePricing();
   const [distanceKm, setDistanceKm] = useState(4.5);
-  const [ratePerKm, setRatePerKm] = useState(10);
+  const [ratePerKm, setRatePerKm] = useState(fuelRate);
   const [mapScreenshot, setMapScreenshot] = useState(null);
   const [mapFileName, setMapFileName] = useState('');
   const [addToInvoice, setAddToInvoice] = useState(true);
@@ -64,9 +66,8 @@ export default function VendorStartServiceModal({
           }
         }
       }
-      if (job.travelRatePerKm) {
-        setRatePerKm(Number(job.travelRatePerKm));
-      }
+      setRatePerKm(Number(job.travelRatePerKm) || fuelRate);
+
       if (job.mapScreenshot) {
         setMapScreenshot(job.mapScreenshot);
         setMapFileName('Attached Route Map');

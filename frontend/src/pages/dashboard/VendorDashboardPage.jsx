@@ -26,6 +26,7 @@ import { useSocket, useSocketEvent } from '../../context/SocketContext';
 import { getVendorBookingsApi, acceptBookingApi, updateBookingStatusApi } from '../../services/operations/bookingAPI';
 import { saveVendorAddressApi, getAddressesApi, updateAddressApi, createAddressApi } from '../../services/operations/addressAPI';
 import { updateVendorProfileApi, getVendorProfileApi, updateVendorProfileImageApi } from '../../services/operations/vendorAPI';
+import { useLivePricing, getLiveFuelRate, getLiveBasePriceForAppliance } from '../../services/pricingService';
 
 
 // Predefined Indian Banks for Profile
@@ -114,18 +115,35 @@ const formatBookingAddress = (addr) => {
   return '—';
 };
 
+// Haversine formula to compute great-circle distance between two GPS coordinates in meters
+export const haversineDistanceMeters = (lat1, lon1, lat2, lon2) => {
+  const R = 6371000; // Radius of Earth in meters
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+};
+
 // Reusable formatter for vendor bookings (both initial fetch and real-time socket events)
 export const formatVendorBooking = (b) => {
   const displayAddr = formatBookingAddress(b.address);
-  const pay = Number(b.serviceCategoryCharge) || Number(b.serviceCharge) || Number(b.estimatedPay) || 0;
+  const fallbackPay = getLiveBasePriceForAppliance(b.serviceCategory || b.appliance, 450);
+  const pay = Number(b.serviceCategoryCharge) || Number(b.serviceCharge) || Number(b.estimatedPay) || fallbackPay;
   const formattedDist =
     typeof b.distance === 'number'
       ? (b.distance < 1000 ? `${Math.round(b.distance)} m away` : `${(b.distance / 1000).toFixed(1)} km away`)
       : 'Nearby';
 
+  const mongoId = b._id ? String(b._id) : (b.id && /^[0-9a-fA-F]{24}$/.test(b.id) ? String(b.id) : '');
   return {
-    id: b.bookingId || String(b._id),
-    displayId: b.bookingId || `WO-${String(b._id).slice(-6).toUpperCase()}`,
+    _id: mongoId || undefined,
+    id: b.bookingId || mongoId || String(b._id || b.id || ''),
+    displayId: b.displayId || (mongoId ? `WO-${mongoId.slice(-6).toUpperCase()}` : (b.bookingId || 'WO-JOB')),
     appliance: b.appliance || 'General',
     applianceIcon: getApplianceIcon(b.appliance),
     serviceTitle: b.serviceCategory || b.appliance || 'Service Request',
@@ -152,7 +170,7 @@ export const formatVendorBooking = (b) => {
     photos: b.photos || [],
     notes: b.notes || '',
     parts: b.parts || [
-      { id: 1, description: b.serviceCategory || b.appliance || 'Diagnostic & Service Charge', qty: 1, price: pay || 450, locked: true },
+      { id: 1, description: b.serviceCategory || b.appliance || 'Diagnostic & Service Charge', qty: 1, price: pay, locked: true },
     ],
   };
 };
@@ -166,7 +184,8 @@ export const calculateJobFinancials = (job) => {
   let travelCharges = 0;
 
   let distanceKm = Number(job?.travelDistanceKm) || Number(job?.invoiceData?.travelDistanceKm) || 0;
-  let ratePerKm = Number(job?.travelRatePerKm) || Number(job?.invoiceData?.travelRatePerKm) || 10;
+  const adminFuelRate = getLiveFuelRate();
+  let ratePerKm = Number(job?.travelRatePerKm) || Number(job?.invoiceData?.travelRatePerKm) || adminFuelRate;
 
   if (parts.length > 0) {
     parts.forEach(part => {
@@ -466,7 +485,9 @@ export default function VendorDashboardPage() {
 
     if (storedUser) {
       const role = (storedUser.role || storedUser.user?.role || '').toLowerCase();
-      const hasVendorAccess = role === 'vendor' || role === 'admin' || !!storedUser.vendorId || !!storedUser.user?.vendorId;
+      const isAdmin = (storedUser?.email && storedUser.email.toLowerCase().trim() === 'magicmistry187@gmail.com') ||
+                      (user?.email && user.email.toLowerCase().trim() === 'magicmistry187@gmail.com');
+      const hasVendorAccess = role === 'vendor' || role === 'admin' || isAdmin || !!storedUser.vendorId || !!storedUser.user?.vendorId;
       if (!hasVendorAccess) {
         navigate('/dashboard', { replace: true });
       }
@@ -496,6 +517,9 @@ export default function VendorDashboardPage() {
     return DEFAULT_SAMPLE_HISTORY;
   });
 
+  // Master reactive dynamic pricing and fuel reimbursement rate hook
+  const { fuelRate, services } = useLivePricing();
+
   // Persist jobs and history locally so uploaded map screenshots and completed orders are saved
   useEffect(() => {
     try {
@@ -508,6 +532,57 @@ export default function VendorDashboardPage() {
       localStorage.setItem('mm_vendor_history', JSON.stringify(history));
     } catch {}
   }, [history]);
+
+  // Reactively synchronize active jobs when fuelRate is updated by admin
+  useEffect(() => {
+    setJobs(prevJobs => prevJobs.map(job => {
+      const dist = Number(job.travelDistanceKm) || 0;
+      const updatedParts = (job.parts || []).map(p => {
+        const desc = String(p.description || '').toLowerCase();
+        const isTravel = p.isTravel || desc.includes('travel') || desc.includes('distance') || desc.includes('km ') || desc.endsWith('km');
+        if (isTravel) {
+          return {
+            ...p,
+            price: fuelRate,
+            description: `Travel & Distance Charge (${dist} km @ ₹${fuelRate}/km)`
+          };
+        }
+        return p;
+      });
+
+      return {
+        ...job,
+        travelRatePerKm: fuelRate,
+        travelCharges: dist * fuelRate,
+        parts: updatedParts
+      };
+    }));
+  }, [fuelRate]);
+
+  // Reactively synchronize active jobs when service catalog/pricing is updated by admin
+  useEffect(() => {
+    setJobs(prevJobs => prevJobs.map(job => {
+      const match = services.find(s =>
+        s.name.toLowerCase() === (job.appliance || '').toLowerCase() ||
+        (job.serviceTitle || '').toLowerCase().includes(s.name.toLowerCase())
+      );
+      if (!match) return job;
+      const newBase = Number(match.basePrice) || job.amount;
+      const updatedParts = (job.parts || []).map(p => {
+        if (p.locked || p.isService) {
+          return { ...p, price: newBase };
+        }
+        return p;
+      });
+
+      return {
+        ...job,
+        estimatedPay: newBase,
+        amount: newBase,
+        parts: updatedParts
+      };
+    }));
+  }, [services]);
 
   // Detailed earnings and payout calculation according to exact user rules:
   // 1. Service charges: strictly 50% vendor payout
@@ -637,6 +712,16 @@ export default function VendorDashboardPage() {
   
   // Active Work Order execution state
   const [selectedJob, setSelectedJob] = useState(null);
+
+  // Keep selectedJob synced with updated active jobs
+  useEffect(() => {
+    if (selectedJob) {
+      const refreshed = jobs.find(j => j.id === selectedJob.id);
+      if (refreshed && (refreshed.travelRatePerKm !== selectedJob.travelRatePerKm || refreshed.amount !== selectedJob.amount)) {
+        setSelectedJob(refreshed);
+      }
+    }
+  }, [jobs, selectedJob]);
   
   // Invoice state
   const [invoiceParts, setInvoiceParts] = useState([]);
@@ -652,6 +737,7 @@ export default function VendorDashboardPage() {
 
   // Toast / Notifications
   const [toastMessage, setToastMessage] = useState(null);
+  const [acceptingJobId, setAcceptingJobId] = useState(null);
   
   // Payout Request State
   const [payoutRequested, setPayoutRequested] = useState(false);
@@ -1043,37 +1129,12 @@ export default function VendorDashboardPage() {
           try {
             const bRes = await getVendorBookingsApi(token, val);
             if (bRes.success && Array.isArray(bRes.bookings)) {
-              const formatted = bRes.bookings.map(b => {
-                const displayAddr = formatBookingAddress(b.address);
-                const pay = Number(b.serviceCategoryCharge) || Number(b.serviceCharge) || Number(b.estimatedPay) || 0;
-                const formattedDist =
-                  typeof b.distance === 'number'
-                    ? (b.distance < 1000 ? `${Math.round(b.distance)} m away` : `${(b.distance / 1000).toFixed(1)} km away`)
-                    : 'Nearby';
-
-                return {
-                  id: b.bookingId || String(b._id),
-                  displayId: b.bookingId || `WO-${String(b._id).slice(-6).toUpperCase()}`,
-                  appliance: b.appliance || 'General',
-                  applianceIcon: getApplianceIcon(b.appliance),
-                  serviceTitle: b.serviceCategory || b.appliance || 'Service Request',
-                  status: b.bookingStatus === 'Pending' ? 'New Request' : (b.bookingStatus || 'New Request'),
-                  timeSlot: b.timeSlot || '—',
-                  scheduledDate: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Today',
-                  location: displayAddr || 'Service Address',
-                  city: b.address?.city || 'Local Area',
-                  distance: formattedDist,
-                  pay: pay > 0 ? pay : 450,
-                  estDuration: '1.5 hrs',
-                  customerNotes: b.issue || 'Standard service request',
-                  customerName: b.customer?.fullName || 'Customer',
-                  customerPhone: b.customer?.phoneNumber || 'Contact via FixIt',
-                  problemDescription: b.issue || 'Customer reported appliance issue requiring inspection.',
-                  diagnosticFee: 450,
-                  rawBooking: b,
-                };
+              const formatted = bRes.bookings.map(formatVendorBooking);
+              setJobs((prevJobs) => {
+                const ongoing = prevJobs.filter(j => j.status !== 'New Request');
+                const newRequests = formatted.filter(b => b.status === 'New Request');
+                return [...newRequests, ...ongoing];
               });
-              setJobs(formatted.filter(b => b.status === 'New Request'));
             }
           } catch (bErr) {
             console.warn('Booking refresh error after radius update:', bErr);
@@ -1102,10 +1163,43 @@ export default function VendorDashboardPage() {
   };
 
   // ── Real-Time Socket Listeners for Vendor ─────────────────────────────────
-  // 1. New booking request available nearby
+  // 1. New booking request available nearby (enforces service radius filtering)
   useSocketEvent('booking:new', (newBooking) => {
     if (!newBooking) return;
     const bId = String(newBooking._id || newBooking.id);
+
+    // Verify distance / radius against vendorProfile.serviceRadius
+    const maxRadiusKm = Number(vendorProfile.serviceRadius) > 0 ? Number(vendorProfile.serviceRadius) : 15;
+    const maxRadiusMeters = maxRadiusKm * 1000;
+
+    let dist = typeof newBooking.distance === 'number' ? newBooking.distance : null;
+
+    if (dist === null) {
+      const vLat = Number(vendorAddressObj?.latitude ?? vendorAddressObj?.location?.coordinates?.[1]);
+      const vLng = Number(vendorAddressObj?.longitude ?? vendorAddressObj?.location?.coordinates?.[0]);
+      const bCoords = newBooking.location?.coordinates;
+      const bLng = Array.isArray(bCoords) && bCoords.length >= 2 ? Number(bCoords[0]) : Number(newBooking.longitude);
+      const bLat = Array.isArray(bCoords) && bCoords.length >= 2 ? Number(bCoords[1]) : Number(newBooking.latitude);
+
+      if (!isNaN(vLat) && !isNaN(vLng) && !isNaN(bLat) && !isNaN(bLng) && (vLat !== 0 || vLng !== 0)) {
+        dist = haversineDistanceMeters(vLat, vLng, bLat, bLng);
+        newBooking.distance = dist;
+      }
+    }
+
+    if (dist !== null) {
+      if (dist > maxRadiusMeters) {
+        // Outside the vendor's service radius - discard silently
+        return;
+      }
+    } else {
+      // If coordinates are missing, verify city matching if available
+      const vendorCity = (vendorAddressObj?.city || vendorProfile.address || '').toLowerCase().trim();
+      const bookingCity = (newBooking.address?.city || '').toLowerCase().trim();
+      if (vendorCity && bookingCity && !vendorCity.includes(bookingCity) && !bookingCity.includes(vendorCity)) {
+        return; // Different city, discard
+      }
+    }
 
     setJobs((prevJobs) => {
       const alreadyExists = prevJobs.some((j) => String(j.id) === bId);
@@ -1122,7 +1216,10 @@ export default function VendorDashboardPage() {
   useSocketEvent('booking:taken', (data) => {
     if (!data?.bookingId) return;
     const targetId = String(data.bookingId);
-    setJobs((prevJobs) => prevJobs.filter((j) => String(j.id) !== targetId || j.status !== 'New Request'));
+    if (data.assignedVendorId && String(data.assignedVendorId) === String(user?._id || user?.id)) {
+      return;
+    }
+    setJobs((prevJobs) => prevJobs.filter((j) => (String(j.id) !== targetId && String(j._id) !== targetId) || j.status !== 'New Request'));
   });
 
   // 3. Status changed on an assigned booking (e.g. Completed, In Progress)
@@ -1204,20 +1301,49 @@ export default function VendorDashboardPage() {
 
   // Accept / Reject
   const handleAcceptJob = async (jobId) => {
-    setJobs(prevJobs =>
-      prevJobs.map(job =>
-        job.id === jobId ? { ...job, status: 'Accepted' } : job
-      )
-    );
-    showToast(`Work Order ${jobId} accepted! Navigation route ready.`, 'success');
+    const targetJob = jobs.find(j => String(j.id) === String(jobId) || String(j._id) === String(jobId));
+    const backendBookingId = targetJob?._id || (targetJob?.id && /^[0-9a-fA-F]{24}$/.test(String(targetJob.id)) ? String(targetJob.id) : null) || (/^[0-9a-fA-F]{24}$/.test(String(jobId)) ? String(jobId) : null);
 
     const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') : null);
-    if (authToken && jobId) {
+
+    if (backendBookingId) {
+      if (!authToken) {
+        showToast('Please log in as a vendor to accept bookings.', 'error');
+        return;
+      }
+      setAcceptingJobId(jobId);
       try {
-        await acceptBookingApi(jobId, authToken);
+        const res = await acceptBookingApi(backendBookingId, authToken);
+        if (res.success && res.booking) {
+          const formatted = formatVendorBooking(res.booking);
+          setJobs(prevJobs =>
+            prevJobs.map(job =>
+              (String(job.id) === String(jobId) || String(job._id) === String(backendBookingId) || String(job.id) === String(backendBookingId))
+                ? { ...job, ...formatted, status: 'Accepted' }
+                : job
+            )
+          );
+          showToast(`Work Order ${targetJob?.displayId || formatted.displayId || jobId} accepted! Navigation route ready.`, 'success');
+        } else {
+          showToast(res.message || 'Booking is no longer available.', 'error');
+          if (res.message && res.message.toLowerCase().includes('no longer available')) {
+            setJobs(prevJobs => prevJobs.filter(job => String(job.id) !== String(jobId) && String(job._id) !== String(backendBookingId)));
+          }
+        }
       } catch (err) {
         console.error('[Vendor Dashboard] Accept booking error:', err);
+        showToast(err.message || 'Failed to accept booking.', 'error');
+      } finally {
+        setAcceptingJobId(null);
       }
+    } else {
+      // Local mock job acceptance for sample preview data
+      setJobs(prevJobs =>
+        prevJobs.map(job =>
+          job.id === jobId ? { ...job, status: 'Accepted' } : job
+        )
+      );
+      showToast(`Work Order ${targetJob?.displayId || jobId} accepted! Navigation route ready.`, 'success');
     }
   };
 
@@ -2021,9 +2147,17 @@ export default function VendorDashboardPage() {
                                     <>
                                       <button
                                         onClick={() => handleAcceptJob(job.id)}
-                                        className="flex-1 sm:flex-none px-5 py-2 bg-orange-600 hover:bg-orange-700 text-white text-xs font-extrabold rounded-xl shadow-sm cursor-pointer"
+                                        disabled={acceptingJobId === job.id}
+                                        className={`flex-1 sm:flex-none px-5 py-2 bg-orange-600 hover:bg-orange-700 text-white text-xs font-extrabold rounded-xl shadow-sm cursor-pointer transition-all ${acceptingJobId === job.id ? 'opacity-70 cursor-not-allowed' : ''}`}
                                       >
-                                        Accept
+                                        {acceptingJobId === job.id ? (
+                                          <span className="flex items-center gap-1.5">
+                                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                            Accepting...
+                                          </span>
+                                        ) : (
+                                          'Accept'
+                                        )}
                                       </button>
                                       <button
                                         onClick={() => handleRejectJob(job.id)}

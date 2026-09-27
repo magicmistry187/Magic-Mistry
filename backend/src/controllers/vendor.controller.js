@@ -93,11 +93,18 @@ exports.vendorLogin = async (req, res) => {
       },
     );
 
-    // 7. Store token in cookie
-    res.cookie('vendorToken', token, {
+    const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      path: '/',
+    };
+    // Clear any conflicting customer token cookie so sessions never collide
+    res.clearCookie('token', cookieOptions);
+
+    // 7. Store token in cookie
+    res.cookie('vendorToken', token, {
+      ...cookieOptions,
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 

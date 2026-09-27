@@ -12,11 +12,13 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   }
 
   if (!isLoggedIn) {
-    return <Navigate to="/login" state={{ from: location.pathname, reason: 'Please log in to access this page.' }} replace />;
+    const isVendorTarget = location.pathname.startsWith('/vendor-dashboard');
+    return <Navigate to="/login" state={{ from: location.pathname, isVendorLogin: isVendorTarget, reason: 'Please log in to access this page.' }} replace />;
   }
 
   if (allowedRoles.length > 0) {
-    const userRole = (user?.role || (user?.vendorId ? 'vendor' : '')).toLowerCase();
+    const isAdminEmail = user?.email && user.email.toLowerCase().trim() === 'magicmistry187@gmail.com';
+    const userRole = isAdminEmail ? 'admin' : (user?.role || (user?.vendorId ? 'vendor' : '')).toLowerCase();
     const normalizedAllowed = allowedRoles.map((r) => r.toLowerCase());
 
     if (!userRole || !normalizedAllowed.includes(userRole)) {
@@ -28,6 +30,9 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
         return <Navigate to="/vendor-dashboard" replace />;
       }
       if (userRole === 'customer') {
+        if (location.pathname.startsWith('/vendor-dashboard')) {
+          return <Navigate to="/login" state={{ from: '/vendor-dashboard', isVendorLogin: true, reason: 'You are signed in as a customer. Please sign in with a Vendor account to access the Vendor Dashboard.' }} replace />;
+        }
         return <Navigate to="/dashboard" replace />;
       }
       return <Navigate to="/" replace />;

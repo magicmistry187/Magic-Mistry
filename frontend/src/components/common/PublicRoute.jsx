@@ -16,7 +16,8 @@ const PublicRoute = ({ children }) => {
   }
 
   if (isLoggedIn) {
-    const role = (user?.role || '').toLowerCase();
+    const isAdminEmail = user?.email && user.email.toLowerCase().trim() === 'magicmistry187@gmail.com';
+    const role = isAdminEmail ? 'admin' : (user?.role || '').toLowerCase();
     if (role === 'admin') {
       return <Navigate to="/admin-dashboard" replace />;
     }

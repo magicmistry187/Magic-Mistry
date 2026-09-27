@@ -7,10 +7,12 @@ import { useAuth } from '../../context/AuthContext';
 
 import LoginRequiredModal from '../auth/LoginRequiredModal';
 import ApplianceIcon from './ApplianceIcon';
+import { useLivePricing } from '../../services/pricingService';
 
 const Navbar = () => {
   const navigate = useNavigate();
   const { isLoggedIn, user, logout, location } = useAuth();
+  const isAdmin = (user?.role || '').toLowerCase() === 'admin' || (user?.email && user.email.toLowerCase().trim() === 'magicmistry187@gmail.com');
 
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
@@ -51,16 +53,16 @@ const Navbar = () => {
   }, []);
 
   const handleLogout = () => {
-    logout();
     setIsDropdownOpen(false);
     setIsMobileMenuOpen(false);
+    logout();
     navigate('/');
   };
 
   // Returns the correct dashboard path based on user role
   const getDashboardRoute = () => {
+    if (isAdmin) return '/admin-dashboard';
     const r = (user?.role || '').toLowerCase();
-    if (r === 'admin') return '/admin-dashboard';
     if (r === 'vendor' || !!user?.vendorId) return '/vendor-dashboard';
     return '/dashboard';
   };
@@ -69,36 +71,35 @@ const Navbar = () => {
   const handleGoToProfile = () => {
     setIsLocationPopupOpen(false);
     setIsMobileMenuOpen(false);
-    const r = (user?.role || '').toLowerCase();
-    if (r === 'admin') {
+    if (isAdmin) {
       navigate('/admin-dashboard');
-    } else if (r === 'vendor' || !!user?.vendorId) {
-      navigate('/vendor-dashboard?tab=profile', { state: { tab: 'profile' } });
     } else {
-      navigate('/dashboard?tab=addresses', { state: { tab: 'addresses' } });
+      const r = (user?.role || '').toLowerCase();
+      if (r === 'vendor' || !!user?.vendorId) {
+        navigate('/vendor-dashboard?tab=profile', { state: { tab: 'profile' } });
+      } else {
+        navigate('/dashboard?tab=addresses', { state: { tab: 'addresses' } });
+      }
     }
   };
 
-  // Search Data with direct booking capability
-  const searchServices = [
-    { id: 1, name: 'AC Service & Repair', category: 'AC Repair' },
-    { id: 1, name: 'AC Installation', category: 'AC Repair' },
-    { id: 2, name: 'Refrigerator Repair', category: 'Refrigerator' },
-    { id: 3, name: 'Washing Machine Repair', category: 'Washing Machine' },
-    { id: 4, name: 'Microwave Repair', category: 'Microwave' },
-    { id: 5, name: 'Mixer Grinder Repair', category: 'Mixer Grinder' },
-    { id: 6, name: 'Pump Motor Repair', category: 'Pump Motor' },
-    { id: 7, name: 'Air Cooler Repair', category: 'Air Cooler' },
-    { id: 8, name: 'Induction Cooktop Repair', category: 'Induction Cooktop' },
-    { id: 9, name: 'Stabilizer Repair', category: 'Stabilizer' },
-    { id: 10, name: 'Press Iron Repair', category: 'Press Iron' },
-    { id: 11, name: 'TV Repair', category: 'TV' },
-    { id: 12, name: 'Ceiling Fan Repair', category: 'Ceiling Fan' },
-    { id: 13, name: 'Geyser Repair', category: 'Geyser' },
-    { id: 14, name: 'Stand Fan Repair', category: 'Stand Fan' },
-    { id: 15, name: 'Table/Wall Fan Repair', category: 'Table Fan' },
-    { id: 16, name: 'Wiring & Switch Board', category: 'Switch Board' },
-  ];
+  const { services } = useLivePricing();
+
+  // Search Data dynamically computed from live service catalog
+  const searchServices = useMemo(() => {
+    const list = [];
+    services.forEach((s, idx) => {
+      const catId = typeof s.id === 'number' ? s.id : (idx + 1);
+      list.push({ id: catId, name: `${s.name} Service & Repair`, category: s.name });
+      if (Array.isArray(s.subServices)) {
+        s.subServices.forEach(sub => {
+          list.push({ id: catId, name: `${s.name} - ${sub.label}`, category: s.name, price: sub.price });
+        });
+      }
+    });
+    return list;
+  }, [services]);
+
 
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
@@ -520,17 +521,21 @@ const Navbar = () => {
                               whileHover={{ x: 4, backgroundColor: '#EFF6FF' }}
                               onClick={() => {
                                 setIsDropdownOpen(false);
-                                const r = (user?.role || '').toLowerCase();
-                                navigate(r === 'admin' ? '/admin-dashboard' : (r === 'vendor' || !!user?.vendorId) ? '/vendor-dashboard' : '/dashboard');
+                                if (isAdmin) {
+                                  navigate('/admin-dashboard');
+                                } else {
+                                  const r = (user?.role || '').toLowerCase();
+                                  navigate((r === 'vendor' || !!user?.vendorId) ? '/vendor-dashboard' : '/dashboard');
+                                }
                               }}
                               className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 transition-colors"
                             >
-                              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                                <LayoutDashboard className="w-4 h-4 text-blue-600" />
+                              <div className={`w-8 h-8 rounded-lg ${isAdmin ? 'bg-indigo-100' : 'bg-blue-100'} flex items-center justify-center`}>
+                                <LayoutDashboard className={`w-4 h-4 ${isAdmin ? 'text-indigo-600' : 'text-blue-600'}`} />
                               </div>
                               <div className="text-left">
-                                <p className="font-semibold text-gray-800">Profile</p>
-                                <p className="text-xs text-gray-400">View your dashboard</p>
+                                <p className="font-semibold text-gray-800">{isAdmin ? 'Admin Dashboard' : 'Profile'}</p>
+                                <p className="text-xs text-gray-400">{isAdmin ? 'Manage system & operations' : 'View your dashboard'}</p>
                               </div>
                             </motion.button>
 
@@ -732,18 +737,27 @@ const Navbar = () => {
                           <p className="text-xs text-gray-500">{user?.email || ''}</p>
                         </div>
                       </div>
-                      {/* Mobile Profile Button */}
+                      {/* Mobile Profile / Admin Dashboard Button */}
                       <button
                         onClick={() => {
                           setIsMobileMenuOpen(false);
-                          const r = (user?.role || '').toLowerCase();
-                          navigate(r === 'admin' ? '/admin-dashboard' : (r === 'vendor' || !!user?.vendorId) ? '/vendor-dashboard' : '/dashboard');
+                          if (isAdmin) {
+                            navigate('/admin-dashboard');
+                          } else {
+                            const r = (user?.role || '').toLowerCase();
+                            navigate((r === 'vendor' || !!user?.vendorId) ? '/vendor-dashboard' : '/dashboard');
+                          }
                         }}
-                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-blue-700 border border-blue-200 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors"
+                        className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl transition-colors ${
+                          isAdmin
+                            ? 'text-indigo-700 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100'
+                            : 'text-blue-700 border border-blue-200 bg-blue-50 hover:bg-blue-100'
+                        }`}
                       >
                         <LayoutDashboard className="w-4 h-4" />
-                        <span>My Profile / Dashboard</span>
+                        <span>{isAdmin ? 'Admin Dashboard' : 'My Profile / Dashboard'}</span>
                       </button>
+
                       {/* Mobile Logout Button */}
                       <button
                         onClick={handleLogout}

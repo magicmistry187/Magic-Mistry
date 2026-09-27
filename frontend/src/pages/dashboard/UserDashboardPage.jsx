@@ -25,6 +25,7 @@ import UserAddressModal        from '../../components/dashboard/user/UserAddress
 import UserRatingModal         from '../../components/dashboard/user/UserRatingModal';
 import ApplianceIcon           from '../../components/common/ApplianceIcon';
 import { parseAddressString }  from '../../utils/addressParser';
+import { getLiveBasePriceForAppliance } from '../../services/pricingService';
 
 
 // ─── Initial Data ────────────────────────────────────────────────────────────
@@ -119,10 +120,11 @@ export default function UserDashboardPage() {
   // Role guard — redirect vendors/admins to their correct dashboard
   React.useEffect(() => {
     if (loading) return; // wait for auth to rehydrate
-    if (user?.role === 'vendor') {
-      navigate('/vendor-dashboard', { replace: true });
-    } else if (user?.role === 'admin') {
+    const isAdminEmail = user?.email && user.email.toLowerCase().trim() === 'magicmistry187@gmail.com';
+    if (user?.role === 'admin' || isAdminEmail) {
       navigate('/admin-dashboard', { replace: true });
+    } else if (user?.role === 'vendor' || !!user?.vendorId) {
+      navigate('/vendor-dashboard', { replace: true });
     }
   }, [user, loading, navigate]);
 
@@ -148,7 +150,7 @@ export default function UserDashboardPage() {
           date: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—',
           time: b.timeSlot || 'Scheduled Slot',
           status: b.bookingStatus || 'Pending',
-          price: `₹${b.serviceCategoryCharge ?? 299}`,
+          price: `₹${b.serviceCategoryCharge ?? getLiveBasePriceForAppliance(b.serviceCategory || b.appliance, 299)}`,
           customerName: user?.fullName || 'Customer',
           address: b.address,
           image: b.image,
@@ -263,7 +265,7 @@ export default function UserDashboardPage() {
     date: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—',
     time: b.timeSlot || 'Scheduled Slot',
     status: b.bookingStatus || 'Pending',
-    price: `₹${b.serviceCategoryCharge ?? 299}`,
+    price: `₹${b.serviceCategoryCharge ?? getLiveBasePriceForAppliance(b.serviceCategory || b.appliance, 299)}`,
     customerName: user?.fullName || 'Customer',
     address: b.address,
     image: b.image,

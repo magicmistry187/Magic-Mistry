@@ -4,12 +4,13 @@ import { motion } from 'framer-motion';
 import { ChevronRight, ShieldCheck } from 'lucide-react';
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
-import { APPLIANCE_SUB_SERVICES } from '../../components/Booking/BookingContext';
+import { useLivePricing } from '../../services/pricingService';
 import ApplianceIcon from '../../components/common/ApplianceIcon';
 
 export default function PricingPage() {
   const navigate = useNavigate();
-  const categories = Object.values(APPLIANCE_SUB_SERVICES);
+  const { applianceSubServices } = useLivePricing();
+  const categories = Object.values(applianceSubServices);
 
   // Framer Motion Variants
   const containerVariants = {
