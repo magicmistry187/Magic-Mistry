@@ -21,7 +21,7 @@ const {
   updateUserProfile,
 } = require("../controllers/user.controller");
 
-const { checkBlockedUser } = require("../middleware/checkBlockUser");
+const { checkUserRestricted } = require("../middleware/checkUserRestricted");
 
 /////////// api routes
 router.post("/signup", signup);
@@ -30,13 +30,13 @@ router.post("/login", loginLimiter, login);
 router.post("/googleLogin", googleLogin);
 router.post("/logout", logout);
 router.get("/logout", logout);
-router.post("/changePassword", auth,checkBlockedUser, changePassword);
+router.post("/changePassword", auth,checkUserRestricted, changePassword);
 router.post("/forgotPassword/verifyOtp", verifyOtpForForgotPassword);
 router.post("/forgotPassword", forgotPassword);
 
 // -------------User controller routes-----------------
-router.put("/update-location", auth,checkBlockedUser, updateUserLocation);
+router.put("/update-location", auth,checkUserRestricted, updateUserLocation);
 router.get("/profile", auth, getUserProfile);
-router.put("/profile", auth, checkBlockedUser, updateUserProfile);
+router.put("/profile", auth, checkUserRestricted, updateUserProfile);
 
 module.exports = router;
