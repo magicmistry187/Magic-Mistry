@@ -106,9 +106,7 @@ const vendorEarningSchema = new mongoose.Schema(
       min: 0,
     },
 
-    // ==========================================
-    // FINAL EARNING
-    // ==========================================
+   
 
     netEarning: {
       type: Number,

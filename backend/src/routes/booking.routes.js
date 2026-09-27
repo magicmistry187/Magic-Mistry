@@ -16,6 +16,7 @@ const {
   updateBookingStatus,
   routeVerification,
   submitServiceDetails,
+  completeService,
 } = require('../controllers/booking.controller');
 
 router.post('/', auth, isCustomer, upload.single('image'), createBooking);
@@ -59,6 +60,13 @@ router.patch(
     },
   ]),
   submitServiceDetails,
+);
+
+router.patch(
+  '/:bookingId/complete',
+  auth,
+  isVendor,
+  completeService
 );
 
 module.exports = router;

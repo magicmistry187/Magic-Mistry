@@ -1,9 +1,9 @@
-const mongoose = require('mongoose');
 const Booking = require('../models/booking.model');
 const Address = require('../models/address.model');
 const VendorProfile = require('../models/vendorProfile.model');
 const { uploadImageToImageKit } = require('../config/imagekit');
 const ServiceExecution = require('../models/serviceExecution.model');
+const Invoice = require('../models/invoice.model');
 const {
   emitNewBooking,
   emitBookingStatusUpdated,
@@ -463,7 +463,6 @@ exports.getBookingToVendorUnderRange = async (req, res) => {
     });
   }
 };
-
 exports.acceptBooking = async (req, res) => {
   try {
     const { bookingId } = req.params;
@@ -655,7 +654,6 @@ exports.routeVerification = async (req, res) => {
 
     if (req.file) {
       try {
-        console.log('uploading scsreeshot');
         const result = await uploadImageToImageKit(
           req.file.buffer,
           req.file.originalname || `route-${Date.now()}.jpg`,
@@ -815,6 +813,271 @@ exports.submitServiceDetails = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to submit service details.',
+      error: error.message,
+    });
+  }
+};
+
+exports.completeService = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const vendorId = req.user.id;
+
+    const { paymentMethod, discount = 0 } = req.body;
+
+    if (!paymentMethod) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment method is required.',
+      });
+    }
+
+    if (!['Cash', 'UPI'].includes(paymentMethod)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment method must be Cash or UPI.',
+      });
+    }
+
+    const discountAmount = Number(discount);
+
+    if (!Number.isFinite(discountAmount) || discountAmount < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Discount must be a valid positive number.',
+      });
+    }
+
+    const execution = await ServiceExecution.findOne({
+      booking: bookingId,
+      vendor: vendorId,
+      status: 'In Progress',
+    });
+
+    if (!execution) {
+      return res.status(404).json({
+        success: false,
+        message: 'Service execution not found or service is not in progress.',
+      });
+    }
+
+    const booking = await Booking.findOne({
+      _id: bookingId,
+      vendor: vendorId,
+    });
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found.',
+      });
+    }
+
+    await booking.populate('customer', 'fullName phoneNumber');
+
+    if (!booking.customer) {
+      return res.status(400).json({
+        success: false,
+        message: 'Customer associated with this booking was not found.',
+      });
+    }
+
+    const existingInvoice = await Invoice.findOne({
+      booking: bookingId,
+    });
+
+    if (existingInvoice) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invoice has already been generated for this booking.',
+        invoice: existingInvoice,
+      });
+    }
+
+    const serviceCharge = Number(booking.serviceCategoryCharge || 0);
+
+    if (!Number.isFinite(serviceCharge) || serviceCharge < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid service charge.',
+      });
+    }
+
+    let travelCharge = 0;
+
+    if (execution.route?.addToInvoice) {
+      travelCharge = Number(execution.route?.travelCharge || 0);
+    }
+
+    if (!Number.isFinite(travelCharge) || travelCharge < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid travel charge.',
+      });
+    }
+
+    //  Prepare invoice items
+
+    const items = [];
+
+    // Service item
+    items.push({
+      type: 'Service',
+      name: booking.serviceCategory,
+      quantity: 1,
+      unitPrice: serviceCharge,
+      amount: serviceCharge,
+    });
+
+    // Travel item
+    if (travelCharge > 0) {
+      items.push({
+        type: 'Travel',
+        name: 'Travel Charge',
+        quantity: 1,
+        unitPrice: travelCharge,
+        amount: travelCharge,
+      });
+    }
+
+    //  INVENTORY / COMPONENTS -- when inventory is created then here i have to add invenntory item code
+
+    // 10. Calculate subtotal
+
+    const subtotal = items.reduce((total, item) => total + item.amount, 0);
+
+    //  TAX --- when admin fix the tax , than i have to write tax calculation code
+
+    // Temporary tax until PricingConfig is created
+    const tax = 0;
+
+    //Validate Discount
+    if (discountAmount > subtotal) {
+      return res.status(400).json({
+        success: false,
+        message: 'Discount cannot be greater than the subtotal.',
+      });
+    }
+
+    //  Calculate total
+
+    const totalAmount = subtotal - discountAmount + tax;
+
+    // Generate invoice number
+
+    const invoiceNumber = `MM-${Date.now()}`;
+
+    const address = booking.address || {};
+
+    const customerAddress = [
+      address.addressLine1,
+      address.street,
+      address.city,
+      address.state,
+      address.pincode,
+      address.landmark,
+    ]
+      .filter(Boolean)
+      .join(', ');
+
+    // Create invoice
+
+    const invoice = await Invoice.create({
+      booking: booking._id,
+
+      customer: booking.customer._id,
+
+      vendor: vendorId,
+
+      serviceExecution: execution._id,
+
+      invoiceNumber,
+
+      // -----------------------------
+      // Customer Snapshot
+      // -----------------------------
+
+      customerSnapshot: {
+        name: booking.customer.fullName,
+        phone: booking.customer.phoneNumber || '',
+        address: customerAddress,
+      },
+
+      // -----------------------------
+      // Service Snapshot
+      // -----------------------------
+
+      serviceSnapshot: {
+        appliance: booking.appliance,
+        serviceCategory: booking.serviceCategory || '',
+        serviceDate: booking.serviceDate,
+      },
+
+      // -----------------------------
+      // Invoice Items
+      // -----------------------------
+
+      items,
+
+      // -----------------------------
+      // Amounts
+      // -----------------------------
+
+      subtotal,
+
+      discount: discountAmount,
+
+      tax,
+
+      totalAmount,
+
+      // -----------------------------
+      // Payment
+      // -----------------------------
+
+      paymentMethod,
+
+      paymentStatus: 'Paid',
+
+      paidAt: new Date(),
+
+      // -----------------------------
+      // Customer Note
+      // -----------------------------
+
+      customerNote: execution.customerNote || '',
+    });
+
+    execution.status = 'Completed';
+
+    await execution.save();
+
+    booking.bookingStatus = 'Completed';
+
+    booking.completedAt = new Date();
+
+    booking.paymentStatus = 'Paid';
+
+    booking.paymentMethod = paymentMethod;
+
+    await booking.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Service completed and invoice generated successfully.',
+
+      invoice,
+
+      serviceExecution: execution,
+
+      booking,
+    });
+  } catch (error) {
+    console.error('Complete Service Error:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to complete service and generate invoice.',
       error: error.message,
     });
   }

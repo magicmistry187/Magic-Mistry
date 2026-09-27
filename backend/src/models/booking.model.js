@@ -84,8 +84,8 @@ const bookingSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ['Cash After Service', 'UPI', 'Online Payment'],
-      default: 'Cash After Service',
+      enum: ['Cash', 'UPI', 'Online Payment'],
+      default: 'Cash',
     },
     serviceCharge: {
       type: Number,
