@@ -7,7 +7,8 @@
 
 @layer base {
   html {
-    scroll-behavior: smooth;
+    /* Lenis handles smooth scrolling; set to auto to prevent jerky frame fighting */
+    scroll-behavior: auto;
   }
   
   body {
@@ -49,4 +50,21 @@
     outline: none !important;
     box-shadow: none !important;
   }
+}
+
+/* Fast scroll performance mode: temporarily pauses hover reflows during fast flick/wheel */
+body.is-scrolling-fast * {
+  pointer-events: none !important;
+}
+
+body.is-scrolling-fast nav,
+body.is-scrolling-fast header {
+  pointer-events: auto !important;
+}
+
+/* GPU hardware layer promotion for animated cards */
+.gpu-layer {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform, opacity;
 }

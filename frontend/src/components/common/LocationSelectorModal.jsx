@@ -106,7 +106,7 @@ export default function LocationSelectorModal({ isOpen, onClose }) {
               </button>
             </div>
 
-            <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+            <div data-lenis-prevent className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
 
               {/* Auto Detect Section */}
               <div className="space-y-3">

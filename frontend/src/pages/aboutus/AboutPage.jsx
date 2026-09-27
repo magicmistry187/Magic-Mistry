@@ -51,29 +51,29 @@ export default function AboutPage() {
 
   // Framer Motion Animation Variants
   const fadeUp = {
-    hidden: { opacity: 0, y: 30 },
+    hidden: { opacity: 0, y: 16 },
     visible: { 
       opacity: 1, 
       y: 0, 
-      transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] } 
+      transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } 
     }
   };
 
   const fadeLeft = {
-    hidden: { opacity: 0, x: -35 },
+    hidden: { opacity: 0, x: -18 },
     visible: { 
       opacity: 1, 
       x: 0, 
-      transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] } 
+      transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } 
     }
   };
 
   const fadeRight = {
-    hidden: { opacity: 0, x: 35 },
+    hidden: { opacity: 0, x: 18 },
     visible: { 
       opacity: 1, 
       x: 0, 
-      transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] } 
+      transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } 
     }
   };
 
@@ -82,8 +82,8 @@ export default function AboutPage() {
     visible: {
       opacity: 1,
       transition: {
-        staggerChildren: 0.12,
-        delayChildren: 0.1
+        staggerChildren: 0.08,
+        delayChildren: 0.05
       }
     }
   };
@@ -131,9 +131,9 @@ export default function AboutPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 font-sans relative overflow-x-hidden">
-      {/* Background Decorative Ambient Blobs */}
-      <div className="absolute top-1/4 left-5 w-[500px] h-[500px] bg-blue-100/50 rounded-full mix-blend-multiply filter blur-3xl pointer-events-none -z-0" />
-      <div className="absolute top-2/3 right-5 w-[500px] h-[500px] bg-orange-100/50 rounded-full mix-blend-multiply filter blur-3xl pointer-events-none -z-0" />
+      {/* Background Decorative Ambient Blobs (GPU Promoted) */}
+      <div className="absolute top-1/4 left-5 w-[500px] h-[500px] bg-blue-100/50 rounded-full mix-blend-multiply filter blur-3xl pointer-events-none -z-0 gpu-layer" />
+      <div className="absolute top-2/3 right-5 w-[500px] h-[500px] bg-orange-100/50 rounded-full mix-blend-multiply filter blur-3xl pointer-events-none -z-0 gpu-layer" />
 
       <Navbar />
 
@@ -152,9 +152,9 @@ export default function AboutPage() {
 
           <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 sm:py-28 lg:py-32">
             <motion.div
-              initial={{ opacity: 0, y: 30 }}
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
               className="max-w-3xl"
             >
               <div className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-extrabold text-xs sm:text-sm uppercase tracking-wider px-4 py-1.5 rounded-full shadow-lg shadow-orange-500/20 mb-6 border border-orange-400/40">
@@ -192,10 +192,10 @@ export default function AboutPage() {
         {/* 2. STATS & COMPANY METRICS BAR */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-10 relative z-30">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            viewport={{ once: true, margin: '100px 0px 50px 0px' }}
+            transition={{ duration: 0.5 }}
             className="bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200/80 grid grid-cols-2 md:grid-cols-4 gap-6 text-center"
           >
             <div className="p-3">
@@ -223,7 +223,7 @@ export default function AboutPage() {
             variants={staggerContainer}
             initial="hidden"
             whileInView="visible"
-            viewport={{ once: true, amount: 0.2 }}
+            viewport={{ once: true, margin: '120px 0px 50px 0px', amount: 0.1 }}
             className="grid lg:grid-cols-12 gap-10 lg:gap-14 items-center"
           >
             <motion.div variants={fadeLeft} className="lg:col-span-6 space-y-6">
@@ -300,7 +300,7 @@ export default function AboutPage() {
             variants={staggerContainer}
             initial="hidden"
             whileInView="visible"
-            viewport={{ once: true }}
+            viewport={{ once: true, margin: '120px 0px 50px 0px' }}
             className="grid grid-cols-1 md:grid-cols-3 gap-8"
           >
             {companyPillars.map((item, idx) => {
@@ -331,7 +331,7 @@ export default function AboutPage() {
           <motion.div 
             initial="hidden"
             whileInView="visible"
-            viewport={{ once: true }}
+            viewport={{ once: true, margin: '100px 0px 50px 0px' }}
             variants={fadeUp}
             className="text-center mb-14"
           >
@@ -345,7 +345,7 @@ export default function AboutPage() {
             variants={staggerContainer}
             initial="hidden"
             whileInView="visible"
-            viewport={{ once: true }}
+            viewport={{ once: true, margin: '120px 0px 50px 0px' }}
             className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto"
           >
             {companyMilestones.map((evt, idx) => (
@@ -372,7 +372,7 @@ export default function AboutPage() {
             variants={staggerContainer}
             initial="hidden"
             whileInView="visible"
-            viewport={{ once: true }}
+            viewport={{ once: true, margin: '120px 0px 50px 0px' }}
             className="grid lg:grid-cols-2 gap-8 items-stretch"
           >
             {/* Mission Card */}
@@ -434,10 +434,10 @@ export default function AboutPage() {
         {/* 7. BOTTOM CORPORATE CALL TO ACTION */}
         <section className="max-w-6xl mx-auto px-4 py-12 mb-12">
           <motion.div
-            initial={{ opacity: 0, scale: 0.96 }}
+            initial={{ opacity: 0, scale: 0.98 }}
             whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            viewport={{ once: true, margin: '100px 0px 50px 0px' }}
+            transition={{ duration: 0.45 }}
             className="bg-gradient-to-r from-[#0B1E40] via-blue-900 to-[#0B1E40] rounded-3xl p-8 sm:p-12 text-white shadow-2xl text-center relative overflow-hidden border border-blue-900/50"
           >
             <div className="relative z-10 max-w-2xl mx-auto">

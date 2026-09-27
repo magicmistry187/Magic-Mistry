@@ -82,26 +82,26 @@ export default function HowItWorks() {
   };
 
   const itemVariants = {
-    hidden: { opacity: 0, y: 30 },
+    hidden: { opacity: 0, y: 16 },
     visible: { 
       opacity: 1, 
-      y: 0,
-      transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] }
+      y: 0, 
+      transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] }
     }
   };
 
   return (
     <section className="relative max-w-6xl mx-auto px-4 py-12 sm:py-16 overflow-hidden">
-      {/* Background Decorative Glow */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
+      {/* Background Decorative Glow (GPU Promoted) */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-3xl pointer-events-none gpu-layer" />
 
       {/* Section Header */}
       <div className="text-center max-w-3xl mx-auto mb-12 sm:mb-16 relative">
         <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
+          initial={{ opacity: 0, scale: 0.92 }}
           whileInView={{ opacity: 1, scale: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
+          viewport={{ once: true, margin: '100px 0px 50px 0px' }}
+          transition={{ duration: 0.4 }}
           className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200/80 text-blue-700 text-xs font-extrabold uppercase tracking-wider mb-4 shadow-xs"
         >
           <Sparkles className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
@@ -109,20 +109,20 @@ export default function HowItWorks() {
         </motion.div>
 
         <motion.h2 
-          initial={{ opacity: 0, y: 15 }}
+          initial={{ opacity: 0, y: 12 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6, delay: 0.1 }}
+          viewport={{ once: true, margin: '100px 0px 50px 0px' }}
+          transition={{ duration: 0.45, delay: 0.05 }}
           className="text-3xl sm:text-4xl font-extrabold text-[#0B1E40] tracking-tight"
         >
           How Magic Mistry Works
         </motion.h2>
 
         <motion.p 
-          initial={{ opacity: 0, y: 15 }}
+          initial={{ opacity: 0, y: 12 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6, delay: 0.2 }}
+          viewport={{ once: true, margin: '100px 0px 50px 0px' }}
+          transition={{ duration: 0.45, delay: 0.1 }}
           className="mt-3 text-slate-600 text-sm sm:text-base leading-relaxed"
         >
           Getting your home electronics repaired has never been this simple, transparent, and secure.
@@ -134,7 +134,7 @@ export default function HowItWorks() {
         variants={containerVariants}
         initial="hidden"
         whileInView="visible"
-        viewport={{ once: true }}
+        viewport={{ once: true, margin: '120px 0px 50px 0px' }}
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 relative"
       >
         {/* Connecting Progress Line for Desktop */}
@@ -142,7 +142,7 @@ export default function HowItWorks() {
           <motion.div 
             initial={{ scaleX: 0 }}
             whileInView={{ scaleX: 1 }}
-            viewport={{ once: true }}
+            viewport={{ once: true, margin: '120px 0px 50px 0px' }}
             transition={{ duration: 1.2, ease: "easeInOut" }}
             className="h-full bg-gradient-to-r from-blue-600 via-purple-600 to-emerald-500 origin-left rounded-full"
           />

@@ -5,6 +5,7 @@ import ScrollToTop from './components/common/ScrollToTop';
 import RouteLoaderListener from './components/common/RouteLoaderListener';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import PublicRoute from './components/common/PublicRoute';
+import SmoothScrollProvider from './components/common/SmoothScrollProvider';
 // Lazy loading route components
 const HomePage = lazy(() => import('./pages/home/HomePage'));
 const BookingPage = lazy(() => import('./pages/BookingPage/BookingPage'));
@@ -32,9 +33,10 @@ function SignupModalRouteWrapper() {
 
 export default function App() {
   return (
-    <RouteLoaderListener>
-      <ScrollToTop />
-      <Suspense fallback={<PageLoader label="Loading page..." />}>
+    <SmoothScrollProvider>
+      <RouteLoaderListener>
+        <ScrollToTop />
+        <Suspense fallback={<PageLoader label="Loading page..." />}>
         <Routes>
           {/* Landing Page */}
           <Route path="/" element={<HomePage />} />
@@ -85,5 +87,6 @@ export default function App() {
         </Routes>
       </Suspense>
     </RouteLoaderListener>
+    </SmoothScrollProvider>
   );
 }
