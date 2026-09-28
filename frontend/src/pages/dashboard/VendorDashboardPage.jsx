@@ -129,9 +129,93 @@ export const haversineDistanceMeters = (lat1, lon1, lat2, lon2) => {
   return Math.round(R * c);
 };
 
+/**
+ * Safely extracts { lat, lng } numbers from any coordinate, address, or GeoJSON structure
+ */
+export const extractCoordinates = (source) => {
+  if (!source) return null;
+
+  // Direct lat / lng properties
+  if (source.lat !== undefined && source.lng !== undefined && source.lat !== null && source.lng !== null) {
+    const lat = Number(source.lat);
+    const lng = Number(source.lng);
+    if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+  }
+
+  // Direct latitude / longitude properties
+  if (source.latitude !== undefined && source.longitude !== undefined && source.latitude !== null && source.longitude !== null) {
+    const lat = Number(source.latitude);
+    const lng = Number(source.longitude);
+    if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+  }
+
+  // GeoJSON Point: { type: 'Point', coordinates: [lng, lat] }
+  if (Array.isArray(source.location?.coordinates) && source.location.coordinates.length >= 2) {
+    const lng = Number(source.location.coordinates[0]);
+    const lat = Number(source.location.coordinates[1]);
+    if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+  }
+
+  // GeoJSON Point directly on coordinates array
+  if (Array.isArray(source.coordinates) && source.coordinates.length >= 2) {
+    const lng = Number(source.coordinates[0]);
+    const lat = Number(source.coordinates[1]);
+    if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+  }
+
+  // Nested address object
+  if (source.address && typeof source.address === 'object') {
+    const nested = extractCoordinates(source.address);
+    if (nested) return nested;
+  }
+
+  // Nested customerLocation object
+  if (source.customerLocation && typeof source.customerLocation === 'object') {
+    const nested = extractCoordinates(source.customerLocation);
+    if (nested) return nested;
+  }
+
+  // Nested customerCoordinates object
+  if (source.customerCoordinates && typeof source.customerCoordinates === 'object') {
+    const nested = extractCoordinates(source.customerCoordinates);
+    if (nested) return nested;
+  }
+
+  return null;
+};
+
+/**
+ * Builds the official Google Maps Universal Directions URL according to specifications
+ */
+export const buildGoogleMapsNavigationUrl = ({ customer, vendor, destinationAddress }) => {
+  const customerCoords = extractCoordinates(customer);
+  const vendorCoords = extractCoordinates(vendor);
+
+  // Scenario 1: Both vendor and customer coordinates are present
+  if (customerCoords && vendorCoords) {
+    return `https://www.google.com/maps/dir/?api=1&origin=${vendorCoords.lat},${vendorCoords.lng}&destination=${customerCoords.lat},${customerCoords.lng}&travelmode=driving&dir_action=navigate`;
+  }
+
+  // Scenario 2: Only customer coordinates are present (vendor GPS missing -> defaults to device live GPS)
+  if (customerCoords) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${customerCoords.lat},${customerCoords.lng}&travelmode=driving&dir_action=navigate`;
+  }
+
+  // Scenario 3: Fallback using formatted address string
+  if (destinationAddress) {
+    if (vendorCoords) {
+      return `https://www.google.com/maps/dir/?api=1&origin=${vendorCoords.lat},${vendorCoords.lng}&destination=${encodeURIComponent(destinationAddress)}&travelmode=driving&dir_action=navigate`;
+    }
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destinationAddress)}&travelmode=driving&dir_action=navigate`;
+  }
+
+  return `https://www.google.com/maps/dir/?api=1&travelmode=driving&dir_action=navigate`;
+};
+
 // Reusable formatter for vendor bookings (both initial fetch and real-time socket events)
 export const formatVendorBooking = (b) => {
   const displayAddr = formatBookingAddress(b.address);
+  const customerCoords = extractCoordinates(b);
   const fallbackPay = getLiveBasePriceForAppliance(b.serviceCategory || b.appliance, 450);
   const pay = Number(b.serviceCategoryCharge) || Number(b.serviceCharge) || Number(b.estimatedPay) || fallbackPay;
   const formattedDist =
@@ -154,6 +238,8 @@ export const formatVendorBooking = (b) => {
     customerPhone: b.customer?.phoneNumber || '—',
     serviceAddress: displayAddr,
     location: displayAddr,
+    customerLocation: customerCoords,
+    customerCoordinates: customerCoords,
     distance: formattedDist,
     issue: b.issue || b.description || 'Service required',
     estimatedPay: pay,
@@ -271,6 +357,8 @@ const DEFAULT_SAMPLE_JOBS = [
     customerPhone: '+91 98301 23456',
     serviceAddress: 'Tower 4, Flat 702, Uniworld City, New Town, Kolkata - 700160',
     location: 'New Town, Kolkata',
+    customerLocation: { lat: 22.5850, lng: 88.4700 }, // Uniworld City, New Town, Kolkata
+    customerCoordinates: { lat: 22.5850, lng: 88.4700 },
     distance: '4.5 km away',
     issue: 'AC not cooling properly, low airflow and whistling noise',
     estimatedPay: 1200,
@@ -307,6 +395,8 @@ const DEFAULT_SAMPLE_JOBS = [
     customerPhone: '+91 98312 98765',
     serviceAddress: 'Block C, Salt Lake Sector 1, Kolkata - 700064',
     location: 'Salt Lake Sector 1, Kolkata',
+    customerLocation: { lat: 22.5867, lng: 88.4178 }, // Salt Lake Sector 1, Kolkata
+    customerCoordinates: { lat: 22.5867, lng: 88.4178 },
     distance: '2.8 km away',
     issue: 'Water not draining at end of rinse cycle, drum vibrating',
     estimatedPay: 850,
@@ -1403,6 +1493,22 @@ export default function VendorDashboardPage() {
     }
   };
 
+  const handleTrackJobNavigation = (job) => {
+    if (!job) return;
+
+    const customerCoords = extractCoordinates(job.customerLocation || job.customerCoordinates || job);
+    const vendorCoords = extractCoordinates(vendorAddressObj || vendorProfile || user);
+    const destinationAddress = job.serviceAddress || job.location;
+
+    const navigationUrl = buildGoogleMapsNavigationUrl({
+      customer: customerCoords,
+      vendor: vendorCoords,
+      destinationAddress,
+    });
+
+    window.open(navigationUrl, "_blank", "noopener,noreferrer");
+  };
+
   const handleStartService = (job) => {
     handlePromptStartService(job);
   };
@@ -2168,15 +2274,15 @@ export default function VendorDashboardPage() {
                                     </>
                                   ) : job.status === 'Accepted' ? (
                                     <>
-                                      <a
-                                        href={`https://maps.google.com/?q=${encodeURIComponent(job.serviceAddress)}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex-1 sm:flex-none px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold rounded-xl flex items-center justify-center gap-1.5 transition-colors border border-slate-200"
+                                      <button
+                                        type="button"
+                                        onClick={() => handleTrackJobNavigation(job)}
+                                        className="flex-1 sm:flex-none px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold rounded-xl flex items-center justify-center gap-1.5 transition-colors border border-slate-200 cursor-pointer"
+                                        title="Open live navigation in Google Maps"
                                       >
                                         <Navigation className="w-3.5 h-3.5 text-blue-500" />
-                                        Navigate
-                                      </a>
+                                        Track
+                                      </button>
                                       <button
                                         onClick={() => handleStartService(job)}
                                         className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold rounded-xl shadow-md flex items-center justify-center gap-1.5 cursor-pointer transition-transform active:scale-95"
@@ -2522,15 +2628,15 @@ export default function VendorDashboardPage() {
                     </div>
                   </div>
 
-                  <a
-                    href={`https://maps.google.com/?q=${encodeURIComponent(selectedJob.serviceAddress)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full py-2.5 bg-slate-800/80 hover:bg-slate-700 text-white text-xs font-extrabold rounded-xl transition-all flex items-center justify-center gap-2 border border-slate-700 block text-center"
+                  <button
+                    type="button"
+                    onClick={() => handleTrackJobNavigation(selectedJob)}
+                    className="w-full py-2.5 bg-slate-800/80 hover:bg-slate-700 text-white text-xs font-extrabold rounded-xl transition-all flex items-center justify-center gap-2 border border-slate-700 block text-center cursor-pointer"
+                    title="Open live navigation in Google Maps"
                   >
                     <Navigation className="w-3.5 h-3.5 text-blue-400" />
-                    View on Map
-                  </a>
+                    Track on Map
+                  </button>
                 </div>
 
               </div>

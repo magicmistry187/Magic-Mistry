@@ -83,9 +83,25 @@ export default function VendorStartServiceModal({
 
   const vendorOrigin = vendorProfile?.address || 'Vendor Workshop / Current Location';
   const customerDestination = job.serviceAddress || job.location || 'Customer Address';
-  const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(
-    vendorOrigin
-  )}&destination=${encodeURIComponent(customerDestination)}`;
+
+  // Coordinate-aware Universal Directions URL with turn-by-turn navigation
+  const customerCoords = job.customerLocation || job.customerCoordinates || (
+    job.lat && job.lng ? { lat: job.lat, lng: job.lng } : null
+  );
+  const vendorCoords = vendorProfile?.coordinates || (
+    vendorProfile?.latitude && vendorProfile?.longitude ? { lat: vendorProfile.latitude, lng: vendorProfile.longitude } : null
+  );
+
+  let googleMapsUrl;
+  if (customerCoords && vendorCoords) {
+    googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${vendorCoords.lat},${vendorCoords.lng}&destination=${customerCoords.lat},${customerCoords.lng}&travelmode=driving&dir_action=navigate`;
+  } else if (customerCoords) {
+    googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${customerCoords.lat},${customerCoords.lng}&travelmode=driving&dir_action=navigate`;
+  } else {
+    googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(
+      vendorOrigin
+    )}&destination=${encodeURIComponent(customerDestination)}&travelmode=driving&dir_action=navigate`;
+  }
 
   const calculatedTravelCharge = Math.max(0, (Number(distanceKm) || 0) * (Number(ratePerKm) || 0));
 
