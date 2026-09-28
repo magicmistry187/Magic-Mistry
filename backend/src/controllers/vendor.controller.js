@@ -39,19 +39,29 @@ exports.vendorLogin = async (req, res) => {
       });
     }
 
-    // 3. Check account status
-    if (vendor.status === 'blocked') {
-      return res.status(403).json({
-        success: false,
-        message: 'Your vendor account has been blocked by the administrator.',
-      });
-    }
+  //     if(user.status === "suspended" && user.suspendUntil && new Date() >= user.suspendUntil ){
+      
+  // user.status === "active";
+  // user.suspendUntil = null;
 
-    if (vendor.status === 'suspended') {
-      return res.status(403).json({
-        success: false,
-        message: 'Your vendor account has been suspended by the administrator.',
-      });
+  // await user.save();
+  // }
+
+
+
+    // 3. Check account status
+    // if (vendor.status === 'blocked') {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: 'Your vendor account has been blocked by the administrator.',
+    //   });
+    // }
+
+    if (vendor.status === 'suspended' && vendor.suspendedUntil && vendor.suspendedUntil <= new Date()) {
+     vendor.status = "active";
+     vendor.suspendedUntil = null;
+
+     await vendor.save();
     }
 
     // 4. Check approval
