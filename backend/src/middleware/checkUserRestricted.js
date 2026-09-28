@@ -4,7 +4,6 @@ exports.checkUserRestricted = async (req, res, next) => {
   try {
     const userId = req.user?.id;
 
-    console.log("Checking blocked user middleware for userId:", userId);
 
     if (!userId) {
       return res.status(401).json({
@@ -16,14 +15,14 @@ exports.checkUserRestricted = async (req, res, next) => {
     //find current user in database
     const user = await User.findById(userId).select("status suspendedUntil");
 
-    if(!user){
+    if (!user) {
       return res.status(404).json({
         success: false,
-        message : "User not found",
-      })
+        message: "User not found",
+      });
     }
 
-    const restrictedRole = ["blocked", "suspended"];
+    // const restrictedRole = ["blocked", "suspended"];
 
     // if (restrictedRole.includes(user.status)) {
     //   return res.status(403).json({
@@ -32,38 +31,34 @@ exports.checkUserRestricted = async (req, res, next) => {
     //   });
     // }
 
-
     //Block action
-    if(user.status === "blocked"){
+    if (user.status === "blocked") {
       return res.status(403).json({
         success: false,
-        message : "Your account is blocked. You cannot perform this action. "
-      })
+        message: "Your account is blocked. You cannot perform this action. ",
+      });
     }
 
     //Suspend action
 
-    if( user.status === "suspended"){
+    if (user.status === "suspended") {
+      //Active suspension
 
-      //Active suspension 
-
-      if(user.suspendedUntil && user.suspendedUntil >= new Date() ){
+      if (user.suspendedUntil && user.suspendedUntil >= new Date()) {
         return res.status(403).json({
           success: false,
-          message : "Your account is temporarily suspended. You cannot perform this action"
-        })
+          message:
+            "Your account is temporarily suspended. You cannot perform this action",
+        });
       }
 
       //Suspension expired
-      if(user.suspendedUntil && user.suspendedUntil < new Date()){
-           user.status = "active",
-           user.suspendedUntil = null;
+      if (user.suspendedUntil && user.suspendedUntil <= new Date()) {
+        ((user.status = "active"), (user.suspendedUntil = null));
       }
 
       await user.save();
-
     }
-
 
     //Account is active
 

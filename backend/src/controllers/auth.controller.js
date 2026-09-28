@@ -24,6 +24,25 @@ function generateToken(user) {
   });
 }
 
+
+
+
+//Helper function for checking suspension expire
+
+const handleSuspensionExpiry = async(user)=> {
+
+  if(user.status === "suspended" && user.suspendUntil && new Date() >= user.suspendUntil ){
+      
+  user.status === "active";
+  user.suspendUntil = null;
+
+  await user.save();
+  }
+
+  return user;
+
+}
+
 // send otp
 //little bit modifying it for forgot password and signup
 async function sendOtp(req, res) {
@@ -244,6 +263,8 @@ async function login(req, res) {
       });
     }
 
+    handleSuspensionExpiry(user);
+
     // Vendors must use vendor login
     if (user.role === "vendor") {
       return res.status(403).json({
@@ -366,6 +387,8 @@ async function googleLogin(req, res) {
     const trimmedEmail = email.toLowerCase().trim();
 
     let user = await userModel.findOne({ googleId });
+
+    handleSuspensionExpiry(user);
 
     if (!user) {
       user = await userModel.findOne({
