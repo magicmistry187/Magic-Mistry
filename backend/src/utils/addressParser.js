@@ -49,6 +49,38 @@ const STATE_ALIASES = {
   ar: 'Arunachal Pradesh',
 };
 
+const KNOWN_MAJOR_CITIES = new Set([
+  'kolkata', 'bolpur', 'suri', 'rampurhat', 'bardhaman', 'asansol', 'durgapur',
+  'siliguri', 'kharagpur', 'haldia', 'howrah', 'ranaghat', 'krishnanagar', 'berhampore',
+  'delhi', 'new delhi', 'mumbai', 'bengaluru', 'bangalore', 'hyderabad', 'chennai', 'ahmedabad',
+  'pune', 'jaipur', 'lucknow', 'kanpur', 'nagpur', 'indore', 'bhopal', 'patna', 'vadodara',
+  'ghaziabad', 'ludhiana', 'agra', 'nashik', 'faridabad', 'meerut', 'rajkot', 'varanasi',
+  'srinagar', 'aurangabad', 'dhanbad', 'amritsar', 'navi mumbai', 'allahabad', 'prayagraj',
+  'ranchi', 'coimbatore', 'jabalpur', 'gwalior', 'vijayawada', 'jodhpur', 'madurai',
+  'raipur', 'kota', 'chandigarh', 'guwahati', 'solapur', 'hubballi', 'mysuru', 'tiruchirappalli',
+  'bareilly', 'aligarh', 'tiruppur', 'gurgaon', 'gurugram', 'moradabad', 'jalandhar', 'bhubaneswar',
+  'salem', 'warangal', 'mira-bhayandar', 'jalgaon', 'guntur', 'thiruvananthapuram', 'kochi',
+  'noida', 'ghatshila', 'dehradun', 'jammu', 'shimla', 'gangtok', 'shillong'
+]);
+
+const KNOWN_DISTRICTS = new Set([
+  'birbhum', 'bardhaman', 'burdwan', 'purba bardhaman', 'paschim bardhaman',
+  'bankura', 'hooghly', 'howrah', 'nadia', 'murshidabad', 'malda',
+  'north 24 parganas', 'south 24 parganas', 'darjeeling', 'jalpaiguri',
+  'alipurduar', 'cooch behar', 'uttar dinajpur', 'dakshin dinajpur',
+  'purulia', 'jhargram', 'paschim medinipur', 'purba medinipur',
+  'patna', 'gaya', 'muzaffarpur', 'bhagalpur', 'purnia', 'darbhanga',
+  'ranchi', 'dhanbad', 'east singhbhum', 'west singhbhum', 'bokaro',
+  'lucknow', 'kanpur', 'varanasi', 'prayagraj', 'agra', 'meerut', 'ghaziabad',
+  'jaipur', 'jodhpur', 'kota', 'bikaner', 'ajmer', 'udaipur',
+  'bengaluru urban', 'bengaluru rural', 'bangalore urban', 'bangalore rural', 'mysuru',
+  'pune', 'nagpur', 'thane', 'mumbai suburban', 'nashik', 'aurangabad',
+  'ahmedabad', 'surat', 'vadodara', 'rajkot',
+  'chennai', 'coimbatore', 'madurai', 'tiruchirappalli',
+  'hyderabad', 'rangareddy', 'medchal',
+  'bhopal', 'indore', 'gwalior', 'jabalpur'
+]);
+
 /**
  * Strips postal sub-office parentheses like "Birbhum (Bolpur)" -> "Bolpur"
  */
@@ -70,152 +102,221 @@ function parseAddressString(input) {
     return { flat: '', street: '', city: '', state: '', landmark: '', pincode: '' };
   }
 
-  if (typeof input === 'string') {
-    const trimmed = input.trim();
-    if (
-      !trimmed ||
-      /^(set your location|set service location|no address set|no saved address yet|no address set\..*|current location|select location)$/i.test(trimmed)
-    ) {
-      return { flat: '', street: '', city: '', state: '', landmark: '', pincode: '' };
+  // 1. If input is ALREADY a structured object
+  if (typeof input === 'object' && input !== null) {
+    let objFlat = (input.flat || input.house || '').trim();
+    let objStreet = (input.street || '').trim();
+    let objCity = (input.city || '').trim();
+    let objState = (input.state || '').trim();
+    let objLandmark = (input.landmark || '').trim();
+    let objPincode = (input.pincode === '000000' ? '' : (input.pincode || '')).trim();
+
+    if (objFlat.includes(',') || objFlat.length > 25) {
+      objFlat = '';
+    }
+    if (objCity.includes('(')) {
+      objCity = cleanPostalParentheses(objCity);
+    }
+
+    const isGeneric = (str) =>
+      !str ||
+      /^(home|office|other|current location|area|000000|set your location)$/i.test(str);
+
+    if (isGeneric(objStreet)) objStreet = '';
+    if (isGeneric(objCity)) objCity = '';
+
+    // If both street and city are present and street is not a full 3+ comma address string:
+    const isStreetFull = objStreet && objStreet.includes(',') && objStreet.split(',').length >= 3;
+    if (objCity && objStreet && !isStreetFull) {
+      return {
+        flat: objFlat,
+        street: objStreet,
+        city: objCity,
+        state: objState,
+        landmark: objLandmark,
+        pincode: objPincode,
+      };
+    }
+
+    // Only fallback to full string if street or city is missing or street was a full string:
+    const fallbackString = isStreetFull
+      ? objStreet
+      : (input.addressLine1 || input.fullAddress || input.formattedAddress || '');
+
+    if (fallbackString && fallbackString.includes(',')) {
+      input = fallbackString;
+    } else {
+      return {
+        flat: objFlat,
+        street: objStreet || objCity || 'Local Area',
+        city: objCity || objStreet || 'Local Area',
+        state: objState,
+        landmark: objLandmark,
+        pincode: objPincode,
+      };
     }
   }
 
-  let rawFlat = (typeof input === 'object' ? input.flat || input.house || input.addressLine1 : '') || '';
-  let rawStreet = (typeof input === 'object' ? input.street : '') || '';
-  let rawCity = (typeof input === 'object' ? input.city : '') || '';
-  let rawState = (typeof input === 'object' ? input.state : '') || '';
-  let rawLandmark = (typeof input === 'object' ? input.landmark : '') || '';
-  let rawPincode = (typeof input === 'object' ? input.pincode : '') || '';
-
-  const isGeneric = (str) =>
+  // 2. Parse String
+  let str = String(input).trim();
+  if (
     !str ||
-    str === 'Home' ||
-    str === 'Shop' ||
-    str === 'Office' ||
-    str === 'Other' ||
-    str === 'Current Location' ||
-    str === 'Area' ||
-    str === '000000' ||
-    /^(set your location|set service location|no address set|no saved address yet)$/i.test(str);
-
-  if (isGeneric(rawFlat)) rawFlat = '';
-  if (isGeneric(rawStreet)) rawStreet = '';
-  if (isGeneric(rawCity)) rawCity = '';
-  if (rawPincode === '000000') rawPincode = '';
-
-  const isStreetFullAddress = rawStreet && rawStreet.includes(',') && rawStreet.split(',').length >= 3;
-  const isFlatFullAddress = rawFlat && rawFlat.includes(',') && rawFlat.split(',').length >= 3;
-
-  let stringToParse = '';
-  if (typeof input === 'string') {
-    stringToParse = input;
-  } else if (isStreetFullAddress) {
-    stringToParse = rawStreet;
-  } else if (isFlatFullAddress) {
-    stringToParse = rawFlat;
+    /^(set your location|set service location|no address set|no saved address yet|no address set\..*|current location|select location)$/i.test(str)
+  ) {
+    return { flat: '', street: '', city: '', state: '', landmark: '', pincode: '' };
   }
 
-  if (stringToParse) {
-    const rawParts = stringToParse
-      .replace(/,?\s*\bCurrent Location\b/gi, '')
-      .replace(/,?\s*\b000000\b/g, '')
-      .split(',')
-      .map((p) => p.trim())
-      .filter((p) => p && !/^(current location|location|select location|set your location|set service location|no address set|no saved address yet|000000)$/i.test(p));
-    let parts = [...rawParts];
+  str = str
+    .replace(/,?\s*\bCurrent Location\b/gi, '')
+    .replace(/,?\s*\b000000\b/g, '')
+    .replace(/,\s*,+/g, ',')
+    .replace(/^[\s,]+|[\s,]+$/g, '');
 
-    let extractedPincode = '';
-    let extractedState = '';
-    let extractedCity = '';
-    let extractedLandmark = '';
-    let extractedFlat = '';
-    let extractedStreet = '';
+  let rawParts = str
+    .split(',')
+    .map((p) => cleanPostalParentheses(p.trim()))
+    .filter((p) => p && !/^(current location|location|select location|set your location|set service location|no address set|no saved address yet|000000)$/i.test(p));
 
-    // 1. Extract 6-digit Pincode from right to left
-    for (let i = parts.length - 1; i >= 0; i--) {
-      const match = parts[i].match(/\b[1-9]\d{5}\b/);
-      if (match) {
-        extractedPincode = match[0];
-        const rem = parts[i].replace(/\b[1-9]\d{5}\b/, '').replace(/[-–]/g, '').trim();
-        if (rem) {
-          parts[i] = rem;
-        } else {
-          parts.splice(i, 1);
-        }
-        break;
-      }
-    }
+  let parts = [...rawParts];
+  let extractedPincode = '';
+  let extractedState = '';
+  let extractedCity = '';
+  let extractedLandmark = '';
+  let extractedFlat = '';
+  let extractedStreet = '';
 
-    // 2. Extract State from right to left
-    for (let i = parts.length - 1; i >= 0; i--) {
-      const partLower = parts[i].toLowerCase().replace(/[^a-z\s&]/g, '').trim();
-      const matchedState =
-        INDIAN_STATES.find(
-          (s) => s.toLowerCase() === partLower || partLower.includes(s.toLowerCase()) || s.toLowerCase().includes(partLower)
-        ) || STATE_ALIASES[partLower];
-
-      if (matchedState) {
-        extractedState = matchedState;
+  // Extract 6-digit Pincode from right to left
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const match = parts[i].match(/\b[1-9]\d{5}\b/);
+    if (match) {
+      extractedPincode = match[0];
+      const rem = parts[i].replace(/\b[1-9]\d{5}\b/, '').replace(/[-–]/g, '').trim();
+      if (rem) {
+        parts[i] = rem;
+      } else {
         parts.splice(i, 1);
+      }
+      break;
+    }
+  }
+
+  // Extract State
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const partLower = parts[i].toLowerCase().replace(/[^a-z\s&]/g, '').trim();
+    const matchedState =
+      INDIAN_STATES.find(
+        (s) => s.toLowerCase() === partLower || partLower.includes(s.toLowerCase()) || s.toLowerCase().includes(partLower)
+      ) || STATE_ALIASES[partLower];
+
+    if (matchedState) {
+      extractedState = matchedState;
+      parts.splice(i, 1);
+      break;
+    }
+  }
+
+  // Remove "India" / "Bharat"
+  for (let i = parts.length - 1; i >= 0; i--) {
+    if (parts[i].toLowerCase() === 'india' || parts[i].toLowerCase() === 'bharat') {
+      parts.splice(i, 1);
+    }
+  }
+
+  // Extract Landmark
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i].toLowerCase();
+    if (
+      p.startsWith('near') ||
+      p.startsWith('opp') ||
+      p.startsWith('opposite') ||
+      p.startsWith('behind') ||
+      p.startsWith('beside') ||
+      p.startsWith('station') ||
+      p.startsWith('landmark') ||
+      p.includes('station') ||
+      p.includes('metro') ||
+      p.includes('temple') ||
+      p.includes('masjid') ||
+      p.includes('church') ||
+      p.includes('school') ||
+      p.includes('hospital') ||
+      p.includes('mall') ||
+      p.includes('plaza') ||
+      p.includes('market') ||
+      p.includes('park') ||
+      p.includes('road more') ||
+      p.includes('more')
+    ) {
+      extractedLandmark = parts[i].replace(/^landmark\s*[:\-]?\s*/i, '');
+      parts.splice(i, 1);
+      break;
+    }
+  }
+
+  // Extract Flat / House from first part
+  if (parts.length > 1) {
+    const first = parts[0].toLowerCase();
+    if (
+      /^(\d+[a-z]?|no\.?\s*\d+|flat|house|plot|door|room|shop|building|tower|h\.?no|block|#)\b/i.test(first) ||
+      (/^\d+[\/\-]?\d*[a-z]?$/i.test(first) && first.length <= 10) ||
+      (/\b\d+\b/.test(first) && first.length <= 15)
+    ) {
+      extractedFlat = parts.shift();
+    }
+  }
+
+  // Disambiguate City and Street
+  if (parts.length > 0) {
+    let cityIndex = -1;
+
+    // Check if any part matches a known major city
+    for (let i = 0; i < parts.length; i++) {
+      const pLower = parts[i].toLowerCase();
+      if (KNOWN_MAJOR_CITIES.has(pLower)) {
+        cityIndex = i;
         break;
       }
     }
 
-    // 3. Extract City from right to left
-    if (parts.length > 0) {
-      const rawCandidate = parts[parts.length - 1];
-      const cleanedCandidate = cleanPostalParentheses(rawCandidate);
-      extractedCity = cleanedCandidate;
-      parts.pop();
-    }
-
-    // 4. Extract Flat/House number from leftmost part if it looks like a flat/house
-    if (parts.length > 1) {
-      const first = parts[0];
-      const isHousePattern =
-        /^(plot|flat|h\.?\s*no|house|room|shop|block|bldg|building|apt|apartment|sector|phase|#)/i.test(first) ||
-        /^\d+([-\/][a-zA-Z0-9]+)?$/.test(first) ||
-        (first.length <= 15 && /\d/.test(first));
-
-      if (isHousePattern) {
-        extractedFlat = parts.shift();
+    // Check if the last part is a known district
+    if (cityIndex === -1 && parts.length >= 2) {
+      const lastLower = parts[parts.length - 1].toLowerCase();
+      if (KNOWN_DISTRICTS.has(lastLower)) {
+        cityIndex = parts.length - 2;
+        parts.splice(parts.length - 1, 1);
       }
     }
 
-    // 5. Remaining parts become Street and Landmark
-    if (parts.length > 0) {
-      extractedStreet = parts.join(', ');
-    } else if (!extractedStreet && extractedCity) {
-      extractedStreet = extractedCity;
+    // Default fallback: last part is city
+    if (cityIndex === -1) {
+      cityIndex = parts.length - 1;
     }
 
-    return {
-      flat: (extractedFlat && !extractedFlat.includes(',') && extractedFlat.length <= 25) ? extractedFlat : '',
-      street: extractedStreet || rawStreet || '',
-      city: extractedCity || rawCity || '',
-      state: extractedState || rawState || '',
-      landmark: extractedLandmark || rawLandmark || '',
-      pincode: extractedPincode || rawPincode || '',
-    };
+    extractedCity = parts[cityIndex];
+    parts.splice(cityIndex, 1);
+
+    // If any remaining part is a known district name (e.g. Birbhum when city is Bolpur), remove it from street
+    parts = parts.filter((p) => !KNOWN_DISTRICTS.has(p.toLowerCase()));
+
+    extractedStreet = parts.join(', ');
   }
 
-  let cleanFlat = (isFlatFullAddress ? '' : rawFlat).trim();
-  if (cleanFlat.includes(',') || cleanFlat.length > 25) {
-    cleanFlat = '';
+  // Clean parentheses from city
+  if (extractedCity && extractedCity.includes('(')) {
+    extractedCity = cleanPostalParentheses(extractedCity);
   }
 
-  let cleanCity = rawCity.trim();
-  if (cleanCity.includes('(')) {
-    cleanCity = cleanPostalParentheses(cleanCity);
+  if (extractedFlat && (extractedFlat.includes(',') || extractedFlat.length > 25)) {
+    extractedFlat = '';
   }
 
   return {
-    flat: cleanFlat,
-    street: rawStreet,
-    city: cleanCity,
-    state: rawState,
-    landmark: rawLandmark,
-    pincode: rawPincode === '000000' ? '' : rawPincode,
+    flat: extractedFlat,
+    street: extractedStreet || extractedCity || 'Local Area',
+    city: extractedCity || 'Local Area',
+    state: extractedState || '',
+    landmark: extractedLandmark,
+    pincode: extractedPincode,
   };
 }
 
@@ -308,6 +409,8 @@ function formatCleanAddress(input) {
 module.exports = {
   INDIAN_STATES,
   STATE_ALIASES,
+  KNOWN_MAJOR_CITIES,
+  KNOWN_DISTRICTS,
   cleanPostalParentheses,
   parseAddressString,
   formatCleanAddress,

@@ -58,97 +58,43 @@ function parseIndianAddress(data) {
   const a = data.address || {};
   const displayName = data.display_name || '';
 
-  const flat = (
+  // 1. Detect City / Town / Village (Authoritative)
+  let detectedCity = (
+    a.city ||
+    a.town ||
+    a.village ||
+    a.municipality ||
+    a.city_district ||
+    ''
+  ).trim();
+
+  if (!detectedCity) {
+    detectedCity = (a.county || a.state_district || a.district || '').trim();
+  }
+  detectedCity = cleanPostalParentheses(detectedCity);
+
+  // 2. Detect Flat / House / Building No.
+  let detectedFlat = (
     a.house_number ||
     a.building ||
     a.flat ||
     a.room ||
     a.house_name ||
-    a.shop ||
-    a.office ||
     a.apartments ||
     ''
   ).trim();
 
-  const road = (
-    a.road ||
-    a.street ||
-    a.lane ||
-    a.pedestrian ||
-    a.footway ||
-    a.path ||
-    a.highway ||
-    a.alley ||
-    ''
-  ).trim();
-
-  const locality = (
-    a.suburb ||
-    a.neighbourhood ||
-    a.residential ||
-    a.colony ||
-    a.quarter ||
-    a.hamlet ||
-    a.village_district ||
-    a.subdistrict ||
-    ''
-  ).trim();
-
-  const villageOrTown = (
-    a.village ||
-    a.town ||
-    a.city_district ||
-    ''
-  ).trim();
-
-  const districtOrCounty = (
-    a.city ||
-    a.municipality ||
-    a.county ||
-    a.state_district ||
-    a.district ||
-    ''
-  ).trim();
-
-  let streetParts = [];
-  if (road) streetParts.push(road);
-  if (locality && locality.toLowerCase() !== road.toLowerCase()) streetParts.push(locality);
-  if (!road && !locality && villageOrTown) streetParts.push(villageOrTown);
-
-  if (streetParts.length === 0 && displayName) {
-    const tokens = displayName.split(',').map((t) => t.trim()).filter(Boolean);
-    if (tokens.length > 0 && !['india', 'bharat'].includes(tokens[0].toLowerCase())) {
-      streetParts.push(tokens[0]);
-    }
+  if (!detectedFlat && a.residential && (/^\d+[a-zA-Z0-9\-\/]*$/.test(a.residential.trim()) || a.residential.trim().length <= 10)) {
+    detectedFlat = a.residential.trim();
+  }
+  if (detectedFlat.includes(',') || detectedFlat.length > 25) {
+    detectedFlat = '';
   }
 
-  let street = streetParts.filter(Boolean).join(', ');
-
-  let city = '';
-  if (a.city) {
-    city = a.city;
-  } else if (villageOrTown && villageOrTown.toLowerCase() !== street.toLowerCase()) {
-    city = villageOrTown;
-  } else if (a.town) {
-    city = a.town;
-  } else if (districtOrCounty && districtOrCounty.toLowerCase() !== street.toLowerCase()) {
-    city = districtOrCounty;
-  } else if (a.state_district) {
-    city = a.state_district;
-  } else if (districtOrCounty) {
-    city = districtOrCounty;
-  }
-
-  if (street && city && street.toLowerCase() === city.toLowerCase()) {
-    const higherDistrict = (a.state_district || a.county || a.district || '').trim();
-    if (higherDistrict && higherDistrict.toLowerCase() !== city.toLowerCase()) {
-      city = higherDistrict;
-    }
-  }
-
+  // 3. Detect State
   let state = (a.state || a.province || a.region || '').trim();
-  if (!state) {
-    const lowerFull = (displayName + ' ' + city + ' ' + street).toLowerCase();
+  if (!state && displayName) {
+    const lowerFull = displayName.toLowerCase();
     if (lowerFull.includes('delhi')) state = 'Delhi';
     else if (lowerFull.includes('chandigarh')) state = 'Chandigarh';
     else if (lowerFull.includes('puducherry') || lowerFull.includes('pondicherry')) state = 'Puducherry';
@@ -158,8 +104,17 @@ function parseIndianAddress(data) {
     else if (lowerFull.includes('andaman')) state = 'Andaman and Nicobar Islands';
     else if (lowerFull.includes('daman') || lowerFull.includes('diu') || lowerFull.includes('dadra')) state = 'Dadra and Nagar Haveli and Daman and Diu';
     else if (lowerFull.includes('lakshadweep')) state = 'Lakshadweep';
+    else if (lowerFull.includes('west bengal')) state = 'West Bengal';
   }
 
+  // 4. Detect Pincode
+  let pincode = (a.postcode || '').replace(/\D/g, '').slice(0, 6);
+  if (!pincode && displayName) {
+    const pinMatch = displayName.match(/\b[1-9]\d{5}\b/);
+    if (pinMatch) pincode = pinMatch[0];
+  }
+
+  // 5. Detect Landmark
   const landmark = (
     a.landmark ||
     a.amenity ||
@@ -170,31 +125,119 @@ function parseIndianAddress(data) {
     ''
   ).trim();
 
-  let pincode = (a.postcode || '').replace(/\D/g, '').slice(0, 6);
-  if (!pincode && displayName) {
-    const pinMatch = displayName.match(/\b[1-9]\d{5}\b/);
-    if (pinMatch) pincode = pinMatch[0];
-  }
+  // 6. Gather all Street / Locality candidates
+  const candidateStreetParts = [];
 
-  if (!street) {
-    street = villageOrTown || locality || districtOrCounty || 'Local Area';
-  }
+  const addCandidate = (val) => {
+    if (!val || typeof val !== 'string') return;
+    const cleanVal = cleanPostalParentheses(val.trim());
+    if (!cleanVal) return;
+    const lower = cleanVal.toLowerCase();
 
-  const fullParts = [];
-  [flat, street, landmark, city, state, pincode].forEach((part) => {
-    if (part && !fullParts.some((p) => p.toLowerCase() === part.toLowerCase())) {
-      fullParts.push(part);
+    // Do not add if it equals city, state, country, or pincode
+    if (
+      lower === detectedCity.toLowerCase() ||
+      lower === state.toLowerCase() ||
+      lower === 'india' ||
+      lower === 'bharat' ||
+      /^\d{6}$/.test(lower)
+    ) {
+      return;
     }
-  });
+
+    // Do not add if it matches detectedFlat
+    if (detectedFlat && lower === detectedFlat.toLowerCase()) return;
+
+    // Do not add duplicates or substrings
+    const alreadyAdded = candidateStreetParts.some(
+      (c) => c.toLowerCase() === lower || c.toLowerCase().split(',').map((s) => s.trim()).includes(lower)
+    );
+    if (!alreadyAdded) {
+      candidateStreetParts.push(cleanVal);
+    }
+  };
+
+  // POI / Landmark (if not flat)
+  if (a.amenity) addCandidate(a.amenity);
+  if (a.building && a.building !== detectedFlat) addCandidate(a.building);
+  if (a.shop) addCandidate(a.shop);
+  if (a.place) addCandidate(a.place);
+
+  // Roads / Streets
+  if (a.road) addCandidate(a.road);
+  if (a.street) addCandidate(a.street);
+  if (a.lane) addCandidate(a.lane);
+  if (a.pedestrian) addCandidate(a.pedestrian);
+  if (a.footway) addCandidate(a.footway);
+  if (a.path) addCandidate(a.path);
+  if (a.highway) addCandidate(a.highway);
+  if (a.alley) addCandidate(a.alley);
+
+  // Neighbourhood / Colony / Sector
+  if (a.neighbourhood) addCandidate(a.neighbourhood);
+  if (a.colony) addCandidate(a.colony);
+  if (a.residential && a.residential !== detectedFlat) addCandidate(a.residential);
+  if (a.quarter) addCandidate(a.quarter);
+  if (a.sector) addCandidate(a.sector);
+  if (a.ward) addCandidate(a.ward);
+  if (a.block) addCandidate(a.block);
+
+  // Suburb / Locality / Sub-district
+  if (a.suburb) addCandidate(a.suburb);
+  if (a.village_district) addCandidate(a.village_district);
+  if (a.subdistrict) addCandidate(a.subdistrict);
+
+  // Hamlet
+  if (a.hamlet) addCandidate(a.hamlet);
+
+  // County / Block / Tehsil (e.g. "Bolpur Sriniketan")
+  if (a.county) addCandidate(a.county);
+
+  // If still empty, check tokens from displayName before city
+  if (candidateStreetParts.length === 0 && displayName) {
+    const tokens = displayName.split(',').map((t) => cleanPostalParentheses(t.trim())).filter(Boolean);
+    for (const t of tokens) {
+      const tLower = t.toLowerCase();
+      if (
+        tLower !== detectedCity.toLowerCase() &&
+        tLower !== state.toLowerCase() &&
+        tLower !== 'india' &&
+        tLower !== 'bharat' &&
+        !/^\d{6}$/.test(tLower) &&
+        tLower !== (a.state_district || '').toLowerCase()
+      ) {
+        addCandidate(t);
+      }
+    }
+  }
+
+  let street = candidateStreetParts.filter(Boolean).join(', ');
+  if (!street) {
+    street = (a.state_district && a.state_district.toLowerCase() !== detectedCity.toLowerCase())
+      ? `${detectedCity} Area`
+      : 'Main Road';
+  }
+
+  // Format clean full address
+  const fullParts = [detectedFlat, street, landmark, detectedCity, state, pincode].filter(Boolean);
+  const seen = new Set();
+  const uniqueParts = [];
+  for (const p of fullParts) {
+    const lower = p.toLowerCase();
+    if (!seen.has(lower)) {
+      seen.add(lower);
+      uniqueParts.push(p);
+    }
+  }
 
   return {
-    flat,
+    flat: detectedFlat,
     street,
-    city: city || 'Local Area',
+    city: detectedCity || 'Local Area',
     state: state || '',
     landmark,
     pincode,
-    fullAddress: fullParts.join(', ') || displayName,
+    fullAddress: uniqueParts.join(', ') || displayName,
   };
 }
 
