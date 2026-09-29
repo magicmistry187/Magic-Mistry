@@ -78,7 +78,7 @@ export default function LocationSelectorModal({ isOpen, onClose }) {
     setIsSearching(true);
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        const results = await searchLocations(val.trim());
+        const results = await searchLocations(val.trim(), detectedCoords);
         setSuggestions(results);
       } catch (err) {
         console.warn("[LocationSelectorModal] Autocomplete error:", err);

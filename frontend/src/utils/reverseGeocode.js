@@ -424,6 +424,37 @@ export async function reverseGeocode(latitude, longitude) {
             } catch (e) {}
           }
           parsedResult = parseIndianAddress(data, nearbyList);
+
+          // If street is missing or generic, enrich directly using LocationIQ Postal Search
+          if (
+            parsedResult &&
+            parsedResult.pincode &&
+            (!parsedResult.street ||
+              parsedResult.street === 'Local Area' ||
+              parsedResult.street.toLowerCase() === (parsedResult.city || '').toLowerCase() ||
+              parsedResult.street.toLowerCase().includes('block') ||
+              parsedResult.street.toLowerCase().includes('tehsil'))
+          ) {
+            try {
+              const pinUrl = `https://us1.locationiq.com/v1/search?key=${locationIqKey}&postalcode=${parsedResult.pincode}&countrycodes=in&format=json&addressdetails=1`;
+              const pinRes = await fetch(pinUrl);
+              if (pinRes.ok) {
+                const pinItems = await pinRes.json();
+                if (Array.isArray(pinItems) && pinItems.length > 0) {
+                  const top = pinItems[0];
+                  const sub = cleanPostalParentheses(top.address?.suburb || top.address?.neighbourhood || top.address?.village || top.display_name?.split(',')[0] || '');
+                  if (sub && !isAdministrativeToken(sub)) {
+                    parsedResult.street = sub;
+                  }
+                  if (!parsedResult.city || parsedResult.city === 'Local Area') {
+                    parsedResult.city = cleanPostalParentheses(top.address?.city || top.address?.town || top.address?.county || '');
+                  }
+                }
+              }
+            } catch (pErr) {
+              console.warn('[ReverseGeocode] Client postalcode fallback failed:', pErr.message);
+            }
+          }
         }
       } else {
         // Fallback zoom 16 if zoom 18 failed
@@ -536,17 +567,27 @@ export async function reverseGeocode(latitude, longitude) {
 
 /**
  * Searches places/villages/towns/streets across India using LocationIQ Autocomplete.
+ * Supports coordinate bias to prioritize results close to user's location.
  *
- * @param {string} query Search text (e.g. "Sripur", "Bihta", "Indiranagar")
+ * @param {string} query Search text (e.g. "Sripur Bazar", "Bihta", "Indiranagar")
+ * @param {{ lat: number, lng: number }} [userCoords] Optional coordinates to bias results
  * @returns {Promise<Array<{ place_id: string, display_name: string, display_place: string, display_address: string, lat: number, lng: number, address: object }>>}
  */
-export async function searchLocations(query) {
+export async function searchLocations(query, userCoords = null) {
   const q = (query || '').trim();
   if (!q || q.length < 2) return [];
 
-  // 1. Try backend proxy
+  const lat = userCoords?.lat && !isNaN(userCoords.lat) ? Number(userCoords.lat) : null;
+  const lng = userCoords?.lng && !isNaN(userCoords.lng) ? Number(userCoords.lng) : null;
+  const hasCoords = lat !== null && lng !== null;
+
+  // 1. Try backend proxy (with postal search & proximity bias)
   try {
-    const res = await fetch(`${BASE_URL}/address/autocomplete?q=${encodeURIComponent(q)}`);
+    let backendUrl = `${BASE_URL}/address/autocomplete?q=${encodeURIComponent(q)}`;
+    if (hasCoords) {
+      backendUrl += `&lat=${lat}&lng=${lng}`;
+    }
+    const res = await fetch(backendUrl);
     if (res.ok) {
       const json = await res.json();
       if (json.success && Array.isArray(json.data) && json.data.length > 0) {
@@ -557,11 +598,15 @@ export async function searchLocations(query) {
     console.warn('[searchLocations] Backend autocomplete unavailable, trying direct client...', err);
   }
 
-  // 2. Direct LocationIQ Autocomplete fallback
+  // 2. Direct LocationIQ Autocomplete fallback (with viewbox bias)
   const locationIqKey = import.meta?.env?.VITE_LOCATIONIQ_API_KEY || 'pk.43b9346c8e8046d3fdc74a70f9d0c1b1';
   if (locationIqKey) {
     try {
-      const url = `https://api.locationiq.com/v1/autocomplete?key=${locationIqKey}&q=${encodeURIComponent(q)}&countrycodes=in&limit=6&format=json`;
+      let url = `https://api.locationiq.com/v1/autocomplete?key=${locationIqKey}&q=${encodeURIComponent(q)}&countrycodes=in&limit=6&format=json`;
+      if (hasCoords) {
+        const delta = 0.5;
+        url += `&viewbox=${(lng - delta).toFixed(4)},${(lat - delta).toFixed(4)},${(lng + delta).toFixed(4)},${(lat + delta).toFixed(4)}&bounded=0`;
+      }
       const res = await fetch(url);
       if (res.ok) {
         const items = await res.json();

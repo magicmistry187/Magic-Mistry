@@ -266,7 +266,7 @@ export default function InteractiveMapPicker({
     setIsSearching(true);
     searchTimerRef.current = setTimeout(async () => {
       try {
-        const results = await searchLocations(val.trim());
+        const results = await searchLocations(val.trim(), coords);
         setSuggestions(results);
       } catch (err) {
         setSuggestions([]);
@@ -277,22 +277,47 @@ export default function InteractiveMapPicker({
   };
 
   // Select place from search suggestions
-  const handleSelectSuggestion = (item) => {
-    if (!item.lat || !item.lng) return;
-    const lat = Number(item.lat);
-    const lng = Number(item.lng);
+  const handleSelectSuggestion = async (item) => {
+    let lat = item.lat && !isNaN(Number(item.lat)) ? Number(item.lat) : null;
+    let lng = item.lng && !isNaN(Number(item.lng)) ? Number(item.lng) : null;
 
-    setCoords({ lat, lng });
+    // If coordinates not directly in suggestion, look up postal code centroid
+    if ((!lat || !lng) && (item.pincode || item.address?.pincode)) {
+      const pin = item.pincode || item.address?.pincode;
+      try {
+        const locationIqKey = import.meta?.env?.VITE_LOCATIONIQ_API_KEY || 'pk.43b9346c8e8046d3fdc74a70f9d0c1b1';
+        const pRes = await fetch(
+          `https://us1.locationiq.com/v1/search?key=${locationIqKey}&postalcode=${pin}&countrycodes=in&format=json&limit=1`
+        );
+        if (pRes.ok) {
+          const pData = await pRes.json();
+          if (Array.isArray(pData) && pData[0]) {
+            lat = Number(pData[0].lat);
+            lng = Number(pData[0].lon);
+          }
+        }
+      } catch (_) {}
+    }
+
     setSearchQuery("");
     setSuggestions([]);
     setAccuracyInfo(null);
 
-    if (mapInstanceRef.current && markerRef.current) {
-      markerRef.current.setLatLng([lat, lng]);
-      mapInstanceRef.current.flyTo([lat, lng], 18, { duration: 1.2 });
+    if (lat && lng) {
+      setCoords({ lat, lng });
+      if (mapInstanceRef.current && markerRef.current) {
+        markerRef.current.setLatLng([lat, lng]);
+        mapInstanceRef.current.flyTo([lat, lng], 18, { duration: 1.2 });
+      }
+      handleReverseGeocode(lat, lng);
+    } else if (onLocationSelect && item.address) {
+      setAddressData(item.address);
+      onLocationSelect({
+        coords,
+        address: item.address,
+        accuracy: null,
+      });
     }
-
-    handleReverseGeocode(lat, lng);
   };
 
   return (

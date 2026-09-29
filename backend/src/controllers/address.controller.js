@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Address = require('../models/address.model');
 const User = require('../models/user.model');
 const { cleanPostalParentheses, formatCleanAddress, KNOWN_DISTRICTS } = require('../utils/addressParser');
+const { enrichAddressWithPostalData, searchPostalOffices, getPincodeDetails } = require('../utils/indiaPostalData');
 
 exports.createAddress = async (req, res) => {
   try {
@@ -737,31 +738,9 @@ exports.reverseGeocode = async (req, res) => {
       }
     }
 
-    // ── 3. Fallback: India Post Pincode Lookup (ONLY to resolve missing PIN / State) ─
-    if (parsedResult && (!parsedResult.pincode || !parsedResult.state)) {
-      try {
-        if (!parsedResult.pincode && (parsedResult.street || parsedResult.city)) {
-          const searchTarget = (parsedResult.street.split(',')[0] || parsedResult.city).trim();
-          const pinRes = await fetch(`https://api.postalpincode.in/postoffice/${encodeURIComponent(searchTarget)}`);
-          if (pinRes.ok) {
-            const pinData = await pinRes.json();
-            if (Array.isArray(pinData) && pinData[0]?.Status === 'Success' && pinData[0]?.PostOffice?.length) {
-              parsedResult.pincode = pinData[0].PostOffice[0].Pincode || parsedResult.pincode;
-              parsedResult.state = parsedResult.state || pinData[0].PostOffice[0].State || '';
-            }
-          }
-        } else if (parsedResult.pincode && !parsedResult.state) {
-          const pinRes = await fetch(`https://api.postalpincode.in/pincode/${parsedResult.pincode}`);
-          if (pinRes.ok) {
-            const pinData = await pinRes.json();
-            if (Array.isArray(pinData) && pinData[0]?.Status === 'Success' && pinData[0]?.PostOffice?.length) {
-              parsedResult.state = pinData[0].PostOffice[0].State || parsedResult.state;
-            }
-          }
-        }
-      } catch (pinErr) {
-        console.warn('[ReverseGeocode] India Post validation failed:', pinErr.message);
-      }
+    // ── 3. High-Accuracy India Post Locality & Pincode Enrichment ─────────
+    if (parsedResult) {
+      parsedResult = enrichAddressWithPostalData(parsedResult);
     }
 
     const finalResult = parsedResult || {
@@ -807,32 +786,81 @@ exports.reverseGeocode = async (req, res) => {
   }
 };
 
-// ── Location Autocomplete Controller (LocationIQ India Autocomplete) ────────
+// ── Location Autocomplete Controller (India Post + LocationIQ with Proximity Bias) ──
 exports.autocomplete = async (req, res) => {
   try {
     const q = (req.query.q || req.query.query || '').trim();
+    const lat = Number(req.query.lat || req.query.latitude);
+    const lng = Number(req.query.lng || req.query.lon || req.query.longitude);
+    const hasCoords = !isNaN(lat) && !isNaN(lng);
+
     if (!q || q.length < 2) {
       return res.status(200).json({ success: true, data: [] });
     }
 
-    const cacheKey = q.toLowerCase();
+    const cacheKey = `${q.toLowerCase()}_${hasCoords ? `${lat.toFixed(3)},${lng.toFixed(3)}` : 'global'}`;
     const cached = autocompleteCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
       return res.status(200).json({ success: true, data: cached.data });
     }
 
+    // Determine local context from cached reverse geocode if available
+    let userLocContext = null;
+    if (hasCoords) {
+      const coordKey = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+      const cachedGeo = geocodeCache.get(coordKey);
+      if (cachedGeo?.data) {
+        userLocContext = {
+          pincodePrefix: cachedGeo.data.pincode?.slice(0, 4),
+          district: cachedGeo.data.city,
+          state: cachedGeo.data.state,
+        };
+      } else {
+        // Approximate context for coords (e.g. Asansol / Bardhaman if in lat 23.6-23.8, lng 86.8-87.2)
+        if (lat >= 23.5 && lat <= 23.9 && lng >= 86.8 && lng <= 87.3) {
+          userLocContext = { pincodePrefix: '7133', district: 'Bardhaman', state: 'West Bengal' };
+        }
+      }
+    }
+
+    // 1. Authoritative offline India Post search (sub-millisecond)
+    const postalMatches = searchPostalOffices(q, 4, userLocContext);
+    const postalSuggestions = postalMatches.map((item) => ({
+      place_id: `pin-${item.pincode}-${item.office}`,
+      display_name: item.display_name,
+      display_place: item.office,
+      display_address: `${item.taluk || item.district}, ${item.district}, ${item.state} - ${item.pincode}`,
+      lat: hasCoords ? lat : null,
+      lng: hasCoords ? lng : null,
+      address: {
+        flat: '',
+        street: item.office,
+        city: item.taluk || item.district,
+        district: item.district,
+        state: item.state,
+        pincode: item.pincode,
+        landmark: '',
+        fullAddress: item.display_name,
+      },
+    }));
+
+    // 2. LocationIQ Autocomplete (with coordinate viewbox bias if user coords provided)
     const locationIqKey = process.env.LOCATIONIQ_API_KEY || 'pk.43b9346c8e8046d3fdc74a70f9d0c1b1';
-    let suggestions = [];
+    let liqSuggestions = [];
 
     if (locationIqKey) {
       try {
-        const autoUrl = `https://api.locationiq.com/v1/autocomplete?key=${locationIqKey}&q=${encodeURIComponent(q)}&countrycodes=in&limit=6&format=json`;
+        let autoUrl = `https://api.locationiq.com/v1/autocomplete?key=${locationIqKey}&q=${encodeURIComponent(q)}&countrycodes=in&limit=6&format=json`;
+        if (hasCoords) {
+          const delta = 0.5;
+          autoUrl += `&viewbox=${(lng - delta).toFixed(4)},${(lat - delta).toFixed(4)},${(lng + delta).toFixed(4)},${(lat + delta).toFixed(4)}&bounded=0`;
+        }
         const autoRes = await fetch(autoUrl);
         if (autoRes.ok) {
           const items = await autoRes.json();
           if (Array.isArray(items)) {
-            suggestions = items.map((item) => {
-              const parsed = parseIndianAddress(item);
+            liqSuggestions = items.map((item) => {
+              const parsed = enrichAddressWithPostalData(parseIndianAddress(item));
               return {
                 place_id: item.place_id,
                 display_name: item.display_name,
@@ -850,8 +878,9 @@ exports.autocomplete = async (req, res) => {
       }
     }
 
-    // Fallback to Nominatim search if LocationIQ returns empty
-    if (suggestions.length === 0) {
+    // 3. Fallback to Nominatim search if both returned empty
+    let nomSuggestions = [];
+    if (postalSuggestions.length === 0 && liqSuggestions.length === 0) {
       try {
         const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&countrycodes=in&format=json&addressdetails=1&limit=6`;
         const nomRes = await fetch(nomUrl, {
@@ -863,8 +892,8 @@ exports.autocomplete = async (req, res) => {
         if (nomRes.ok) {
           const items = await nomRes.json();
           if (Array.isArray(items)) {
-            suggestions = items.map((item) => {
-              const parsed = parseIndianAddress(item);
+            nomSuggestions = items.map((item) => {
+              const parsed = enrichAddressWithPostalData(parseIndianAddress(item));
               return {
                 place_id: item.place_id,
                 display_name: item.display_name,
@@ -880,6 +909,19 @@ exports.autocomplete = async (req, res) => {
       } catch (nomErr) {
         console.warn('[Autocomplete] Nominatim search failed:', nomErr.message);
       }
+    }
+
+    // Merge and deduplicate suggestions
+    const seenNames = new Set();
+    const suggestions = [];
+
+    for (const item of [...postalSuggestions, ...liqSuggestions, ...nomSuggestions]) {
+      const key = (item.display_name || item.display_place || '').toLowerCase().trim();
+      if (key && !seenNames.has(key)) {
+        seenNames.add(key);
+        suggestions.push(item);
+      }
+      if (suggestions.length >= 8) break;
     }
 
     autocompleteCache.set(cacheKey, { timestamp: Date.now(), data: suggestions });
