@@ -19,6 +19,7 @@ import {
   reverseGeocode,
   searchLocations,
 } from "../../utils/reverseGeocode";
+import { cleanPostalParentheses } from "../../utils/addressParser";
 
 const POPULAR_CITIES = [
   { name: "Kolkata, West Bengal", icon: "🏰" },
@@ -113,13 +114,19 @@ export default function LocationSelectorModal({ isOpen, onClose }) {
       const res = await reverseGeocode(coords.latitude, coords.longitude);
       console.log(`[LocationSelectorModal] 🗺️ Reverse Geocoded:`, res);
 
+      const rawFlat = (res.flat || "").trim();
+      const safeFlat = rawFlat && !rawFlat.includes(",") && rawFlat.length <= 25 ? rawFlat : "";
+      const cleanStreet = (res.street || "").replace(/\s*\(.*?\)\s*/g, " ").replace(/\s+/g, " ").trim();
+      const cleanCity = cleanPostalParentheses(res.city || "");
+      const cleanPincode = (res.pincode || "").replace(/\D/g, "").slice(0, 6);
+
       setDetectedData({
-        flat: res.flat || "",
-        street: res.street || "",
+        flat: safeFlat,
+        street: cleanStreet,
         landmark: res.landmark || "",
-        city: res.city || "",
+        city: cleanCity,
         state: res.state || "",
-        pincode: res.pincode || "",
+        pincode: cleanPincode,
       });
       setDetectedCoords({ lat: coords.latitude, lng: coords.longitude });
     } catch (err) {

@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // reverseGeocode.js — Production-Grade Geolocation & Reverse Geocoding Utility
 // ─────────────────────────────────────────────────────────────────────────────
-import { parseAddressString, formatCleanAddress, cleanPostalParentheses } from './addressParser.js';
+import { parseAddressString, formatCleanAddress, cleanPostalParentheses, KNOWN_DISTRICTS, isAdministrativeToken } from './addressParser.js';
 import { BASE_URL } from '../services/apiConnector.js';
 
 /**
@@ -53,7 +53,7 @@ export function getCurrentCoordinates(options = {}) {
 }
 
 // ── Helper: Parse Indian Address from LocationIQ / OSM ───────────────────────
-function parseIndianAddress(data) {
+function parseIndianAddress(data, nearbyList = []) {
   if (!data) return null;
   const a = data.address || {};
   const displayName = data.display_name || '';
@@ -62,14 +62,37 @@ function parseIndianAddress(data) {
   let detectedCity = (
     a.city ||
     a.town ||
-    a.village ||
     a.municipality ||
-    a.city_district ||
     ''
   ).trim();
 
+  // If no city, but county has a known city (e.g. "Bolpur Sriniketan" -> "Bolpur")
+  if (!detectedCity && a.county) {
+    const countyFirst = a.county.split(/[\s-]+/)[0];
+    if (countyFirst && !isAdministrativeToken(countyFirst)) {
+      detectedCity = countyFirst;
+    }
+  }
+
+  // Handle Village locality:
+  let villageLocality = '';
+  if (a.village) {
+    if (detectedCity && detectedCity.toLowerCase() !== a.village.toLowerCase()) {
+      villageLocality = a.village.trim();
+    } else if (!detectedCity) {
+      if (a.county && a.county.toLowerCase().includes('sriniketan') && a.village.toLowerCase() === 'sriniketan') {
+        detectedCity = 'Bolpur';
+        villageLocality = 'Sriniketan';
+      } else {
+        detectedCity = a.village.trim();
+      }
+    }
+  }
+
   if (!detectedCity) {
-    detectedCity = (a.county || a.state_district || a.district || '').trim();
+    detectedCity = (a.city_district || a.state_district || a.county || '')
+      .replace(/\s*(tehsil|cd block|block|district|mandal|taluk|subdistrict)\s*/gi, '')
+      .trim();
   }
   detectedCity = cleanPostalParentheses(detectedCity);
 
@@ -114,8 +137,8 @@ function parseIndianAddress(data) {
     if (pinMatch) pincode = pinMatch[0];
   }
 
-  // 5. Detect Landmark
-  const landmark = (
+  // 5. Detect Landmark (from reverse or nearby POIs)
+  let landmark = (
     a.landmark ||
     a.amenity ||
     a.attraction ||
@@ -124,9 +147,17 @@ function parseIndianAddress(data) {
     a.leisure ||
     ''
   ).trim();
+  if (landmark && isAdministrativeToken(landmark)) landmark = '';
+
+  if (!landmark && Array.isArray(nearbyList) && nearbyList.length > 0) {
+    const topNamed = nearbyList.find((n) => n.name && n.distance <= 350 && !isAdministrativeToken(n.name));
+    if (topNamed) {
+      landmark = topNamed.name.startsWith('Near ') ? topNamed.name : `Near ${topNamed.name}`;
+    }
+  }
 
   // 6. Gather all Street / Locality candidates
-  const candidateStreetParts = [];
+  const streetCandidates = [];
 
   const addCandidate = (val) => {
     if (!val || typeof val !== 'string') return;
@@ -134,88 +165,86 @@ function parseIndianAddress(data) {
     if (!cleanVal) return;
     const lower = cleanVal.toLowerCase();
 
-    // Do not add if it equals city, state, country, or pincode
+    // NEVER add city, state, country, pincode, district, or administrative names
     if (
       lower === detectedCity.toLowerCase() ||
       lower === state.toLowerCase() ||
       lower === 'india' ||
       lower === 'bharat' ||
-      /^\d{6}$/.test(lower)
+      /^\d{6}$/.test(lower) ||
+      (a.state_district && (lower === a.state_district.toLowerCase() || lower.includes(a.state_district.toLowerCase()))) ||
+      (a.county && (lower === a.county.toLowerCase() || lower.includes(a.county.toLowerCase()))) ||
+      (a.city_district && (lower === a.city_district.toLowerCase() || lower.includes(a.city_district.toLowerCase()))) ||
+      isAdministrativeToken(cleanVal)
     ) {
       return;
     }
 
-    // Do not add if it matches detectedFlat
     if (detectedFlat && lower === detectedFlat.toLowerCase()) return;
 
-    // Do not add duplicates or substrings
-    const alreadyAdded = candidateStreetParts.some(
+    const alreadyAdded = streetCandidates.some(
       (c) => c.toLowerCase() === lower || c.toLowerCase().split(',').map((s) => s.trim()).includes(lower)
     );
     if (!alreadyAdded) {
-      candidateStreetParts.push(cleanVal);
+      streetCandidates.push(cleanVal);
     }
   };
-
-  // POI / Landmark (if not flat)
-  if (a.amenity) addCandidate(a.amenity);
-  if (a.building && a.building !== detectedFlat) addCandidate(a.building);
-  if (a.shop) addCandidate(a.shop);
-  if (a.place) addCandidate(a.place);
 
   // Roads / Streets
   if (a.road) addCandidate(a.road);
   if (a.street) addCandidate(a.street);
   if (a.lane) addCandidate(a.lane);
+  if (a.highway) addCandidate(a.highway);
   if (a.pedestrian) addCandidate(a.pedestrian);
   if (a.footway) addCandidate(a.footway);
   if (a.path) addCandidate(a.path);
-  if (a.highway) addCandidate(a.highway);
   if (a.alley) addCandidate(a.alley);
 
   // Neighbourhood / Colony / Sector
   if (a.neighbourhood) addCandidate(a.neighbourhood);
   if (a.colony) addCandidate(a.colony);
-  if (a.residential && a.residential !== detectedFlat) addCandidate(a.residential);
-  if (a.quarter) addCandidate(a.quarter);
   if (a.sector) addCandidate(a.sector);
+  if (a.quarter) addCandidate(a.quarter);
   if (a.ward) addCandidate(a.ward);
-  if (a.block) addCandidate(a.block);
+  if (a.block && !isAdministrativeToken(a.block)) addCandidate(a.block);
+  if (a.residential && a.residential !== detectedFlat) addCandidate(a.residential);
 
-  // Suburb / Locality / Sub-district
+  // Suburb / Locality / Village
   if (a.suburb) addCandidate(a.suburb);
-  if (a.village_district) addCandidate(a.village_district);
-  if (a.subdistrict) addCandidate(a.subdistrict);
-
-  // Hamlet
+  if (villageLocality) addCandidate(villageLocality);
   if (a.hamlet) addCandidate(a.hamlet);
 
-  // County / Block / Tehsil (e.g. "Bolpur Sriniketan")
-  if (a.county) addCandidate(a.county);
-
-  // If still empty, check tokens from displayName before city
-  if (candidateStreetParts.length === 0 && displayName) {
+  // Specific tokens from display_name (e.g. "Sector 3", "Hasanpura-C", "Bowbazar")
+  if (displayName) {
     const tokens = displayName.split(',').map((t) => cleanPostalParentheses(t.trim())).filter(Boolean);
-    for (const t of tokens) {
-      const tLower = t.toLowerCase();
-      if (
-        tLower !== detectedCity.toLowerCase() &&
-        tLower !== state.toLowerCase() &&
-        tLower !== 'india' &&
-        tLower !== 'bharat' &&
-        !/^\d{6}$/.test(tLower) &&
-        tLower !== (a.state_district || '').toLowerCase()
-      ) {
-        addCandidate(t);
-      }
+    for (let i = 0; i < Math.min(tokens.length, 3); i++) {
+      addCandidate(tokens[i]);
     }
   }
 
-  let street = candidateStreetParts.filter(Boolean).join(', ');
+  // If road is still missing, enrich from Nearby POIs
+  if (!a.road && Array.isArray(nearbyList) && nearbyList.length > 0) {
+    for (let near of nearbyList) {
+      if (near.address?.road) {
+        addCandidate(near.address.road);
+        break;
+      }
+    }
+    for (let near of nearbyList) {
+      if (near.address?.suburb) addCandidate(near.address.suburb);
+      if (near.address?.neighbourhood) addCandidate(near.address.neighbourhood);
+      if (streetCandidates.length >= 2) break;
+    }
+  }
+
+  // If street is STILL empty, use landmark
+  if (streetCandidates.length === 0 && landmark) {
+    addCandidate(landmark);
+  }
+
+  let street = streetCandidates.join(', ');
   if (!street) {
-    street = (a.state_district && a.state_district.toLowerCase() !== detectedCity.toLowerCase())
-      ? `${detectedCity} Area`
-      : 'Main Road';
+    street = villageLocality || (detectedCity ? `${detectedCity} Main Road` : 'Main Road');
   }
 
   // Format clean full address
@@ -303,8 +332,30 @@ export async function reverseGeocode(latitude, longitude) {
       if (liqRes.ok) {
         const data = await liqRes.json();
         if (data && (data.address || data.display_name)) {
-          parsedResult = parseIndianAddress(data);
+          let nearbyList = [];
+          if (!data.address?.road) {
+            try {
+              const nearRes = await fetch(`https://us1.locationiq.com/v1/nearby?key=${locationIqKey}&lat=${lat}&lon=${lng}&radius=450&format=json`);
+              if (nearRes.ok) {
+                const nearData = await nearRes.json();
+                if (Array.isArray(nearData)) nearbyList = nearData;
+              }
+            } catch (e) {}
+          }
+          parsedResult = parseIndianAddress(data, nearbyList);
         }
+      } else {
+        // Fallback zoom 16 if zoom 18 failed
+        try {
+          const liqUrl16 = `https://us1.locationiq.com/v1/reverse?key=${locationIqKey}&lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=16`;
+          const liqRes16 = await fetch(liqUrl16);
+          if (liqRes16.ok) {
+            const data16 = await liqRes16.json();
+            if (data16 && (data16.address || data16.display_name)) {
+              parsedResult = parseIndianAddress(data16);
+            }
+          }
+        } catch (zErr) {}
       }
     } catch (liqErr) {
       console.warn('[ReverseGeocode] Client LocationIQ failed, trying fallback...', liqErr);

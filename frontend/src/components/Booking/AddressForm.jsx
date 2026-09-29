@@ -7,6 +7,7 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { getAddressesApi } from "../../services/operations/addressAPI";
 import { getCurrentCoordinates, reverseGeocode } from "../../utils/reverseGeocode";
+import { cleanPostalParentheses } from "../../utils/addressParser";
 
 const LOC = { IDLE: "idle", LOADING: "loading", SUCCESS: "success", ERROR: "error" };
 const MODE = { CHOOSE: "choose", SAVED: "saved", MANUAL: "manual" };
@@ -134,16 +135,22 @@ export default function AddressForm() {
       const coords = await getCurrentCoordinates({ timeout: 15000 });
       const address = await reverseGeocode(coords.latitude, coords.longitude);
 
-      setFlat(address.flat || "");
-      setStreet(address.street || "");
-      setCity(address.city || "");
+      const rawFlat = (address.flat || "").trim();
+      const safeFlat = rawFlat && !rawFlat.includes(",") && rawFlat.length <= 25 ? rawFlat : "";
+      const cleanStreet = (address.street || "").replace(/\s*\(.*?\)\s*/g, " ").replace(/\s+/g, " ").trim();
+      const cleanCity = cleanPostalParentheses(address.city || "");
+      const cleanPincode = (address.pincode || "").replace(/\D/g, "").slice(0, 6);
+
+      setFlat(safeFlat);
+      setStreet(cleanStreet);
+      setCity(cleanCity);
       setState(address.state || "");
       setLandmark(address.landmark || "");
-      setPincode(address.pincode || "");
+      setPincode(cleanPincode);
 
       const fullAddress =
         address.fullAddress ||
-        [address.flat, address.street, address.landmark, address.city, address.state, address.pincode]
+        [safeFlat, cleanStreet, address.landmark, cleanCity, address.state, cleanPincode]
           .filter(Boolean)
           .join(", ");
 

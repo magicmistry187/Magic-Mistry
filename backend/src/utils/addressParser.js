@@ -95,6 +95,29 @@ function cleanPostalParentheses(str) {
 }
 
 /**
+ * Checks if a string represents an administrative region (district, tehsil, CD block, mandal, etc.)
+ */
+function isAdministrativeToken(t) {
+  if (!t || typeof t !== 'string') return false;
+  const lower = t.toLowerCase().trim();
+  return (
+    KNOWN_DISTRICTS.has(lower) ||
+    lower.includes('tehsil') ||
+    lower.includes('cd block') ||
+    lower.includes('block') ||
+    lower.includes('district') ||
+    lower.includes('metropolitan area') ||
+    lower.includes('corporation') ||
+    lower.includes('division') ||
+    lower.includes('subdivision') ||
+    lower.includes('mandal') ||
+    lower.includes('taluk') ||
+    lower.includes('taluka') ||
+    lower === 'bolpur sriniketan'
+  );
+}
+
+/**
  * Parses any Indian address input (full string or object) into clean fields.
  */
 function parseAddressString(input) {
@@ -122,8 +145,8 @@ function parseAddressString(input) {
       !str ||
       /^(home|office|other|current location|area|000000|set your location)$/i.test(str);
 
-    if (isGeneric(objStreet)) objStreet = '';
-    if (isGeneric(objCity)) objCity = '';
+    if (isGeneric(objStreet) || isAdministrativeToken(objStreet)) objStreet = '';
+    if (isGeneric(objCity) || isAdministrativeToken(objCity)) objCity = '';
 
     // If both street and city are present and street is not a full 3+ comma address string:
     const isStreetFull = objStreet && objStreet.includes(',') && objStreet.split(',').length >= 3;
@@ -295,8 +318,8 @@ function parseAddressString(input) {
     extractedCity = parts[cityIndex];
     parts.splice(cityIndex, 1);
 
-    // If any remaining part is a known district name (e.g. Birbhum when city is Bolpur), remove it from street
-    parts = parts.filter((p) => !KNOWN_DISTRICTS.has(p.toLowerCase()));
+    // If any remaining part is a known district or administrative block, remove it from street
+    parts = parts.filter((p) => !isAdministrativeToken(p));
 
     extractedStreet = parts.join(', ');
   }
@@ -412,6 +435,7 @@ module.exports = {
   KNOWN_MAJOR_CITIES,
   KNOWN_DISTRICTS,
   cleanPostalParentheses,
+  isAdministrativeToken,
   parseAddressString,
   formatCleanAddress,
 };

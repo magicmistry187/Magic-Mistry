@@ -17,7 +17,7 @@ import {
   AlertCircle,
   CheckCircle2,
 } from 'lucide-react';
-import { parseAddressString, INDIAN_STATES } from '../../../utils/addressParser';
+import { parseAddressString, INDIAN_STATES, cleanPostalParentheses } from '../../../utils/addressParser';
 import { getCurrentCoordinates, reverseGeocode } from '../../../utils/reverseGeocode';
 
 export default function UserAddressModal({ isOpen, onClose, onSave, initialData }) {
@@ -86,12 +86,14 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
       const coords = await getCurrentCoordinates({ timeout: 15000 });
       const address = await reverseGeocode(coords.latitude, coords.longitude);
 
-      setFlat(address.flat || '');
-      setStreet(address.street || '');
-      setCity(address.city || '');
+      const rawFlat = (address.flat || '').trim();
+      const safeFlat = rawFlat && !rawFlat.includes(',') && rawFlat.length <= 25 ? rawFlat : '';
+      setFlat(safeFlat);
+      setStreet((address.street || '').replace(/\s*\(.*?\)\s*/g, ' ').replace(/\s+/g, ' ').trim());
+      setCity(cleanPostalParentheses(address.city || ''));
       setState(address.state || '');
       setLandmark(address.landmark || '');
-      setPincode(address.pincode || '');
+      setPincode((address.pincode || '').replace(/\D/g, '').slice(0, 6));
       setGeoCoords({ lat: coords.latitude, lng: coords.longitude });
       setLocState('success');
       setLocError('');
