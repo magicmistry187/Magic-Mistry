@@ -36,22 +36,20 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
 
   useEffect(() => {
     if (initialData) {
-      const parsed = typeof initialData === 'object' ? {
-        flat: initialData.flat || initialData.house || initialData.addressLine1 || '',
-        street: initialData.street || '',
-        city: initialData.city || '',
-        state: initialData.state || '',
-        landmark: initialData.landmark || '',
-        pincode: initialData.pincode || '',
-      } : parseAddressString(initialData);
+      const parsed = parseAddressString(initialData);
+
+      let safeFlat = (parsed.flat || '').trim();
+      if (safeFlat.includes(',') || safeFlat.length > 25 || (parsed.street && safeFlat.toLowerCase() === parsed.street.toLowerCase())) {
+        safeFlat = '';
+      }
 
       setType(initialData.type || initialData.addressType || 'Home');
-      setFlat(parsed.flat || '');
+      setFlat(safeFlat);
       setStreet(parsed.street || '');
       setCity(parsed.city || '');
       setState(parsed.state || '');
       setLandmark(parsed.landmark || '');
-      setPincode(parsed.pincode || '');
+      setPincode(parsed.pincode === '000000' ? '' : (parsed.pincode || ''));
       setIsDefault(!!initialData.isDefault);
       if (initialData.location?.coordinates?.length === 2) {
         setGeoCoords({

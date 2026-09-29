@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // reverseGeocode.js — Production-Grade Geolocation & Reverse Geocoding Utility
 // ─────────────────────────────────────────────────────────────────────────────
-import { parseAddressString } from './addressParser.js';
+import { parseAddressString, formatCleanAddress, cleanPostalParentheses } from './addressParser.js';
 import { BASE_URL } from '../services/apiConnector.js';
 
 /**
@@ -52,18 +52,159 @@ export function getCurrentCoordinates(options = {}) {
   });
 }
 
+// ── Helper: Parse Indian Address from LocationIQ / OSM ───────────────────────
+function parseIndianAddress(data) {
+  if (!data) return null;
+  const a = data.address || {};
+  const displayName = data.display_name || '';
+
+  const flat = (
+    a.house_number ||
+    a.building ||
+    a.flat ||
+    a.room ||
+    a.house_name ||
+    a.shop ||
+    a.office ||
+    a.apartments ||
+    ''
+  ).trim();
+
+  const road = (
+    a.road ||
+    a.street ||
+    a.lane ||
+    a.pedestrian ||
+    a.footway ||
+    a.path ||
+    a.highway ||
+    a.alley ||
+    ''
+  ).trim();
+
+  const locality = (
+    a.suburb ||
+    a.neighbourhood ||
+    a.residential ||
+    a.colony ||
+    a.quarter ||
+    a.hamlet ||
+    a.village_district ||
+    a.subdistrict ||
+    ''
+  ).trim();
+
+  const villageOrTown = (
+    a.village ||
+    a.town ||
+    a.city_district ||
+    ''
+  ).trim();
+
+  const districtOrCounty = (
+    a.city ||
+    a.municipality ||
+    a.county ||
+    a.state_district ||
+    a.district ||
+    ''
+  ).trim();
+
+  let streetParts = [];
+  if (road) streetParts.push(road);
+  if (locality && locality.toLowerCase() !== road.toLowerCase()) streetParts.push(locality);
+  if (!road && !locality && villageOrTown) streetParts.push(villageOrTown);
+
+  if (streetParts.length === 0 && displayName) {
+    const tokens = displayName.split(',').map((t) => t.trim()).filter(Boolean);
+    if (tokens.length > 0 && !['india', 'bharat'].includes(tokens[0].toLowerCase())) {
+      streetParts.push(tokens[0]);
+    }
+  }
+
+  let street = streetParts.filter(Boolean).join(', ');
+
+  let city = '';
+  if (a.city) {
+    city = a.city;
+  } else if (villageOrTown && villageOrTown.toLowerCase() !== street.toLowerCase()) {
+    city = villageOrTown;
+  } else if (a.town) {
+    city = a.town;
+  } else if (districtOrCounty && districtOrCounty.toLowerCase() !== street.toLowerCase()) {
+    city = districtOrCounty;
+  } else if (a.state_district) {
+    city = a.state_district;
+  } else if (districtOrCounty) {
+    city = districtOrCounty;
+  }
+
+  if (street && city && street.toLowerCase() === city.toLowerCase()) {
+    const higherDistrict = (a.state_district || a.county || a.district || '').trim();
+    if (higherDistrict && higherDistrict.toLowerCase() !== city.toLowerCase()) {
+      city = higherDistrict;
+    }
+  }
+
+  let state = (a.state || a.province || a.region || '').trim();
+  if (!state) {
+    const lowerFull = (displayName + ' ' + city + ' ' + street).toLowerCase();
+    if (lowerFull.includes('delhi')) state = 'Delhi';
+    else if (lowerFull.includes('chandigarh')) state = 'Chandigarh';
+    else if (lowerFull.includes('puducherry') || lowerFull.includes('pondicherry')) state = 'Puducherry';
+    else if (lowerFull.includes('ladakh')) state = 'Ladakh';
+    else if (lowerFull.includes('jammu') || lowerFull.includes('kashmir')) state = 'Jammu and Kashmir';
+    else if (lowerFull.includes('goa')) state = 'Goa';
+    else if (lowerFull.includes('andaman')) state = 'Andaman and Nicobar Islands';
+    else if (lowerFull.includes('daman') || lowerFull.includes('diu') || lowerFull.includes('dadra')) state = 'Dadra and Nagar Haveli and Daman and Diu';
+    else if (lowerFull.includes('lakshadweep')) state = 'Lakshadweep';
+  }
+
+  const landmark = (
+    a.landmark ||
+    a.amenity ||
+    a.attraction ||
+    a.place ||
+    a.historic ||
+    a.leisure ||
+    ''
+  ).trim();
+
+  let pincode = (a.postcode || '').replace(/\D/g, '').slice(0, 6);
+  if (!pincode && displayName) {
+    const pinMatch = displayName.match(/\b[1-9]\d{5}\b/);
+    if (pinMatch) pincode = pinMatch[0];
+  }
+
+  if (!street) {
+    street = villageOrTown || locality || districtOrCounty || 'Local Area';
+  }
+
+  const fullParts = [];
+  [flat, street, landmark, city, state, pincode].forEach((part) => {
+    if (part && !fullParts.some((p) => p.toLowerCase() === part.toLowerCase())) {
+      fullParts.push(part);
+    }
+  });
+
+  return {
+    flat,
+    street,
+    city: city || 'Local Area',
+    state: state || '',
+    landmark,
+    pincode,
+    fullAddress: fullParts.join(', ') || displayName,
+  };
+}
+
 /**
  * Reverse-geocodes latitude and longitude into structured Indian address fields:
- * - Street / Small Area (Mohalla / Colony / Road / Suburb)
+ * - Street / Small Area (Mohalla / Colony / Road / Village)
  * - City / Town
  * - State
- * - Pincode (Guaranteed 6-digit Indian PIN Code)
+ * - Pincode (6-digit Indian PIN Code)
  * - Flat / Door (Optional)
- *
- * Multi-Tier Strategy:
- * 1. Backend Server-Side Proxy (Nominatim zoom=18 + Photon + Postal API with caching)
- * 2. Client-Side Direct Nominatim zoom=18 (Safe browser headers)
- * 3. Client-Side Photon / PostalPincode Fallback
  *
  * @param {number} latitude
  * @param {number} longitude
@@ -78,11 +219,11 @@ export async function reverseGeocode(latitude, longitude) {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // ── TIER 1: Backend Reverse Geocode Endpoint (Most Accurate & Fast) ────────
+  // ── TIER 1: Backend Reverse Geocode Endpoint (Most Accurate & Cached) ───────
   // ═══════════════════════════════════════════════════════════════════════════
   try {
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timeoutId = controller ? setTimeout(() => controller.abort(), 6000) : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 6500) : null;
 
     const backendUrl = `${BASE_URL}/address/reverse-geocode?lat=${lat}&lng=${lng}`;
     const res = await fetch(backendUrl, {
@@ -104,14 +245,7 @@ export async function reverseGeocode(latitude, longitude) {
   // ═══════════════════════════════════════════════════════════════════════════
   // ── TIER 2: Direct Client LocationIQ (High-Precision Indian Villages & PINs) 
   // ═══════════════════════════════════════════════════════════════════════════
-  let flat = '';
-  let street = '';
-  let city = '';
-  let state = '';
-  let landmark = '';
-  let pincode = '';
-  let fullAddress = '';
-
+  let parsedResult = null;
   const locationIqKey = import.meta?.env?.VITE_LOCATIONIQ_API_KEY || 'pk.43b9346c8e8046d3fdc74a70f9d0c1b1';
 
   if (locationIqKey) {
@@ -125,38 +259,9 @@ export async function reverseGeocode(latitude, longitude) {
 
       if (liqRes.ok) {
         const data = await liqRes.json();
-        const a = data.address || {};
-
-        flat = a.house_number || a.building || a.flat || a.room || a.house_name || a.shop || a.apartments || '';
-
-        const road = a.road || a.pedestrian || a.footway || a.street || a.path || a.highway || a.lane || a.alley || '';
-        const locality =
-          a.suburb ||
-          a.neighbourhood ||
-          a.residential ||
-          a.subdistrict ||
-          a.city_district ||
-          a.quarter ||
-          a.hamlet ||
-          a.village_district ||
-          a.village ||
-          a.colony ||
-          '';
-
-        const streetParts = [road, locality].filter(Boolean);
-        street = streetParts.length ? streetParts.join(', ') : (data.name || '');
-
-        city = a.city || a.town || a.village || a.municipality || a.county || a.state_district || a.district || '';
-        state = a.state || a.province || a.region || '';
-        landmark = a.landmark || a.amenity || a.attraction || a.place || a.historic || a.leisure || '';
-        pincode = (a.postcode || '').replace(/\D/g, '').slice(0, 6);
-
-        if (!pincode && data.display_name) {
-          const pinMatch = data.display_name.match(/\b[1-9]\d{5}\b/);
-          if (pinMatch) pincode = pinMatch[0];
+        if (data && (data.address || data.display_name)) {
+          parsedResult = parseIndianAddress(data);
         }
-
-        fullAddress = data.display_name || '';
       }
     } catch (liqErr) {
       console.warn('[ReverseGeocode] Client LocationIQ failed, trying fallback...', liqErr);
@@ -166,179 +271,144 @@ export async function reverseGeocode(latitude, longitude) {
   // ═══════════════════════════════════════════════════════════════════════════
   // ── TIER 3: Direct Client Nominatim at zoom=18 (Fallback) ─────────────────
   // ═══════════════════════════════════════════════════════════════════════════
-  if (!city || !pincode) {
+  if (!parsedResult || !parsedResult.city || !parsedResult.pincode) {
     try {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
       const timeoutId = controller ? setTimeout(() => controller.abort(), 7000) : null;
 
-    // Use zoom=18 for building/road level precision (without forbidden headers!)
-    const nomUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`;
-    const res = await fetch(nomUrl, {
-      headers: { 'Accept-Language': 'en' },
-      signal: controller ? controller.signal : undefined,
-    });
-    if (timeoutId) clearTimeout(timeoutId);
+      const nomUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`;
+      const res = await fetch(nomUrl, {
+        headers: { 'Accept-Language': 'en' },
+        signal: controller ? controller.signal : undefined,
+      });
+      if (timeoutId) clearTimeout(timeoutId);
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data && (data.address || data.display_name)) {
-        const a = data.address || {};
-
-        flat = a.house_number || a.building || a.flat || a.room || a.house_name || a.shop || a.apartments || '';
-
-        // Extract detailed micro-locality (road + neighbourhood / suburb / colony)
-        const road = a.road || a.pedestrian || a.footway || a.street || a.path || a.highway || a.lane || a.alley || '';
-        const locality =
-          a.suburb ||
-          a.neighbourhood ||
-          a.residential ||
-          a.subdistrict ||
-          a.city_district ||
-          a.quarter ||
-          a.hamlet ||
-          a.village_district ||
-          a.colony ||
-          '';
-
-        const streetParts = [road, locality].filter(Boolean);
-        street = streetParts.length ? streetParts.join(', ') : (data.name || '');
-
-        city = a.city || a.town || a.village || a.municipality || a.state_district || a.county || a.district || '';
-        state = a.state || a.province || a.region || '';
-        landmark = a.landmark || a.amenity || a.attraction || a.place || a.historic || a.leisure || '';
-        pincode = (a.postcode || '').replace(/\D/g, '').slice(0, 6);
-
-        // Fallback for street from display_name
-        if (!street && data.display_name) {
-          const firstPart = data.display_name.split(',')[0]?.trim();
-          if (firstPart && firstPart !== city && firstPart !== state) {
-            street = firstPart;
+      if (res.ok) {
+        const data = await res.json();
+        if (data && (data.address || data.display_name)) {
+          const nomParsed = parseIndianAddress(data);
+          if (!parsedResult) {
+            parsedResult = nomParsed;
+          } else {
+            parsedResult.street = parsedResult.street || nomParsed.street;
+            parsedResult.city = parsedResult.city || nomParsed.city;
+            parsedResult.state = parsedResult.state || nomParsed.state;
+            parsedResult.pincode = parsedResult.pincode || nomParsed.pincode;
+            parsedResult.fullAddress = parsedResult.fullAddress || nomParsed.fullAddress;
           }
         }
+      }
+    } catch (err) {
+      console.warn('[ReverseGeocode] Client Nominatim lookup failed:', err);
+    }
+  }
 
-        // Fallback for pincode from display_name (e.g. "..., 731235, India")
-        if (!pincode && data.display_name) {
-          const pinMatch = data.display_name.match(/\b[1-9]\d{5}\b/);
-          if (pinMatch) pincode = pinMatch[0];
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ── TIER 4: Indian Postal API (ONLY to resolve missing PIN / State) ────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (parsedResult && (!parsedResult.pincode || !parsedResult.state)) {
+    try {
+      if (!parsedResult.pincode && (parsedResult.street || parsedResult.city)) {
+        const searchTarget = (parsedResult.street.split(',')[0] || parsedResult.city).trim();
+        const pinRes = await fetch(`https://api.postalpincode.in/postoffice/${encodeURIComponent(searchTarget)}`);
+        if (pinRes.ok) {
+          const pinData = await pinRes.json();
+          if (Array.isArray(pinData) && pinData[0]?.Status === 'Success' && pinData[0]?.PostOffice?.length) {
+            parsedResult.pincode = pinData[0].PostOffice[0].Pincode || parsedResult.pincode;
+            parsedResult.state = parsedResult.state || pinData[0].PostOffice[0].State || '';
+          }
         }
+      } else if (parsedResult.pincode && !parsedResult.state) {
+        const pinRes = await fetch(`https://api.postalpincode.in/pincode/${parsedResult.pincode}`);
+        if (pinRes.ok) {
+          const pinData = await pinRes.json();
+          if (Array.isArray(pinData) && pinData[0]?.Status === 'Success' && pinData[0]?.PostOffice?.length) {
+            parsedResult.state = pinData[0].PostOffice[0].State || parsedResult.state;
+          }
+        }
+      }
+    } catch (pinErr) {
+      console.warn('[ReverseGeocode] India Post lookup failed:', pinErr);
+    }
+  }
 
-        fullAddress = data.display_name || '';
+  const finalResult = parsedResult || {
+    flat: '',
+    street: 'Local Area',
+    city: 'Local Area',
+    state: '',
+    landmark: '',
+    pincode: '',
+    fullAddress: 'Local Area',
+  };
+
+  // Clean parentheses and formatting on individual fields
+  if (finalResult.city) {
+    finalResult.city = cleanPostalParentheses(finalResult.city);
+  }
+  if (finalResult.street) {
+    finalResult.street = finalResult.street.replace(/\s*\(.*?\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  if (finalResult.flat && (finalResult.flat.includes(',') || finalResult.flat.length > 25)) {
+    finalResult.flat = '';
+  }
+
+  // Format clean full address without duplicates or postal parentheses
+  finalResult.fullAddress = formatCleanAddress(finalResult) || finalResult.city || finalResult.street || 'Local Area';
+
+  return finalResult;
+}
+
+/**
+ * Searches places/villages/towns/streets across India using LocationIQ Autocomplete.
+ *
+ * @param {string} query Search text (e.g. "Sripur", "Bihta", "Indiranagar")
+ * @returns {Promise<Array<{ place_id: string, display_name: string, display_place: string, display_address: string, lat: number, lng: number, address: object }>>}
+ */
+export async function searchLocations(query) {
+  const q = (query || '').trim();
+  if (!q || q.length < 2) return [];
+
+  // 1. Try backend proxy
+  try {
+    const res = await fetch(`${BASE_URL}/address/autocomplete?q=${encodeURIComponent(q)}`);
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        return json.data;
       }
     }
   } catch (err) {
-    console.warn('[ReverseGeocode] Client Nominatim lookup failed:', err);
+    console.warn('[searchLocations] Backend autocomplete unavailable, trying direct client...', err);
   }
-}
 
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // ── TIER 3: Photon Reverse Geocoder (High-Accuracy Indian Pincodes) ────────
-  // ═══════════════════════════════════════════════════════════════════════════
-  if (!pincode || !street || !city) {
+  // 2. Direct LocationIQ Autocomplete fallback
+  const locationIqKey = import.meta?.env?.VITE_LOCATIONIQ_API_KEY || 'pk.43b9346c8e8046d3fdc74a70f9d0c1b1';
+  if (locationIqKey) {
     try {
-      const photonRes = await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`);
-      if (photonRes.ok) {
-        const pdata = await photonRes.json();
-        const feat = pdata?.features?.[0]?.properties;
-        if (feat) {
-          if (!pincode && feat.postcode) {
-            pincode = String(feat.postcode).replace(/\D/g, '').slice(0, 6);
-          }
-          if (!street) {
-            street = [feat.street, feat.district || feat.locality || feat.name].filter(Boolean).join(', ');
-          }
-          if (!city) city = feat.city || feat.town || feat.county || '';
-          if (!state) state = feat.state || '';
+      const url = `https://api.locationiq.com/v1/autocomplete?key=${locationIqKey}&q=${encodeURIComponent(q)}&countrycodes=in&limit=6&format=json`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const items = await res.json();
+        if (Array.isArray(items)) {
+          return items.map((item) => {
+            const parsed = parseIndianAddress(item);
+            return {
+              place_id: item.place_id,
+              display_name: item.display_name,
+              display_place: item.display_place || parsed?.street || '',
+              display_address: item.display_address || `${parsed?.city || ''}, ${parsed?.state || ''}`,
+              lat: Number(item.lat),
+              lng: Number(item.lon),
+              address: parsed,
+            };
+          });
         }
       }
-    } catch (photonErr) {
-      console.warn('[ReverseGeocode] Photon lookup failed:', photonErr);
+    } catch (liqErr) {
+      console.warn('[searchLocations] Direct LocationIQ autocomplete failed:', liqErr);
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // ── TIER 4: Indian Postal Pincode API (Official Postal Records) ───────────
-  // ═══════════════════════════════════════════════════════════════════════════
-  if (!pincode && (street || city)) {
-    try {
-      const searchTarget = (street.split(',')[0] || city).trim();
-      const pinRes = await fetch(`https://api.postalpincode.in/postoffice/${encodeURIComponent(searchTarget)}`);
-      if (pinRes.ok) {
-        const pinData = await pinRes.json();
-        if (Array.isArray(pinData) && pinData[0]?.Status === 'Success' && pinData[0]?.PostOffice?.length) {
-          pincode = pinData[0].PostOffice[0].Pincode || '';
-        }
-      }
-    } catch (pinErr) {
-      console.warn('[ReverseGeocode] India Post API failed:', pinErr);
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // ── TIER 5: BigDataCloud Emergency Fallback ────────────────────────────────
-  // ═══════════════════════════════════════════════════════════════════════════
-  if (!city || !state) {
-    try {
-      const bdcRes = await fetch(
-        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`
-      );
-      if (bdcRes.ok) {
-        const bdc = await bdcRes.json();
-        if (!street) street = bdc.locality || bdc.localityInfo?.administrative?.[2]?.name || '';
-        if (!city) city = bdc.city || bdc.locality || '';
-        if (!state) state = bdc.principalSubdivision || '';
-        if (!pincode && bdc.postcode) pincode = bdc.postcode.replace(/\D/g, '').slice(0, 6);
-      }
-    } catch (bdcErr) {
-      console.warn('[ReverseGeocode] BigDataCloud fallback failed:', bdcErr);
-    }
-  }
-
-  // ── Enrich with India Post PostOffice & Village directory ────────────────
-  if (pincode) {
-    try {
-      const pinRes = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
-      if (pinRes.ok) {
-        const pinData = await pinRes.json();
-        if (Array.isArray(pinData) && pinData[0]?.Status === 'Success' && pinData[0]?.PostOffice?.length) {
-          const offices = pinData[0].PostOffice;
-          const subOffice = offices.find((o) => o.BranchType === 'Sub Post Office') || offices[0];
-          if (subOffice) {
-            const cleanOfficeName = subOffice.Name.replace(/\s*\(.*?\)/, '').trim();
-            if (!street || street === city) {
-              street = cleanOfficeName;
-            } else if (!street.toLowerCase().includes(cleanOfficeName.toLowerCase())) {
-              street = `${cleanOfficeName}, ${street}`;
-            }
-            if (subOffice.Division && !city.toLowerCase().includes(subOffice.Division.toLowerCase())) {
-              city = `${subOffice.Division}${city ? ` (${city})` : ''}`;
-            }
-          }
-        }
-      }
-    } catch (pinErr) {
-      console.warn('[ReverseGeocode] India Post enrichment failed:', pinErr);
-    }
-  }
-
-  // If still missing street, set to locality / city so it is never blank
-  if (!street) {
-    street = city || 'Local Area';
-  }
-
-  // Build clean full address
-  const fullParts = [flat, street, landmark, city, state, pincode].filter(Boolean);
-  const finalAddress = fullParts.length ? fullParts.join(', ') : (fullAddress || `${street}, ${city}, ${state}`);
-
-  const result = {
-    flat: flat || '',
-    street: street || '',
-    city: city || '',
-    state: state || '',
-    landmark: landmark || '',
-    pincode: pincode || '',
-    fullAddress: finalAddress,
-  };
-
-  return result;
+  return [];
 }

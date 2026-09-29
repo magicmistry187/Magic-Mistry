@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const userModel = require('../models/user.model');
 const Address = require('../models/address.model');
+const { parseAddressString, formatCleanAddress } = require('../utils/addressParser');
 
 // Update User Active Location
 async function updateUserLocation(req, res) {
@@ -35,8 +36,9 @@ async function updateUserLocation(req, res) {
       });
     }
 
-    const cleanLocation = location !== undefined ? String(location).trim() : '';
-    const isClearing = cleanLocation === '' || cleanLocation === 'Set Your Location';
+    const rawCleanLocation = location !== undefined ? String(location).trim() : '';
+    const cleanLocation = formatCleanAddress(rawCleanLocation);
+    const isClearing = !cleanLocation || cleanLocation === 'Set Your Location';
 
     // Parse coordinates if provided
     let coords = null;
@@ -51,6 +53,8 @@ async function updateUserLocation(req, res) {
       coords = [Number(longitude), Number(latitude)];
     }
 
+    const parsed = parseAddressString(cleanLocation);
+
     // Delegate location management to Address collection
     let userAddress = await Address.findOne({ user: user._id, isDefault: true });
     if (!userAddress) {
@@ -60,7 +64,23 @@ async function updateUserLocation(req, res) {
     if (userAddress) {
       if (!isClearing && cleanLocation) {
         userAddress.addressLine1 = cleanLocation;
-        if (!userAddress.street) userAddress.street = cleanLocation;
+        // Fix existing corrupted fields from legacy records
+        if (!userAddress.street || userAddress.street === 'Current Location' || userAddress.street === 'Area') {
+          userAddress.street = parsed.street || cleanLocation;
+        }
+        if (!userAddress.city || userAddress.city === 'Current Location') {
+          userAddress.city = parsed.city || 'Local Area';
+        }
+        if (parsed.state && (userAddress.state === 'West Bengal' || !userAddress.state)) {
+          userAddress.state = parsed.state;
+        }
+        if (parsed.pincode && (userAddress.pincode === '000000' || !userAddress.pincode)) {
+          userAddress.pincode = parsed.pincode;
+        }
+        // Self-heal: clear house field if it was wrongly populated with full address
+        if (userAddress.house && (userAddress.house.includes(',') || userAddress.house.length > 25)) {
+          userAddress.house = parsed.flat || '';
+        }
       }
       if (coords) {
         userAddress.location = { type: 'Point', coordinates: coords };
@@ -73,12 +93,14 @@ async function updateUserLocation(req, res) {
       const addressData = {
         user: user._id,
         addressType: 'Home',
-        addressLine1: cleanLocation || 'Current Location',
-        street: cleanLocation || 'Current Location',
-        city: 'Current Location',
-        state: 'West Bengal',
+        house: parsed.flat || '',
+        addressLine1: cleanLocation,
+        street: parsed.street || cleanLocation,
+        landmark: parsed.landmark || '',
+        city: parsed.city || 'Local Area',
+        state: parsed.state || 'West Bengal',
         country: 'India',
-        pincode: '000000',
+        pincode: parsed.pincode || '000000',
         isDefault: true,
       };
       if (coords) {
@@ -96,7 +118,7 @@ async function updateUserLocation(req, res) {
     }
 
     const activeLocationStr = userAddress
-      ? [userAddress.house || userAddress.flat || userAddress.addressLine1, userAddress.street, userAddress.city].filter(Boolean).join(', ')
+      ? formatCleanAddress(userAddress)
       : '';
 
     return res.status(200).json({

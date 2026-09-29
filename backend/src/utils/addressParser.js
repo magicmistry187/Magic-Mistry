@@ -1,8 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// addressParser.js — Robust Indian address string and object parser
+// addressParser.js — Robust Indian address string and object parser (Backend)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const INDIAN_STATES = [
+const INDIAN_STATES = [
   'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
   'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
   'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
@@ -13,7 +13,7 @@ export const INDIAN_STATES = [
   'Dadra and Nagar Haveli', 'Daman and Diu', 'Lakshadweep'
 ];
 
-export const STATE_ALIASES = {
+const STATE_ALIASES = {
   wb: 'West Bengal',
   dl: 'Delhi',
   ncr: 'Delhi',
@@ -52,7 +52,7 @@ export const STATE_ALIASES = {
 /**
  * Strips postal sub-office parentheses like "Birbhum (Bolpur)" -> "Bolpur"
  */
-export function cleanPostalParentheses(str) {
+function cleanPostalParentheses(str) {
   if (!str || typeof str !== 'string') return '';
   const trimmed = str.trim();
   const parenMatch = trimmed.match(/\((.*?)\)/);
@@ -63,13 +63,9 @@ export function cleanPostalParentheses(str) {
 }
 
 /**
- * Parses any Indian address input (full string or partially structured object)
- * into clean, separate address fields: flat, street, landmark, city, state, pincode.
- *
- * @param {string|object} input
- * @returns {{ flat: string, street: string, city: string, state: string, landmark: string, pincode: string }}
+ * Parses any Indian address input (full string or object) into clean fields.
  */
-export function parseAddressString(input) {
+function parseAddressString(input) {
   if (!input) {
     return { flat: '', street: '', city: '', state: '', landmark: '', pincode: '' };
   }
@@ -84,7 +80,6 @@ export function parseAddressString(input) {
     }
   }
 
-  // If input is an object
   let rawFlat = (typeof input === 'object' ? input.flat || input.house || input.addressLine1 : '') || '';
   let rawStreet = (typeof input === 'object' ? input.street : '') || '';
   let rawCity = (typeof input === 'object' ? input.city : '') || '';
@@ -108,7 +103,6 @@ export function parseAddressString(input) {
   if (isGeneric(rawCity)) rawCity = '';
   if (rawPincode === '000000') rawPincode = '';
 
-  // Determine if a full address string needs to be broken down:
   const isStreetFullAddress = rawStreet && rawStreet.includes(',') && rawStreet.split(',').length >= 3;
   const isFlatFullAddress = rawFlat && rawFlat.includes(',') && rawFlat.split(',').length >= 3;
 
@@ -152,7 +146,7 @@ export function parseAddressString(input) {
       }
     }
 
-    // 2. Extract State (check against known Indian states & aliases from right to left)
+    // 2. Extract State from right to left
     for (let i = parts.length - 1; i >= 0; i--) {
       const partLower = parts[i].toLowerCase().replace(/[^a-z\s&]/g, '').trim();
       const matchedState =
@@ -167,96 +161,37 @@ export function parseAddressString(input) {
       }
     }
 
-    // 3. Remove "India" country entry if present
-    for (let i = parts.length - 1; i >= 0; i--) {
-      if (parts[i].toLowerCase() === 'india' || parts[i].toLowerCase() === 'bharat') {
-        parts.splice(i, 1);
-      }
-    }
-
-    // 4. Extract Landmark if part indicates a landmark
-    for (let i = parts.length - 1; i >= 0; i--) {
-      const p = parts[i].toLowerCase();
-      if (
-        p.startsWith('near') ||
-        p.startsWith('opp') ||
-        p.startsWith('opposite') ||
-        p.startsWith('behind') ||
-        p.startsWith('beside') ||
-        p.startsWith('station') ||
-        p.startsWith('landmark') ||
-        p.includes('station') ||
-        p.includes('metro') ||
-        p.includes('temple') ||
-        p.includes('masjid') ||
-        p.includes('church') ||
-        p.includes('school') ||
-        p.includes('hospital') ||
-        p.includes('mall') ||
-        p.includes('plaza') ||
-        p.includes('market') ||
-        p.includes('park') ||
-        p.includes('road more') ||
-        p.includes('more')
-      ) {
-        extractedLandmark = parts[i].replace(/^landmark\s*[:\-]?\s*/i, '');
-        parts.splice(i, 1);
-        break;
-      }
-    }
-
-    // 5. Extract House / Flat No from first item if it looks like building/flat
+    // 3. Extract City from right to left
     if (parts.length > 0) {
-      const first = parts[0].toLowerCase();
-      if (
-        /^(\d+[a-z]?|no\.?\s*\d+|flat|house|plot|door|room|shop|building|tower|h\.?no|block|#)\b/i.test(first) ||
-        (/\b\d+\b/.test(first) && first.length <= 15)
-      ) {
-        extractedFlat = parts[0];
-        parts.shift();
-      }
-    }
-
-    // 6. If State was not found in known lists, and we have enough parts, check if the part before pincode was the State
-    if (!extractedState && parts.length >= 3) {
-      const candidateState = parts[parts.length - 1];
-      if (candidateState && candidateState.length <= 25 && !/\d/.test(candidateState)) {
-        extractedState = candidateState;
-        parts.pop();
-      }
-    }
-
-    // 7. From remaining parts: last part is City, preceding parts are Street/Area
-    if (parts.length >= 2) {
-      extractedCity = parts[parts.length - 1];
+      const rawCandidate = parts[parts.length - 1];
+      const cleanedCandidate = cleanPostalParentheses(rawCandidate);
+      extractedCity = cleanedCandidate;
       parts.pop();
+    }
+
+    // 4. Extract Flat/House number from leftmost part if it looks like a flat/house
+    if (parts.length > 1) {
+      const first = parts[0];
+      const isHousePattern =
+        /^(plot|flat|h\.?\s*no|house|room|shop|block|bldg|building|apt|apartment|sector|phase|#)/i.test(first) ||
+        /^\d+([-\/][a-zA-Z0-9]+)?$/.test(first) ||
+        (first.length <= 15 && /\d/.test(first));
+
+      if (isHousePattern) {
+        extractedFlat = parts.shift();
+      }
+    }
+
+    // 5. Remaining parts become Street and Landmark
+    if (parts.length > 0) {
       extractedStreet = parts.join(', ');
-    } else if (parts.length === 1) {
-      if (!extractedCity) {
-        extractedCity = parts[0];
-      } else {
-        extractedStreet = parts[0];
-      }
-    }
-
-    // Clean parentheses from city (e.g. "Birbhum (Bolpur)" -> "Bolpur")
-    if (extractedCity && extractedCity.includes('(')) {
-      const innerMatch = extractedCity.match(/\((.*?)\)/);
-      if (innerMatch && innerMatch[1]) {
-        extractedCity = innerMatch[1].trim();
-      } else {
-        extractedCity = extractedCity.replace(/[()]/g, '').trim();
-      }
-    }
-
-    // Guarantee flat is NEVER a full address string
-    if (extractedFlat && (extractedFlat.includes(',') || extractedFlat.length > 25)) {
-      extractedFlat = '';
+    } else if (!extractedStreet && extractedCity) {
+      extractedStreet = extractedCity;
     }
 
     return {
-      flat: extractedFlat || (isFlatFullAddress ? '' : (rawFlat.includes(',') ? '' : rawFlat)) || '',
-      street: extractedStreet || (isStreetFullAddress ? '' : rawStreet) || '',
+      flat: (extractedFlat && !extractedFlat.includes(',') && extractedFlat.length <= 25) ? extractedFlat : '',
+      street: extractedStreet || rawStreet || '',
       city: extractedCity || rawCity || '',
       state: extractedState || rawState || '',
       landmark: extractedLandmark || rawLandmark || '',
@@ -264,7 +199,6 @@ export function parseAddressString(input) {
     };
   }
 
-  // If already a structured object, clean it up
   let cleanFlat = (isFlatFullAddress ? '' : rawFlat).trim();
   if (cleanFlat.includes(',') || cleanFlat.length > 25) {
     cleanFlat = '';
@@ -272,12 +206,7 @@ export function parseAddressString(input) {
 
   let cleanCity = rawCity.trim();
   if (cleanCity.includes('(')) {
-    const innerMatch = cleanCity.match(/\((.*?)\)/);
-    if (innerMatch && innerMatch[1]) {
-      cleanCity = innerMatch[1].trim();
-    } else {
-      cleanCity = cleanCity.replace(/[()]/g, '').trim();
-    }
+    cleanCity = cleanPostalParentheses(cleanCity);
   }
 
   return {
@@ -291,16 +220,9 @@ export function parseAddressString(input) {
 }
 
 /**
- * Formats an address string or object cleanly:
- * - Removes dummy strings like "Current Location" and "000000"
- * - Cleans parentheses like "Birbhum (Bolpur)" -> "Bolpur"
- * - Prevents house/flat from duplicating the full address line
- * - Deduplicates repeated tokens
- *
- * @param {string|object} input
- * @returns {string}
+ * Formats an address cleanly without dummy tokens or duplicates.
  */
-export function formatCleanAddress(input) {
+function formatCleanAddress(input) {
   if (!input) return '';
 
   if (typeof input === 'string') {
@@ -382,3 +304,11 @@ export function formatCleanAddress(input) {
 
   return unique.join(', ');
 }
+
+module.exports = {
+  INDIAN_STATES,
+  STATE_ALIASES,
+  cleanPostalParentheses,
+  parseAddressString,
+  formatCleanAddress,
+};

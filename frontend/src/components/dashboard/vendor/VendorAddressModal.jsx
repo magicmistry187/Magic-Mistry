@@ -29,14 +29,12 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
 
   useEffect(() => {
     if (initialAddress) {
-      const parsed = typeof initialAddress === 'object' ? {
-        flat: initialAddress.flat || initialAddress.house || initialAddress.addressLine1 || '',
-        street: initialAddress.street || '',
-        city: initialAddress.city || '',
-        state: initialAddress.state || '',
-        landmark: initialAddress.landmark || '',
-        pincode: initialAddress.pincode || '',
-      } : parseAddressString(initialAddress);
+      const parsed = parseAddressString(initialAddress);
+
+      let safeFlat = (parsed.flat || '').trim();
+      if (safeFlat.includes(',') || safeFlat.length > 25 || (parsed.street && safeFlat.toLowerCase() === parsed.street.toLowerCase())) {
+        safeFlat = '';
+      }
 
       const chosenType =
         typeof initialAddress === 'object' && (initialAddress.type || initialAddress.addressType)
@@ -44,12 +42,12 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
           : 'Home';
 
       setType(chosenType);
-      setFlat(parsed.flat || '');
+      setFlat(safeFlat);
       setStreet(parsed.street || '');
       setCity(parsed.city || '');
       setState(parsed.state || '');
       setLandmark(parsed.landmark || '');
-      setPincode(parsed.pincode || '');
+      setPincode(parsed.pincode === '000000' ? '' : (parsed.pincode || ''));
 
       if (typeof initialAddress === 'object') {
         if (initialAddress.location?.coordinates?.length === 2) {

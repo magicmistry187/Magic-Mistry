@@ -6,13 +6,17 @@ const logo2 = '/logo2.png';
 import { useAuth } from '../../context/AuthContext';
 
 import LoginRequiredModal from '../auth/LoginRequiredModal';
+import LocationSelectorModal from './LocationSelectorModal';
 import ApplianceIcon from './ApplianceIcon';
 import { useLivePricing } from '../../services/pricingService';
+import { formatCleanAddress } from '../../utils/addressParser';
 
 const Navbar = () => {
   const navigate = useNavigate();
   const { isLoggedIn, user, logout, location } = useAuth();
   const isAdmin = (user?.role || '').toLowerCase() === 'admin' || (user?.email && user.email.toLowerCase().trim() === 'magicmistry187@gmail.com');
+
+  const cleanDisplayLocation = useMemo(() => formatCleanAddress(location), [location]);
 
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
@@ -347,9 +351,7 @@ const Navbar = () => {
                   >
                     <MapPin className="w-3.5 h-3.5 text-orange-500 shrink-0" />
                     <span className="hidden min-[930px]:inline max-w-[130px] truncate">
-                      {location && location !== 'Set Your Location'
-                        ? location.replace(/^(current location|location),\s*/i, '')
-                        : 'Set Your Location'}
+                      {cleanDisplayLocation || 'Set Your Location'}
                     </span>
                     <ChevronDown className={`w-3 h-3 text-slate-400 hidden min-[930px]:inline transition-transform duration-200 ${isLocationPopupOpen ? 'rotate-180' : ''}`} />
                   </button>
@@ -388,9 +390,9 @@ const Navbar = () => {
 
                         {/* Location Text */}
                         <div className="px-4 py-3">
-                          {location && location !== 'Set Your Location' ? (
+                          {cleanDisplayLocation ? (
                             <p className="text-sm font-semibold text-slate-800 leading-relaxed">
-                              {location.replace(/^(current location|location),\s*/i, '')}
+                              {cleanDisplayLocation}
                             </p>
                           ) : (
                             <p className="text-sm text-slate-400 italic">No location saved yet.</p>
@@ -401,28 +403,27 @@ const Navbar = () => {
                         <div className="mx-4 h-px bg-slate-100" />
 
                         {/* Change Location Button */}
-                        <div className="px-4 py-3">
-                          <p className="text-[11px] text-slate-400 mb-2.5 leading-relaxed">
-                            {(user?.role || '').toLowerCase() === 'vendor' || !!user?.vendorId
-                              ? 'Change your service address & coverage in your vendor profile.'
-                              : 'Update your address or add new locations in your saved addresses.'}
-                          </p>
-                          {isLoggedIn ? (
+                        <div className="px-4 py-3 space-y-2">
+                          <button
+                            onClick={() => {
+                              setIsLocationPopupOpen(false);
+                              setIsLocationModalOpen(true);
+                            }}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm font-bold rounded-xl transition-colors cursor-pointer shadow-sm"
+                          >
+                            <MapPin className="w-3.5 h-3.5" />
+                            Select / Change Location
+                          </button>
+
+                          {isLoggedIn && (
                             <button
                               onClick={handleGoToProfile}
-                              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm font-bold rounded-xl transition-colors cursor-pointer shadow-sm"
+                              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
                             >
-                              <ExternalLink className="w-3.5 h-3.5" />
+                              <ExternalLink className="w-3 h-3" />
                               {(user?.role || '').toLowerCase() === 'vendor' || !!user?.vendorId
-                                ? 'Change Location in Vendor Profile'
-                                : 'Change Location in Saved Addresses'}
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => { setIsLocationPopupOpen(false); navigate('/login'); }}
-                              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-colors cursor-pointer shadow-sm"
-                            >
-                              Login to set location
+                                ? 'Vendor Coverage Settings'
+                                : 'Manage Saved Addresses'}
                             </button>
                           )}
                         </div>
@@ -697,14 +698,15 @@ const Navbar = () => {
                               : 'Saved Service Address'}
                           </p>
                           <p className="text-xs font-bold text-slate-800 truncate">
-                            {location && location !== 'Set Your Location'
-                              ? location.replace(/^(current location|location),\s*/i, '')
-                              : 'Set Your Location'}
+                            {cleanDisplayLocation || 'Set Your Location'}
                           </p>
                         </div>
                       </div>
                       <button
-                        onClick={handleGoToProfile}
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          setIsLocationModalOpen(true);
+                        }}
                         className="text-xs font-extrabold text-white bg-orange-500 hover:bg-orange-600 px-3 py-1.5 rounded-lg transition-colors shrink-0 cursor-pointer shadow-xs flex items-center gap-1"
                         title="Change location"
                       >
@@ -792,6 +794,12 @@ const Navbar = () => {
         isOpen={showSearchLoginModal}
         onClose={() => setShowSearchLoginModal(false)}
         appliance={selectedSearchAppliance}
+      />
+
+      {/* Location Selector Modal */}
+      <LocationSelectorModal
+        isOpen={isLocationModalOpen}
+        onClose={() => setIsLocationModalOpen(false)}
       />
     </>
   );
