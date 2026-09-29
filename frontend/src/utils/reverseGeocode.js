@@ -5,11 +5,13 @@ import { parseAddressString, formatCleanAddress, cleanPostalParentheses, KNOWN_D
 import { BASE_URL } from '../services/apiConnector.js';
 
 /**
- * Gets high-accuracy GPS coordinates using navigator.geolocation
- * Wrapped in a Promise with 15s timeout and user-friendly error messages.
+ * Gets high-accuracy GPS coordinates using navigator.geolocation.watchPosition
+ * Performs multi-sample convergence to achieve true GPS satellite lock (accuracy <= 35m).
+ * Avoids the common issue where a single getCurrentPosition returns a coarse network /
+ * cell-tower fix that is 2 to 3 km off.
  *
  * @param {PositionOptions} [options]
- * @returns {Promise<{ latitude: number, longitude: number, accuracy: number }>}
+ * @returns {Promise<{ latitude: number, longitude: number, accuracy: number, isHighAccuracy: boolean }>}
  */
 export function getCurrentCoordinates(options = {}) {
   return new Promise((resolve, reject) => {
@@ -19,36 +21,115 @@ export function getCurrentCoordinates(options = {}) {
       return reject(err);
     }
 
-    const defaultOptions = {
-      enableHighAccuracy: true,
-      timeout: 15000,
-      maximumAge: 0,
-      ...options,
+    const maxWaitTime = options.timeout || 12000;
+    const targetAccuracy = options.desiredAccuracy || 35; // meters (true satellite lock)
+    let bestPosition = null;
+    let watchId = null;
+    let timerId = null;
+    let settleTimerId = null;
+    let isSettled = false;
+
+    const cleanup = () => {
+      if (watchId !== null) {
+        try {
+          navigator.geolocation.clearWatch(watchId);
+        } catch (_) {}
+        watchId = null;
+      }
+      if (timerId !== null) {
+        clearTimeout(timerId);
+        timerId = null;
+      }
+      if (settleTimerId !== null) {
+        clearTimeout(settleTimerId);
+        settleTimerId = null;
+      }
     };
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        resolve({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-        });
-      },
-      (err) => {
-        let msg = 'Unable to retrieve your location.';
-        if (err.code === 1) {
-          msg = 'Location permission denied. Please allow location access in your browser settings.';
-        } else if (err.code === 2) {
-          msg = 'Location unavailable. Please make sure device location/GPS is turned on.';
-        } else if (err.code === 3) {
-          msg = 'Location request timed out. Please try again or enter your address manually.';
+    const finish = (pos) => {
+      if (isSettled) return;
+      isSettled = true;
+      cleanup();
+      const accuracy = pos?.coords?.accuracy || 0;
+      console.log(`[Geolocation] ✓ Settled with accuracy ${Math.round(accuracy)}m (lat: ${pos.coords.latitude}, lng: ${pos.coords.longitude})`);
+      resolve({
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+        accuracy: accuracy,
+        isHighAccuracy: accuracy > 0 && accuracy <= 150,
+      });
+    };
+
+    const fail = (err) => {
+      if (isSettled) return;
+      isSettled = true;
+      cleanup();
+      let msg = 'Unable to retrieve your location.';
+      if (err.code === 1) {
+        msg = 'Location permission denied. Please allow location access in your browser settings.';
+      } else if (err.code === 2) {
+        msg = 'Location unavailable. Please make sure device location/GPS is turned on.';
+      } else if (err.code === 3) {
+        msg = 'Location request timed out. Please try again or search your address manually.';
+      }
+      const customErr = new Error(msg);
+      customErr.code = err.code;
+      reject(customErr);
+    };
+
+    // Hard ceiling timeout: return the best position collected or timeout error
+    timerId = setTimeout(() => {
+      if (bestPosition) {
+        finish(bestPosition);
+      } else {
+        fail({ code: 3, message: 'Timeout' });
+      }
+    }, maxWaitTime);
+
+    try {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const acc = pos.coords.accuracy || 9999;
+          console.log(`[Geolocation] Reading: accuracy ${Math.round(acc)}m (lat: ${pos.coords.latitude.toFixed(5)}, lng: ${pos.coords.longitude.toFixed(5)})`);
+
+          if (!bestPosition || acc < (bestPosition.coords.accuracy || 9999)) {
+            bestPosition = pos;
+          }
+
+          // Case A: Pinpoint GPS satellite lock (accuracy <= 35m) -> Settle immediately
+          if (acc <= targetAccuracy) {
+            finish(pos);
+            return;
+          }
+
+          // Case B: Good accuracy (<= 80m) -> Give up to 2 seconds for a pinpoint fix, then settle
+          if (acc <= 80 && !settleTimerId) {
+            settleTimerId = setTimeout(() => {
+              if (bestPosition) finish(bestPosition);
+            }, 2000);
+          }
+        },
+        (err) => {
+          // If permission denied, fail immediately
+          if (err.code === 1 || !bestPosition) {
+            fail(err);
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: maxWaitTime,
+          ...options,
         }
-        const customErr = new Error(msg);
-        customErr.code = err.code;
-        reject(customErr);
-      },
-      defaultOptions
-    );
+      );
+    } catch (e) {
+      // Fallback to simple getCurrentPosition if watchPosition throws
+      navigator.geolocation.getCurrentPosition(
+        (pos) => finish(pos),
+        (err) => fail(err),
+        { enableHighAccuracy: true, timeout: maxWaitTime, maximumAge: 0, ...options }
+      );
+    }
   });
 }
 
@@ -244,7 +325,7 @@ function parseIndianAddress(data, nearbyList = []) {
 
   let street = streetCandidates.join(', ');
   if (!street) {
-    street = villageLocality || (detectedCity ? `${detectedCity} Main Road` : 'Main Road');
+    street = villageLocality || (landmark ? landmark : (detectedCity || 'Local Area'));
   }
 
   // Format clean full address

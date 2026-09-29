@@ -3,11 +3,13 @@ import { useBooking } from "../../components/Booking/BookingContext";
 import {
   LocateFixed, Loader2, MapPin, AlertCircle, CheckCircle2,
   MapPinOff, Clock3, Home, Briefcase, Tag, Edit3, BookmarkCheck,
+  Map,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAddressesApi } from "../../services/operations/addressAPI";
 import { getCurrentCoordinates, reverseGeocode } from "../../utils/reverseGeocode";
 import { cleanPostalParentheses } from "../../utils/addressParser";
+import InteractiveMapPicker from "../common/InteractiveMapPicker";
 
 const LOC = { IDLE: "idle", LOADING: "loading", SUCCESS: "success", ERROR: "error" };
 const MODE = { CHOOSE: "choose", SAVED: "saved", MANUAL: "manual" };
@@ -79,6 +81,8 @@ export default function AddressForm() {
   const [locState, setLocState]         = useState(LOC.IDLE);
   const [locError, setLocError]         = useState("");
   const [outOfArea, setOutOfArea]       = useState(null);
+  const [showMap, setShowMap]           = useState(false);
+  const [mapCoords, setMapCoords]       = useState(null);
 
   const applyAddress = (fullStr) => updateBooking("address", fullStr);
 
@@ -118,6 +122,7 @@ export default function AddressForm() {
     applyAddress("");
     setFlat(""); setStreet(""); setCity(""); setState(""); setLandmark(""); setPincode(""); setAddrType("Home");
     setManualError(""); setLocState(LOC.IDLE); setLocError("");
+    setShowMap(false);
     setMode(MODE.MANUAL);
   };
 
@@ -132,7 +137,7 @@ export default function AddressForm() {
     setLocState(LOC.LOADING);
     setLocError("");
     try {
-      const coords = await getCurrentCoordinates({ timeout: 15000 });
+      const coords = await getCurrentCoordinates({ desiredAccuracy: 35, timeout: 12000 });
       const address = await reverseGeocode(coords.latitude, coords.longitude);
 
       const rawFlat = (address.flat || "").trim();
@@ -158,12 +163,46 @@ export default function AddressForm() {
       updateBooking("latitude", coords.latitude);
       updateBooking("longitude", coords.longitude);
       updateLocation(fullAddress, { lat: coords.latitude, lng: coords.longitude });
+
+      setMapCoords({ lat: coords.latitude, lng: coords.longitude });
+      setShowMap(true);
       setLocState(LOC.SUCCESS);
       setLocError("");
     } catch (err) {
       console.error("[AddressForm] Geolocation error:", err);
       setLocState(LOC.ERROR);
       setLocError(err.message || "Could not fetch address. Please enter manually.");
+    }
+  };
+
+  const handleMapSelect = ({ coords, address }) => {
+    if (!coords) return;
+    setMapCoords(coords);
+    updateBooking("latitude", coords.lat);
+    updateBooking("longitude", coords.lng);
+
+    if (address) {
+      const rawFlat = (address.flat || "").trim();
+      const safeFlat = rawFlat && !rawFlat.includes(",") && rawFlat.length <= 25 ? rawFlat : "";
+      const cleanStreet = (address.street || "").replace(/\s*\(.*?\)\s*/g, " ").replace(/\s+/g, " ").trim();
+      const cleanCity = cleanPostalParentheses(address.city || "");
+      const cleanPincode = (address.pincode || "").replace(/\D/g, "").slice(0, 6);
+
+      setFlat(safeFlat);
+      setStreet(cleanStreet);
+      setCity(cleanCity);
+      setState(address.state || "");
+      setLandmark(address.landmark || "");
+      setPincode(cleanPincode);
+
+      const fullAddress =
+        address.fullAddress ||
+        [safeFlat, cleanStreet, address.landmark, cleanCity, address.state, cleanPincode]
+          .filter(Boolean)
+          .join(", ");
+
+      updateBooking("address", fullAddress);
+      updateLocation(fullAddress, coords);
     }
   };
 
@@ -276,28 +315,68 @@ export default function AddressForm() {
         {/* ── MANUAL MODE ── */}
         {mode === MODE.MANUAL && (
           <div className="space-y-4">
-            <button
-              type="button"
-              onClick={handleUseLocation}
-              disabled={locState === LOC.LOADING}
-              className={`w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl border-2 font-semibold text-sm transition-all ${
-                locState === LOC.SUCCESS ? "border-emerald-400 bg-emerald-50 text-emerald-700"
-                : locState === LOC.ERROR ? "border-red-300 bg-red-50 text-red-600"
-                : locState === LOC.LOADING ? "border-blue-300 bg-blue-50 text-blue-600 cursor-wait"
-                : "border-dashed border-blue-400 bg-blue-50/50 text-blue-700 hover:bg-blue-100 hover:border-blue-500 cursor-pointer"
-              }`}
-            >
-              {locState === LOC.LOADING && <Loader2 className="w-4 h-4 animate-spin" />}
-              {locState === LOC.SUCCESS && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
-              {locState === LOC.ERROR   && <AlertCircle className="w-4 h-4 text-red-500" />}
-              {locState === LOC.IDLE    && <LocateFixed className="w-4 h-4" />}
-              <span>
-                {locState === LOC.LOADING && "Fetching your location..."}
-                {locState === LOC.SUCCESS && "Location detected - you can edit below"}
-                {locState === LOC.ERROR   && "Try Again"}
-                {locState === LOC.IDLE    && "Use My Current Location"}
-              </span>
-            </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={handleUseLocation}
+                disabled={locState === LOC.LOADING}
+                className={`flex items-center justify-center gap-2 py-3 px-3.5 rounded-xl border-2 font-semibold text-xs transition-all ${
+                  locState === LOC.SUCCESS ? "border-emerald-400 bg-emerald-50 text-emerald-700"
+                  : locState === LOC.ERROR ? "border-red-300 bg-red-50 text-red-600"
+                  : locState === LOC.LOADING ? "border-blue-300 bg-blue-50 text-blue-600 cursor-wait"
+                  : "border-dashed border-blue-400 bg-blue-50/50 text-blue-700 hover:bg-blue-100 hover:border-blue-500 cursor-pointer"
+                }`}
+              >
+                {locState === LOC.LOADING && <Loader2 className="w-4 h-4 animate-spin" />}
+                {locState === LOC.SUCCESS && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                {locState === LOC.ERROR   && <AlertCircle className="w-4 h-4 text-red-500" />}
+                {locState === LOC.IDLE    && <LocateFixed className="w-4 h-4" />}
+                <span>
+                  {locState === LOC.LOADING && "Acquiring GPS..."}
+                  {locState === LOC.SUCCESS && "GPS Detected ✓"}
+                  {locState === LOC.ERROR   && "Retry GPS"}
+                  {locState === LOC.IDLE    && "Use My Current Location"}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowMap((prev) => !prev)}
+                className={`flex items-center justify-center gap-2 py-3 px-3.5 rounded-xl border-2 font-semibold text-xs transition-all cursor-pointer ${
+                  showMap
+                    ? "border-orange-500 bg-orange-50 text-orange-900 shadow-sm"
+                    : "border-dashed border-orange-300 bg-orange-50/50 text-orange-800 hover:bg-orange-100"
+                }`}
+              >
+                <Map className="w-4 h-4 text-orange-600" />
+                <span>{showMap ? "Hide Map View" : "Pinpoint / Adjust on Map"}</span>
+              </button>
+            </div>
+
+            {/* ── Interactive Map Pin Picker ── */}
+            {showMap && (
+              <div className="space-y-2 mt-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                    Drag pin to your exact building or street entrance
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowMap(false)}
+                    className="text-[11px] text-slate-500 hover:text-slate-800 font-bold"
+                  >
+                    ✕ Close Map
+                  </button>
+                </div>
+                <InteractiveMapPicker
+                  initialCoords={mapCoords || (bookingState.latitude && bookingState.longitude ? { lat: Number(bookingState.latitude), lng: Number(bookingState.longitude) } : null)}
+                  onLocationSelect={handleMapSelect}
+                  height="260px"
+                  showSearch={true}
+                />
+              </div>
+            )}
 
             {locState === LOC.ERROR && locError && (
               <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 text-xs text-red-700">

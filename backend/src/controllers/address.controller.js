@@ -606,7 +606,7 @@ function parseIndianAddress(data, nearbyList = []) {
 
   let street = streetCandidates.join(', ');
   if (!street) {
-    street = villageLocality || (detectedCity ? `${detectedCity} Main Road` : 'Main Road');
+    street = villageLocality || (landmark ? landmark : (detectedCity || 'Local Area'));
   }
 
   // Format clean full address
@@ -657,7 +657,8 @@ exports.reverseGeocode = async (req, res) => {
       Date.now() - cached.timestamp < CACHE_TTL_MS &&
       cached.data &&
       !isAdministrativeToken(cached.data.street) &&
-      !cached.data.street.toLowerCase().includes('bolpur sriniketan')
+      !cached.data.street.toLowerCase().includes('bolpur sriniketan') &&
+      !cached.data.street.toLowerCase().includes('main road')
     ) {
       return res.status(200).json({ success: true, data: cached.data });
     }

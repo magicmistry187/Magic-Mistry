@@ -10,9 +10,11 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle2,
+  Map,
 } from 'lucide-react';
 import { parseAddressString, INDIAN_STATES, cleanPostalParentheses } from '../../../utils/addressParser';
 import { getCurrentCoordinates, reverseGeocode } from '../../../utils/reverseGeocode';
+import InteractiveMapPicker from '../../common/InteractiveMapPicker';
 
 export default function VendorAddressModal({ isOpen, onClose, onSave, initialAddress }) {
   const [type, setType] = useState('Home');
@@ -23,6 +25,7 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
   const [landmark, setLandmark] = useState('');
   const [pincode, setPincode] = useState('');
   const [geoCoords, setGeoCoords] = useState(null);
+  const [showMap, setShowMap] = useState(false);
 
   const [locState, setLocState] = useState('idle'); // 'idle' | 'loading' | 'success' | 'error'
   const [locError, setLocError] = useState('');
@@ -74,13 +77,14 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
     }
     setLocState('idle');
     setLocError('');
+    setShowMap(false);
   }, [initialAddress, isOpen]);
 
   const handleUseLocation = async () => {
     setLocState('loading');
     setLocError('');
     try {
-      const coords = await getCurrentCoordinates({ timeout: 15000 });
+      const coords = await getCurrentCoordinates({ desiredAccuracy: 35, timeout: 12000 });
       const address = await reverseGeocode(coords.latitude, coords.longitude);
 
       const rawFlat = (address.flat || '').trim();
@@ -92,12 +96,28 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
       setLandmark(address.landmark || '');
       setPincode((address.pincode || '').replace(/\D/g, '').slice(0, 6));
       setGeoCoords({ lat: coords.latitude, lng: coords.longitude });
+      setShowMap(true);
       setLocState('success');
       setLocError('');
     } catch (err) {
       console.error('[VendorAddressModal] Geolocation error:', err);
       setLocState('error');
       setLocError(err.message || 'Could not fetch location details. Please enter manually.');
+    }
+  };
+
+  const handleMapSelect = ({ coords, address }) => {
+    if (!coords) return;
+    setGeoCoords(coords);
+    if (address) {
+      const rawFlat = (address.flat || '').trim();
+      const safeFlat = rawFlat && !rawFlat.includes(',') && rawFlat.length <= 25 ? rawFlat : '';
+      setFlat(safeFlat);
+      setStreet((address.street || '').replace(/\s*\(.*?\)\s*/g, ' ').replace(/\s+/g, ' ').trim());
+      setCity(cleanPostalParentheses(address.city || ''));
+      setState(address.state || '');
+      setLandmark(address.landmark || '');
+      setPincode((address.pincode || '').replace(/\D/g, '').slice(0, 6));
     }
   };
 
@@ -170,32 +190,72 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
           </div>
 
           <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs sm:text-sm text-slate-700">
-            {/* Auto-detect Location Button */}
-            <button
-              type="button"
-              onClick={handleUseLocation}
-              disabled={locState === 'loading'}
-              className={`w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-2xl border-2 font-bold text-xs transition-all cursor-pointer ${
-                locState === 'success'
-                  ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
-                  : locState === 'error'
-                  ? 'border-red-300 bg-red-50 text-red-600'
-                  : locState === 'loading'
-                  ? 'border-blue-300 bg-blue-50 text-blue-600 cursor-wait'
-                  : 'border-dashed border-orange-400 bg-orange-50/50 text-orange-700 hover:bg-orange-100 hover:border-orange-500'
-              }`}
-            >
-              {locState === 'loading' && <Loader2 className="w-4 h-4 animate-spin text-blue-600" />}
-              {locState === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
-              {locState === 'error' && <AlertCircle className="w-4 h-4 text-red-500" />}
-              {locState === 'idle' && <LocateFixed className="w-4 h-4 text-orange-600" />}
-              <span>
-                {locState === 'loading' && 'Fetching your location...'}
-                {locState === 'success' && 'Location detected — fields auto-filled below'}
-                {locState === 'error' && 'Try Again'}
-                {locState === 'idle' && 'Use My Current Location'}
-              </span>
-            </button>
+            {/* Location Detection & Map Buttons */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={handleUseLocation}
+                disabled={locState === 'loading'}
+                className={`flex items-center justify-center gap-2 py-3 px-3.5 rounded-2xl border-2 font-bold text-xs transition-all cursor-pointer ${
+                  locState === 'success'
+                    ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                    : locState === 'error'
+                    ? 'border-red-300 bg-red-50 text-red-600'
+                    : locState === 'loading'
+                    ? 'border-blue-300 bg-blue-50 text-blue-600 cursor-wait'
+                    : 'border-dashed border-orange-400 bg-orange-50/50 text-orange-700 hover:bg-orange-100 hover:border-orange-500'
+                }`}
+              >
+                {locState === 'loading' && <Loader2 className="w-4 h-4 animate-spin text-blue-600" />}
+                {locState === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                {locState === 'error' && <AlertCircle className="w-4 h-4 text-red-500" />}
+                {locState === 'idle' && <LocateFixed className="w-4 h-4 text-orange-600" />}
+                <span>
+                  {locState === 'loading' && 'Acquiring GPS...'}
+                  {locState === 'success' && 'GPS Detected ✓'}
+                  {locState === 'error' && 'Retry GPS'}
+                  {locState === 'idle' && 'Use My Current Location'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowMap((prev) => !prev)}
+                className={`flex items-center justify-center gap-2 py-3 px-3.5 rounded-2xl border-2 font-bold text-xs transition-all cursor-pointer ${
+                  showMap
+                    ? 'border-orange-500 bg-orange-50 text-orange-900 shadow-sm'
+                    : 'border-dashed border-orange-300 bg-orange-50/50 text-orange-800 hover:bg-orange-100'
+                }`}
+              >
+                <Map className="w-4 h-4 text-orange-600" />
+                <span>{showMap ? 'Hide Map View' : 'Pinpoint / Adjust on Map'}</span>
+              </button>
+            </div>
+
+            {/* Interactive Map Picker */}
+            {showMap && (
+              <div className="space-y-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                    Drag pin to your exact workshop or service base location
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowMap(false)}
+                    className="text-[11px] text-slate-500 hover:text-slate-800 font-bold"
+                  >
+                    ✕ Close Map
+                  </button>
+                </div>
+                <InteractiveMapPicker
+                  initialCoords={geoCoords}
+                  onLocationSelect={handleMapSelect}
+                  height="260px"
+                  showSearch={true}
+                />
+              </div>
+            )}
 
             {locState === 'error' && locError && (
               <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-xs text-red-700">
