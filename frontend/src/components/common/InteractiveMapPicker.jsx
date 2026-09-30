@@ -143,6 +143,10 @@ export default function InteractiveMapPicker({
       center: [defaultLat, defaultLng],
       zoom: initialCoords ? 17 : 14,
       zoomControl: false,
+      scrollWheelZoom: false, // Let wheel events bubble up so parent modal scrolls
+      touchZoom: false,       // Prevent pinch-zoom from stealing touch scroll
+      dragging: true,         // Allows mouse dragging on desktop
+      tap: true,              // Allows tap-to-place-pin
     });
 
     // High quality OpenStreetMap tiles
@@ -396,7 +400,7 @@ export default function InteractiveMapPicker({
 
       {/* ── Leaflet Map View Container ── */}
       <div className="relative w-full" style={{ height }}>
-        <div ref={mapContainerRef} className="w-full h-full z-10" />
+        <div ref={mapContainerRef} className="w-full h-full z-10" style={{ touchAction: "pan-y" }} />
 
         {/* Floating Instruction Pill */}
         <div className="absolute top-2 left-2 z-20 pointer-events-none">

@@ -4,7 +4,7 @@
 // Used exclusively in: pages/dashboard/UserDashboardPage.jsx
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -21,8 +21,18 @@ import {
 import { parseAddressString, INDIAN_STATES, cleanPostalParentheses } from '../../../utils/addressParser';
 import { getCurrentCoordinates, reverseGeocode } from '../../../utils/reverseGeocode';
 import InteractiveMapPicker from '../../common/InteractiveMapPicker';
+import { useModalSmoothScroll } from '../../common/useModalSmoothScroll';
 
 export default function UserAddressModal({ isOpen, onClose, onSave, initialData }) {
+  const overlayRef = useRef(null);
+  const scrollContainerRef = useRef(null);
+
+  // Physics-based smooth scrolling for modal + complete background page lock
+  useModalSmoothScroll({
+    isOpen,
+    overlayRef,
+    scrollContainerRef,
+  });
   const [type, setType] = useState('Home');
   const [flat, setFlat] = useState('');
   const [street, setStreet] = useState('');
@@ -36,6 +46,7 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
 
   const [locState, setLocState] = useState('idle'); // 'idle' | 'loading' | 'success' | 'error'
   const [locError, setLocError] = useState('');
+
 
   useEffect(() => {
     if (initialData) {
@@ -164,8 +175,13 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+      <div
+        ref={overlayRef}
+        data-lenis-prevent
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overscroll-contain"
+      >
         <motion.div
+          data-lenis-prevent
           initial={{ opacity: 0, scale: 0.92, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.92, y: 15 }}
@@ -190,7 +206,12 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 text-xs sm:text-sm text-slate-700 overflow-y-auto">
+          <form
+            ref={scrollContainerRef}
+            data-lenis-prevent
+            onSubmit={handleSubmit}
+            className="flex-1 min-h-0 p-5 sm:p-6 space-y-4 text-xs sm:text-sm text-slate-700 overflow-y-auto overscroll-contain"
+          >
             {/* Location Detection & Map Buttons */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <button

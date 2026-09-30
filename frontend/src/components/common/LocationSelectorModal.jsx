@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MapPin,
@@ -23,6 +23,8 @@ import {
 } from "../../utils/reverseGeocode";
 import { cleanPostalParentheses } from "../../utils/addressParser";
 import InteractiveMapPicker from "./InteractiveMapPicker";
+import { useSmoothScroll } from "./SmoothScrollProvider";
+import { useModalSmoothScroll } from "./useModalSmoothScroll";
 
 const POPULAR_CITIES = [
   { name: "Kolkata, West Bengal", icon: "🏰" },
@@ -43,6 +45,15 @@ const POPULAR_CITIES = [
 
 export default function LocationSelectorModal({ isOpen, onClose }) {
   const { location, updateLocation } = useAuth();
+  const overlayRef = useRef(null);
+  const scrollContainerRef = useRef(null);
+
+  // Physics-based smooth scrolling for modal + complete background page lock
+  useModalSmoothScroll({
+    isOpen,
+    overlayRef,
+    scrollContainerRef,
+  });
 
   // Active Tab: 'search' | 'map'
   const [activeTab, setActiveTab] = useState("search");
@@ -207,7 +218,11 @@ export default function LocationSelectorModal({ isOpen, onClose }) {
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+        <div
+          ref={overlayRef}
+          data-lenis-prevent
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overscroll-contain"
+        >
           <motion.div
             initial={{ opacity: 0, scale: 0.92, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -262,7 +277,11 @@ export default function LocationSelectorModal({ isOpen, onClose }) {
               </button>
             </div>
 
-            <div data-lenis-prevent className="p-5 space-y-4 overflow-y-auto">
+            <div
+              ref={scrollContainerRef}
+              data-lenis-prevent
+              className="flex-1 min-h-0 p-5 space-y-4 overflow-y-auto overscroll-contain"
+            >
 
               {/* ── TAB 1: INTERACTIVE MAP VIEW ── */}
               {activeTab === "map" && (

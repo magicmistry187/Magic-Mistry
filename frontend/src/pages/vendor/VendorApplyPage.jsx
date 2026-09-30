@@ -5,7 +5,7 @@ import {
   ArrowLeft, ArrowRight, CheckCircle2, User, Phone,
   Mail, MapPin, Briefcase, Wrench, FileText, Shield,
   Upload, ChevronDown, Sparkles, AlertCircle, ExternalLink,
-  Loader2
+  Loader2, Check, X, Search
 } from 'lucide-react';
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
@@ -173,6 +173,252 @@ const SelectField = ({ label, id, value, onChange, options, placeholder, error, 
   );
 };
 
+/* ─── Reusable Multi-Select Field ─────────────────────────────────── */
+const MultiSelectField = ({
+  label,
+  id,
+  selectedValues = [],
+  onChange,
+  options = [],
+  placeholder = 'Select services',
+  error,
+  required,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const filteredOptions = options.filter((opt) =>
+    opt.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const toggleOption = (opt) => {
+    if (selectedValues.includes(opt)) {
+      onChange(selectedValues.filter((v) => v !== opt));
+    } else {
+      onChange([...selectedValues, opt]);
+    }
+  };
+
+  const removeOption = (opt) => {
+    onChange(selectedValues.filter((v) => v !== opt));
+  };
+
+  const selectAll = () => {
+    onChange([...options]);
+  };
+
+  const clearAll = () => {
+    onChange([]);
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5 relative" ref={dropdownRef}>
+      <div className="flex items-center justify-between">
+        <label htmlFor={id} className="text-sm font-semibold text-[#0B1E40]">
+          {label}{required && <span className="text-orange-500 ml-0.5">*</span>}
+        </label>
+        {selectedValues.length > 0 && (
+          <span className="text-xs font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">
+            {selectedValues.length} selected
+          </span>
+        )}
+      </div>
+
+      <div className="relative">
+        <button
+          type="button"
+          id={id}
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
+          onClick={() => setIsOpen((prev) => !prev)}
+          className={`w-full flex items-center justify-between pl-4 pr-3.5 py-3 text-sm bg-slate-50 border ${
+            error
+              ? 'border-red-400 focus:ring-red-300'
+              : isOpen
+              ? 'border-orange-500 ring-2 ring-orange-200 bg-white'
+              : 'border-slate-200 hover:border-slate-300'
+          } rounded-xl text-left transition-all cursor-pointer`}
+        >
+          <span className={selectedValues.length > 0 ? 'text-slate-800 font-medium truncate pr-2' : 'text-slate-400'}>
+            {selectedValues.length === 0
+              ? placeholder
+              : selectedValues.length === 1
+              ? selectedValues[0]
+              : `${selectedValues.length} services selected (${selectedValues.slice(0, 2).join(', ')}${selectedValues.length > 2 ? '...' : ''})`}
+          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {selectedValues.length > 0 && (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  clearAll();
+                }}
+                className="p-1 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                title="Clear all"
+              >
+                <X className="w-3.5 h-3.5" />
+              </span>
+            )}
+            <motion.div animate={{ rotate: isOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+              <ChevronDown className={`w-4 h-4 transition-colors ${isOpen ? 'text-orange-500' : 'text-slate-400'}`} />
+            </motion.div>
+          </div>
+        </button>
+
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              data-lenis-prevent
+              data-lenis-prevent-wheel
+              data-lenis-prevent-touch
+              initial={{ opacity: 0, y: -6, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.98 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+              onWheel={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-xl shadow-2xl border border-slate-200 p-2.5 overflow-hidden"
+            >
+              {/* Search input inside dropdown */}
+              <div className="relative mb-2">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search services..."
+                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-400 text-slate-800 placeholder-slate-400"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+
+              {/* Quick actions (Select All / Clear) */}
+              <div className="flex items-center justify-between px-1 py-1 mb-1 border-b border-slate-100 text-[11px] text-slate-500">
+                <span>{filteredOptions.length} available</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={selectAll}
+                    className="text-orange-600 hover:text-orange-700 font-semibold cursor-pointer"
+                  >
+                    Select All
+                  </button>
+                  <span>•</span>
+                  <button
+                    type="button"
+                    onClick={clearAll}
+                    className="text-slate-500 hover:text-slate-700 font-semibold cursor-pointer"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              </div>
+
+              {/* Options List */}
+              <div
+                className="max-h-56 overflow-y-auto overscroll-contain space-y-0.5 pr-0.5"
+                style={{
+                  scrollbarWidth: 'thin',
+                  scrollbarColor: '#cbd5e1 #f8fafc',
+                  WebkitOverflowScrolling: 'touch',
+                }}
+              >
+                {filteredOptions.length === 0 ? (
+                  <p className="text-xs text-slate-400 py-3 text-center">No services found.</p>
+                ) : (
+                  filteredOptions.map((opt) => {
+                    const isSelected = selectedValues.includes(opt);
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => toggleOption(opt)}
+                        className={`w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg text-left transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'bg-orange-50 text-orange-700 font-bold'
+                            : 'text-slate-700 hover:bg-slate-50 hover:text-orange-600'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div
+                            className={`w-4 h-4 rounded flex items-center justify-center border transition-all ${
+                              isSelected
+                                ? 'bg-orange-500 border-orange-500 text-white'
+                                : 'border-slate-300 bg-white'
+                            }`}
+                          >
+                            {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                          </div>
+                          <span>{opt}</span>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Done button */}
+              <div className="pt-2 mt-1.5 border-t border-slate-100 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="px-3 py-1 bg-[#0B1E40] hover:bg-[#142a54] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Selected tags badges underneath input */}
+      {selectedValues.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {selectedValues.map((val) => (
+            <motion.span
+              key={val}
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.85 }}
+              className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 bg-orange-50 border border-orange-200 text-orange-700 text-xs font-semibold rounded-lg shadow-2xs"
+            >
+              <span>{val}</span>
+              <button
+                type="button"
+                onClick={() => removeOption(val)}
+                className="p-0.5 hover:bg-orange-200/80 rounded-md transition-colors cursor-pointer text-orange-600 hover:text-orange-900"
+                aria-label={`Remove ${val}`}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </motion.span>
+          ))}
+        </div>
+      )}
+
+      {error && (
+        <p className="text-xs text-red-500 flex items-center gap-1 mt-0.5">
+          <AlertCircle className="w-3.5 h-3.5" />{error}
+        </p>
+      )}
+    </div>
+  );
+};
+
 /* ─── Reusable File Input Field ──────────────────────────────────────── */
 const FileInputField = ({ label, id, onChange, error, required, accept, file, helperText }) => {
   const [pdfUrl, setPdfUrl] = useState(null);
@@ -328,7 +574,7 @@ export default function VendorApplyPage() {
     city:         '',
     pincode:      '',
     specialOption:'',
-    serviceType:  '',
+    serviceType:  [],
     experience:   '',
     about:        '',
     photo:        null,
@@ -350,7 +596,7 @@ export default function VendorApplyPage() {
       if (!form.specialOption)    e.specialOption = 'Please select a special option.';
     }
     if (s === 1) {
-      if (!form.serviceType) e.serviceType = 'Please select a service type.';
+      if (!form.serviceType || form.serviceType.length === 0) e.serviceType = 'Please select at least one service type.';
       if (!form.experience)  e.experience  = 'Please select your experience level.';
       if (!form.about.trim() || form.about.trim().split(/\s+/).length < 5) e.about = 'Please write at least a few words about yourself.';
       const isPdfOrImage = (file) =>
@@ -414,7 +660,10 @@ export default function VendorApplyPage() {
     formData.append('phoneNumber', form.phone);
     formData.append('city', form.city);
     formData.append('specialOption', form.specialOption);
-    formData.append('serviceType', form.serviceType);
+    const serviceTypeString = Array.isArray(form.serviceType)
+      ? form.serviceType.join(', ')
+      : (form.serviceType || '');
+    formData.append('serviceType', serviceTypeString);
     formData.append('experience', parseExperience(form.experience));
     formData.append('experienceDescription', form.about);
     
@@ -618,12 +867,20 @@ export default function VendorApplyPage() {
                       </p>
                     </div>
 
-                    <SelectField
-                      label="Service Type" id="serviceType"
-                      value={form.serviceType} onChange={set('serviceType')}
+                    <MultiSelectField
+                      label="Service Types (Select Multiple)"
+                      id="serviceType"
+                      selectedValues={form.serviceType}
+                      onChange={(newSelected) => {
+                        setForm((prev) => ({ ...prev, serviceType: newSelected }));
+                        if (errors.serviceType) {
+                          setErrors((prev) => ({ ...prev, serviceType: undefined }));
+                        }
+                      }}
                       options={serviceOptions}
-                      placeholder="Select Your Service"
-                      error={errors.serviceType} required
+                      placeholder="Select one or more services you provide"
+                      error={errors.serviceType}
+                      required
                     />
 
                     <SelectField
@@ -715,15 +972,27 @@ export default function VendorApplyPage() {
                       <hr className="border-slate-200" />
                       <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Work Details</h4>
                       <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                        {[
-                          { label: 'Service Type', val: form.serviceType },
-                          { label: 'Experience',   val: form.experience },
-                        ].map(({ label, val }) => (
-                          <div key={label}>
-                            <span className="text-slate-400 font-medium">{label}: </span>
-                            <span className="text-[#0B1E40] font-semibold">{val || '—'}</span>
-                          </div>
-                        ))}
+                        <div>
+                          <span className="text-slate-400 font-medium block mb-1">Service Type(s): </span>
+                          {Array.isArray(form.serviceType) && form.serviceType.length > 0 ? (
+                            <div className="flex flex-wrap gap-1.5 mt-0.5">
+                              {form.serviceType.map((srv) => (
+                                <span
+                                  key={srv}
+                                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-100/80 text-orange-700 border border-orange-200/60"
+                                >
+                                  {srv}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-[#0B1E40] font-semibold">{form.serviceType || '—'}</span>
+                          )}
+                        </div>
+                        <div>
+                          <span className="text-slate-400 font-medium">Experience: </span>
+                          <span className="text-[#0B1E40] font-semibold">{form.experience || '—'}</span>
+                        </div>
                       </div>
                       {form.about && (
                         <div className="text-sm">
