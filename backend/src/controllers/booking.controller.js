@@ -2,7 +2,7 @@ const Booking = require('../models/booking.model');
 const Address = require('../models/address.model');
 const VendorProfile = require('../models/vendorProfile.model');
 const { uploadImageToImageKit } = require('../config/imagekit');
-const ServiceExecution= require('../models/serviceExcecution.model');
+const ServiceExecution = require('../models/serviceExecution.model');
 const Invoice = require('../models/invoice.model');
 const {
   emitNewBooking,
@@ -1024,9 +1024,7 @@ exports.completeService = async (req, res) => {
 
       invoiceNumber,
 
-      // -----------------------------
-      // Customer Snapshot
-      // -----------------------------
+ 
 
       customerSnapshot: {
         name: booking.customer.fullName,
@@ -1034,9 +1032,7 @@ exports.completeService = async (req, res) => {
         address: customerAddress,
       },
 
-      // -----------------------------
-      // Service Snapshot
-      // -----------------------------
+      
 
       serviceSnapshot: {
         appliance: booking.appliance,
@@ -1044,15 +1040,13 @@ exports.completeService = async (req, res) => {
         serviceDate: booking.serviceDate,
       },
 
-      // -----------------------------
-      // Invoice Items
-      // -----------------------------
+      
 
       items,
 
-      // -----------------------------
+      
       // Amounts
-      // -----------------------------
+      
 
       subtotal,
 
@@ -1062,9 +1056,8 @@ exports.completeService = async (req, res) => {
 
       totalAmount,
 
-      // -----------------------------
       // Payment
-      // -----------------------------
+      
 
       paymentMethod,
 
@@ -1072,9 +1065,7 @@ exports.completeService = async (req, res) => {
 
       paidAt: new Date(),
 
-      // -----------------------------
-      // Customer Note
-      // -----------------------------
+    
 
       customerNote: execution.customerNote || '',
     });
