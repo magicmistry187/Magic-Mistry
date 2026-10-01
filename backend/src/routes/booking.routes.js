@@ -62,7 +62,7 @@ router.patch(
   submitServiceDetails,
 );
 
-router.patch(
+router.post(
   '/:bookingId/complete',
   auth,
   isVendor,

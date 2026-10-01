@@ -15,9 +15,7 @@ const serviceExecutionSchema = new mongoose.Schema(
       required: true,
     },
 
-    // ==========================================
-    // ROUTE / TRAVEL VERIFICATION
-    // ==========================================
+   
 
     route: {
       screenshot: {
@@ -87,28 +85,6 @@ const serviceExecutionSchema = new mongoose.Schema(
       },
     },
 
-    // ==========================================
-    // SERVICE TIME
-    // ==========================================
-
-    // arrivedAt: {
-    //   type: Date,
-    //   default: null,
-    // },
-
-    // serviceStartedAt: {
-    //   type: Date,
-    //   default: null,
-    // },
-
-    // serviceCompletedAt: {
-    //   type: Date,
-    //   default: null,
-    // },
-
-    // ==========================================
-    // SERVICE CHECKLIST
-    // ==========================================
 
    checklist: {
   service: {
@@ -131,9 +107,6 @@ const serviceExecutionSchema = new mongoose.Schema(
     default: false,
   },
 },
-    // ==========================================
-    // BEFORE / AFTER DOCUMENTATION
-    // ==========================================
 
    documentation: {
   beforeImage: {
@@ -162,9 +135,7 @@ const serviceExecutionSchema = new mongoose.Schema(
     },
   },
 },
-    // ==========================================
-    // NOTES
-    // ==========================================
+    
 
     customerNote: {
       type: String,
@@ -172,15 +143,7 @@ const serviceExecutionSchema = new mongoose.Schema(
       default: '',
     },
 
-    // vendorNote: {
-    //   type: String,
-    //   trim: true,
-    //   default: '',
-    // },
-
-    // ==========================================
-    // SERVICE STATUS
-    // ==========================================
+  
 
     status: {
       type: String,

@@ -2,10 +2,7 @@ const mongoose = require('mongoose');
 
 const invoiceSchema = new mongoose.Schema(
   {
-    // ==========================================
-    // REFERENCES
-    // ==========================================
-
+   
     booking: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Booking',
@@ -32,10 +29,7 @@ const invoiceSchema = new mongoose.Schema(
       unique: true,
     },
 
-    // ==========================================
-    // INVOICE NUMBER
-    // ==========================================
-
+    
     invoiceNumber: {
       type: String,
       required: true,
@@ -43,9 +37,6 @@ const invoiceSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // ==========================================
-    // CUSTOMER SNAPSHOT
-    // ==========================================
 
     customerSnapshot: {
       name: {
@@ -64,9 +55,6 @@ const invoiceSchema = new mongoose.Schema(
       },
     },
 
-    // ==========================================
-    // SERVICE SNAPSHOT
-    // ==========================================
 
     serviceSnapshot: {
       appliance: {
@@ -85,9 +73,7 @@ const invoiceSchema = new mongoose.Schema(
       },
     },
 
-    // ==========================================
-    // INVOICE ITEMS
-    // ==========================================
+   
 
     items: [
       {
@@ -136,9 +122,7 @@ const invoiceSchema = new mongoose.Schema(
       },
     ],
 
-    // ==========================================
-    // AMOUNTS
-    // ==========================================
+   
 
     subtotal: {
       type: Number,
@@ -164,9 +148,7 @@ const invoiceSchema = new mongoose.Schema(
       min: 0,
     },
 
-    // ==========================================
-    // PAYMENT
-    // ==========================================
+    
 
     paymentMethod: {
       type: String,
@@ -190,9 +172,6 @@ const invoiceSchema = new mongoose.Schema(
       default: null,
     },
 
-    // ==========================================
-    // CUSTOMER NOTE
-    // ==========================================
 
     customerNote: {
       type: String,
