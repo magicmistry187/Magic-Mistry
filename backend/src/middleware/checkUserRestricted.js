@@ -54,7 +54,8 @@ exports.checkUserRestricted = async (req, res, next) => {
 
       //Suspension expired
       if (user.suspendedUntil && user.suspendedUntil <= new Date()) {
-        ((user.status = "active"), (user.suspendedUntil = null));
+        user.status = "active";
+        user.suspendedUntil = null;
       }
 
       await user.save();

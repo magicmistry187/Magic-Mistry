@@ -27,21 +27,22 @@ function generateToken(user) {
 
 
 
-//Helper function for checking suspension expire
+// Helper function for checking suspension expiry
+const handleSuspensionExpiry = async (user) => {
+  if (!user) return user;
 
-const handleSuspensionExpiry = async(user)=> {
-
-  if(user.status === "suspended" && user.suspendUntil && new Date() >= user.suspendUntil ){
-      
-  user.status === "active";
-  user.suspendUntil = null;
-
-  await user.save();
+  if (
+    user.status === "suspended" &&
+    user.suspendedUntil &&
+    new Date() >= new Date(user.suspendedUntil)
+  ) {
+    user.status = "active";
+    user.suspendedUntil = null;
+    await user.save();
   }
 
   return user;
-
-}
+};
 
 // send otp
 //little bit modifying it for forgot password and signup
@@ -263,7 +264,7 @@ async function login(req, res) {
       });
     }
 
-    handleSuspensionExpiry(user);
+    await handleSuspensionExpiry(user);
 
     // Vendors must use vendor login
     if (user.role === "vendor") {
@@ -388,8 +389,6 @@ async function googleLogin(req, res) {
 
     let user = await userModel.findOne({ googleId });
 
-    handleSuspensionExpiry(user);
-
     if (!user) {
       user = await userModel.findOne({
         email: trimmedEmail,
@@ -414,6 +413,10 @@ async function googleLogin(req, res) {
           // role: "admin", // Default role is 'user'
         });
       }
+    }
+
+    if (user) {
+      await handleSuspensionExpiry(user);
     }
 
     // Check if account is blocked

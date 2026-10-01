@@ -1,8 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// addressParser.js — Robust Indian address string and object parser
+// addressParser.js — Robust Indian address string and object parser (Backend)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const INDIAN_STATES = [
+const INDIAN_STATES = [
   'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
   'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
   'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
@@ -13,7 +13,7 @@ export const INDIAN_STATES = [
   'Dadra and Nagar Haveli', 'Daman and Diu', 'Lakshadweep'
 ];
 
-export const STATE_ALIASES = {
+const STATE_ALIASES = {
   wb: 'West Bengal',
   dl: 'Delhi',
   ncr: 'Delhi',
@@ -49,7 +49,7 @@ export const STATE_ALIASES = {
   ar: 'Arunachal Pradesh',
 };
 
-export const KNOWN_MAJOR_CITIES = new Set([
+const KNOWN_MAJOR_CITIES = new Set([
   'kolkata', 'bolpur', 'suri', 'rampurhat', 'bardhaman', 'asansol', 'durgapur',
   'siliguri', 'kharagpur', 'haldia', 'howrah', 'ranaghat', 'krishnanagar', 'berhampore',
   'delhi', 'new delhi', 'mumbai', 'bengaluru', 'bangalore', 'hyderabad', 'chennai', 'ahmedabad',
@@ -63,7 +63,7 @@ export const KNOWN_MAJOR_CITIES = new Set([
   'noida', 'ghatshila', 'dehradun', 'jammu', 'shimla', 'gangtok', 'shillong'
 ]);
 
-export const KNOWN_DISTRICTS = new Set([
+const KNOWN_DISTRICTS = new Set([
   'birbhum', 'bardhaman', 'burdwan', 'purba bardhaman', 'paschim bardhaman',
   'bankura', 'hooghly', 'howrah', 'nadia', 'murshidabad', 'malda',
   'north 24 parganas', 'south 24 parganas', 'darjeeling', 'jalpaiguri',
@@ -84,7 +84,7 @@ export const KNOWN_DISTRICTS = new Set([
 /**
  * Strips postal sub-office parentheses like "Birbhum (Bolpur)" -> "Bolpur"
  */
-export function cleanPostalParentheses(str) {
+function cleanPostalParentheses(str) {
   if (!str || typeof str !== 'string') return '';
   const trimmed = str.trim();
   const parenMatch = trimmed.match(/\((.*?)\)/);
@@ -97,7 +97,7 @@ export function cleanPostalParentheses(str) {
 /**
  * Checks if a string represents an administrative region (district, tehsil, CD block, mandal, etc.)
  */
-export function isAdministrativeToken(t) {
+function isAdministrativeToken(t) {
   if (!t || typeof t !== 'string') return false;
   const lower = t.toLowerCase().trim();
   return (
@@ -118,13 +118,9 @@ export function isAdministrativeToken(t) {
 }
 
 /**
- * Parses any Indian address input (full string or partially structured object)
- * into clean, separate address fields: flat, street, landmark, city, state, pincode.
- *
- * @param {string|object} input
- * @returns {{ flat: string, street: string, city: string, state: string, landmark: string, pincode: string }}
+ * Parses any Indian address input (full string or object) into clean fields.
  */
-export function parseAddressString(input) {
+function parseAddressString(input) {
   if (!input) {
     return { flat: '', street: '', city: '', state: '', landmark: '', pincode: '' };
   }
@@ -348,16 +344,9 @@ export function parseAddressString(input) {
 }
 
 /**
- * Formats an address string or object cleanly:
- * - Removes dummy strings like "Current Location" and "000000"
- * - Cleans parentheses like "Birbhum (Bolpur)" -> "Bolpur"
- * - Prevents house/flat from duplicating the full address line
- * - Deduplicates repeated tokens
- *
- * @param {string|object} input
- * @returns {string}
+ * Formats an address cleanly without dummy tokens or duplicates.
  */
-export function formatCleanAddress(input) {
+function formatCleanAddress(input) {
   if (!input) return '';
 
   if (typeof input === 'string') {
@@ -439,3 +428,14 @@ export function formatCleanAddress(input) {
 
   return unique.join(', ');
 }
+
+module.exports = {
+  INDIAN_STATES,
+  STATE_ALIASES,
+  KNOWN_MAJOR_CITIES,
+  KNOWN_DISTRICTS,
+  cleanPostalParentheses,
+  isAdministrativeToken,
+  parseAddressString,
+  formatCleanAddress,
+};

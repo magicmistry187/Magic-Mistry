@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const userModel = require('../models/user.model');
 const Address = require('../models/address.model');
+const { parseAddressString, formatCleanAddress } = require('../utils/addressParser');
 
 // Update User Active Location
 async function updateUserLocation(req, res) {
@@ -35,8 +36,9 @@ async function updateUserLocation(req, res) {
       });
     }
 
-    const cleanLocation = location !== undefined ? String(location).trim() : '';
-    const isClearing = cleanLocation === '' || cleanLocation === 'Set Your Location';
+    const rawCleanLocation = location !== undefined ? String(location).trim() : '';
+    const cleanLocation = formatCleanAddress(rawCleanLocation);
+    const isClearing = !cleanLocation || cleanLocation === 'Set Your Location';
 
     // Parse coordinates if provided
     let coords = null;
@@ -51,6 +53,8 @@ async function updateUserLocation(req, res) {
       coords = [Number(longitude), Number(latitude)];
     }
 
+    const parsed = parseAddressString(cleanLocation);
+
     // Delegate location management to Address collection
     let userAddress = await Address.findOne({ user: user._id, isDefault: true });
     if (!userAddress) {
@@ -60,7 +64,32 @@ async function updateUserLocation(req, res) {
     if (userAddress) {
       if (!isClearing && cleanLocation) {
         userAddress.addressLine1 = cleanLocation;
-        if (!userAddress.street) userAddress.street = cleanLocation;
+        if (parsed.street) {
+          userAddress.street = parsed.street;
+        } else if (!userAddress.street || userAddress.street === 'Current Location' || userAddress.street === 'Area') {
+          userAddress.street = cleanLocation;
+        }
+        if (parsed.city) {
+          userAddress.city = parsed.city;
+        } else if (!userAddress.city || userAddress.city === 'Current Location') {
+          userAddress.city = 'Local Area';
+        }
+        if (parsed.state) {
+          userAddress.state = parsed.state;
+        }
+        if (parsed.pincode) {
+          userAddress.pincode = parsed.pincode;
+        } else if (userAddress.pincode === '000000') {
+          userAddress.pincode = '';
+        }
+        if (parsed.flat) {
+          userAddress.house = parsed.flat;
+        } else if (userAddress.house && (userAddress.house.includes(',') || userAddress.house.length > 25)) {
+          userAddress.house = '';
+        }
+        if (parsed.landmark) {
+          userAddress.landmark = parsed.landmark;
+        }
       }
       if (coords) {
         userAddress.location = { type: 'Point', coordinates: coords };
@@ -73,12 +102,14 @@ async function updateUserLocation(req, res) {
       const addressData = {
         user: user._id,
         addressType: 'Home',
-        addressLine1: cleanLocation || 'Current Location',
-        street: cleanLocation || 'Current Location',
-        city: 'Current Location',
-        state: 'West Bengal',
+        house: parsed.flat || '',
+        addressLine1: cleanLocation,
+        street: parsed.street || cleanLocation || 'Local Area',
+        landmark: parsed.landmark || '',
+        city: parsed.city || 'Local Area',
+        state: parsed.state || '',
         country: 'India',
-        pincode: '000000',
+        pincode: (parsed.pincode === '000000' ? '' : (parsed.pincode || '')),
         isDefault: true,
       };
       if (coords) {
@@ -96,7 +127,7 @@ async function updateUserLocation(req, res) {
     }
 
     const activeLocationStr = userAddress
-      ? [userAddress.house || userAddress.flat || userAddress.addressLine1, userAddress.street, userAddress.city].filter(Boolean).join(', ')
+      ? formatCleanAddress(userAddress)
       : '';
 
     return res.status(200).json({
@@ -254,12 +285,19 @@ async function updateUserProfile(req, res) {
         coords = [Number(longitude), Number(latitude)];
       }
 
-      const cleanLoc = location !== undefined ? String(location).trim() : '';
+      const rawCleanLoc = location !== undefined ? String(location).trim() : '';
+      const cleanLoc = formatCleanAddress(rawCleanLoc);
+      const parsedLoc = cleanLoc ? parseAddressString(cleanLoc) : null;
 
       if (userAddress) {
-        if (cleanLoc) {
+        if (cleanLoc && parsedLoc) {
           userAddress.addressLine1 = cleanLoc;
-          if (!userAddress.street) userAddress.street = cleanLoc;
+          if (parsedLoc.street) userAddress.street = parsedLoc.street;
+          if (parsedLoc.city) userAddress.city = parsedLoc.city;
+          if (parsedLoc.state) userAddress.state = parsedLoc.state;
+          if (parsedLoc.pincode) userAddress.pincode = parsedLoc.pincode;
+          if (parsedLoc.flat) userAddress.house = parsedLoc.flat;
+          if (parsedLoc.landmark) userAddress.landmark = parsedLoc.landmark;
         }
         if (coords) {
           userAddress.location = { type: 'Point', coordinates: coords };
@@ -269,12 +307,14 @@ async function updateUserProfile(req, res) {
         userAddress = await Address.create({
           user: user._id,
           addressType: 'Home',
-          addressLine1: cleanLoc || 'Current Location',
-          street: cleanLoc || 'Current Location',
-          city: 'Current Location',
-          state: 'West Bengal',
+          house: parsedLoc?.flat || '',
+          addressLine1: cleanLoc || 'Local Area',
+          street: parsedLoc?.street || cleanLoc || 'Local Area',
+          city: parsedLoc?.city || 'Local Area',
+          state: parsedLoc?.state || '',
           country: 'India',
-          pincode: '000000',
+          pincode: (parsedLoc?.pincode === '000000' ? '' : (parsedLoc?.pincode || '')),
+          landmark: parsedLoc?.landmark || '',
           location: coords ? { type: 'Point', coordinates: coords } : undefined,
           isDefault: true,
         });

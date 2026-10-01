@@ -24,7 +24,7 @@ import UserInvoiceModal       from '../../components/dashboard/user/UserInvoiceM
 import UserAddressModal        from '../../components/dashboard/user/UserAddressModal';
 import UserRatingModal         from '../../components/dashboard/user/UserRatingModal';
 import ApplianceIcon           from '../../components/common/ApplianceIcon';
-import { parseAddressString }  from '../../utils/addressParser';
+import { parseAddressString, formatCleanAddress }  from '../../utils/addressParser';
 import { getLiveBasePriceForAppliance } from '../../services/pricingService';
 
 
@@ -90,20 +90,22 @@ const itemVariants = {
 const mapAddresses = (list) =>
   (Array.isArray(list) ? list : []).map((a) => {
     const parsed = parseAddressString(a);
+    const cleanFlat = (parsed.flat || '').trim();
+    const isRealFlat = cleanFlat && !cleanFlat.includes(',') && cleanFlat.length <= 25;
     return {
       id: a._id || a.id,
       _id: a._id || a.id,
       type: a.addressType || a.type || 'Home',
       addressType: a.addressType || a.type || 'Home',
-      flat: parsed.flat || a.house || a.addressLine1 || '',
-      house: a.house || parsed.flat || '',
-      addressLine1: a.addressLine1 || a.house || parsed.flat || '',
+      flat: isRealFlat ? cleanFlat : '',
+      house: isRealFlat ? cleanFlat : '',
+      addressLine1: parsed.street || a.street || '',
       street: parsed.street || a.street || '',
       landmark: parsed.landmark || a.landmark || '',
       city: parsed.city || a.city || '',
       state: parsed.state || a.state || '',
       country: a.country || 'India',
-      pincode: parsed.pincode || a.pincode || '',
+      pincode: (parsed.pincode === '000000' ? '' : (parsed.pincode || a.pincode || '')),
       isDefault: !!a.isDefault,
       location: a.location,
       latitude: a.location?.coordinates?.[1] ?? a.latitude ?? null,
@@ -387,15 +389,18 @@ export default function UserDashboardPage() {
     // If user explicitly checked isDefault, or if it is the very first address
     const makeDefault = addressObj.isDefault !== undefined ? !!addressObj.isDefault : (addresses.length === 0 && !editingAddress);
 
+    const cleanFlat = (addressObj.flat || addressObj.house || '').trim();
+    const isRealFlat = cleanFlat && !cleanFlat.includes(',') && cleanFlat.length <= 25;
+
     const payload = {
       addressType: addressObj.type || addressObj.addressType || 'Home',
-      house: addressObj.flat || addressObj.house || addressObj.street || 'Home',
-      addressLine1: addressObj.flat || addressObj.house || addressObj.street || '',
-      street: addressObj.street || addressObj.flat || 'Area',
+      house: isRealFlat ? cleanFlat : '',
+      addressLine1: addressObj.street || cleanFlat || 'Home',
+      street: addressObj.street || 'Area',
       landmark: addressObj.landmark || '',
       city: addressObj.city || '',
       state: addressObj.state || '',
-      pincode: addressObj.pincode || '',
+      pincode: addressObj.pincode === '000000' ? '' : (addressObj.pincode || ''),
       country: addressObj.country || 'India',
       isDefault: makeDefault,
     };
@@ -434,8 +439,7 @@ export default function UserDashboardPage() {
           // If it was marked default or there's a default address, sync active location
           const def = mapped.find(a => a.isDefault) || (makeDefault ? mapped[0] : null);
           if (def) {
-            const defStr = [def.flat, def.street, def.landmark, def.city, def.state, def.pincode]
-              .filter(Boolean).join(', ');
+            const defStr = formatCleanAddress(def);
             updateLocation(defStr, def.latitude && def.longitude ? { lat: def.latitude, lng: def.longitude } : null);
           }
         }
@@ -471,8 +475,7 @@ export default function UserDashboardPage() {
         setAddresses(mapped);
         const def = mapped.find(a => a.isDefault);
         if (def) {
-          const defStr = [def.flat, def.street, def.landmark, def.city, def.state, def.pincode]
-            .filter(Boolean).join(', ');
+          const defStr = formatCleanAddress(def);
           updateLocation(defStr, def.latitude && def.longitude ? { lat: def.latitude, lng: def.longitude } : null);
         }
       }

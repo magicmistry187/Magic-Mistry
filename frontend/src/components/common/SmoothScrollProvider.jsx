@@ -32,6 +32,7 @@ export default function SmoothScrollProvider({ children }) {
       touchMultiplier: 1,
       infinite: false,
       autoResize: true,
+      prevent: (node) => Boolean(node?.closest?.('[data-lenis-prevent]')),
     });
 
     setLenisInstance(lenis);
