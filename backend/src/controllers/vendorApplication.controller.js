@@ -25,7 +25,7 @@ const createVendorApplication = async (req, res) => {
       phoneNumber,
       city,
       specialOption,
-      serviceType,
+      serviceTypes,
       experience,
       experienceDescription,
     } = req.body;
@@ -36,7 +36,7 @@ const createVendorApplication = async (req, res) => {
       !phoneNumber ||
       !city ||
       !specialOption ||
-      !serviceType ||
+      serviceTypes.length === 0 ||
       experience === undefined ||
       experience === null ||
       experience === '' ||
@@ -122,7 +122,7 @@ const createVendorApplication = async (req, res) => {
       city: city.trim(),
       specialOption: specialOption.trim(),
 
-      serviceType: serviceType.trim(),
+      serviceTypes: serviceTypes.map((service) => service.trim()),
       experience: Number(experience),
       experienceDescription: experienceDescription.trim(),
 
@@ -327,11 +327,14 @@ const approveVendorApplication = async (req, res) => {
               <p><strong>Temporary Password:</strong> ${password}</p>
             </div>
             <p>Please log in and update your password in your profile settings.</p>
-          </div>`
+          </div>`,
         );
       }
     } catch (emailErr) {
-      console.warn('[Vendor Approval] Email notification failed (credentials still created):', emailErr.message);
+      console.warn(
+        '[Vendor Approval] Email notification failed (credentials still created):',
+        emailErr.message,
+      );
     }
 
     // Real-time: update admin dashboard
