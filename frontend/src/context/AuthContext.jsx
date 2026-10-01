@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { createAddressApi, getAddressesApi } from '../services/operations/addressAPI';
 import { updateUserLocationApi, getUserProfileApi, updateUserProfileApi, logoutApi } from '../services/operations/authAPI';
 import { getVendorProfileApi } from '../services/operations/vendorAPI';
-import { parseAddressString } from '../utils/addressParser';
+import { parseAddressString, formatCleanAddress } from '../utils/addressParser';
 
 const AuthContext = createContext(null);
 
@@ -40,7 +40,8 @@ export function AuthProvider({ children }) {
   const [location, setLocation] = useState(() => {
     try {
       const storedLoc = localStorage.getItem('mm_location');
-      return storedLoc && storedLoc !== 'Set Your Location' ? storedLoc : 'Set Your Location';
+      const cleanLoc = formatCleanAddress(storedLoc);
+      return cleanLoc || 'Set Your Location';
     } catch {
       return 'Set Your Location';
     }
@@ -66,8 +67,9 @@ export function AuthProvider({ children }) {
           setIsLoggedIn(true);
 
           // Initial fallback while syncing from backend
-          const initialUserLoc = parsedUser.location && parsedUser.location !== 'Set Your Location' ? parsedUser.location : '';
-          const initialResolvedLoc = initialUserLoc || (storedLocation && storedLocation !== 'Set Your Location' ? storedLocation : 'Set Your Location');
+          const initialUserLoc = formatCleanAddress(parsedUser.location);
+          const initialStoredLoc = formatCleanAddress(storedLocation);
+          const initialResolvedLoc = initialUserLoc || initialStoredLoc || 'Set Your Location';
           setLocation(initialResolvedLoc);
 
           // Rehydrate fresh profile data from backend (AUTHORITATIVE SOURCE)
@@ -108,14 +110,15 @@ export function AuthProvider({ children }) {
                 };
 
                 // Check authoritative database location
-                const dbLocation = (freshUser.location && freshUser.location !== 'Set Your Location' ? freshUser.location : '') ||
+                const rawDbLocation = (freshUser.location && freshUser.location !== 'Set Your Location' ? freshUser.location : '') ||
                   (profileData.serviceAddress && profileData.serviceAddress !== 'Set Your Location' ? profileData.serviceAddress : '') ||
                   (freshUser.serviceAddress && freshUser.serviceAddress !== 'Set Your Location' ? freshUser.serviceAddress : '');
+                const dbLocation = formatCleanAddress(rawDbLocation);
 
-                if (dbLocation && dbLocation.trim() !== '') {
-                  freshUser.location = dbLocation.trim();
-                  setLocation(dbLocation.trim());
-                  localStorage.setItem('mm_location', dbLocation.trim());
+                if (dbLocation) {
+                  freshUser.location = dbLocation;
+                  setLocation(dbLocation);
+                  localStorage.setItem('mm_location', dbLocation);
                   if (freshUser.latitude && freshUser.longitude) {
                     localStorage.setItem('mm_lat', freshUser.latitude);
                     localStorage.setItem('mm_lng', freshUser.longitude);
@@ -135,9 +138,7 @@ export function AuthProvider({ children }) {
                   if (addrRes.success && Array.isArray(addrRes.addresses) && addrRes.addresses.length > 0) {
                     setAddresses(addrRes.addresses);
                     const def = addrRes.addresses.find((a) => a.isDefault) || addrRes.addresses[0];
-                    const formattedAddr = [def.house || def.flat, def.street, def.landmark, def.city, def.state, def.pincode]
-                      .filter(Boolean)
-                      .join(', ');
+                    const formattedAddr = formatCleanAddress(def);
                     if (formattedAddr) {
                       freshUser.location = formattedAddr;
                       setLocation(formattedAddr);
@@ -213,7 +214,8 @@ export function AuthProvider({ children }) {
     const role = isAdminEmail ? 'admin' : (userData.role || 'customer');
 
     // Database location is the authoritative source:
-    const dbLoc = userData.location && userData.location !== 'Set Your Location' ? userData.location.trim() : '';
+    const rawDbLoc = userData.location && userData.location !== 'Set Your Location' ? userData.location.trim() : '';
+    const dbLoc = formatCleanAddress(rawDbLoc);
 
     const updatedUser = {
       ...userData,
@@ -283,8 +285,9 @@ export function AuthProvider({ children }) {
    *           → Address.create({ ..., location: { type:'Point', coordinates:[lng,lat] } })
    */
   const updateLocation = async (newLocation, geoCoords = null) => {
-    const isClearing = !newLocation || newLocation === 'Set Your Location';
-    const locValue = isClearing ? 'Set Your Location' : newLocation;
+    const cleanLocation = formatCleanAddress(newLocation);
+    const isClearing = !cleanLocation || cleanLocation === 'Set Your Location';
+    const locValue = isClearing ? 'Set Your Location' : cleanLocation;
 
     // ── CONSOLE LOG: Always fires when updateLocation is called ───────────
     console.log(
@@ -357,13 +360,14 @@ export function AuthProvider({ children }) {
     // ── Sync Navbar location pill for vendor profile updates ─────────────────
     // When a vendor updates their serviceAddress or location in the dashboard,
     // reflect it immediately in the Navbar location pill (same as customer flow).
-    const newDisplayLocation =
+    const rawDisplayLoc =
       (profileData.serviceAddress && profileData.serviceAddress !== 'Set Your Location'
         ? profileData.serviceAddress
         : null) ||
       (profileData.location && profileData.location !== 'Set Your Location'
         ? profileData.location
         : null);
+    const newDisplayLocation = formatCleanAddress(rawDisplayLoc);
 
     if (newDisplayLocation) {
       setLocation(newDisplayLocation);

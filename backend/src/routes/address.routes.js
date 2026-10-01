@@ -10,18 +10,22 @@ const {
   updateAddress,
   deleteAddress,
   reverseGeocode,
+  autocomplete,
 } = require('../controllers/address.controller');
 
-// Public reverse-geocode endpoint (for all users, guests, and technicians)
+const {checkUserRestricted} = require('../middleware/checkUserRestricted');
+
+// Public reverse-geocode and autocomplete endpoints (for all users, guests, and technicians)
 router.get('/reverse-geocode', reverseGeocode);
+router.get('/autocomplete', autocomplete);
 
 // All address endpoints are protected with standard auth middleware
-router.post('/', auth, createAddress);
+router.post('/', auth,checkUserRestricted, createAddress);
 router.get('/', auth, getAddresses);
 router.get('/:id', auth, getAddress);
-router.put('/:id', auth, updateAddress);
+router.put('/:id', auth, checkUserRestricted, updateAddress);
 // router.put('/', auth, updateAddress);
-router.delete('/:id', auth, deleteAddress);
+router.delete('/:id', auth,  deleteAddress);
 // router.delete('/', auth, deleteAddress);
 
 module.exports = router;

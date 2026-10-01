@@ -24,6 +24,26 @@ function generateToken(user) {
   });
 }
 
+
+
+
+// Helper function for checking suspension expiry
+const handleSuspensionExpiry = async (user) => {
+  if (!user) return user;
+
+  if (
+    user.status === "suspended" &&
+    user.suspendedUntil &&
+    new Date() >= new Date(user.suspendedUntil)
+  ) {
+    user.status = "active";
+    user.suspendedUntil = null;
+    await user.save();
+  }
+
+  return user;
+};
+
 // send otp
 //little bit modifying it for forgot password and signup
 async function sendOtp(req, res) {
@@ -244,6 +264,8 @@ async function login(req, res) {
       });
     }
 
+    await handleSuspensionExpiry(user);
+
     // Vendors must use vendor login
     if (user.role === "vendor") {
       return res.status(403).json({
@@ -262,20 +284,20 @@ async function login(req, res) {
     }
 
     // Check account status
-    if (user.status === "blocked") {
-      return res.status(403).json({
-        success: false,
-        message:
-          "Your account has been blocked. Please contact the administrator.",
-      });
-    }
+    // if (user.status === "blocked") {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message:
+    //       "Your account has been blocked. Please contact the administrator.",
+    //   });
+    // }
 
-    if (user.status === "suspended") {
-      return res.status(403).json({
-        success: false,
-        message: "Your account has been suspended by the administrator.",
-      });
-    }
+    // if (user.status === "suspended") {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: "Your account has been suspended by the administrator.",
+    //   });
+    // }
 
     // Compare password
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
@@ -393,21 +415,25 @@ async function googleLogin(req, res) {
       }
     }
 
-    // Check if account is blocked
-    if (user.status === 'blocked') {
-      return res.status(403).json({
-        success: false,
-        message: 'Your account has been blocked.',
-      });
+    if (user) {
+      await handleSuspensionExpiry(user);
     }
 
+    // Check if account is blocked
+    // if (user.status === 'blocked') {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: 'Your account has been blocked.',
+    //   });
+    // }
+
     // Check if account is suspended
-    if (user.status === 'suspended') {
-      return res.status(403).json({
-        success: false,
-        message: 'Your account has been suspended.',
-      });
-    }
+    // if (user.status === 'suspended') {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: 'Your account has been suspended.',
+    //   });
+    // }
 
     if (user.role === 'vendor') {
       return res.status(403).json({

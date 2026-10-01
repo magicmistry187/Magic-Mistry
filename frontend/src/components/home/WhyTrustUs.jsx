@@ -97,13 +97,13 @@ export default function WhyTrustUs() {
   };
 
   const cardVariants = {
-    hidden: { opacity: 0, y: 35, scale: 0.96 },
+    hidden: { opacity: 0, y: 16, scale: 0.98 },
     visible: {
       opacity: 1,
       y: 0,
       scale: 1,
       transition: {
-        duration: 0.6,
+        duration: 0.45,
         ease: [0.215, 0.61, 0.355, 1]
       }
     }
@@ -113,14 +113,14 @@ export default function WhyTrustUs() {
     <section className="max-w-6xl mx-auto px-4 py-8 sm:py-12">
       {/* Outer Card Container */}
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: '-50px' }}
-        transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+        viewport={{ once: true, margin: '120px 0px 50px 0px' }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
         className="relative bg-[#06152B] rounded-3xl p-6 sm:p-12 text-white shadow-2xl overflow-hidden border border-slate-800/90"
       >
         
-        {/* Animated Background Ambient Orbs */}
+        {/* Animated Background Ambient Orbs (GPU Layer Promoted) */}
         <motion.div 
           animate={{ 
             scale: [1, 1.2, 1],
@@ -129,7 +129,7 @@ export default function WhyTrustUs() {
             y: [0, -20, 0]
           }}
           transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute -top-24 -right-24 w-96 h-96 bg-blue-600 rounded-full blur-3xl pointer-events-none" 
+          className="absolute -top-24 -right-24 w-96 h-96 bg-blue-600 rounded-full blur-3xl pointer-events-none gpu-layer" 
         />
         <motion.div 
           animate={{ 
@@ -139,16 +139,16 @@ export default function WhyTrustUs() {
             y: [0, 20, 0]
           }}
           transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute -bottom-24 -left-24 w-96 h-96 bg-emerald-500 rounded-full blur-3xl pointer-events-none" 
+          className="absolute -bottom-24 -left-24 w-96 h-96 bg-emerald-500 rounded-full blur-3xl pointer-events-none gpu-layer" 
         />
 
         {/* Header Section */}
         <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-14 relative z-10">
           <motion.div
-            initial={{ opacity: 0, scale: 0.85 }}
+            initial={{ opacity: 0, scale: 0.9 }}
             whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, type: 'spring', stiffness: 200 }}
+            viewport={{ once: true, margin: '100px 0px 50px 0px' }}
+            transition={{ duration: 0.4, type: 'spring', stiffness: 200 }}
             className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs font-extrabold uppercase tracking-wider mb-4 shadow-xs"
           >
             <Sparkles className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
@@ -156,10 +156,10 @@ export default function WhyTrustUs() {
           </motion.div>
 
           <motion.h2 
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 12 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.1 }}
+            viewport={{ once: true, margin: '100px 0px 50px 0px' }}
+            transition={{ duration: 0.45, delay: 0.05 }}
             className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight"
           >
             Why Customers Trust{' '}
@@ -169,10 +169,10 @@ export default function WhyTrustUs() {
           </motion.h2>
 
           <motion.p 
-            initial={{ opacity: 0, y: 15 }}
+            initial={{ opacity: 0, y: 12 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.2 }}
+            viewport={{ once: true, margin: '100px 0px 50px 0px' }}
+            transition={{ duration: 0.45, delay: 0.1 }}
             className="mt-3 text-slate-300 text-sm sm:text-base leading-relaxed"
           >
             West Bengal's premier certified electronics repair platform engineered for honesty, speed, and complete customer satisfaction.
@@ -184,7 +184,7 @@ export default function WhyTrustUs() {
           variants={containerVariants}
           initial="hidden"
           whileInView="visible"
-          viewport={{ once: true }}
+          viewport={{ once: true, margin: '120px 0px 50px 0px' }}
           className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12 relative z-10"
         >
           {stats.map((stat, idx) => {
@@ -216,7 +216,7 @@ export default function WhyTrustUs() {
           variants={containerVariants}
           initial="hidden"
           whileInView="visible"
-          viewport={{ once: true }}
+          viewport={{ once: true, margin: '150px 0px 50px 0px' }}
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10"
         >
           {trustFeatures.map((feat) => {

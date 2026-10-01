@@ -39,11 +39,17 @@ const userSchema = new mongoose.Schema(
       default: false,
     },
 
-    //when vendor is blocked by admin, he cannot login to the system.
+    
     status: {
       type: String,
       enum: ['active', 'blocked', 'suspended'],
       default: 'active',
+    },
+
+    //When user get suspended , so their date will mention here like at what date user will get suspended
+    suspendedUntil : {
+       type: Date,
+       default: null,
     },
 
     vendorId: {

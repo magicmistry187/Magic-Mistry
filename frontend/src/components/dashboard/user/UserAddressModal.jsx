@@ -4,7 +4,7 @@
 // Used exclusively in: pages/dashboard/UserDashboardPage.jsx
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -16,11 +16,23 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle2,
+  Map,
 } from 'lucide-react';
-import { parseAddressString, INDIAN_STATES } from '../../../utils/addressParser';
+import { parseAddressString, INDIAN_STATES, cleanPostalParentheses } from '../../../utils/addressParser';
 import { getCurrentCoordinates, reverseGeocode } from '../../../utils/reverseGeocode';
+import InteractiveMapPicker from '../../common/InteractiveMapPicker';
+import { useModalSmoothScroll } from '../../common/useModalSmoothScroll';
 
 export default function UserAddressModal({ isOpen, onClose, onSave, initialData }) {
+  const overlayRef = useRef(null);
+  const scrollContainerRef = useRef(null);
+
+  // Physics-based smooth scrolling for modal + complete background page lock
+  useModalSmoothScroll({
+    isOpen,
+    overlayRef,
+    scrollContainerRef,
+  });
   const [type, setType] = useState('Home');
   const [flat, setFlat] = useState('');
   const [street, setStreet] = useState('');
@@ -30,28 +42,28 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
   const [pincode, setPincode] = useState('');
   const [isDefault, setIsDefault] = useState(false);
   const [geoCoords, setGeoCoords] = useState(null);
+  const [showMap, setShowMap] = useState(false);
 
   const [locState, setLocState] = useState('idle'); // 'idle' | 'loading' | 'success' | 'error'
   const [locError, setLocError] = useState('');
 
+
   useEffect(() => {
     if (initialData) {
-      const parsed = typeof initialData === 'object' ? {
-        flat: initialData.flat || initialData.house || initialData.addressLine1 || '',
-        street: initialData.street || '',
-        city: initialData.city || '',
-        state: initialData.state || '',
-        landmark: initialData.landmark || '',
-        pincode: initialData.pincode || '',
-      } : parseAddressString(initialData);
+      const parsed = parseAddressString(initialData);
+
+      let safeFlat = (parsed.flat || '').trim();
+      if (safeFlat.includes(',') || safeFlat.length > 25 || (parsed.street && safeFlat.toLowerCase() === parsed.street.toLowerCase())) {
+        safeFlat = '';
+      }
 
       setType(initialData.type || initialData.addressType || 'Home');
-      setFlat(parsed.flat || '');
+      setFlat(safeFlat);
       setStreet(parsed.street || '');
       setCity(parsed.city || '');
       setState(parsed.state || '');
       setLandmark(parsed.landmark || '');
-      setPincode(parsed.pincode || '');
+      setPincode(parsed.pincode === '000000' ? '' : (parsed.pincode || ''));
       setIsDefault(!!initialData.isDefault);
       if (initialData.location?.coordinates?.length === 2) {
         setGeoCoords({
@@ -79,28 +91,47 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
     }
     setLocState('idle');
     setLocError('');
+    setShowMap(false);
   }, [initialData, isOpen]);
 
   const handleUseLocation = async () => {
     setLocState('loading');
     setLocError('');
     try {
-      const coords = await getCurrentCoordinates({ timeout: 15000 });
+      const coords = await getCurrentCoordinates({ desiredAccuracy: 35, timeout: 12000 });
       const address = await reverseGeocode(coords.latitude, coords.longitude);
 
-      setFlat(address.flat || '');
-      setStreet(address.street || '');
-      setCity(address.city || '');
+      const rawFlat = (address.flat || '').trim();
+      const safeFlat = rawFlat && !rawFlat.includes(',') && rawFlat.length <= 25 ? rawFlat : '';
+      setFlat(safeFlat);
+      setStreet((address.street || '').replace(/\s*\(.*?\)\s*/g, ' ').replace(/\s+/g, ' ').trim());
+      setCity(cleanPostalParentheses(address.city || ''));
       setState(address.state || '');
       setLandmark(address.landmark || '');
-      setPincode(address.pincode || '');
+      setPincode((address.pincode || '').replace(/\D/g, '').slice(0, 6));
       setGeoCoords({ lat: coords.latitude, lng: coords.longitude });
+      setShowMap(true);
       setLocState('success');
       setLocError('');
     } catch (err) {
       console.error('[UserAddressModal] Geolocation error:', err);
       setLocState('error');
       setLocError(err.message || 'Could not fetch location details. Please enter manually.');
+    }
+  };
+
+  const handleMapSelect = ({ coords, address }) => {
+    if (!coords) return;
+    setGeoCoords(coords);
+    if (address) {
+      const rawFlat = (address.flat || '').trim();
+      const safeFlat = rawFlat && !rawFlat.includes(',') && rawFlat.length <= 25 ? rawFlat : '';
+      setFlat(safeFlat);
+      setStreet((address.street || '').replace(/\s*\(.*?\)\s*/g, ' ').replace(/\s+/g, ' ').trim());
+      setCity(cleanPostalParentheses(address.city || ''));
+      setState(address.state || '');
+      setLandmark(address.landmark || '');
+      setPincode((address.pincode || '').replace(/\D/g, '').slice(0, 6));
     }
   };
 
@@ -125,8 +156,8 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
       type,
       addressType: type,
       flat: cleanFlat,
-      house: cleanFlat || cleanStreet || 'Home',
-      addressLine1: cleanFlat || cleanStreet || '',
+      house: cleanFlat,
+      addressLine1: cleanFlat ? `${cleanFlat}, ${cleanStreet}` : cleanStreet,
       street: cleanStreet,
       city: cleanCity,
       state: cleanState,
@@ -144,8 +175,13 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+      <div
+        ref={overlayRef}
+        data-lenis-prevent
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overscroll-contain"
+      >
         <motion.div
+          data-lenis-prevent
           initial={{ opacity: 0, scale: 0.92, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.92, y: 15 }}
@@ -170,33 +206,78 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 text-xs sm:text-sm text-slate-700 overflow-y-auto">
-            {/* Auto-detect Location Button */}
-            <button
-              type="button"
-              onClick={handleUseLocation}
-              disabled={locState === 'loading'}
-              className={`w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-2xl border-2 font-bold text-xs transition-all cursor-pointer ${
-                locState === 'success'
-                  ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
-                  : locState === 'error'
-                  ? 'border-red-300 bg-red-50 text-red-600'
-                  : locState === 'loading'
-                  ? 'border-blue-300 bg-blue-50 text-blue-600 cursor-wait'
-                  : 'border-dashed border-orange-400 bg-orange-50/50 text-orange-700 hover:bg-orange-100 hover:border-orange-500'
-              }`}
-            >
-              {locState === 'loading' && <Loader2 className="w-4 h-4 animate-spin text-blue-600" />}
-              {locState === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
-              {locState === 'error' && <AlertCircle className="w-4 h-4 text-red-500" />}
-              {locState === 'idle' && <LocateFixed className="w-4 h-4 text-orange-600" />}
-              <span>
-                {locState === 'loading' && 'Fetching your location...'}
-                {locState === 'success' && 'Location detected — fields auto-filled below'}
-                {locState === 'error' && 'Try Again'}
-                {locState === 'idle' && 'Use My Current Location'}
-              </span>
-            </button>
+          <form
+            ref={scrollContainerRef}
+            data-lenis-prevent
+            onSubmit={handleSubmit}
+            className="flex-1 min-h-0 p-5 sm:p-6 space-y-4 text-xs sm:text-sm text-slate-700 overflow-y-auto overscroll-contain"
+          >
+            {/* Location Detection & Map Buttons */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={handleUseLocation}
+                disabled={locState === 'loading'}
+                className={`flex items-center justify-center gap-2 py-3 px-3.5 rounded-2xl border-2 font-bold text-xs transition-all cursor-pointer ${
+                  locState === 'success'
+                    ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                    : locState === 'error'
+                    ? 'border-red-300 bg-red-50 text-red-600'
+                    : locState === 'loading'
+                    ? 'border-blue-300 bg-blue-50 text-blue-600 cursor-wait'
+                    : 'border-dashed border-orange-400 bg-orange-50/50 text-orange-700 hover:bg-orange-100 hover:border-orange-500'
+                }`}
+              >
+                {locState === 'loading' && <Loader2 className="w-4 h-4 animate-spin text-blue-600" />}
+                {locState === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                {locState === 'error' && <AlertCircle className="w-4 h-4 text-red-500" />}
+                {locState === 'idle' && <LocateFixed className="w-4 h-4 text-orange-600" />}
+                <span>
+                  {locState === 'loading' && 'Acquiring GPS...'}
+                  {locState === 'success' && 'GPS Detected ✓'}
+                  {locState === 'error' && 'Retry GPS'}
+                  {locState === 'idle' && 'Use My Current Location'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowMap((prev) => !prev)}
+                className={`flex items-center justify-center gap-2 py-3 px-3.5 rounded-2xl border-2 font-bold text-xs transition-all cursor-pointer ${
+                  showMap
+                    ? 'border-orange-500 bg-orange-50 text-orange-900 shadow-sm'
+                    : 'border-dashed border-orange-300 bg-orange-50/50 text-orange-800 hover:bg-orange-100'
+                }`}
+              >
+                <Map className="w-4 h-4 text-orange-600" />
+                <span>{showMap ? 'Hide Map View' : 'Pinpoint / Adjust on Map'}</span>
+              </button>
+            </div>
+
+            {/* Interactive Map Picker */}
+            {showMap && (
+              <div className="space-y-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                    Drag pin to your exact building or house entrance
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowMap(false)}
+                    className="text-[11px] text-slate-500 hover:text-slate-800 font-bold"
+                  >
+                    ✕ Close Map
+                  </button>
+                </div>
+                <InteractiveMapPicker
+                  initialCoords={geoCoords}
+                  onLocationSelect={handleMapSelect}
+                  height="260px"
+                  showSearch={true}
+                />
+              </div>
+            )}
 
             {locState === 'error' && locError && (
               <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-xs text-red-700">
@@ -242,31 +323,31 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
               </div>
             </div>
 
-            {/* House / Flat / Building No. */}
+            {/* House / Flat / Mohalla */}
             <div>
               <label className="block font-bold text-xs text-slate-600 mb-1.5">
-                House / Flat / Building No. <span className="text-gray-400 font-normal text-xs">(Optional)</span>
+                House / Flat / Mohalla <span className="text-gray-400 font-normal text-xs">(Optional)</span>
               </label>
               <input
                 type="text"
                 value={flat}
                 onChange={(e) => setFlat(e.target.value)}
-                placeholder="e.g. Flat 402, Green Valley Apartments"
+                placeholder="e.g. Nazirpara, House #4B, Flat 201"
                 className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
               />
             </div>
 
-            {/* Street / Area / Locality */}
+            {/* Street / Locality / Bazar */}
             <div>
               <label className="block font-bold text-xs text-slate-600 mb-1.5">
-                Street / Area / Locality <span className="text-red-500">*</span>
+                Street / Locality / Bazar <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 required
                 value={street}
                 onChange={(e) => setStreet(e.target.value)}
-                placeholder="e.g. 10th Main Road, Indiranagar"
+                placeholder="e.g. Sripur Bazar, MG Road, Sector 4"
                 className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
               />
             </div>
@@ -282,7 +363,7 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
                   required
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  placeholder="e.g. Kolkata"
+                  placeholder="e.g. Asansol / Jamuria"
                   className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
                 />
               </div>
@@ -317,7 +398,7 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
                   type="text"
                   value={landmark}
                   onChange={(e) => setLandmark(e.target.value)}
-                  placeholder="e.g. Near Metro Station"
+                  placeholder="e.g. Near Gurudwara, Opp Bank"
                   className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
                 />
               </div>

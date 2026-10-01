@@ -9,9 +9,11 @@ export default function ScrollToTop() {
   const { pathname } = useLocation();
 
   useEffect(() => {
-    // Ensure browser opens pages at the top on reload as well
     if ('scrollRestoration' in window.history) {
       window.history.scrollRestoration = 'manual';
+    }
+    if (window.__lenis) {
+      window.__lenis.scrollTo(0, { immediate: true });
     }
     window.scrollTo({
       top: 0,

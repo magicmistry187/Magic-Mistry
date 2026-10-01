@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, CheckCircle2, User, Phone,
   Mail, MapPin, Briefcase, Wrench, FileText, Shield,
   Upload, ChevronDown, Sparkles, AlertCircle, ExternalLink,
-  Loader2
+  Loader2, Check, X, Search
 } from 'lucide-react';
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
@@ -13,19 +13,25 @@ import { submitVendorApplication } from '../../services/api';
 
 /* ─── Animation Variants ─────────────────────────────────────────── */
 const fadeUp = {
-  hidden:  { opacity: 0, y: 24 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } },
+  hidden:  { opacity: 0, y: 16 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } },
 };
 
-const stagger = {
-  hidden:  { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.08, delayChildren: 0.05 } },
-};
-
-const slideIn = {
-  hidden:  { opacity: 0, x: 30 },
-  visible: { opacity: 1, x: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } },
-  exit:    { opacity: 0, x: -30, transition: { duration: 0.3 } },
+const stepVariants = {
+  enter: (dir) => ({
+    opacity: 0,
+    x: dir > 0 ? 30 : -30,
+  }),
+  center: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 0.32, ease: [0.22, 1, 0.36, 1] },
+  },
+  exit: (dir) => ({
+    opacity: 0,
+    x: dir > 0 ? -30 : 30,
+    transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] },
+  }),
 };
 
 /* ─── Service Categories ─────────────────────────────────────────── */
@@ -43,7 +49,7 @@ const experienceOptions = [
 
 /* ─── Reusable Input Field ───────────────────────────────────────── */
 const InputField = ({ label, id, type = 'text', placeholder, value, onChange, icon: Icon, error, required }) => (
-  <motion.div variants={fadeUp} className="flex flex-col gap-1.5">
+  <div className="flex flex-col gap-1.5">
     <label htmlFor={id} className="text-sm font-semibold text-[#0B1E40]">
       {label}{required && <span className="text-orange-500 ml-0.5">*</span>}
     </label>
@@ -69,43 +75,356 @@ const InputField = ({ label, id, type = 'text', placeholder, value, onChange, ic
         <AlertCircle className="w-3.5 h-3.5" />{error}
       </p>
     )}
-  </motion.div>
+  </div>
 );
 
-const SelectField = ({ label, id, value, onChange, options, placeholder, error, required }) => (
-  <motion.div variants={fadeUp} className="flex flex-col gap-1.5">
-    <label htmlFor={id} className="text-sm font-semibold text-[#0B1E40]">
-      {label}{required && <span className="text-orange-500 ml-0.5">*</span>}
-    </label>
-    <div className="relative">
-      <select
-        id={id}
-        value={value}
-        onChange={onChange}
-        className={`w-full pl-4 pr-10 py-3 text-sm bg-slate-50 border ${
-          error ? 'border-red-400 focus:ring-red-300' : 'border-slate-200 focus:ring-orange-300'
-        } rounded-xl focus:outline-none focus:ring-2 focus:bg-white text-slate-800 appearance-none transition-all`}
-      >
-        <option value="" disabled>{placeholder || 'Select an option'}</option>
-        {options.map(opt => (
-          <option key={opt} value={opt}>{opt}</option>
-        ))}
-      </select>
-      <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+const SelectField = ({ label, id, value, onChange, options, placeholder, error, required }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  return (
+    <div className="flex flex-col gap-1.5 relative" ref={dropdownRef}>
+      <label htmlFor={id} className="text-sm font-semibold text-[#0B1E40]">
+        {label}{required && <span className="text-orange-500 ml-0.5">*</span>}
+      </label>
+      <div className="relative">
+        <button
+          type="button"
+          id={id}
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
+          onClick={() => setIsOpen((prev) => !prev)}
+          className={`w-full flex items-center justify-between pl-4 pr-3.5 py-3 text-sm bg-slate-50 border ${
+            error
+              ? 'border-red-400 focus:ring-red-300'
+              : isOpen
+              ? 'border-orange-500 ring-2 ring-orange-200 bg-white'
+              : 'border-slate-200 hover:border-slate-300'
+          } rounded-xl text-left transition-all cursor-pointer`}
+        >
+          <span className={value ? 'text-slate-800 font-medium' : 'text-slate-400'}>
+            {value || placeholder || 'Select an option'}
+          </span>
+          <motion.div animate={{ rotate: isOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+            <ChevronDown className={`w-4 h-4 transition-colors ${isOpen ? 'text-orange-500' : 'text-slate-400'}`} />
+          </motion.div>
+        </button>
+
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              data-lenis-prevent
+              data-lenis-prevent-wheel
+              data-lenis-prevent-touch
+              initial={{ opacity: 0, y: -6, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.98 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+              onWheel={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 max-h-60 overflow-y-auto overscroll-contain"
+              style={{
+                scrollbarWidth: 'thin',
+                scrollbarColor: '#cbd5e1 #f8fafc',
+                WebkitOverflowScrolling: 'touch',
+              }}
+            >
+              {options.map((opt) => {
+                const isSelected = value === opt;
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => {
+                      onChange({ target: { value: opt } });
+                      setIsOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-4 py-2.5 text-sm text-left transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-orange-50 text-orange-600 font-bold'
+                        : 'text-slate-700 hover:bg-slate-50 hover:text-orange-500'
+                    }`}
+                  >
+                    <span>{opt}</span>
+                    {isSelected && <CheckCircle2 className="w-4 h-4 text-orange-500 shrink-0" />}
+                  </button>
+                );
+              })}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+      {error && (
+        <p className="text-xs text-red-500 flex items-center gap-1 mt-0.5">
+          <AlertCircle className="w-3.5 h-3.5" />{error}
+        </p>
+      )}
     </div>
-    {error && (
-      <p className="text-xs text-red-500 flex items-center gap-1 mt-0.5">
-        <AlertCircle className="w-3.5 h-3.5" />{error}
-      </p>
-    )}
-  </motion.div>
-);
+  );
+};
+
+/* ─── Reusable Multi-Select Field ─────────────────────────────────── */
+const MultiSelectField = ({
+  label,
+  id,
+  selectedValues = [],
+  onChange,
+  options = [],
+  placeholder = 'Select services',
+  error,
+  required,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const filteredOptions = options.filter((opt) =>
+    opt.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const toggleOption = (opt) => {
+    if (selectedValues.includes(opt)) {
+      onChange(selectedValues.filter((v) => v !== opt));
+    } else {
+      onChange([...selectedValues, opt]);
+    }
+  };
+
+  const removeOption = (opt) => {
+    onChange(selectedValues.filter((v) => v !== opt));
+  };
+
+  const selectAll = () => {
+    onChange([...options]);
+  };
+
+  const clearAll = () => {
+    onChange([]);
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5 relative" ref={dropdownRef}>
+      <div className="flex items-center justify-between">
+        <label htmlFor={id} className="text-sm font-semibold text-[#0B1E40]">
+          {label}{required && <span className="text-orange-500 ml-0.5">*</span>}
+        </label>
+        {selectedValues.length > 0 && (
+          <span className="text-xs font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">
+            {selectedValues.length} selected
+          </span>
+        )}
+      </div>
+
+      <div className="relative">
+        <button
+          type="button"
+          id={id}
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
+          onClick={() => setIsOpen((prev) => !prev)}
+          className={`w-full flex items-center justify-between pl-4 pr-3.5 py-3 text-sm bg-slate-50 border ${
+            error
+              ? 'border-red-400 focus:ring-red-300'
+              : isOpen
+              ? 'border-orange-500 ring-2 ring-orange-200 bg-white'
+              : 'border-slate-200 hover:border-slate-300'
+          } rounded-xl text-left transition-all cursor-pointer`}
+        >
+          <span className={selectedValues.length > 0 ? 'text-slate-800 font-medium truncate pr-2' : 'text-slate-400'}>
+            {selectedValues.length === 0
+              ? placeholder
+              : selectedValues.length === 1
+              ? selectedValues[0]
+              : `${selectedValues.length} services selected (${selectedValues.slice(0, 2).join(', ')}${selectedValues.length > 2 ? '...' : ''})`}
+          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {selectedValues.length > 0 && (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  clearAll();
+                }}
+                className="p-1 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                title="Clear all"
+              >
+                <X className="w-3.5 h-3.5" />
+              </span>
+            )}
+            <motion.div animate={{ rotate: isOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+              <ChevronDown className={`w-4 h-4 transition-colors ${isOpen ? 'text-orange-500' : 'text-slate-400'}`} />
+            </motion.div>
+          </div>
+        </button>
+
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              data-lenis-prevent
+              data-lenis-prevent-wheel
+              data-lenis-prevent-touch
+              initial={{ opacity: 0, y: -6, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.98 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+              onWheel={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-xl shadow-2xl border border-slate-200 p-2.5 overflow-hidden"
+            >
+              {/* Search input inside dropdown */}
+              <div className="relative mb-2">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search services..."
+                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-400 text-slate-800 placeholder-slate-400"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+
+              {/* Quick actions (Select All / Clear) */}
+              <div className="flex items-center justify-between px-1 py-1 mb-1 border-b border-slate-100 text-[11px] text-slate-500">
+                <span>{filteredOptions.length} available</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={selectAll}
+                    className="text-orange-600 hover:text-orange-700 font-semibold cursor-pointer"
+                  >
+                    Select All
+                  </button>
+                  <span>•</span>
+                  <button
+                    type="button"
+                    onClick={clearAll}
+                    className="text-slate-500 hover:text-slate-700 font-semibold cursor-pointer"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              </div>
+
+              {/* Options List */}
+              <div
+                className="max-h-56 overflow-y-auto overscroll-contain space-y-0.5 pr-0.5"
+                style={{
+                  scrollbarWidth: 'thin',
+                  scrollbarColor: '#cbd5e1 #f8fafc',
+                  WebkitOverflowScrolling: 'touch',
+                }}
+              >
+                {filteredOptions.length === 0 ? (
+                  <p className="text-xs text-slate-400 py-3 text-center">No services found.</p>
+                ) : (
+                  filteredOptions.map((opt) => {
+                    const isSelected = selectedValues.includes(opt);
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => toggleOption(opt)}
+                        className={`w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg text-left transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'bg-orange-50 text-orange-700 font-bold'
+                            : 'text-slate-700 hover:bg-slate-50 hover:text-orange-600'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div
+                            className={`w-4 h-4 rounded flex items-center justify-center border transition-all ${
+                              isSelected
+                                ? 'bg-orange-500 border-orange-500 text-white'
+                                : 'border-slate-300 bg-white'
+                            }`}
+                          >
+                            {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                          </div>
+                          <span>{opt}</span>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Done button */}
+              <div className="pt-2 mt-1.5 border-t border-slate-100 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="px-3 py-1 bg-[#0B1E40] hover:bg-[#142a54] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Selected tags badges underneath input */}
+      {selectedValues.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {selectedValues.map((val) => (
+            <motion.span
+              key={val}
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.85 }}
+              className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 bg-orange-50 border border-orange-200 text-orange-700 text-xs font-semibold rounded-lg shadow-2xs"
+            >
+              <span>{val}</span>
+              <button
+                type="button"
+                onClick={() => removeOption(val)}
+                className="p-0.5 hover:bg-orange-200/80 rounded-md transition-colors cursor-pointer text-orange-600 hover:text-orange-900"
+                aria-label={`Remove ${val}`}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </motion.span>
+          ))}
+        </div>
+      )}
+
+      {error && (
+        <p className="text-xs text-red-500 flex items-center gap-1 mt-0.5">
+          <AlertCircle className="w-3.5 h-3.5" />{error}
+        </p>
+      )}
+    </div>
+  );
+};
 
 /* ─── Reusable File Input Field ──────────────────────────────────────── */
 const FileInputField = ({ label, id, onChange, error, required, accept, file, helperText }) => {
-  const [pdfUrl, setPdfUrl] = React.useState(null);
+  const [pdfUrl, setPdfUrl] = useState(null);
+  const inputRef = useRef(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!file) {
       setPdfUrl(null);
       return;
@@ -116,83 +435,121 @@ const FileInputField = ({ label, id, onChange, error, required, accept, file, he
   }, [file]);
 
   return (
-    <motion.div variants={fadeUp} className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5">
       <label htmlFor={id} className="text-sm font-semibold text-[#0B1E40]">
         {label}{required && <span className="text-orange-500 ml-0.5">*</span>}
       </label>
-      <div className="relative">
+      <div
+        onClick={() => inputRef.current?.click()}
+        className={`w-full p-3.5 text-sm bg-slate-50 border-2 border-dashed ${
+          error
+            ? 'border-red-400 bg-red-50/20'
+            : file
+            ? 'border-green-400 bg-green-50/20'
+            : 'border-slate-200 hover:border-orange-400 hover:bg-orange-50/10'
+        } rounded-xl transition-all cursor-pointer flex flex-col sm:flex-row items-center justify-between gap-3`}
+      >
         <input
+          ref={inputRef}
           id={id}
           type="file"
           accept={accept}
           onChange={onChange}
-          className={`w-full px-4 py-2.5 text-sm bg-slate-50 border ${
-            error ? 'border-red-400 focus:ring-red-300' : 'border-slate-200 focus:ring-orange-300'
-          } rounded-xl focus:outline-none focus:ring-2 focus:bg-white text-slate-800 transition-all cursor-pointer`}
+          className="hidden"
         />
+        <div className="flex items-center gap-3 min-w-0">
+          <div
+            className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+              file ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-500'
+            }`}
+          >
+            {file ? <CheckCircle2 className="w-4 h-4" /> : <Upload className="w-4 h-4" />}
+          </div>
+          <div className="text-left min-w-0">
+            <p className="text-sm font-semibold text-[#0B1E40] truncate max-w-[200px] sm:max-w-xs">
+              {file ? file.name : `Upload ${label}`}
+            </p>
+            <p className="text-xs text-slate-400">
+              {file ? `${(file.size / 1024).toFixed(1)} KB` : helperText || 'Image (JPG, PNG) or PDF'}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            inputRef.current?.click();
+          }}
+          className="text-xs font-bold text-orange-600 bg-orange-100/70 hover:bg-orange-200 px-3.5 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0"
+        >
+          {file ? 'Change File' : 'Browse File'}
+        </button>
       </div>
+
       {file && pdfUrl && (
-        <div className="mt-2 flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 shadow-sm">
-          <div className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-orange-500 shrink-0" />
-            <span className="text-xs font-semibold truncate max-w-[200px]">{file.name}</span>
+        <div className="flex items-center justify-between px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 shadow-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <FileText className="w-4 h-4 text-orange-500 shrink-0" />
+            <span className="text-xs font-medium text-slate-600 truncate max-w-[220px]">{file.name}</span>
           </div>
           <button
             type="button"
             onClick={() => window.open(pdfUrl, '_blank', 'noopener,noreferrer')}
-            className="text-[11px] font-extrabold text-[#FF6B00] hover:underline flex items-center gap-1 cursor-pointer shrink-0 ml-4"
+            className="text-[11px] font-bold text-orange-600 hover:underline flex items-center gap-1 cursor-pointer shrink-0 ml-4"
           >
             Preview <ExternalLink className="w-3 h-3" />
           </button>
         </div>
       )}
-      {helperText && !error && (
-        <p className="text-xs text-slate-500 font-medium italic mt-0.5">
-          * {helperText}
-        </p>
-      )}
+
       {error && (
         <p className="text-xs text-red-500 flex items-center gap-1 mt-0.5">
           <AlertCircle className="w-3.5 h-3.5" />{error}
         </p>
       )}
-    </motion.div>
+    </div>
   );
 };
-
 
 /* ─── Step Indicator ─────────────────────────────────────────────── */
 const steps = ['Personal Info', 'Work Details', 'Review & Submit'];
 
 const StepIndicator = ({ current }) => (
-  <div className="flex items-center justify-center gap-0 mb-10">
+  <div className="flex items-start justify-center max-w-md mx-auto mb-10">
     {steps.map((label, i) => {
-      const done    = i < current;
-      const active  = i === current;
+      const done   = i < current;
+      const active = i === current;
       return (
         <React.Fragment key={i}>
-          <div className="flex flex-col items-center gap-1.5">
+          <div className="flex flex-col items-center">
             <motion.div
               animate={{
                 backgroundColor: done ? '#16a34a' : active ? '#FF7200' : '#e2e8f0',
-                scale: active ? 1.12 : 1,
+                scale: active ? 1.08 : 1,
               }}
-              transition={{ duration: 0.35 }}
-              className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shadow-md"
+              transition={{ duration: 0.3 }}
+              className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shadow-sm"
               style={{ color: done || active ? '#fff' : '#94a3b8' }}
             >
-              {done ? <CheckCircle2 className="w-5 h-5" /> : i + 1}
+              {done ? <CheckCircle2 className="w-5 h-5 text-white" /> : i + 1}
             </motion.div>
-            <span className={`text-[11px] font-semibold whitespace-nowrap ${active ? 'text-orange-500' : done ? 'text-green-600' : 'text-slate-400'}`}>
+            <span
+              className={`text-[11px] font-semibold whitespace-nowrap mt-2 ${
+                active ? 'text-orange-500 font-bold' : done ? 'text-green-600' : 'text-slate-400'
+              }`}
+            >
               {label}
             </span>
           </div>
           {i < steps.length - 1 && (
-            <motion.div
-              className="h-0.5 w-12 sm:w-20 mx-1 mb-5 rounded-full"
-              animate={{ backgroundColor: i < current ? '#16a34a' : '#e2e8f0' }}
-              transition={{ duration: 0.4 }}
-            />
+            <div className="flex-1 max-w-[70px] sm:max-w-[90px] h-9 flex items-center px-1">
+              <motion.div
+                className="h-0.5 w-full rounded-full"
+                animate={{ backgroundColor: i < current ? '#16a34a' : '#e2e8f0' }}
+                transition={{ duration: 0.35 }}
+              />
+            </div>
           )}
         </React.Fragment>
       );
@@ -204,6 +561,7 @@ const StepIndicator = ({ current }) => (
 export default function VendorApplyPage() {
   const navigate = useNavigate();
   const [step, setStep]       = useState(0);
+  const [direction, setDirection] = useState(1);
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [agreed, setAgreed]   = useState(false);
@@ -216,7 +574,7 @@ export default function VendorApplyPage() {
     city:         '',
     pincode:      '',
     specialOption:'',
-    serviceType:  '',
+    serviceType:  [],
     experience:   '',
     about:        '',
     photo:        null,
@@ -238,7 +596,7 @@ export default function VendorApplyPage() {
       if (!form.specialOption)    e.specialOption = 'Please select a special option.';
     }
     if (s === 1) {
-      if (!form.serviceType) e.serviceType = 'Please select a service type.';
+      if (!form.serviceType || form.serviceType.length === 0) e.serviceType = 'Please select at least one service type.';
       if (!form.experience)  e.experience  = 'Please select your experience level.';
       if (!form.about.trim() || form.about.trim().split(/\s+/).length < 5) e.about = 'Please write at least a few words about yourself.';
       const isPdfOrImage = (file) =>
@@ -262,12 +620,14 @@ export default function VendorApplyPage() {
 
   const next = () => {
     if (!validateStep(step)) return;
+    setDirection(1);
     setStep(s => s + 1);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const back = () => {
     if (isSubmitting) return;
+    setDirection(-1);
     setStep(s => s - 1);
     setErrors({});
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -300,7 +660,10 @@ export default function VendorApplyPage() {
     formData.append('phoneNumber', form.phone);
     formData.append('city', form.city);
     formData.append('specialOption', form.specialOption);
-    formData.append('serviceType', form.serviceType);
+    const serviceTypeString = Array.isArray(form.serviceType)
+      ? form.serviceType.join(', ')
+      : (form.serviceType || '');
+    formData.append('serviceType', serviceTypeString);
     formData.append('experience', parseExperience(form.experience));
     formData.append('experienceDescription', form.about);
     
@@ -427,57 +790,59 @@ export default function VendorApplyPage() {
             <StepIndicator current={step} />
 
             <form onSubmit={handleSubmit} noValidate>
-              <AnimatePresence mode="wait">
+              <AnimatePresence mode="wait" custom={direction}>
 
                 {/* ── STEP 0: Personal Info ── */}
                 {step === 0 && (
                   <motion.div
                     key="step0"
-                    variants={slideIn}
-                    initial="hidden"
-                    animate="visible"
+                    custom={direction}
+                    variants={stepVariants}
+                    initial="enter"
+                    animate="center"
                     exit="exit"
+                    className="space-y-5"
                   >
-                    <motion.div variants={stagger} initial="hidden" animate="visible" className="space-y-5">
-                      <motion.h3 variants={fadeUp} className="text-xl font-extrabold text-[#0B1E40] mb-1 flex items-center gap-2">
+                    <div>
+                      <h3 className="text-xl font-extrabold text-[#0B1E40] mb-1 flex items-center gap-2">
                         <User className="w-5 h-5 text-orange-500" />
                         Personal Information
-                      </motion.h3>
-                      <motion.p variants={fadeUp} className="text-slate-500 text-sm mb-6">
+                      </h3>
+                      <p className="text-slate-500 text-sm mb-6">
                         Tell us who you are so we can get in touch with you.
-                      </motion.p>
+                      </p>
+                    </div>
 
-                      <div className="grid sm:grid-cols-2 gap-5">
-                        <InputField
-                          label="Full Name" id="fullName" placeholder="Eg. John Doe"
-                          value={form.fullName} onChange={set('fullName')}
-                          icon={User} error={errors.fullName} required
-                        />
-                        <InputField
-                          label="Email Address" id="email" type="email" placeholder="email@example.com"
-                          value={form.email} onChange={set('email')}
-                          icon={Mail} error={errors.email} required
-                        />
-                        <InputField
-                          label="Phone No. (10 digit)" id="phone" type="tel" placeholder="+91 00000 00000"
-                          value={form.phone} onChange={set('phone')}
-                          icon={Phone} error={errors.phone} required
-                        />
-                        <SelectField
-                          label="Special Option" id="special" value={form.specialOption} onChange={set('specialOption')}
-                          options={['Self-employed', 'Small Business', 'Freelancer']}
-                          placeholder="Select Option"
-                          error={errors.specialOption}
-                          required
-                        />
-                      </div>
-
+                    <div className="grid sm:grid-cols-2 gap-5">
                       <InputField
-                        label="Your City / Area" id="city" placeholder="Enter your city or area name"
-                        value={form.city} onChange={set('city')}
-                        icon={MapPin} error={errors.city} required
+                        label="Full Name" id="fullName" placeholder="Eg. John Doe"
+                        value={form.fullName} onChange={set('fullName')}
+                        icon={User} error={errors.fullName} required
                       />
-                    </motion.div>
+                      <InputField
+                        label="Email Address" id="email" type="email" placeholder="email@example.com"
+                        value={form.email} onChange={set('email')}
+                        icon={Mail} error={errors.email} required
+                      />
+                      <InputField
+                        label="Phone No. (10 digit)" id="phone" type="tel" placeholder="+91 00000 00000"
+                        value={form.phone} onChange={set('phone')}
+                        icon={Phone} error={errors.phone} required
+                      />
+                      <SelectField
+                        label="Special Option" id="special" value={form.specialOption} onChange={set('specialOption')}
+                        options={['Self-employed', 'Small Business', 'Freelancer']}
+                        placeholder="Select Option"
+                        error={errors.specialOption}
+                        required
+                      />
+                    </div>
+
+                    <InputField
+                      label="Your City / Area" id="city" placeholder="Enter your city or area name"
+                      value={form.city} onChange={set('city')}
+                      icon={MapPin} error={errors.city} required
+                    />
                   </motion.div>
                 )}
 
@@ -485,75 +850,85 @@ export default function VendorApplyPage() {
                 {step === 1 && (
                   <motion.div
                     key="step1"
-                    variants={slideIn}
-                    initial="hidden"
-                    animate="visible"
+                    custom={direction}
+                    variants={stepVariants}
+                    initial="enter"
+                    animate="center"
                     exit="exit"
+                    className="space-y-5"
                   >
-                    <motion.div variants={stagger} initial="hidden" animate="visible" className="space-y-5">
-                      <motion.h3 variants={fadeUp} className="text-xl font-extrabold text-[#0B1E40] mb-1 flex items-center gap-2">
+                    <div>
+                      <h3 className="text-xl font-extrabold text-[#0B1E40] mb-1 flex items-center gap-2">
                         <Wrench className="w-5 h-5 text-orange-500" />
                         Work Details
-                      </motion.h3>
-                      <motion.p variants={fadeUp} className="text-slate-500 text-sm mb-6">
+                      </h3>
+                      <p className="text-slate-500 text-sm mb-6">
                         Help us understand your skills and experience.
-                      </motion.p>
+                      </p>
+                    </div>
 
-                      <SelectField
-                        label="Service Type" id="serviceType"
-                        value={form.serviceType} onChange={set('serviceType')}
-                        options={serviceOptions}
-                        placeholder="Select Your Service"
-                        error={errors.serviceType} required
+                    <MultiSelectField
+                      label="Service Types (Select Multiple)"
+                      id="serviceType"
+                      selectedValues={form.serviceType}
+                      onChange={(newSelected) => {
+                        setForm((prev) => ({ ...prev, serviceType: newSelected }));
+                        if (errors.serviceType) {
+                          setErrors((prev) => ({ ...prev, serviceType: undefined }));
+                        }
+                      }}
+                      options={serviceOptions}
+                      placeholder="Select one or more services you provide"
+                      error={errors.serviceType}
+                      required
+                    />
+
+                    <SelectField
+                      label="Years of Experience" id="experience"
+                      value={form.experience} onChange={set('experience')}
+                      options={experienceOptions}
+                      placeholder="Select Experience"
+                      error={errors.experience} required
+                    />
+
+                    <div className="flex flex-col gap-4 mt-2">
+                      <FileInputField
+                        label="Photo Upload" id="photo" accept=".jpg,.jpeg,.png,.webp,.pdf,image/*,application/pdf"
+                        onChange={setFile('photo')} error={errors.photo} required file={form.photo}
+                        helperText="Upload image (JPG, PNG) or PDF"
                       />
-
-                      <SelectField
-                        label="Years of Experience" id="experience"
-                        value={form.experience} onChange={set('experience')}
-                        options={experienceOptions}
-                        placeholder="Select Experience"
-                        error={errors.experience} required
+                      <FileInputField
+                        label="Aadhar Upload" id="aadhar" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
+                        onChange={setFile('aadhar')} error={errors.aadhar} required file={form.aadhar}
+                        helperText="Upload PDF or image of Aadhar card"
                       />
+                      <FileInputField
+                        label="Resume Upload" id="resume" accept=".pdf,.doc,.docx,application/pdf"
+                        onChange={setFile('resume')} error={errors.resume} required file={form.resume}
+                        helperText="Upload resume (PDF or DOC)"
+                      />
+                    </div>
 
-                      <div className="flex flex-col gap-4 mt-2">
-                        <FileInputField
-                          label="Photo Upload" id="photo" accept=".jpg,.jpeg,.png,.webp,.pdf,image/*,application/pdf"
-                          onChange={setFile('photo')} error={errors.photo} required file={form.photo}
-                          helperText="Upload image (JPG, PNG) or PDF"
-                        />
-                        <FileInputField
-                          label="Aadhar Upload" id="aadhar" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
-                          onChange={setFile('aadhar')} error={errors.aadhar} required file={form.aadhar}
-                          helperText="Upload PDF or image of Aadhar card"
-                        />
-                        <FileInputField
-                          label="Resume Upload" id="resume" accept=".pdf,.doc,.docx,application/pdf"
-                          onChange={setFile('resume')} error={errors.resume} required file={form.resume}
-                          helperText="Upload resume (PDF or DOC)"
-                        />
-                      </div>
-
-                      <motion.div variants={fadeUp} className="flex flex-col gap-1.5">
-                        <label htmlFor="about" className="text-sm font-semibold text-[#0B1E40]">
-                          Tell us about your experience<span className="text-orange-500 ml-0.5">*</span>
-                        </label>
-                        <textarea
-                          id="about"
-                          rows={4}
-                          placeholder="Briefly describe your business and areas of expertise..."
-                          value={form.about}
-                          onChange={set('about')}
-                          className={`w-full px-4 py-3 text-sm bg-slate-50 border ${
-                            errors.about ? 'border-red-400 focus:ring-red-300' : 'border-slate-200 focus:ring-orange-300'
-                          } rounded-xl focus:outline-none focus:ring-2 focus:bg-white text-slate-800 placeholder-slate-400 transition-all resize-none`}
-                        />
-                        {errors.about && (
-                          <p className="text-xs text-red-500 flex items-center gap-1">
-                            <AlertCircle className="w-3.5 h-3.5" />{errors.about}
-                          </p>
-                        )}
-                      </motion.div>
-                    </motion.div>
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor="about" className="text-sm font-semibold text-[#0B1E40]">
+                        Tell us about your experience<span className="text-orange-500 ml-0.5">*</span>
+                      </label>
+                      <textarea
+                        id="about"
+                        rows={4}
+                        placeholder="Briefly describe your business and areas of expertise..."
+                        value={form.about}
+                        onChange={set('about')}
+                        className={`w-full px-4 py-3 text-sm bg-slate-50 border ${
+                          errors.about ? 'border-red-400 focus:ring-red-300' : 'border-slate-200 focus:ring-orange-300'
+                        } rounded-xl focus:outline-none focus:ring-2 focus:bg-white text-slate-800 placeholder-slate-400 transition-all resize-none`}
+                      />
+                      {errors.about && (
+                        <p className="text-xs text-red-500 flex items-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5" />{errors.about}
+                        </p>
+                      )}
+                    </div>
                   </motion.div>
                 )}
 
@@ -561,95 +936,109 @@ export default function VendorApplyPage() {
                 {step === 2 && (
                   <motion.div
                     key="step2"
-                    variants={slideIn}
-                    initial="hidden"
-                    animate="visible"
+                    custom={direction}
+                    variants={stepVariants}
+                    initial="enter"
+                    animate="center"
                     exit="exit"
+                    className="space-y-6"
                   >
-                    <motion.div variants={stagger} initial="hidden" animate="visible" className="space-y-6">
-                      <motion.h3 variants={fadeUp} className="text-xl font-extrabold text-[#0B1E40] mb-1 flex items-center gap-2">
+                    <div>
+                      <h3 className="text-xl font-extrabold text-[#0B1E40] mb-1 flex items-center gap-2">
                         <FileText className="w-5 h-5 text-orange-500" />
                         Review Your Application
-                      </motion.h3>
-                      <motion.p variants={fadeUp} className="text-slate-500 text-sm mb-2">
+                      </h3>
+                      <p className="text-slate-500 text-sm mb-2">
                         Please verify all details before submitting.
-                      </motion.p>
+                      </p>
+                    </div>
 
-                      {/* Review Card */}
-                      <motion.div variants={fadeUp} className="bg-slate-50 rounded-2xl p-6 border border-slate-200 space-y-4">
-                        <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Personal Info</h4>
-                        <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                          {[
-                            { label: 'Full Name',  val: form.fullName },
-                            { label: 'Email',      val: form.email },
-                            { label: 'Phone',      val: form.phone },
-                            { label: 'City',       val: form.city },
-                          ].map(({ label, val }) => (
-                            <div key={label}>
-                              <span className="text-slate-400 font-medium">{label}: </span>
-                              <span className="text-[#0B1E40] font-semibold">{val || '—'}</span>
-                            </div>
-                          ))}
-                        </div>
-                        <hr className="border-slate-200" />
-                        <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Work Details</h4>
-                        <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                          {[
-                            { label: 'Service Type', val: form.serviceType },
-                            { label: 'Experience',   val: form.experience },
-                          ].map(({ label, val }) => (
-                            <div key={label}>
-                              <span className="text-slate-400 font-medium">{label}: </span>
-                              <span className="text-[#0B1E40] font-semibold">{val || '—'}</span>
-                            </div>
-                          ))}
-                        </div>
-                        {form.about && (
-                          <div className="text-sm">
-                            <span className="text-slate-400 font-medium">About: </span>
-                            <span className="text-[#0B1E40] font-semibold">{form.about}</span>
+                    {/* Review Card */}
+                    <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200 space-y-4">
+                      <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Personal Info</h4>
+                      <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                        {[
+                          { label: 'Full Name',  val: form.fullName },
+                          { label: 'Email',      val: form.email },
+                          { label: 'Phone',      val: form.phone },
+                          { label: 'City',       val: form.city },
+                        ].map(({ label, val }) => (
+                          <div key={label}>
+                            <span className="text-slate-400 font-medium">{label}: </span>
+                            <span className="text-[#0B1E40] font-semibold">{val || '—'}</span>
                           </div>
-                        )}
-                        <hr className="border-slate-200 mt-2" />
-                        <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Documents</h4>
-                        <div className="grid sm:grid-cols-3 gap-3 text-sm">
-                          {[
-                            { label: 'Photo', val: form.photo ? form.photo.name : '' },
-                            { label: 'Aadhar', val: form.aadhar ? form.aadhar.name : '' },
-                            { label: 'Resume', val: form.resume ? form.resume.name : '' },
-                          ].map(({ label, val }) => (
-                            <div key={label} className="truncate">
-                              <span className="text-slate-400 font-medium block mb-0.5">{label}: </span>
-                              <span className="text-[#0B1E40] font-semibold truncate block" title={val}>{val || '—'}</span>
+                        ))}
+                      </div>
+                      <hr className="border-slate-200" />
+                      <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Work Details</h4>
+                      <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-slate-400 font-medium block mb-1">Service Type(s): </span>
+                          {Array.isArray(form.serviceType) && form.serviceType.length > 0 ? (
+                            <div className="flex flex-wrap gap-1.5 mt-0.5">
+                              {form.serviceType.map((srv) => (
+                                <span
+                                  key={srv}
+                                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-100/80 text-orange-700 border border-orange-200/60"
+                                >
+                                  {srv}
+                                </span>
+                              ))}
                             </div>
-                          ))}
+                          ) : (
+                            <span className="text-[#0B1E40] font-semibold">{form.serviceType || '—'}</span>
+                          )}
                         </div>
-                      </motion.div>
-
-                      {/* Terms Agreement */}
-                      <motion.div variants={fadeUp} className="flex items-start gap-3 pt-2">
-                        <input
-                          type="checkbox"
-                          id="agreed"
-                          checked={agreed}
-                          onChange={e => { setAgreed(e.target.checked); setErrors(prev => ({ ...prev, agreed: undefined })); }}
-                          className="mt-1 w-4 h-4 rounded accent-orange-500 cursor-pointer"
-                        />
-                        <label htmlFor="agreed" className="text-sm text-slate-600 leading-relaxed cursor-pointer">
-                          I agree to the Magic Mistry{' '}
-                          <Link to="/terms" target="_blank" rel="noopener noreferrer" className="text-orange-500 font-bold hover:underline">Terms of Service</Link>
-                          {' '}and{' '}
-                          <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="text-orange-500 font-bold hover:underline">Privacy Policy</Link>,
-                          and consent to share provided information to process my vendor application.
-                        </label>
-                      </motion.div>
-                      {errors.agreed && (
-                        <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5 text-xs text-red-700 font-semibold">
-                          <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                          <span>{errors.agreed}</span>
+                        <div>
+                          <span className="text-slate-400 font-medium">Experience: </span>
+                          <span className="text-[#0B1E40] font-semibold">{form.experience || '—'}</span>
+                        </div>
+                      </div>
+                      {form.about && (
+                        <div className="text-sm">
+                          <span className="text-slate-400 font-medium">About: </span>
+                          <span className="text-[#0B1E40] font-semibold">{form.about}</span>
                         </div>
                       )}
-                    </motion.div>
+                      <hr className="border-slate-200 mt-2" />
+                      <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Documents</h4>
+                      <div className="grid sm:grid-cols-3 gap-3 text-sm">
+                        {[
+                          { label: 'Photo', val: form.photo ? form.photo.name : '' },
+                          { label: 'Aadhar', val: form.aadhar ? form.aadhar.name : '' },
+                          { label: 'Resume', val: form.resume ? form.resume.name : '' },
+                        ].map(({ label, val }) => (
+                          <div key={label} className="truncate">
+                            <span className="text-slate-400 font-medium block mb-0.5">{label}: </span>
+                            <span className="text-[#0B1E40] font-semibold truncate block" title={val}>{val || '—'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Terms Agreement */}
+                    <div className="flex items-start gap-3 pt-2">
+                      <input
+                        type="checkbox"
+                        id="agreed"
+                        checked={agreed}
+                        onChange={e => { setAgreed(e.target.checked); setErrors(prev => ({ ...prev, agreed: undefined })); }}
+                        className="mt-1 w-4 h-4 rounded accent-orange-500 cursor-pointer"
+                      />
+                      <label htmlFor="agreed" className="text-sm text-slate-600 leading-relaxed cursor-pointer">
+                        I agree to the Magic Mistry{' '}
+                        <Link to="/terms" target="_blank" rel="noopener noreferrer" className="text-orange-500 font-bold hover:underline">Terms of Service</Link>
+                        {' '}and{' '}
+                        <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="text-orange-500 font-bold hover:underline">Privacy Policy</Link>,
+                        and consent to share provided information to process my vendor application.
+                      </label>
+                    </div>
+                    {errors.agreed && (
+                      <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5 text-xs text-red-700 font-semibold">
+                        <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                        <span>{errors.agreed}</span>
+                      </div>
+                    )}
                   </motion.div>
                 )}
 
