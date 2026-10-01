@@ -65,7 +65,7 @@ exports.checkUserRestricted = async (req, res, next) => {
 
     next();
   } catch (err) {
-    console.log("Check Blocked User Error: ", err);
+    console.log("Check Restricted User Error: ", err);
 
     return res.status(500).json({
       success: false,
