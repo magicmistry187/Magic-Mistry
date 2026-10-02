@@ -2,7 +2,6 @@ const mongoose = require('mongoose');
 
 const invoiceSchema = new mongoose.Schema(
   {
-   
     booking: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Booking',
@@ -29,14 +28,12 @@ const invoiceSchema = new mongoose.Schema(
       unique: true,
     },
 
-    
     invoiceNumber: {
       type: String,
       required: true,
       unique: true,
       trim: true,
     },
-
 
     customerSnapshot: {
       name: {
@@ -55,7 +52,6 @@ const invoiceSchema = new mongoose.Schema(
       },
     },
 
-
     serviceSnapshot: {
       appliance: {
         type: String,
@@ -73,18 +69,11 @@ const invoiceSchema = new mongoose.Schema(
       },
     },
 
-   
-
     items: [
       {
         type: {
           type: String,
-          enum: [
-            'Service',
-            'Travel',
-            'Component',
-            'Warranty',
-          ],
+          enum: ['Service', 'Travel', 'Component', 'Warranty'],
           required: true,
         },
 
@@ -122,8 +111,6 @@ const invoiceSchema = new mongoose.Schema(
       },
     ],
 
-   
-
     subtotal: {
       type: Number,
       required: true,
@@ -148,22 +135,18 @@ const invoiceSchema = new mongoose.Schema(
       min: 0,
     },
 
-    
-
     paymentMethod: {
+      // type: String,
+      // enum: ['Cash', 'UPI'],
+      // required: true,
       type: String,
-      enum: ['Cash', 'UPI'],
       required: true,
+      trim: true,
     },
 
     paymentStatus: {
       type: String,
-      enum: [
-        'Pending',
-        'Paid',
-        'Failed',
-        'Refunded',
-      ],
+      enum: ['Pending', 'Paid', 'Failed', 'Refunded'],
       default: 'Pending',
     },
 
@@ -171,7 +154,6 @@ const invoiceSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
-
 
     customerNote: {
       type: String,
@@ -181,10 +163,7 @@ const invoiceSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
-module.exports = mongoose.model(
-  'Invoice',
-  invoiceSchema
-);
+module.exports = mongoose.model('Invoice', invoiceSchema);

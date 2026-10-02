@@ -38,7 +38,6 @@ const bookingSchema = new mongoose.Schema(
     image: {
       type: String,
     },
-    
 
     // Address snapshot at the time of booking
     address: {
@@ -83,9 +82,12 @@ const bookingSchema = new mongoose.Schema(
       default: 'Pending',
     },
     paymentMethod: {
+      // type: String,
+      // enum: ['Cash', 'UPI', 'Online Payment'],
+      // default: 'Cash',
       type: String,
-      enum: ['Cash', 'UPI', 'Online Payment'],
-      default: 'Cash',
+      required: true,
+      trim: true,
     },
     serviceCharge: {
       type: Number,

@@ -626,6 +626,7 @@ exports.updateBookingStatus = async (req, res) => {
 
 exports.routeVerification = async (req, res) => {
   try {
+    console.log("route verification req body", req.body)
     const { bookingId } = req.params;
     const vendorId = req.user.id;
     const { distanceKm, ratePerKm } = req.body;
