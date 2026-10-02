@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import {
@@ -35,6 +35,7 @@ import { saveVendorAddressApi, getAddressesApi, updateAddressApi, createAddressA
 import { updateVendorProfileApi, getVendorProfileApi, updateVendorProfileImageApi } from '../../services/operations/vendorAPI';
 import { useLivePricing, getLiveFuelRate, getLiveBasePriceForAppliance } from '../../services/pricingService';
 import { getAllInventoryApi } from '../../services/operations/inventoryAPI';
+import { getInvoiceForBooking, saveInvoiceForBooking, normalizeInvoiceForUI } from '../../services/invoiceService';
 
 
 // Predefined Indian Banks for Profile
@@ -220,9 +221,80 @@ export const buildGoogleMapsNavigationUrl = ({ customer, vendor, destinationAddr
   return `https://www.google.com/maps/dir/?api=1&travelmode=driving&dir_action=navigate`;
 };
 
+export const safeString = (val, fallback = '') => {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'string') return val.trim() || fallback;
+  if (typeof val === 'number') return String(val);
+  if (typeof val === 'object') {
+    if (val.formattedAddress && typeof val.formattedAddress === 'string') return val.formattedAddress.trim();
+    if (val.fullAddress && typeof val.fullAddress === 'string') return val.fullAddress.trim();
+    if (val.address && typeof val.address === 'string') return val.address.trim();
+    if (val.fullName && typeof val.fullName === 'string') return val.fullName.trim();
+    if (val.name && typeof val.name === 'string') return val.name.trim();
+    const parts = [val.house || val.flat, val.street, val.landmark, val.city, val.state, val.pincode].filter(Boolean);
+    if (parts.length > 0) return parts.join(', ');
+    return fallback;
+  }
+  return String(val) || fallback;
+};
+
+export const safeImageUrl = (val) => {
+  if (!val) return null;
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  if (typeof val === 'object') {
+    if (typeof val.url === 'string' && val.url.trim()) return val.url.trim();
+    if (typeof val.secure_url === 'string' && val.secure_url.trim()) return val.secure_url.trim();
+  }
+  return null;
+};
+
+export const normalizeChecklist = (raw) => {
+  const defaultList = [
+    { id: 1, title: 'Initial Inspection', desc: 'Inspect device and confirm reported issue with customer.', completed: false },
+    { id: 2, title: 'Diagnosis & Parts Verification', desc: 'Test electrical components and verify required replacement parts.', completed: false },
+    { id: 3, title: 'Perform Service/Repair', desc: 'Carry out required servicing or parts replacement safely.', completed: false },
+    { id: 4, title: 'Final Testing & Cleanup', desc: 'Run complete test cycle and clean work area.', completed: false },
+  ];
+
+  if (!raw) return defaultList;
+
+  let val = raw;
+  if (typeof val === 'string') {
+    try {
+      val = JSON.parse(val);
+    } catch (_) {
+      return defaultList;
+    }
+  }
+
+  if (Array.isArray(val) && val.length > 0) {
+    return defaultList.map((item, idx) => {
+      const match = val.find(c => c && (c.id === item.id || c.title === item.title)) || val[idx];
+      return {
+        ...item,
+        completed: Boolean(match?.completed ?? match?.done ?? false)
+      };
+    });
+  }
+
+  if (typeof val === 'object' && val !== null) {
+    return [
+      { id: 1, title: 'Initial Inspection', desc: 'Inspect device and confirm reported issue with customer.', completed: Boolean(val.inspection ?? val.initialInspection ?? false) },
+      { id: 2, title: 'Diagnosis & Parts Verification', desc: 'Test electrical components and verify required replacement parts.', completed: Boolean(val.diagnosis ?? val.partsVerification ?? false) },
+      { id: 3, title: 'Perform Service/Repair', desc: 'Carry out required servicing or parts replacement safely.', completed: Boolean(val.service ?? val.performService ?? false) },
+      { id: 4, title: 'Final Testing & Cleanup', desc: 'Run complete test cycle and clean work area.', completed: Boolean(val.testingCleanup ?? val.cleanup ?? false) },
+    ];
+  }
+
+  return defaultList;
+};
+
 // Reusable formatter for vendor bookings (both initial fetch and real-time socket events)
 export const formatVendorBooking = (b) => {
-  const displayAddr = formatBookingAddress(b.address);
+  const displayAddr = formatBookingAddress(b.address || b.serviceAddress || b.location);
   const customerCoords = extractCoordinates(b);
   const fallbackPay = getLiveBasePriceForAppliance(b.serviceCategory || b.appliance, 450);
   const pay = Number(b.serviceCategoryCharge) || Number(b.serviceCharge) || Number(b.estimatedPay) || fallbackPay;
@@ -232,18 +304,39 @@ export const formatVendorBooking = (b) => {
       : 'Nearby';
 
   const mongoId = b._id ? String(b._id) : (b.id && /^[0-9a-fA-F]{24}$/.test(b.id) ? String(b.id) : '');
+  const realInvoice = getInvoiceForBooking(mongoId || b.id || b.bookingId, b);
+  const normalizedInv = realInvoice ? normalizeInvoiceForUI(realInvoice, b) : null;
+  const realAmount = normalizedInv?.total ?? (Number(b.serviceCharge) > 0 ? Number(b.serviceCharge) : pay);
+
+  // Extract travel route information from backend
+  const routeData = b.route || b.execution?.route || b.serviceExecution?.route || {};
+  const extractedDistance = Number(b.travelDistanceKm || routeData.distanceKm) || 0;
+  const extractedRate = Number(b.travelRatePerKm || routeData.ratePerKm) || 0;
+  const extractedCharges = Number(b.travelCharges || routeData.travelCharge) || (extractedDistance > 0 && extractedRate > 0 ? extractedDistance * extractedRate : 0);
+  const extractedMapScreenshot = safeImageUrl(b.mapScreenshot || routeData.screenshot || b.execution?.route?.screenshot || b.serviceExecution?.route?.screenshot);
+  const extractedTravelVerified = Boolean(b.travelVerified || routeData.verified || (extractedDistance > 0 && extractedMapScreenshot));
+
+  const custName = typeof b.customer?.fullName === 'string'
+    ? b.customer.fullName
+    : (typeof b.customerName === 'string' ? b.customerName : 'Customer');
+
+  const custPhone = typeof b.customer?.phoneNumber === 'string'
+    ? b.customer.phoneNumber
+    : (typeof b.customerPhone === 'string' ? b.customerPhone : '—');
+
   return {
     _id: mongoId || undefined,
     id: b.bookingId || mongoId || String(b._id || b.id || ''),
     displayId: b.displayId || (mongoId ? `WO-${mongoId.slice(-6).toUpperCase()}` : (b.bookingId || 'WO-JOB')),
+    backendJobId: mongoId || b.bookingId || String(b._id || b.id || ''),
     appliance: b.appliance || 'General',
     applianceIcon: getApplianceIcon(b.appliance),
     serviceTitle: b.serviceCategory || b.appliance || 'Service Request',
     status: b.bookingStatus === 'Pending' ? 'New Request' : (b.bookingStatus || 'New Request'),
     timeSlot: b.timeSlot || '—',
     appointmentDate: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }) : '—',
-    customerName: b.customer?.fullName || 'Customer',
-    customerPhone: b.customer?.phoneNumber || '—',
+    customerName: custName,
+    customerPhone: custPhone,
     serviceAddress: displayAddr,
     location: displayAddr,
     customerLocation: customerCoords,
@@ -251,21 +344,24 @@ export const formatVendorBooking = (b) => {
     distance: formattedDist,
     issue: b.issue || b.description || 'Service required',
     estimatedPay: pay,
-    amount: b.serviceCharge || pay,
+    amount: realAmount,
     date: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN') + (b.timeSlot ? ' ' + b.timeSlot : '') : '—',
     rawDate: b.serviceDate ? new Date(b.serviceDate) : new Date(b.createdAt || Date.now()),
     review: b.review || '',
-    checklist: b.checklist || [
-      { id: 1, title: 'Initial Inspection', desc: 'Inspect device and confirm reported issue with customer.', completed: false },
-      { id: 2, title: 'Diagnosis & Parts Verification', desc: 'Test electrical components and verify required replacement parts.', completed: false },
-      { id: 3, title: 'Perform Service/Repair', desc: 'Carry out required servicing or parts replacement safely.', completed: false },
-      { id: 4, title: 'Final Testing & Cleanup', desc: 'Run complete test cycle and clean work area.', completed: false },
-    ],
-    photos: b.photos || [],
+    travelDistanceKm: extractedDistance,
+    travelRatePerKm: extractedRate,
+    travelCharges: extractedCharges,
+    mapScreenshot: extractedMapScreenshot,
+    travelVerified: extractedTravelVerified,
+    checklist: normalizeChecklist(b.checklist || b.execution?.checklist || b.serviceExecution?.checklist),
+    photos: Array.isArray(b.photos) ? b.photos : [],
     notes: b.notes || '',
-    parts: b.parts || [
+    parts: normalizedInv?.items && normalizedInv.items.length > 0 ? normalizedInv.items : (b.parts || [
       { id: 1, description: b.serviceCategory || b.appliance || 'Diagnostic & Service Charge', qty: 1, price: pay, locked: true },
-    ],
+    ]),
+    invoiceData: normalizedInv || undefined,
+    invoiceNumber: normalizedInv?.invoiceId,
+    rawBooking: b,
   };
 };
 
@@ -435,14 +531,26 @@ export default function VendorDashboardPage() {
   // Persist jobs and history locally so uploaded map screenshots and completed orders are saved
   useEffect(() => {
     try {
-      localStorage.setItem('mm_vendor_active_jobs', JSON.stringify(jobs));
-    } catch {}
+      const sanitized = (jobs || []).map(j => {
+        const { mapFile, beforePhotoFile, afterPhotoFile, ...rest } = j;
+        return rest;
+      });
+      localStorage.setItem('mm_vendor_active_jobs', JSON.stringify(sanitized));
+    } catch (e) {
+      console.warn('[VendorDashboard] LocalStorage persistence warning for jobs:', e);
+    }
   }, [jobs]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('mm_vendor_history', JSON.stringify(history));
-    } catch {}
+      const sanitized = (history || []).map(h => {
+        const { mapFile, beforePhotoFile, afterPhotoFile, ...rest } = h;
+        return rest;
+      });
+      localStorage.setItem('mm_vendor_history', JSON.stringify(sanitized));
+    } catch (e) {
+      console.warn('[VendorDashboard] LocalStorage persistence warning for history:', e);
+    }
   }, [history]);
 
   // Reactively synchronize active jobs when fuelRate is updated by admin
@@ -561,7 +669,24 @@ export default function VendorDashboardPage() {
             const activeList = formatted.filter(b => b.status !== 'Completed' && b.status !== 'Cancelled' && b.status !== 'Closed');
             const historyList = formatted.filter(b => b.status === 'Completed' || b.status === 'Cancelled' || b.status === 'Closed');
 
-            setJobs(activeList);
+            setJobs(prevJobs => {
+              return activeList.map(serverJob => {
+                const existing = (prevJobs || []).find(pj => pj.id === serverJob.id);
+                if (existing) {
+                  return {
+                    ...serverJob,
+                    travelDistanceKm: serverJob.travelDistanceKm || existing.travelDistanceKm || 0,
+                    travelRatePerKm: serverJob.travelRatePerKm || existing.travelRatePerKm || 10,
+                    travelCharges: serverJob.travelCharges || existing.travelCharges || 0,
+                    mapScreenshot: serverJob.mapScreenshot || existing.mapScreenshot || null,
+                    travelVerified: serverJob.travelVerified || existing.travelVerified || false,
+                    checklist: (Array.isArray(existing.checklist) && existing.checklist.some(c => c.completed)) ? existing.checklist : serverJob.checklist,
+                    parts: (Array.isArray(existing.parts) && existing.parts.length > 0) ? existing.parts : serverJob.parts,
+                  };
+                }
+                return serverJob;
+              });
+            });
             setHistory(historyList);
           }
         } catch (err) {
@@ -624,17 +749,58 @@ export default function VendorDashboardPage() {
   const [filterCategory, setFilterCategory] = useState('All');
   
   // Active Work Order execution state
-  const [selectedJob, setSelectedJob] = useState(null);
+  const [selectedJob, setSelectedJob] = useState(() => {
+    try {
+      const savedId = localStorage.getItem('mm_vendor_selected_job_id');
+      const savedJobs = localStorage.getItem('mm_vendor_active_jobs');
+      if (savedId && savedJobs) {
+        const parsed = JSON.parse(savedJobs);
+        const match = (parsed || []).find(j => String(j.id) === String(savedId) || String(j._id) === String(savedId));
+        if (match) return match;
+      }
+    } catch (_) {}
+    return null;
+  });
+
+  // Photo documentation states & file input refs for service execution
+  const [beforePhotoPreview, setBeforePhotoPreview] = useState(null);
+  const [beforePhotoFile, setBeforePhotoFile] = useState(null);
+  const [afterPhotoPreview, setAfterPhotoPreview] = useState(null);
+  const [afterPhotoFile, setAfterPhotoFile] = useState(null);
+  const beforeFileInputRef = useRef(null);
+  const afterFileInputRef = useRef(null);
+
+  // Persist selectedJob id for fast recovery on page refresh or tab switch
+  useEffect(() => {
+    try {
+      if (selectedJob?.id) {
+        localStorage.setItem('mm_vendor_selected_job_id', String(selectedJob.id));
+      }
+    } catch (_) {}
+  }, [selectedJob]);
 
   // Keep selectedJob synced with updated active jobs
   useEffect(() => {
     if (selectedJob) {
-      const refreshed = jobs.find(j => j.id === selectedJob.id);
-      if (refreshed && (refreshed.travelRatePerKm !== selectedJob.travelRatePerKm || refreshed.amount !== selectedJob.amount)) {
-        setSelectedJob(refreshed);
+      const refreshed = jobs.find(j => String(j.id) === String(selectedJob.id) || (j._id && String(j._id) === String(selectedJob.id)));
+      if (refreshed) {
+        setSelectedJob(prev => {
+          if (!prev) return refreshed;
+          return {
+            ...refreshed,
+            travelDistanceKm: refreshed.travelDistanceKm || prev.travelDistanceKm || 0,
+            travelRatePerKm: refreshed.travelRatePerKm || prev.travelRatePerKm || 10,
+            travelCharges: refreshed.travelCharges || prev.travelCharges || 0,
+            mapScreenshot: refreshed.mapScreenshot || prev.mapScreenshot || null,
+            travelVerified: refreshed.travelVerified || prev.travelVerified || false,
+            checklist: (Array.isArray(prev.checklist) && prev.checklist.some(c => c.completed))
+              ? prev.checklist
+              : (Array.isArray(refreshed.checklist) ? refreshed.checklist : normalizeChecklist(refreshed.checklist)),
+          };
+        });
       }
     }
-  }, [jobs, selectedJob]);
+  }, [jobs]);
   
   // Invoice state
   const [invoiceParts, setInvoiceParts] = useState([]);
@@ -688,85 +854,62 @@ export default function VendorDashboardPage() {
       }
     } catch (_) {}
     return [
-      { inventoryId: 'INV-6024', itemName: 'AC Capacitor (650V / 45uF)', unitPrice: 650, stockQuantity: 20, isActive: true },
-      { inventoryId: 'INV-6277', itemName: 'Refrigerator Door Seal Rubber Gasket', unitPrice: 850, stockQuantity: 6, isActive: true },
-      { inventoryId: 'INV-1900', itemName: 'Washing Machine Heavy-Duty Drain Pump', unitPrice: 1200, stockQuantity: 3, isActive: true },
-      { inventoryId: 'INV-1465', itemName: 'Standard Inspection & Service Component (iteman)', unitPrice: 350, stockQuantity: 60, isActive: true },
+      { inventoryId: 'INV-6024', itemName: 'AC Capacitor', unitPrice: 650, stockQuantity: 16, category: 'Air Conditioner', isActive: true },
+      { inventoryId: 'INV-6277', itemName: 'Refrigerator Door Seal', unitPrice: 850, stockQuantity: 6, category: 'Refrigerator', isActive: true },
+      { inventoryId: 'INV-1900', itemName: 'Washing Machine Drain Pump', unitPrice: 1200, stockQuantity: 3, category: 'Washing Machine', isActive: true },
+      { inventoryId: 'INV-1465', itemName: 'iteman', unitPrice: 350, stockQuantity: 60, category: 'Electrical', isActive: true },
     ];
   });
+  const [isInventoryLoading, setIsInventoryLoading] = useState(false);
 
-  // Real Service Documentation Photos (Before & After)
-  const [beforePhotoFile, setBeforePhotoFile] = useState(null);
-  const [afterPhotoFile, setAfterPhotoFile] = useState(null);
-  const [beforePhotoPreview, setBeforePhotoPreview] = useState(null);
-  const [afterPhotoPreview, setAfterPhotoPreview] = useState(null);
-  const beforeFileInputRef = React.useRef(null);
-  const afterFileInputRef = React.useRef(null);
-
-  // Fetch real inventory from backend (caches to localStorage so vendor always has live catalog)
-  useEffect(() => {
-    const fetchInventory = async () => {
-      try {
-        const cached = localStorage.getItem('mm_cached_inventory') || localStorage.getItem('mm_inventory_catalog');
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setDbInventory(parsed);
-          }
-        }
-      } catch (_) {}
-
-      const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') || localStorage.getItem('vendorToken') : null);
-      if (!authToken) return;
-      try {
-        const res = await getAllInventoryApi({ isActive: true }, authToken);
-        if (res.success && Array.isArray(res.inventory) && res.inventory.length > 0) {
-          setDbInventory(res.inventory);
-          try {
-            localStorage.setItem('mm_cached_inventory', JSON.stringify(res.inventory));
-          } catch (_) {}
-        }
-      } catch (err) {
-        // Vendor tokens are scoped to vendor operations; local & cached catalog serves as inventory provider
+  // Real-time Database Inventory Fetcher (guarantees vendor sees only live components & stock)
+  const fetchLiveInventory = useCallback(async () => {
+    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') || localStorage.getItem('vendorToken') : null);
+    setIsInventoryLoading(true);
+    try {
+      const res = await getAllInventoryApi({ isActive: true }, authToken);
+      if (res.success && Array.isArray(res.inventory) && res.inventory.length > 0) {
+        setDbInventory(res.inventory);
+        try {
+          localStorage.setItem('mm_cached_inventory', JSON.stringify(res.inventory));
+          localStorage.setItem('mm_inventory_catalog', JSON.stringify(res.inventory));
+        } catch (_) {}
       }
-    };
-    fetchInventory();
+    } catch (err) {
+      console.warn('[VendorDashboard] Failed to fetch live inventory:', err);
+    } finally {
+      setIsInventoryLoading(false);
+    }
   }, [token]);
 
-  const availableComponentOptions = useMemo(() => {
-    const list = [];
-    const seenNames = new Set();
+  useEffect(() => {
+    fetchLiveInventory();
+  }, [fetchLiveInventory]);
 
-    // 1. Real active items from database inventory
-    if (dbInventory && dbInventory.length > 0) {
-      dbInventory
-        .filter(item => item.isActive !== false && (item.stockQuantity === undefined || item.stockQuantity > 0))
-        .forEach(item => {
-          list.push({
-            inventoryId: item.inventoryId,
-            name: item.itemName,
-            defaultPrice: Number(item.unitPrice) || 0,
-            stock: item.stockQuantity ?? 10,
-            isDbItem: true,
-          });
-          seenNames.add(item.itemName.toLowerCase());
-        });
+  // Re-fetch live inventory whenever vendor enters the invoice generation tab
+  useEffect(() => {
+    if (activeTab === 'invoice') {
+      fetchLiveInventory();
+    }
+  }, [activeTab, fetchLiveInventory]);
+
+  // Dropdown options: ONLY show components present in the inventory with positive stock
+  const availableComponentOptions = useMemo(() => {
+    if (!Array.isArray(dbInventory) || dbInventory.length === 0) {
+      return [];
     }
 
-    // 2. Supplementary repair component catalog
-    AVAILABLE_COMPONENTS.forEach(c => {
-      if (!seenNames.has(c.name.toLowerCase())) {
-        list.push({
-          inventoryId: null,
-          name: c.name,
-          defaultPrice: c.defaultPrice,
-          stock: 10,
-          isDbItem: false,
-        });
-      }
-    });
-
-    return list;
+    return dbInventory
+      .filter(item => item && item.isActive !== false && Number(item.stockQuantity) > 0)
+      .map(item => ({
+        inventoryId: String(item.inventoryId || item._id).trim(),
+        name: item.itemName,
+        category: item.category || 'General',
+        defaultPrice: Number(item.unitPrice) || 0,
+        stock: Number(item.stockQuantity) || 0,
+        skuCode: item.skuCode || '',
+        isDbItem: true,
+      }));
   }, [dbInventory]);
 
   // Profile
@@ -906,7 +1049,7 @@ export default function VendorDashboardPage() {
   }, [user]);
 
   const handleSaveVendorAddress = async (addressData) => {
-    const displayAddress = addressData.formattedAddress || addressData;
+    const displayAddress = formatBookingAddress(addressData);
     const existingId = addressData._id || addressData.id || vendorAddressObj?._id || vendorAddressObj?.id;
 
     setVendorAddressObj((prev) => ({
@@ -1360,6 +1503,59 @@ export default function VendorDashboardPage() {
     setShowStartServiceModal(true);
   };
 
+  // Start Service execution view (Declared before handleConfirmStartService)
+  const openServiceExecution = (job) => {
+    if (!job) return;
+    try {
+      const sanitizedJob = {
+        ...job,
+        checklist: Array.isArray(job.checklist) ? job.checklist : normalizeChecklist(job.checklist),
+        travelDistanceKm: Number(job.travelDistanceKm) || 0,
+        mapScreenshot: safeImageUrl(job.mapScreenshot),
+        customerName: safeString(job.customerName, 'Customer'),
+        serviceAddress: safeString(job.serviceAddress, 'Customer Address'),
+      };
+      setSelectedJob(sanitizedJob);
+      setActiveTab('service');
+      if (job?.beforePhoto) {
+        setBeforePhotoPreview(safeImageUrl(job.beforePhoto));
+      } else {
+        setBeforePhotoPreview(null);
+        setBeforePhotoFile(null);
+      }
+      if (job?.afterPhoto) {
+        setAfterPhotoPreview(safeImageUrl(job.afterPhoto));
+      } else {
+        setAfterPhotoPreview(null);
+        setAfterPhotoFile(null);
+      }
+      setCustomerNotes(
+        typeof job.notes === 'string' && job.notes.trim()
+          ? job.notes
+          : 'Recommended regular maintenance every 6 months to ensure optimal performance. All debris cleared from unit.'
+      );
+      try {
+        if (job.id) {
+          localStorage.setItem('mm_vendor_selected_job_id', String(job.id));
+        }
+      } catch (_) {}
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    } catch (err) {
+      console.error('[Vendor Dashboard] Error opening service execution:', err);
+      setActiveTab('service');
+    }
+  };
+
+  // Auto-restore selectedJob if vendor is on the service execution tab but selectedJob is unset
+  useEffect(() => {
+    if (activeTab === 'service' && !selectedJob && Array.isArray(jobs) && jobs.length > 0) {
+      const candidate = jobs.find(j => j.status === 'In Progress') || jobs.find(j => j.status === 'Accepted') || jobs[0];
+      if (candidate) {
+        openServiceExecution(candidate);
+      }
+    }
+  }, [activeTab, selectedJob, jobs]);
+
   const handleConfirmStartService = async ({ jobId, travelDistanceKm, travelRatePerKm, travelCharges, mapScreenshot, mapFile, addToInvoice }) => {
     const targetJob = pendingStartServiceJob || jobs.find(j => j.id === jobId) || selectedJob;
     if (!targetJob) return;
@@ -1380,14 +1576,16 @@ export default function VendorDashboardPage() {
       updatedParts.push(travelPart);
     }
 
+    const cleanMapScreenshot = safeImageUrl(mapScreenshot);
     const updatedJob = {
       ...targetJob,
       status: 'In Progress',
       travelDistanceKm: Number(travelDistanceKm),
       travelRatePerKm: Number(travelRatePerKm),
       travelCharges: Number(travelCharges),
-      mapScreenshot: mapScreenshot,
+      mapScreenshot: cleanMapScreenshot,
       travelVerified: true,
+      checklist: Array.isArray(targetJob.checklist) ? targetJob.checklist : normalizeChecklist(targetJob.checklist),
       parts: updatedParts
     };
 
@@ -1487,32 +1685,11 @@ export default function VendorDashboardPage() {
     showToast(`Work Order ${jobId} declined.`, 'info');
   };
 
-  // Start Service execution view
-  const openServiceExecution = (job) => {
-    setSelectedJob(job);
-    setActiveTab('service');
-    if (job?.beforePhoto) {
-      setBeforePhotoPreview(job.beforePhoto);
-    } else {
-      setBeforePhotoPreview(null);
-      setBeforePhotoFile(null);
-    }
-    if (job?.afterPhoto) {
-      setAfterPhotoPreview(job.afterPhoto);
-    } else {
-      setAfterPhotoPreview(null);
-      setAfterPhotoFile(null);
-    }
-    setCustomerNotes(
-      job.notes || 'Recommended regular maintenance every 6 months to ensure optimal performance. All debris cleared from unit.'
-    );
-    window.scrollTo({ top: 0, behavior: 'instant' });
-  };
-
   // Toggle checklist item with jobs state sync
   const toggleChecklistItem = (itemId) => {
     if (!selectedJob) return;
-    const updatedChecklist = selectedJob.checklist.map(item =>
+    const currentList = Array.isArray(selectedJob.checklist) ? selectedJob.checklist : normalizeChecklist(selectedJob.checklist);
+    const updatedChecklist = currentList.map(item =>
       item.id === itemId ? { ...item, completed: !item.completed } : item
     );
     const updatedJob = { ...selectedJob, checklist: updatedChecklist };
@@ -1624,11 +1801,12 @@ export default function VendorDashboardPage() {
 
         // Step 3: Submit service details & checklist
         const formData = new FormData();
+        const currentChecklist = Array.isArray(selectedJob.checklist) ? selectedJob.checklist : normalizeChecklist(selectedJob.checklist);
         const checklistObj = {
-          inspection: Boolean(selectedJob.checklist?.find(c => c.id === 1)?.completed ?? true),
-          diagnosis: Boolean(selectedJob.checklist?.find(c => c.id === 2)?.completed ?? true),
-          service: Boolean(selectedJob.checklist?.find(c => c.id === 3)?.completed ?? true),
-          testingCleanup: Boolean(selectedJob.checklist?.find(c => c.id === 4)?.completed ?? true),
+          inspection: Boolean(currentChecklist.find(c => c.id === 1)?.completed ?? true),
+          diagnosis: Boolean(currentChecklist.find(c => c.id === 2)?.completed ?? true),
+          service: Boolean(currentChecklist.find(c => c.id === 3)?.completed ?? true),
+          testingCleanup: Boolean(currentChecklist.find(c => c.id === 4)?.completed ?? true),
         };
         formData.append('checklist', JSON.stringify(checklistObj));
         formData.append('customerNote', customerNotes || 'Service completed successfully.');
@@ -1645,46 +1823,70 @@ export default function VendorDashboardPage() {
     }
   };
 
-  // Component Selection via Dropdown (immutably update state with inventory details)
+  // Component Selection via Dropdown (immutably update state with inventory details & stock limits)
   const handleSelectComponentDropdown = (idx, selectedKey) => {
     const found = availableComponentOptions.find(c => c.inventoryId === selectedKey || c.name === selectedKey);
     setInvoiceParts(prev => {
       const updated = [...prev];
+      const maxStock = found?.stock || 1;
+      const currentQty = Number(updated[idx].qty) || 1;
       updated[idx] = {
         ...updated[idx],
         description: found ? found.name : selectedKey,
         price: found ? found.defaultPrice : (updated[idx].price || 0),
         inventoryId: found?.inventoryId || null,
+        stock: found?.stock || 0,
+        qty: Math.min(currentQty, maxStock),
       };
       return updated;
     });
   };
 
-  // Quantity or Price change (immutably update state)
+  // Quantity or Price change (enforces real inventory stock limits)
   const handlePartChange = (idx, field, value) => {
     setInvoiceParts(prev => {
       const updated = [...prev];
+      let finalVal = value;
+      if (field === 'qty') {
+        const rawNum = Math.round(Number(value) || 1);
+        const maxStock = updated[idx].stock;
+        if (maxStock !== undefined && maxStock > 0 && rawNum > maxStock) {
+          finalVal = maxStock;
+          showToast(`Only ${maxStock} units of ${updated[idx].description} present in inventory`, 'warning');
+        } else {
+          finalVal = Math.max(1, rawNum);
+        }
+      }
       updated[idx] = {
         ...updated[idx],
-        [field]: value
+        [field]: finalVal
       };
       return updated;
     });
   };
 
-  // Add Row button adding a real component from inventory catalog
+  // Add Row button adding a real component from live inventory catalog
   const handleAddPartRow = () => {
-    const defaultComp = availableComponentOptions[0] || { name: 'Custom Repair Component', defaultPrice: 400, inventoryId: null };
+    if (!availableComponentOptions || availableComponentOptions.length === 0) {
+      showToast('No components currently present in inventory', 'warning');
+      return;
+    }
+
+    // Pick first component not yet added, or fallback to first
+    const alreadyAddedIds = new Set(invoiceParts.map(p => p.inventoryId).filter(Boolean));
+    const nextComp = availableComponentOptions.find(c => !alreadyAddedIds.has(c.inventoryId)) || availableComponentOptions[0];
+
     const newPart = {
       id: Date.now(),
-      description: defaultComp.name,
+      description: nextComp.name,
       qty: 1,
-      price: defaultComp.defaultPrice,
-      inventoryId: defaultComp.inventoryId || null,
+      price: nextComp.defaultPrice,
+      inventoryId: nextComp.inventoryId,
+      stock: nextComp.stock,
       locked: false,
     };
     setInvoiceParts(prev => [...prev, newPart]);
-    showToast('New component line item added to invoice', 'info');
+    showToast(`Added ${nextComp.name} (${nextComp.stock} in stock) to invoice`, 'info');
   };
 
   const handleRemovePartRow = (idx) => {
@@ -1847,11 +2049,10 @@ export default function VendorDashboardPage() {
         }
 
         // Step 4: Build Valid components payload
-        // Only include items that exist in MongoDB Atlas inventory collection
+        // Only include active components from live MongoDB inventory
         const validDbInventoryIds = new Set(
-          (dbInventory || []).filter(i => i.inventoryId).map(i => String(i.inventoryId).trim())
+          (dbInventory || []).filter(i => i && i.inventoryId && i.isActive !== false).map(i => String(i.inventoryId).trim())
         );
-        ['INV-6024', 'INV-6277', 'INV-1900', 'INV-1465'].forEach(id => validDbInventoryIds.add(id));
 
         const componentsPayload = invoiceParts
           .filter(p => p.inventoryId && validDbInventoryIds.has(String(p.inventoryId).trim()) && !p.isTravel && !p.locked)
@@ -1902,6 +2103,25 @@ export default function VendorDashboardPage() {
             travelCharges: selectedJob.travelCharges || 0,
             mapScreenshot: selectedJob.mapScreenshot || null,
           };
+
+          // Save invoice to local persistence so it's always accessible
+          saveInvoiceForBooking(backendJobId, inv);
+
+          // Synchronize booking serviceCharge in MongoDB so customer and vendor UI always fetch the exact invoiced price
+          try {
+            await updateBookingStatusApi(
+              backendJobId,
+              {
+                status: 'Completed',
+                serviceCharge: finalInvoiceDataObj.total || grandTotal,
+                paymentMethod: paymentLabel,
+                paymentStatus: 'Paid',
+              },
+              authToken
+            );
+          } catch (statusErr) {
+            console.warn('[Vendor Dashboard] Failed to sync booking status serviceCharge:', statusErr);
+          }
         } else {
           await updateBookingStatusApi(
             backendJobId,
@@ -1913,6 +2133,7 @@ export default function VendorDashboardPage() {
             },
             authToken
           );
+          saveInvoiceForBooking(backendJobId, finalInvoiceDataObj);
         }
       }
 
@@ -1973,7 +2194,10 @@ export default function VendorDashboardPage() {
 
   // View past invoice from history list
   const handleViewHistoryInvoice = (item) => {
-    const invData = item.invoiceData || {
+    const rawId = item.backendJobId || item.id || item._id;
+    const inv = item.invoiceData || getInvoiceForBooking(rawId, item);
+    const normalized = normalizeInvoiceForUI(inv, item);
+    const invData = normalized || {
       invoiceId: item.invoiceNumber || (item.backendJobId ? `MM-INV-2026-${item.backendJobId.slice(-6).toUpperCase()}` : `MM-INV-2026-${String(item.id || '').replace('WO-', '')}`),
       date: item.date,
       customerName: item.customerName,
@@ -2123,6 +2347,9 @@ export default function VendorDashboardPage() {
                 >
                   {[
                     { id: 'active', label: 'Jobs', badge: jobs.length },
+                    ...(selectedJob || jobs.some(j => j.status === 'In Progress')
+                      ? [{ id: 'service', label: 'Service Execution', badge: 'Active' }]
+                      : []),
                     { id: 'history', label: 'History', badge: history.length },
                     { id: 'earnings', label: 'Earnings', badge: `₹${((Number(todayEarnings) || 0) / 1000).toFixed(1)}k` },
                     { id: 'profile', label: 'Profile', badge: '★' },
@@ -2570,10 +2797,10 @@ export default function VendorDashboardPage() {
                   <span className="text-slate-700">#{selectedJob.id}</span>
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-                  {selectedJob.serviceTitle}
+                  {safeString(selectedJob.serviceTitle, 'Service Execution')}
                 </h1>
                 <p className="text-xs sm:text-sm text-slate-600 font-medium mt-0.5">
-                  Client: <strong>{selectedJob.customerName}</strong> • {selectedJob.serviceAddress}
+                  Client: <strong>{safeString(selectedJob.customerName, 'Customer')}</strong> • {safeString(selectedJob.serviceAddress, 'Customer Address')}
                 </p>
               </div>
 
@@ -2648,7 +2875,7 @@ export default function VendorDashboardPage() {
                           </span>
                         </div>
                         <p className="text-xs text-slate-600 mt-0.5">
-                          Origin: <strong>{vendorProfile.address || 'Vendor Workshop'}</strong> ➔ Destination: <strong>{selectedJob.serviceAddress}</strong>
+                          Origin: <strong>{safeString(vendorProfile?.address, 'Vendor Workshop')}</strong> ➔ Destination: <strong>{safeString(selectedJob.serviceAddress, 'Customer Location')}</strong>
                         </p>
                       </div>
                     </div>
@@ -2658,9 +2885,9 @@ export default function VendorDashboardPage() {
                         <button
                           type="button"
                           onClick={() => setProofPreviewItem({
-                            imageUrl: selectedJob.mapScreenshot,
-                            title: `Route Map: ${selectedJob.displayId || selectedJob.id}`,
-                            subtitle: `${selectedJob.travelDistanceKm || 0} KM Traveled to ${selectedJob.customerName}`
+                            imageUrl: safeImageUrl(selectedJob.mapScreenshot),
+                            title: `Route Map: ${safeString(selectedJob.displayId || selectedJob.id)}`,
+                            subtitle: `${selectedJob.travelDistanceKm || 0} KM Traveled to ${safeString(selectedJob.customerName, 'Customer')}`
                           })}
                           className="px-3 py-1.5 bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
                         >
@@ -2680,42 +2907,50 @@ export default function VendorDashboardPage() {
                 )}
 
                 {/* 2. SERVICE CHECKLIST CARD */}
-                <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 space-y-4">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">Service Checklist</h3>
-                    <span className="text-xs font-extrabold text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
-                      {selectedJob.checklist.filter(c => c.completed).length} / {selectedJob.checklist.length} Completed
-                    </span>
-                  </div>
+                {(() => {
+                  const currentChecklist = Array.isArray(selectedJob.checklist) ? selectedJob.checklist : normalizeChecklist(selectedJob.checklist);
+                  const completedCount = currentChecklist.filter(c => c.completed).length;
+                  const totalCount = currentChecklist.length;
 
-                  <div className="space-y-3">
-                    {selectedJob.checklist.map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => toggleChecklistItem(item.id)}
-                        className={`p-4 rounded-2xl border transition-all duration-200 cursor-pointer flex items-start gap-3.5 ${
-                          item.completed
-                            ? 'bg-emerald-50/40 border-emerald-200'
-                            : 'bg-white border-slate-200 hover:border-blue-300'
-                        }`}
-                      >
-                        <div className={`mt-0.5 w-5 h-5 rounded-md flex items-center justify-center text-white text-xs font-bold ${
-                          item.completed ? 'bg-emerald-600' : 'border-2 border-slate-300 bg-white'
-                        }`}>
-                          {item.completed && '✓'}
-                        </div>
-                        <div>
-                          <h4 className={`text-sm font-extrabold ${item.completed ? 'text-emerald-900 line-through' : 'text-slate-900'}`}>
-                            {item.title}
-                          </h4>
-                          <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                            {item.desc}
-                          </p>
-                        </div>
+                  return (
+                    <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">Service Checklist</h3>
+                        <span className="text-xs font-extrabold text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
+                          {completedCount} / {totalCount} Completed
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                </div>
+
+                      <div className="space-y-3">
+                        {currentChecklist.map((item) => (
+                          <div
+                            key={item.id}
+                            onClick={() => toggleChecklistItem(item.id)}
+                            className={`p-4 rounded-2xl border transition-all duration-200 cursor-pointer flex items-start gap-3.5 ${
+                              item.completed
+                                ? 'bg-emerald-50/40 border-emerald-200'
+                                : 'bg-white border-slate-200 hover:border-blue-300'
+                            }`}
+                          >
+                            <div className={`mt-0.5 w-5 h-5 rounded-md flex items-center justify-center text-white text-xs font-bold ${
+                              item.completed ? 'bg-emerald-600' : 'border-2 border-slate-300 bg-white'
+                            }`}>
+                              {item.completed && '✓'}
+                            </div>
+                            <div>
+                              <h4 className={`text-sm font-extrabold ${item.completed ? 'text-emerald-900 line-through' : 'text-slate-900'}`}>
+                                {item.title}
+                              </h4>
+                              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                                {item.desc}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* 3. CUSTOMER NOTES */}
                 <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 space-y-3">
@@ -2781,9 +3016,9 @@ export default function VendorDashboardPage() {
                           <button
                             type="button"
                             onClick={() => setProofPreviewItem({
-                              imageUrl: beforePhotoPreview,
+                              imageUrl: safeImageUrl(beforePhotoPreview),
                               title: 'Before Service Photo',
-                              subtitle: selectedJob.serviceTitle
+                              subtitle: safeString(selectedJob.serviceTitle, 'Service Photo')
                             })}
                             className="bg-white/90 hover:bg-white text-slate-700 rounded-full p-1.5 shadow-sm transition-transform hover:scale-105 cursor-pointer"
                             title="Preview Image"
@@ -2826,9 +3061,9 @@ export default function VendorDashboardPage() {
                           <button
                             type="button"
                             onClick={() => setProofPreviewItem({
-                              imageUrl: afterPhotoPreview,
+                              imageUrl: safeImageUrl(afterPhotoPreview),
                               title: 'After Service Photo',
-                              subtitle: selectedJob.serviceTitle
+                              subtitle: safeString(selectedJob.serviceTitle, 'Service Photo')
                             })}
                             className="bg-white/90 hover:bg-white text-slate-700 rounded-full p-1.5 shadow-sm transition-transform hover:scale-105 cursor-pointer"
                             title="Preview Image"
@@ -2867,23 +3102,23 @@ export default function VendorDashboardPage() {
                   <div className="space-y-3 text-xs text-slate-200 font-medium">
                     <div className="flex items-center gap-2.5">
                       <Calendar className="w-4 h-4 text-orange-400 shrink-0" />
-                      <span>{selectedJob.appointmentDate}</span>
+                      <span>{safeString(selectedJob.appointmentDate, '—')}</span>
                     </div>
 
                     <div className="flex items-center gap-2.5">
                       <Clock className="w-4 h-4 text-orange-400 shrink-0" />
-                      <span>{selectedJob.timeSlot}</span>
+                      <span>{safeString(selectedJob.timeSlot, '—')}</span>
                     </div>
 
                     <div className="flex items-center gap-2.5">
                       <User className="w-4 h-4 text-orange-400 shrink-0" />
-                      <span>{selectedJob.customerName} (Residential)</span>
+                      <span>{safeString(selectedJob.customerName, 'Customer')} (Residential)</span>
                     </div>
 
                     <div className="flex items-center gap-2.5">
                       <Phone className="w-4 h-4 text-orange-400 shrink-0" />
-                      <Link to={`tel:${selectedJob.customerPhone}`} className="hover:underline text-white font-bold">
-                        {selectedJob.customerPhone}
+                      <Link to={`tel:${safeString(selectedJob.customerPhone, '')}`} className="hover:underline text-white font-bold">
+                        {safeString(selectedJob.customerPhone, '—')}
                       </Link>
                     </div>
                   </div>
@@ -2905,6 +3140,25 @@ export default function VendorDashboardPage() {
           </motion.div>
         )}
 
+        {/* ── SERVICE EXECUTION EMPTY FALLBACK STATE ── */}
+        {activeTab === 'service' && !selectedJob && (
+          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-8 sm:p-12 text-center max-w-xl mx-auto my-12 space-y-4 no-print-bg">
+            <div className="w-16 h-16 rounded-3xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto text-2xl font-bold">
+              <Wrench className="w-8 h-8" />
+            </div>
+            <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900">No Active Service Order</h2>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium max-w-md mx-auto">
+              Select an accepted work order from your active jobs queue and click &quot;Start Service&quot; or &quot;Resume Execution&quot; to begin service execution.
+            </p>
+            <button
+              type="button"
+              onClick={() => setActiveTab('active')}
+              className="px-6 py-3 bg-[#061e38] hover:bg-[#0a2f57] text-white text-xs font-extrabold rounded-2xl shadow-md transition-all cursor-pointer inline-flex items-center gap-2"
+            >
+              &larr; View Active Jobs
+            </button>
+          </div>
+        )}
 
         {/* ── GENERATE INVOICE PAGE ── */}
         {activeTab === 'invoice' && selectedJob && (
@@ -2960,7 +3214,7 @@ export default function VendorDashboardPage() {
                       <input
                         type="text"
                         readOnly
-                        value={selectedJob.customerName}
+                        value={safeString(selectedJob.customerName, 'Customer')}
                         className="w-full text-xs font-bold bg-slate-100/70 border border-slate-200 rounded-xl p-3 text-slate-800"
                       />
                     </div>
@@ -2970,7 +3224,7 @@ export default function VendorDashboardPage() {
                       <input
                         type="text"
                         readOnly
-                        value={selectedJob.serviceAddress}
+                        value={safeString(selectedJob.serviceAddress, '—')}
                         className="w-full text-xs font-bold bg-slate-100/70 border border-slate-200 rounded-xl p-3 text-slate-800"
                       />
                     </div>
@@ -2980,7 +3234,7 @@ export default function VendorDashboardPage() {
                       <input
                         type="text"
                         readOnly
-                        value={`${selectedJob.applianceIcon} ${selectedJob.serviceTitle}`}
+                        value={`${selectedJob.applianceIcon || '🔧'} ${safeString(selectedJob.serviceTitle, 'Service')}`}
                         className="w-full text-xs font-bold bg-slate-100/70 border border-slate-200 rounded-xl p-3 text-slate-800"
                       />
                     </div>
@@ -2990,7 +3244,7 @@ export default function VendorDashboardPage() {
                       <input
                         type="text"
                         readOnly
-                        value={selectedJob.appointmentDate}
+                        value={safeString(selectedJob.appointmentDate, '—')}
                         className="w-full text-xs font-bold bg-slate-100/70 border border-slate-200 rounded-xl p-3 text-slate-800"
                       />
                     </div>
@@ -3005,10 +3259,23 @@ export default function VendorDashboardPage() {
                         <Wrench className="w-4 h-4 text-slate-700" />
                         <h3 className="text-base font-extrabold text-slate-900">Parts & Labor Components</h3>
                       </div>
-                      <p className="text-xs text-slate-500 font-medium mt-0.5">Select repair components from dropdown menu & adjust quantity/amount</p>
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">
+                        Select repair components from live inventory catalog ({availableComponentOptions.length} items present in stock)
+                      </p>
                     </div>
 
                     <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={fetchLiveInventory}
+                        disabled={isInventoryLoading}
+                        className="text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border border-slate-200"
+                        title="Fetch latest stock quantity from database inventory"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isInventoryLoading ? 'animate-spin text-orange-500' : 'text-slate-500'}`} />
+                        <span>{isInventoryLoading ? 'Syncing...' : 'Refresh Stock'}</span>
+                      </button>
+
                       {selectedJob.travelDistanceKm && !invoiceParts.some(p => p.isTravel || String(p.description || '').toLowerCase().includes('travel')) && (
                         <button
                           type="button"
@@ -3034,10 +3301,11 @@ export default function VendorDashboardPage() {
 
                       <button
                         onClick={handleAddPartRow}
-                        className="text-xs font-extrabold bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border border-blue-200"
+                        disabled={availableComponentOptions.length === 0}
+                        className="text-xs font-extrabold bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border border-blue-200"
                       >
                         <PlusCircle className="w-4 h-4 text-blue-700" />
-                        Add Component Row
+                        Add Component ({availableComponentOptions.length} in stock)
                       </button>
                     </div>
                   </div>
@@ -3063,17 +3331,32 @@ export default function VendorDashboardPage() {
                                 {part.locked ? (
                                   <span className="font-extrabold text-slate-800 block py-1.5">{part.description}</span>
                                 ) : (
-                                  <select
-                                    value={part.inventoryId || part.description}
-                                    onChange={(e) => handleSelectComponentDropdown(idx, e.target.value)}
-                                    className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-orange-500 focus:outline-none"
-                                  >
-                                    {availableComponentOptions.map((comp, cIdx) => (
-                                      <option key={comp.inventoryId || cIdx} value={comp.inventoryId || comp.name}>
-                                        {comp.name} (₹{comp.defaultPrice}){comp.stock !== undefined ? ` • Stock: ${comp.stock}` : ''}
-                                      </option>
-                                    ))}
-                                  </select>
+                                  <div>
+                                    <select
+                                      value={part.inventoryId || part.description}
+                                      onChange={(e) => handleSelectComponentDropdown(idx, e.target.value)}
+                                      className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                                    >
+                                      {availableComponentOptions.length === 0 ? (
+                                        <option value="" disabled>No components present in inventory</option>
+                                      ) : (
+                                        availableComponentOptions.map((comp) => (
+                                          <option key={comp.inventoryId} value={comp.inventoryId}>
+                                            {comp.name} (₹{comp.defaultPrice}) — Stock: {comp.stock} available
+                                          </option>
+                                        ))
+                                      )}
+                                    </select>
+                                    {part.inventoryId && (
+                                      <div className="flex items-center gap-2 mt-1 px-1 text-[11px]">
+                                        <span className="text-slate-500 font-medium">SKU: <strong className="text-slate-700">{part.inventoryId}</strong></span>
+                                        <span className="text-slate-300">•</span>
+                                        <span className={`font-bold ${part.stock <= 3 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                                          {part.stock} in inventory
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
                                 )}
                               </td>
 
@@ -3081,14 +3364,22 @@ export default function VendorDashboardPage() {
                                 {part.locked ? (
                                   <span className="font-extrabold text-slate-800">{part.qty}</span>
                                 ) : (
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    step="0.5"
-                                    value={part.qty}
-                                    onChange={(e) => handlePartChange(idx, 'qty', e.target.value)}
-                                    className="w-16 text-center text-xs font-bold bg-white border border-slate-200 rounded-xl p-2 focus:ring-2 focus:ring-orange-500"
-                                  />
+                                  <div className="flex flex-col items-center">
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      max={part.stock || 999}
+                                      step="1"
+                                      value={part.qty}
+                                      onChange={(e) => handlePartChange(idx, 'qty', e.target.value)}
+                                      className="w-16 text-center text-xs font-extrabold bg-white border border-slate-200 rounded-xl p-2 focus:ring-2 focus:ring-orange-500"
+                                    />
+                                    {part.stock !== undefined && (
+                                      <span className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                                        Max: {part.stock}
+                                      </span>
+                                    )}
+                                  </div>
                                 )}
                               </td>
 
@@ -4407,7 +4698,7 @@ export default function VendorDashboardPage() {
               </div>
               <div className="rounded-2xl overflow-hidden border border-slate-200 max-h-[60vh] flex items-center justify-center bg-slate-950">
                 <img
-                  src={proofPreviewItem.imageUrl}
+                  src={safeImageUrl(proofPreviewItem.imageUrl) || proofPreviewItem.imageUrl}
                   alt="Proof Document"
                   className="w-full h-auto object-contain max-h-[55vh]"
                 />

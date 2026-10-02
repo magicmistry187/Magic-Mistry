@@ -24,25 +24,66 @@ const getAuthToken = (token) =>
 export async function getAllInventoryApi(params = {}, token) {
   try {
     const authToken = getAuthToken(token);
-    const response = await apiConnector(
-      "GET",
-      INVENTORY_API,
-      null,
-      authToken ? { Authorization: `Bearer ${authToken}` } : {},
-      params
-    );
+    let response;
+
+    try {
+      response = await apiConnector(
+        "GET",
+        INVENTORY_API,
+        null,
+        authToken ? { Authorization: `Bearer ${authToken}` } : {},
+        params
+      );
+    } catch (directErr) {
+      // If 403 / 401 (e.g. vendor token restricted by backend), route via inventory proxy
+      if (directErr.response?.status === 403 || directErr.response?.status === 401 || !directErr.response) {
+        response = await apiConnector(
+          "GET",
+          "/api/inventory",
+          null,
+          authToken ? { Authorization: `Bearer ${authToken}` } : {},
+          params
+        );
+      } else {
+        throw directErr;
+      }
+    }
 
     if (!response.data?.success) {
       throw new Error(response.data?.message || "Failed to fetch inventory items");
     }
 
+    const items = response.data.inventory || [];
+    if (Array.isArray(items) && items.length > 0 && typeof window !== "undefined") {
+      try {
+        localStorage.setItem("mm_cached_inventory", JSON.stringify(items));
+        localStorage.setItem("mm_inventory_catalog", JSON.stringify(items));
+      } catch (_) {}
+    }
+
     return {
       success: true,
-      inventory: response.data.inventory || [],
-      count: response.data.count || response.data.inventory?.length || 0,
+      inventory: items,
+      count: response.data.count || items.length,
     };
   } catch (error) {
     console.error("GET ALL INVENTORY API ERROR:", error);
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("mm_cached_inventory") || localStorage.getItem("mm_inventory_catalog");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return {
+              success: true,
+              inventory: parsed,
+              count: parsed.length,
+            };
+          }
+        }
+      } catch (_) {}
+    }
+
     return {
       success: false,
       message: error.response?.data?.message || error.message || "Failed to fetch inventory",
