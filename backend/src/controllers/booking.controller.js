@@ -143,13 +143,19 @@ exports.createBooking = async (req, res) => {
 
     if (latNum === null || lngNum === null) {
       try {
-        const defaultAddr = await Address.findOne({ user: req.user.id, isDefault: true });
+        const defaultAddr = await Address.findOne({
+          user: req.user.id,
+          isDefault: true,
+        });
         if (defaultAddr?.location?.coordinates?.length === 2) {
           lngNum = Number(defaultAddr.location.coordinates[0]);
           latNum = Number(defaultAddr.location.coordinates[1]);
         }
       } catch (addrErr) {
-        console.warn('[Booking] Could not fallback to default address coordinates:', addrErr);
+        console.warn(
+          '[Booking] Could not fallback to default address coordinates:',
+          addrErr,
+        );
       }
     }
 
@@ -430,24 +436,27 @@ exports.getBookingToVendorUnderRange = async (req, res) => {
 
         // Also fetch pending bookings without location coordinates so they are never dropped
         const nonGeoPending = await Booking.find({
-          bookingStatus: "Pending",
+          bookingStatus: 'Pending',
           $or: [{ vendor: null }, { vendor: { $exists: false } }],
           $or: [
             { location: { $exists: false } },
             { location: null },
-            { "location.coordinates": { $exists: false } },
-            { "location.coordinates": { $size: 0 } },
+            { 'location.coordinates': { $exists: false } },
+            { 'location.coordinates': { $size: 0 } },
           ],
         })
-          .populate("customer", "fullName email phoneNumber")
-          .populate("vendor", "fullName email phoneNumber")
+          .populate('customer', 'fullName email phoneNumber')
+          .populate('vendor', 'fullName email phoneNumber')
           .lean();
 
         pendingBookings = [...geoPending, ...nonGeoPending];
       } catch (geoErr) {
-        console.warn("Geo query failed, falling back to all pending:", geoErr.message);
+        console.warn(
+          'Geo query failed, falling back to all pending:',
+          geoErr.message,
+        );
         pendingBookings = await Booking.find({
-          bookingStatus: "Pending",
+          bookingStatus: 'Pending',
           $or: [{ vendor: null }, { vendor: { $exists: false } }],
         })
           .populate('customer', 'fullName email phoneNumber')
@@ -457,11 +466,11 @@ exports.getBookingToVendorUnderRange = async (req, res) => {
     } else {
       // Vendor has no address/coordinates configured yet -> return all pending bookings as fallback
       pendingBookings = await Booking.find({
-        bookingStatus: "Pending",
+        bookingStatus: 'Pending',
         $or: [{ vendor: null }, { vendor: { $exists: false } }],
       })
-        .populate("customer", "fullName email phoneNumber")
-        .populate("vendor", "fullName email phoneNumber")
+        .populate('customer', 'fullName email phoneNumber')
+        .populate('vendor', 'fullName email phoneNumber')
         .lean();
     }
 
@@ -626,7 +635,6 @@ exports.updateBookingStatus = async (req, res) => {
 
 exports.routeVerification = async (req, res) => {
   try {
-    console.log("route verification req body", req.body)
     const { bookingId } = req.params;
     const vendorId = req.user.id;
     const { distanceKm, ratePerKm } = req.body;
@@ -1026,15 +1034,11 @@ exports.submitServiceDetails = async (req, res) => {
 
 //       invoiceNumber,
 
- 
-
 //       customerSnapshot: {
 //         name: booking.customer.fullName,
 //         phone: booking.customer.phoneNumber || '',
 //         address: customerAddress,
 //       },
-
-      
 
 //       serviceSnapshot: {
 //         appliance: booking.appliance,
@@ -1042,13 +1046,9 @@ exports.submitServiceDetails = async (req, res) => {
 //         serviceDate: booking.serviceDate,
 //       },
 
-      
-
 //       items,
 
-      
 //       // Amounts
-      
 
 //       subtotal,
 
@@ -1059,15 +1059,12 @@ exports.submitServiceDetails = async (req, res) => {
 //       totalAmount,
 
 //       // Payment
-      
 
 //       paymentMethod,
 
 //       paymentStatus: 'Paid',
 
 //       paidAt: new Date(),
-
-    
 
 //       customerNote: execution.customerNote || '',
 //     });
@@ -1114,11 +1111,7 @@ exports.completeService = async (req, res) => {
     const { bookingId } = req.params;
     const vendorId = req.user.id;
 
-    const {
-      paymentMethod,
-      discount = 0,
-      components = [],
-    } = req.body;
+    const { paymentMethod, discount = 0, components = [] } = req.body;
 
     if (!paymentMethod) {
       return res.status(400).json({
@@ -1159,8 +1152,7 @@ exports.completeService = async (req, res) => {
     if (!execution) {
       return res.status(404).json({
         success: false,
-        message:
-          'Service execution not found or service is not in progress.',
+        message: 'Service execution not found or service is not in progress.',
       });
     }
 
@@ -1173,6 +1165,18 @@ exports.completeService = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Booking not found.',
+      });
+    }
+
+    const vendorProfile = await VendorProfile.findOne({
+      user: vendorId,
+    });
+
+    // Check vendor profile before doing completion work
+    if (!vendorProfile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor profile not found. Cannot complete service.',
       });
     }
 
@@ -1197,9 +1201,7 @@ exports.completeService = async (req, res) => {
       });
     }
 
-    const serviceCharge = Number(
-      booking.serviceCategoryCharge || 0
-    );
+    const serviceCharge = Number(booking.serviceCategoryCharge || 0);
 
     if (!Number.isFinite(serviceCharge) || serviceCharge < 0) {
       return res.status(400).json({
@@ -1211,9 +1213,7 @@ exports.completeService = async (req, res) => {
     let travelCharge = 0;
 
     if (execution.route?.addToInvoice) {
-      travelCharge = Number(
-        execution.route?.travelCharge || 0
-      );
+      travelCharge = Number(execution.route?.travelCharge || 0);
     }
 
     if (!Number.isFinite(travelCharge) || travelCharge < 0) {
@@ -1257,19 +1257,15 @@ exports.completeService = async (req, res) => {
 
       const componentQuantity = Number(quantity);
 
-      if (
-        !Number.isInteger(componentQuantity) ||
-        componentQuantity <= 0
-      ) {
+      if (!Number.isInteger(componentQuantity) || componentQuantity <= 0) {
         return res.status(400).json({
           success: false,
-          message:
-            'Component quantity must be a positive whole number.',
+          message: 'Component quantity must be a positive whole number.',
         });
       }
 
       const inventoryItem = await Inventory.findOne({
-       inventoryId: inventoryId,
+        inventoryId: inventoryId,
         isActive: true,
       });
 
@@ -1313,10 +1309,7 @@ exports.completeService = async (req, res) => {
       });
     }
 
-    const subtotal = items.reduce(
-      (total, item) => total + item.amount,
-      0
-    );
+    const subtotal = items.reduce((total, item) => total + item.amount, 0);
 
     const tax = 0;
 
@@ -1327,8 +1320,7 @@ exports.completeService = async (req, res) => {
       });
     }
 
-    const totalAmount =
-      subtotal - discountAmount + tax;
+    const totalAmount = subtotal - discountAmount + tax;
 
     const invoiceNumber = `MM-${Date.now()}`;
 
@@ -1392,6 +1384,10 @@ exports.completeService = async (req, res) => {
     booking.paymentMethod = paymentMethod;
 
     await booking.save();
+
+    // increasing job count in the vendor profile
+    vendorProfile.jobsCompleted += 1;
+    await vendorProfile.save();
 
     return res.status(200).json({
       success: true,
