@@ -16,8 +16,11 @@ export default function UserInvoiceModal({ isOpen, onClose, booking }) {
     window.print();
   };
 
-  const invoiceId = booking.id || booking._id || 'INV-' + Math.floor(100000 + Math.random() * 900000);
+  const inv = booking.rawBooking?.invoice || booking.invoice || {};
+  const invoiceId = inv.invoiceNumber || booking.invoiceId || booking.id || booking._id || 'INV-' + Math.floor(100000 + Math.random() * 900000);
   const invoiceDate = booking.date || new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const rawPrice = inv.totalAmount ?? booking.rawBooking?.serviceCharge ?? booking.rawBooking?.serviceCategoryCharge ?? booking.price ?? 299;
+  const priceDisplay = typeof rawPrice === 'number' ? `₹${rawPrice}` : String(rawPrice).startsWith('₹') ? rawPrice : `₹${rawPrice}`;
 
   return (
     <AnimatePresence>
@@ -155,15 +158,29 @@ export default function UserInvoiceModal({ isOpen, onClose, booking }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 text-slate-700">
-                  <tr>
-                    <td className="py-3 px-4 font-bold text-slate-900 flex items-center gap-2">
-                      <Wrench className="w-3.5 h-3.5 text-orange-500 shrink-0 print:hidden" />
-                      <span>{booking.service || 'Appliance Inspection & Repair Service'}</span>
-                    </td>
-                    <td className="py-3 px-4 text-center font-semibold">1</td>
-                    <td className="py-3 px-4 text-right font-medium">{booking.price || '₹299'}</td>
-                    <td className="py-3 px-4 text-right font-bold text-slate-900">{booking.price || '₹299'}</td>
-                  </tr>
+                  {inv.items && inv.items.length > 0 ? (
+                    inv.items.map((item, idx) => (
+                      <tr key={idx}>
+                        <td className="py-3 px-4 font-bold text-slate-900 flex items-center gap-2">
+                          <Wrench className="w-3.5 h-3.5 text-orange-500 shrink-0 print:hidden" />
+                          <span>{item.name || item.description}</span>
+                        </td>
+                        <td className="py-3 px-4 text-center font-semibold">{item.quantity || item.qty || 1}</td>
+                        <td className="py-3 px-4 text-right font-medium">₹{Number(item.unitPrice || item.price || 0).toFixed(2)}</td>
+                        <td className="py-3 px-4 text-right font-bold text-slate-900">₹{Number(item.amount || (item.quantity || 1) * (item.unitPrice || 0)).toFixed(2)}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td className="py-3 px-4 font-bold text-slate-900 flex items-center gap-2">
+                        <Wrench className="w-3.5 h-3.5 text-orange-500 shrink-0 print:hidden" />
+                        <span>{booking.service || 'Appliance Inspection & Repair Service'}</span>
+                      </td>
+                      <td className="py-3 px-4 text-center font-semibold">1</td>
+                      <td className="py-3 px-4 text-right font-medium">{priceDisplay}</td>
+                      <td className="py-3 px-4 text-right font-bold text-slate-900">{priceDisplay}</td>
+                    </tr>
+                  )}
                   <tr className="bg-slate-50/50">
                     <td className="py-2.5 px-4 text-slate-600">30-Day Service Guarantee &amp; Diagnostic Checkup</td>
                     <td className="py-2.5 px-4 text-center font-semibold">1</td>
@@ -186,15 +203,27 @@ export default function UserInvoiceModal({ isOpen, onClose, booking }) {
               <div className="w-full sm:w-56 space-y-1.5 text-xs text-right">
                 <div className="flex justify-between text-slate-600">
                   <span>Subtotal:</span>
-                  <span className="font-semibold text-slate-800">{booking.price || '₹299'}</span>
+                  <span className="font-semibold text-slate-800">
+                    {inv.subtotal !== undefined ? `₹${Number(inv.subtotal).toFixed(2)}` : priceDisplay}
+                  </span>
                 </div>
+                {inv.discount > 0 && (
+                  <div className="flex justify-between text-emerald-700">
+                    <span>Discount:</span>
+                    <span className="font-bold">-₹{Number(inv.discount).toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-slate-600">
-                  <span>Taxes (GST 18%):</span>
-                  <span className="font-semibold text-slate-800">Included</span>
+                  <span>Taxes (GST):</span>
+                  <span className="font-semibold text-slate-800">
+                    {inv.tax > 0 ? `₹${Number(inv.tax).toFixed(2)}` : 'Included'}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm font-black text-[#0B1E40] pt-2 border-t border-slate-200">
                   <span>Total Amount Paid:</span>
-                  <span className="text-orange-600 text-base">{booking.price || '₹299'}</span>
+                  <span className="text-orange-600 text-base">
+                    {inv.totalAmount !== undefined ? `₹${Number(inv.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : priceDisplay}
+                  </span>
                 </div>
               </div>
             </div>

@@ -48,6 +48,7 @@ export default function VendorStartServiceModal({
   const [ratePerKm, setRatePerKm] = useState(fuelRate);
   const [mapScreenshot, setMapScreenshot] = useState(null);
   const [mapFileName, setMapFileName] = useState('');
+  const [mapFile, setMapFile] = useState(null);
   const [addToInvoice, setAddToInvoice] = useState(true);
   const [validationError, setValidationError] = useState('');
 
@@ -75,6 +76,7 @@ export default function VendorStartServiceModal({
         setMapScreenshot(null);
         setMapFileName('');
       }
+      setMapFile(null);
       setValidationError('');
     }
   }, [job, isOpen]);
@@ -113,6 +115,7 @@ export default function VendorStartServiceModal({
         return;
       }
       setMapFileName(file.name);
+      setMapFile(file);
       setValidationError('');
       const reader = new FileReader();
       reader.onload = (event) => {
@@ -123,6 +126,11 @@ export default function VendorStartServiceModal({
   };
 
   const handleUseSampleScreenshot = () => {
+    try {
+      const blob = new Blob([SAMPLE_MAP_ROUTE_SVG], { type: 'image/svg+xml' });
+      const sampleFile = new File([blob], `route_map_${job.id || 'job'}.svg`, { type: 'image/svg+xml' });
+      setMapFile(sampleFile);
+    } catch (_) {}
     setMapScreenshot(SAMPLE_MAP_ROUTE_SVG);
     setMapFileName(`route_map_${job.id}.png`);
     setValidationError('');
@@ -131,6 +139,7 @@ export default function VendorStartServiceModal({
   const handleRemoveScreenshot = () => {
     setMapScreenshot(null);
     setMapFileName('');
+    setMapFile(null);
   };
 
   const handleSubmit = () => {
@@ -150,6 +159,7 @@ export default function VendorStartServiceModal({
       travelRatePerKm: Number(ratePerKm) || 10,
       travelCharges: calculatedTravelCharge,
       mapScreenshot: mapScreenshot,
+      mapFile: mapFile,
       addToInvoice: addToInvoice
     });
   };

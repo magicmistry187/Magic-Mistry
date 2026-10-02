@@ -664,6 +664,24 @@ export default function VendorApplyPage() {
       ? form.serviceType.join(', ')
       : (form.serviceType || '');
     formData.append('serviceType', serviceTypeString);
+
+    // Append serviceTypes for backend multer array parser
+    const services = Array.isArray(form.serviceType)
+      ? form.serviceType
+      : typeof form.serviceType === 'string'
+      ? form.serviceType.split(',').map((s) => s.trim()).filter(Boolean)
+      : [];
+
+    if (services.length === 1) {
+      formData.append('serviceTypes', services[0]);
+      formData.append('serviceTypes', services[0]);
+    } else if (services.length > 1) {
+      services.forEach((s) => formData.append('serviceTypes', s));
+    } else if (form.specialOption) {
+      formData.append('serviceTypes', form.specialOption);
+      formData.append('serviceTypes', form.specialOption);
+    }
+
     formData.append('experience', parseExperience(form.experience));
     formData.append('experienceDescription', form.about);
     

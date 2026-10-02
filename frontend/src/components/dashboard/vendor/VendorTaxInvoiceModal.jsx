@@ -134,9 +134,12 @@ export default function VendorTaxInvoiceModal({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 text-slate-700">
-                    {generatedInvoiceData.parts.map((p, pIdx) => {
-                      const amt = (parseFloat(p.qty) || 1) * (parseFloat(p.price) || 0);
-                      const isTravelLine = p.isTravel || String(p.description || '').toLowerCase().includes('travel') || String(p.description || '').toLowerCase().includes('km');
+                    {(generatedInvoiceData.parts || generatedInvoiceData.items || []).map((p, pIdx) => {
+                      const qty = parseFloat(p.qty !== undefined ? p.qty : p.quantity) || 1;
+                      const price = parseFloat(p.price !== undefined ? p.price : p.unitPrice) || 0;
+                      const amt = p.amount !== undefined ? parseFloat(p.amount) : qty * price;
+                      const desc = p.description || p.name || 'Component';
+                      const isTravelLine = p.isTravel || p.type === 'Travel' || String(desc).toLowerCase().includes('travel') || String(desc).toLowerCase().includes('km');
                       return (
                         <tr key={pIdx}>
                           <td className="py-3 px-4 font-bold text-slate-900 flex items-center gap-2">
@@ -145,10 +148,10 @@ export default function VendorTaxInvoiceModal({
                             ) : (
                               <Wrench className="w-3.5 h-3.5 text-orange-500 shrink-0 no-print" />
                             )}
-                            <span>{p.description}</span>
+                            <span>{desc}</span>
                           </td>
-                          <td className="py-3 px-4 text-center font-semibold">{p.qty}</td>
-                          <td className="py-3 px-4 text-right font-medium">₹{parseFloat(p.price).toFixed(2)}</td>
+                          <td className="py-3 px-4 text-center font-semibold">{qty}</td>
+                          <td className="py-3 px-4 text-right font-medium">₹{price.toFixed(2)}</td>
                           <td className="py-3 px-4 text-right font-bold text-slate-900">₹{amt.toFixed(2)}</td>
                         </tr>
                       );
@@ -175,21 +178,21 @@ export default function VendorTaxInvoiceModal({
                 <div className="w-full sm:w-64 space-y-1.5 text-xs text-right">
                   <div className="flex justify-between text-slate-600">
                     <span>Subtotal:</span>
-                    <span className="font-semibold text-slate-800">₹{generatedInvoiceData.subtotal.toFixed(2)}</span>
+                    <span className="font-semibold text-slate-800">₹{(parseFloat(generatedInvoiceData.subtotal) || 0).toFixed(2)}</span>
                   </div>
-                  {generatedInvoiceData.discount > 0 && (
+                  {(parseFloat(generatedInvoiceData.discount) || 0) > 0 && (
                     <div className="flex justify-between text-emerald-700">
                       <span>Discount Applied:</span>
-                      <span className="font-bold">-₹{generatedInvoiceData.discount.toFixed(2)}</span>
+                      <span className="font-bold">-₹{(parseFloat(generatedInvoiceData.discount) || 0).toFixed(2)}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-slate-600">
-                    <span>Taxes (GST 5%):</span>
-                    <span className="font-semibold text-slate-800">₹{generatedInvoiceData.tax.toFixed(2)}</span>
+                    <span>Taxes {(parseFloat(generatedInvoiceData.tax) || 0) > 0 ? '(GST)' : '(GST 0%)'}:</span>
+                    <span className="font-semibold text-slate-800">₹{(parseFloat(generatedInvoiceData.tax) || 0).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm font-black text-[#0B1E40] pt-2 border-t border-slate-200">
                     <span>Total Amount Paid:</span>
-                    <span className="text-orange-600 text-base">₹{generatedInvoiceData.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    <span className="text-orange-600 text-base">₹{(parseFloat(generatedInvoiceData.total !== undefined ? generatedInvoiceData.total : generatedInvoiceData.totalAmount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                   </div>
                 </div>
               </div>

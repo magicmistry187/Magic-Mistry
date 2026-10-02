@@ -281,3 +281,109 @@ export async function updateBookingStatusApi(bookingId, statusData, token) {
     };
   }
 }
+
+// Route Verification (Vendor)
+export async function routeVerificationApi(bookingId, formData, token) {
+  try {
+    const authToken = getAuthToken(token);
+    const res = await apiConnector(
+      "POST",
+      `${BASE_URL}/booking/${bookingId}/route-verification`,
+      formData,
+      authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    );
+
+    if (!res.data?.success) {
+      throw new Error(res.data?.message || "Route verification failed");
+    }
+
+    return {
+      success: true,
+      serviceExecution: res.data.serviceExecution,
+      message: res.data.message || "Route verified successfully",
+    };
+  } catch (error) {
+    console.error("Error submitting route verification:", error);
+    return {
+      success: false,
+      message:
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to submit route verification",
+    };
+  }
+}
+
+// Submit Service Details (Vendor)
+export async function submitServiceDetailsApi(bookingId, formData, token) {
+  try {
+    const authToken = getAuthToken(token);
+    const res = await apiConnector(
+      "PATCH",
+      `${BASE_URL}/booking/${bookingId}/service-details`,
+      formData,
+      authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    );
+
+    if (!res.data?.success) {
+      throw new Error(res.data?.message || "Failed to submit service details");
+    }
+
+    return {
+      success: true,
+      serviceExecution: res.data.serviceExecution,
+      message: res.data.message || "Service details submitted successfully",
+    };
+  } catch (error) {
+    console.error("Error submitting service details:", error);
+    return {
+      success: false,
+      message:
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to submit service details",
+    };
+  }
+}
+
+// Complete Service & Generate Final Invoice (Vendor)
+export async function completeServiceApi(bookingId, completionData, token) {
+  try {
+    const authToken = getAuthToken(token);
+    const res = await apiConnector(
+      "POST",
+      `${BASE_URL}/booking/${bookingId}/complete`,
+      completionData,
+      authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    );
+
+    if (!res.data?.success) {
+      throw new Error(res.data?.message || "Failed to complete service");
+    }
+
+    return {
+      success: true,
+      invoice: res.data.invoice,
+      serviceExecution: res.data.serviceExecution,
+      booking: res.data.booking,
+      message: res.data.message || "Service completed and invoice generated successfully",
+    };
+  } catch (error) {
+    console.error("Error completing service:", error);
+    const existingInvoice = error.response?.data?.invoice || null;
+    const isAlreadyGenerated = Boolean(
+      existingInvoice ||
+      (error.response?.data?.message && /already (been )?generated/i.test(error.response.data.message))
+    );
+    return {
+      success: Boolean(existingInvoice),
+      alreadyGenerated: isAlreadyGenerated,
+      invoice: existingInvoice,
+      message:
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to complete service and generate invoice",
+    };
+  }
+}
+
