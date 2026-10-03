@@ -15,15 +15,20 @@ const getAuthToken = (token) =>
       localStorage.getItem("adminToken")
     : null);
 
-export async function updateUserStatusApi(userId, status, token) {
+export async function updateUserStatusApi(userId, status, token, durationDays = 7) {
   try {
     const authToken = getAuthToken(token);
     const cleanStatus = typeof status === "string" ? status.toLowerCase().trim() : status;
 
+    const payload = { status: cleanStatus };
+    if (cleanStatus === "suspended") {
+      payload.durationDays = Number.isInteger(durationDays) && durationDays > 0 ? durationDays : 7;
+    }
+
     const res = await apiConnector(
       "PATCH",
       `${USER_STATUS_UPDATE_API}/${userId}/status`,
-      { status: cleanStatus },
+      payload,
       authToken ? { Authorization: `Bearer ${authToken}` } : {},
     );
 

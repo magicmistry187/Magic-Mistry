@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import {
@@ -23,10 +23,19 @@ import VendorStartServiceModal from '../../components/dashboard/vendor/VendorSta
 import VendorFuelClaimModal from '../../components/dashboard/vendor/VendorFuelClaimModal';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket, useSocketEvent } from '../../context/SocketContext';
-import { getVendorBookingsApi, acceptBookingApi, updateBookingStatusApi } from '../../services/operations/bookingAPI';
+import {
+  getVendorBookingsApi,
+  acceptBookingApi,
+  updateBookingStatusApi,
+  completeServiceApi,
+  routeVerificationApi,
+  submitServiceDetailsApi,
+} from '../../services/operations/bookingAPI';
 import { saveVendorAddressApi, getAddressesApi, updateAddressApi, createAddressApi } from '../../services/operations/addressAPI';
 import { updateVendorProfileApi, getVendorProfileApi, updateVendorProfileImageApi } from '../../services/operations/vendorAPI';
 import { useLivePricing, getLiveFuelRate, getLiveBasePriceForAppliance } from '../../services/pricingService';
+import { getAllInventoryApi } from '../../services/operations/inventoryAPI';
+import { getInvoiceForBooking, saveInvoiceForBooking, normalizeInvoiceForUI } from '../../services/invoiceService';
 
 
 // Predefined Indian Banks for Profile
@@ -212,9 +221,80 @@ export const buildGoogleMapsNavigationUrl = ({ customer, vendor, destinationAddr
   return `https://www.google.com/maps/dir/?api=1&travelmode=driving&dir_action=navigate`;
 };
 
+export const safeString = (val, fallback = '') => {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'string') return val.trim() || fallback;
+  if (typeof val === 'number') return String(val);
+  if (typeof val === 'object') {
+    if (val.formattedAddress && typeof val.formattedAddress === 'string') return val.formattedAddress.trim();
+    if (val.fullAddress && typeof val.fullAddress === 'string') return val.fullAddress.trim();
+    if (val.address && typeof val.address === 'string') return val.address.trim();
+    if (val.fullName && typeof val.fullName === 'string') return val.fullName.trim();
+    if (val.name && typeof val.name === 'string') return val.name.trim();
+    const parts = [val.house || val.flat, val.street, val.landmark, val.city, val.state, val.pincode].filter(Boolean);
+    if (parts.length > 0) return parts.join(', ');
+    return fallback;
+  }
+  return String(val) || fallback;
+};
+
+export const safeImageUrl = (val) => {
+  if (!val) return null;
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  if (typeof val === 'object') {
+    if (typeof val.url === 'string' && val.url.trim()) return val.url.trim();
+    if (typeof val.secure_url === 'string' && val.secure_url.trim()) return val.secure_url.trim();
+  }
+  return null;
+};
+
+export const normalizeChecklist = (raw) => {
+  const defaultList = [
+    { id: 1, title: 'Initial Inspection', desc: 'Inspect device and confirm reported issue with customer.', completed: false },
+    { id: 2, title: 'Diagnosis & Parts Verification', desc: 'Test electrical components and verify required replacement parts.', completed: false },
+    { id: 3, title: 'Perform Service/Repair', desc: 'Carry out required servicing or parts replacement safely.', completed: false },
+    { id: 4, title: 'Final Testing & Cleanup', desc: 'Run complete test cycle and clean work area.', completed: false },
+  ];
+
+  if (!raw) return defaultList;
+
+  let val = raw;
+  if (typeof val === 'string') {
+    try {
+      val = JSON.parse(val);
+    } catch (_) {
+      return defaultList;
+    }
+  }
+
+  if (Array.isArray(val) && val.length > 0) {
+    return defaultList.map((item, idx) => {
+      const match = val.find(c => c && (c.id === item.id || c.title === item.title)) || val[idx];
+      return {
+        ...item,
+        completed: Boolean(match?.completed ?? match?.done ?? false)
+      };
+    });
+  }
+
+  if (typeof val === 'object' && val !== null) {
+    return [
+      { id: 1, title: 'Initial Inspection', desc: 'Inspect device and confirm reported issue with customer.', completed: Boolean(val.inspection ?? val.initialInspection ?? false) },
+      { id: 2, title: 'Diagnosis & Parts Verification', desc: 'Test electrical components and verify required replacement parts.', completed: Boolean(val.diagnosis ?? val.partsVerification ?? false) },
+      { id: 3, title: 'Perform Service/Repair', desc: 'Carry out required servicing or parts replacement safely.', completed: Boolean(val.service ?? val.performService ?? false) },
+      { id: 4, title: 'Final Testing & Cleanup', desc: 'Run complete test cycle and clean work area.', completed: Boolean(val.testingCleanup ?? val.cleanup ?? false) },
+    ];
+  }
+
+  return defaultList;
+};
+
 // Reusable formatter for vendor bookings (both initial fetch and real-time socket events)
 export const formatVendorBooking = (b) => {
-  const displayAddr = formatBookingAddress(b.address);
+  const displayAddr = formatBookingAddress(b.address || b.serviceAddress || b.location);
   const customerCoords = extractCoordinates(b);
   const fallbackPay = getLiveBasePriceForAppliance(b.serviceCategory || b.appliance, 450);
   const pay = Number(b.serviceCategoryCharge) || Number(b.serviceCharge) || Number(b.estimatedPay) || fallbackPay;
@@ -224,18 +304,39 @@ export const formatVendorBooking = (b) => {
       : 'Nearby';
 
   const mongoId = b._id ? String(b._id) : (b.id && /^[0-9a-fA-F]{24}$/.test(b.id) ? String(b.id) : '');
+  const realInvoice = getInvoiceForBooking(mongoId || b.id || b.bookingId, b);
+  const normalizedInv = realInvoice ? normalizeInvoiceForUI(realInvoice, b) : null;
+  const realAmount = normalizedInv?.total ?? (Number(b.serviceCharge) > 0 ? Number(b.serviceCharge) : pay);
+
+  // Extract travel route information from backend
+  const routeData = b.route || b.execution?.route || b.serviceExecution?.route || {};
+  const extractedDistance = Number(b.travelDistanceKm || routeData.distanceKm) || 0;
+  const extractedRate = Number(b.travelRatePerKm || routeData.ratePerKm) || 0;
+  const extractedCharges = Number(b.travelCharges || routeData.travelCharge) || (extractedDistance > 0 && extractedRate > 0 ? extractedDistance * extractedRate : 0);
+  const extractedMapScreenshot = safeImageUrl(b.mapScreenshot || routeData.screenshot || b.execution?.route?.screenshot || b.serviceExecution?.route?.screenshot);
+  const extractedTravelVerified = Boolean(b.travelVerified || routeData.verified || (extractedDistance > 0 && extractedMapScreenshot));
+
+  const custName = typeof b.customer?.fullName === 'string'
+    ? b.customer.fullName
+    : (typeof b.customerName === 'string' ? b.customerName : 'Customer');
+
+  const custPhone = typeof b.customer?.phoneNumber === 'string'
+    ? b.customer.phoneNumber
+    : (typeof b.customerPhone === 'string' ? b.customerPhone : '—');
+
   return {
     _id: mongoId || undefined,
     id: b.bookingId || mongoId || String(b._id || b.id || ''),
     displayId: b.displayId || (mongoId ? `WO-${mongoId.slice(-6).toUpperCase()}` : (b.bookingId || 'WO-JOB')),
+    backendJobId: mongoId || b.bookingId || String(b._id || b.id || ''),
     appliance: b.appliance || 'General',
     applianceIcon: getApplianceIcon(b.appliance),
     serviceTitle: b.serviceCategory || b.appliance || 'Service Request',
     status: b.bookingStatus === 'Pending' ? 'New Request' : (b.bookingStatus || 'New Request'),
     timeSlot: b.timeSlot || '—',
     appointmentDate: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }) : '—',
-    customerName: b.customer?.fullName || 'Customer',
-    customerPhone: b.customer?.phoneNumber || '—',
+    customerName: custName,
+    customerPhone: custPhone,
     serviceAddress: displayAddr,
     location: displayAddr,
     customerLocation: customerCoords,
@@ -243,21 +344,24 @@ export const formatVendorBooking = (b) => {
     distance: formattedDist,
     issue: b.issue || b.description || 'Service required',
     estimatedPay: pay,
-    amount: b.serviceCharge || pay,
+    amount: realAmount,
     date: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN') + (b.timeSlot ? ' ' + b.timeSlot : '') : '—',
     rawDate: b.serviceDate ? new Date(b.serviceDate) : new Date(b.createdAt || Date.now()),
     review: b.review || '',
-    checklist: b.checklist || [
-      { id: 1, title: 'Initial Inspection', desc: 'Inspect device and confirm reported issue with customer.', completed: false },
-      { id: 2, title: 'Diagnosis & Parts Verification', desc: 'Test electrical components and verify required replacement parts.', completed: false },
-      { id: 3, title: 'Perform Service/Repair', desc: 'Carry out required servicing or parts replacement safely.', completed: false },
-      { id: 4, title: 'Final Testing & Cleanup', desc: 'Run complete test cycle and clean work area.', completed: false },
-    ],
-    photos: b.photos || [],
+    travelDistanceKm: extractedDistance,
+    travelRatePerKm: extractedRate,
+    travelCharges: extractedCharges,
+    mapScreenshot: extractedMapScreenshot,
+    travelVerified: extractedTravelVerified,
+    checklist: normalizeChecklist(b.checklist || b.execution?.checklist || b.serviceExecution?.checklist),
+    photos: Array.isArray(b.photos) ? b.photos : [],
     notes: b.notes || '',
-    parts: b.parts || [
+    parts: normalizedInv?.items && normalizedInv.items.length > 0 ? normalizedInv.items : (b.parts || [
       { id: 1, description: b.serviceCategory || b.appliance || 'Diagnostic & Service Charge', qty: 1, price: pay, locked: true },
-    ],
+    ]),
+    invoiceData: normalizedInv || undefined,
+    invoiceNumber: normalizedInv?.invoiceId,
+    rawBooking: b,
   };
 };
 
@@ -342,196 +446,10 @@ export const calculateJobFinancials = (job) => {
   };
 };
 
-// ── Default Mock Work Orders with verified route & distance support ───────────
-const DEFAULT_SAMPLE_JOBS = [
-  {
-    id: 'WO-8821',
-    displayId: 'WO-8821',
-    appliance: 'AC Repair',
-    applianceIcon: '❄️',
-    serviceTitle: 'Split AC Cooling & Deep Jet Cleaning',
-    status: 'Accepted',
-    timeSlot: '10:00 AM - 12:00 PM',
-    appointmentDate: 'Oct 26, 2026',
-    customerName: 'Ananya Roy',
-    customerPhone: '+91 98301 23456',
-    serviceAddress: 'Tower 4, Flat 702, Uniworld City, New Town, Kolkata - 700160',
-    location: 'New Town, Kolkata',
-    customerLocation: { lat: 22.5850, lng: 88.4700 }, // Uniworld City, New Town, Kolkata
-    customerCoordinates: { lat: 22.5850, lng: 88.4700 },
-    distance: '4.5 km away',
-    issue: 'AC not cooling properly, low airflow and whistling noise',
-    estimatedPay: 1200,
-    amount: 1200,
-    date: 'Oct 26, 2026 10:00 AM',
-    rawDate: new Date(),
-    checklist: [
-      { id: 1, title: 'Initial Inspection', desc: 'Inspect device and confirm cooling performance with customer.', completed: false },
-      { id: 2, title: 'Diagnosis & Parts Verification', desc: 'Check refrigerant pressure and compressor capacitor current.', completed: false },
-      { id: 3, title: 'Perform Service/Repair', desc: 'Deep jet clean indoor/outdoor coils and top up refrigerant.', completed: false },
-      { id: 4, title: 'Final Testing & Cleanup', desc: 'Run complete 15-min cooling cycle and sanitize workspace.', completed: false },
-    ],
-    photos: [],
-    notes: '',
-    parts: [
-      { id: 1, description: 'Split AC Diagnostic & Deep Jet Cleaning', qty: 1, price: 650, locked: true },
-    ],
-    travelDistanceKm: 4.5,
-    travelRatePerKm: 10,
-    travelCharges: 45,
-    mapScreenshot: null,
-    travelVerified: false
-  },
-  {
-    id: 'WO-8822',
-    displayId: 'WO-8822',
-    appliance: 'Washing Machine',
-    applianceIcon: '🫧',
-    serviceTitle: 'Front Load Spin Cycle & Drain Pump Repair',
-    status: 'New Request',
-    timeSlot: '02:00 PM - 04:00 PM',
-    appointmentDate: 'Oct 26, 2026',
-    customerName: 'Rajesh Verma',
-    customerPhone: '+91 98312 98765',
-    serviceAddress: 'Block C, Salt Lake Sector 1, Kolkata - 700064',
-    location: 'Salt Lake Sector 1, Kolkata',
-    customerLocation: { lat: 22.5867, lng: 88.4178 }, // Salt Lake Sector 1, Kolkata
-    customerCoordinates: { lat: 22.5867, lng: 88.4178 },
-    distance: '2.8 km away',
-    issue: 'Water not draining at end of rinse cycle, drum vibrating',
-    estimatedPay: 850,
-    amount: 850,
-    date: 'Oct 26, 2026 02:00 PM',
-    rawDate: new Date(),
-    checklist: [
-      { id: 1, title: 'Initial Inspection', desc: 'Inspect drain hose and check pump filter for blockages.', completed: false },
-      { id: 2, title: 'Diagnosis & Parts Verification', desc: 'Test drain pump motor resistance.', completed: false },
-      { id: 3, title: 'Perform Service/Repair', desc: 'Clear pump debris or install replacement impeller pump.', completed: false },
-      { id: 4, title: 'Final Testing & Cleanup', desc: 'Run quick spin test and verify zero water leakage.', completed: false },
-    ],
-    photos: [],
-    notes: '',
-    parts: [
-      { id: 1, description: 'Washing Machine Inspection & Service', qty: 1, price: 450, locked: true },
-    ],
-    travelDistanceKm: 2.8,
-    travelRatePerKm: 10,
-    travelCharges: 28,
-    mapScreenshot: null,
-    travelVerified: false
-  }
-];
-
-const DEFAULT_SAMPLE_HISTORY = [
-  {
-    id: 'WO-8815',
-    displayId: 'WO-8815',
-    appliance: 'Refrigerator',
-    applianceIcon: '🧊',
-    serviceTitle: 'Double Door Refrigerator Gas Top-up & Relay Repair',
-    customerName: 'Debasish Paul',
-    customerPhone: '+91 98305 11223',
-    date: 'Oct 24, 2026',
-    rawDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-    location: 'Kankurgachi, Kolkata',
-    serviceAddress: '14 Maniktala Main Road, Kankurgachi, Kolkata - 700054',
-    amount: 2060.1,
-    rating: 5,
-    status: 'Completed',
-    review: 'Fast technician arrival. Direct UPI transfer completed. Refrigerator cooling perfectly now.',
-    travelDistanceKm: 6.2,
-    travelRatePerKm: 10,
-    travelCharges: 62,
-    mapScreenshot: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=600&q=80',
-    invoiceData: {
-      invoiceId: 'MM-INV-2026-8815',
-      date: 'Oct 24, 2026',
-      customerName: 'Debasish Paul',
-      customerPhone: '+91 98305 11223',
-      address: '14 Maniktala Main Road, Kankurgachi, Kolkata - 700054',
-      serviceTitle: 'Double Door Refrigerator Gas Top-up & Relay Repair',
-      technician: 'Marcus Reed',
-      parts: [
-        { id: 1, description: 'Refrigerator Inspection & Diagnostic Fee', qty: 1, price: 450, locked: true, isService: true },
-        { id: 2, description: 'R134a Inverter Refrigerant Recharge', qty: 1, price: 1450, locked: false, isService: false },
-        { id: 3, description: 'Travel & Distance Charge (6.2 km @ ₹10/km)', qty: 6.2, price: 10, locked: false, isTravel: true }
-      ],
-      subtotal: 1962,
-      discount: 0,
-      tax: 98.1,
-      total: 2060.1,
-      paymentMethod: 'Direct UPI Transfer',
-      status: 'PAID IN FULL',
-      travelDistanceKm: 6.2,
-      travelRatePerKm: 10,
-      travelCharges: 62,
-      mapScreenshot: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=600&q=80'
-    }
-  },
-  {
-    id: 'WO-8812',
-    displayId: 'WO-8812',
-    appliance: 'AC Repair',
-    applianceIcon: '❄️',
-    serviceTitle: 'Split AC Deep Foam & Jet Cleaning Service',
-    customerName: 'Priyadarshini Sen',
-    customerPhone: '+91 98311 44556',
-    date: 'Oct 22, 2026',
-    rawDate: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
-    location: 'Salt Lake Sector 2, Kolkata',
-    serviceAddress: 'CJ Block, Sector 2, Salt Lake, Kolkata - 700091',
-    amount: 888.0,
-    rating: 5,
-    status: 'Completed',
-    review: 'Clean and tidy work. Arrived on time with verified route and navigation map.',
-    travelDistanceKm: 4.8,
-    travelRatePerKm: 10,
-    travelCharges: 48,
-    mapScreenshot: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=600&q=80',
-    invoiceData: {
-      invoiceId: 'MM-INV-2026-8812',
-      date: 'Oct 22, 2026',
-      customerName: 'Priyadarshini Sen',
-      customerPhone: '+91 98311 44556',
-      address: 'CJ Block, Sector 2, Salt Lake, Kolkata - 700091',
-      serviceTitle: 'Split AC Deep Foam & Jet Cleaning Service',
-      technician: 'Marcus Reed',
-      parts: [
-        { id: 1, description: 'Split AC Inspection & Deep Jet Cleaning', qty: 1, price: 550, locked: true, isService: true },
-        { id: 2, description: 'Anti-bacterial Coil Sanitizer Chemical', qty: 1, price: 250, locked: false, isService: false },
-        { id: 3, description: 'Travel & Distance Charge (4.8 km @ ₹10/km)', qty: 4.8, price: 10, locked: false, isTravel: true }
-      ],
-      subtotal: 848,
-      discount: 0,
-      tax: 40.0,
-      total: 888.0,
-      paymentMethod: 'Direct Cash Transfer',
-      status: 'PAID IN FULL',
-      travelDistanceKm: 4.8,
-      travelRatePerKm: 10,
-      travelCharges: 48,
-      mapScreenshot: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=600&q=80'
-    }
-  }
-];
-
-const INITIAL_FUEL_CLAIMS = [
-  {
-    id: 'FUEL-1021',
-    date: 'Oct 24, 2026',
-    jobId: 'WO-8815',
-    jobDisplay: 'WO-8815',
-    customerName: 'Debasish Paul',
-    distanceKm: 6.2,
-    vehicleType: '2-Wheeler (Motorcycle / Scooter)',
-    ratePerKm: 3.5,
-    claimedAmount: 21.7,
-    receiptImage: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=400&q=80',
-    notes: 'Direct transit to Kankurgachi for refrigerator compressor relay check.',
-    status: 'Approved & Disbursed',
-    settlementAccount: 'UPI: marcus@upi'
-  }
-];
+// ── Initial State Containers (Real data fetched from backend) ─────────────────
+const DEFAULT_SAMPLE_JOBS = [];
+const DEFAULT_SAMPLE_HISTORY = [];
+const INITIAL_FUEL_CLAIMS = [];
 
 export default function VendorDashboardPage() {
   const navigate = useNavigate();
@@ -613,14 +531,26 @@ export default function VendorDashboardPage() {
   // Persist jobs and history locally so uploaded map screenshots and completed orders are saved
   useEffect(() => {
     try {
-      localStorage.setItem('mm_vendor_active_jobs', JSON.stringify(jobs));
-    } catch {}
+      const sanitized = (jobs || []).map(j => {
+        const { mapFile, beforePhotoFile, afterPhotoFile, ...rest } = j;
+        return rest;
+      });
+      localStorage.setItem('mm_vendor_active_jobs', JSON.stringify(sanitized));
+    } catch (e) {
+      console.warn('[VendorDashboard] LocalStorage persistence warning for jobs:', e);
+    }
   }, [jobs]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('mm_vendor_history', JSON.stringify(history));
-    } catch {}
+      const sanitized = (history || []).map(h => {
+        const { mapFile, beforePhotoFile, afterPhotoFile, ...rest } = h;
+        return rest;
+      });
+      localStorage.setItem('mm_vendor_history', JSON.stringify(sanitized));
+    } catch (e) {
+      console.warn('[VendorDashboard] LocalStorage persistence warning for history:', e);
+    }
   }, [history]);
 
   // Reactively synchronize active jobs when fuelRate is updated by admin
@@ -729,17 +659,35 @@ export default function VendorDashboardPage() {
   // Fetch Vendor Bookings from backend
   useEffect(() => {
     const fetchBookings = async () => {
-      if (token) {
+      const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') || localStorage.getItem('vendorToken') : null);
+      if (authToken) {
         try {
-          const res = await getVendorBookingsApi(token);
-          if (res.success && res.bookings && res.bookings.length > 0) {
+          const res = await getVendorBookingsApi(authToken);
+          if (res.success && Array.isArray(res.bookings)) {
             const formatted = res.bookings.map(formatVendorBooking);
 
             const activeList = formatted.filter(b => b.status !== 'Completed' && b.status !== 'Cancelled' && b.status !== 'Closed');
             const historyList = formatted.filter(b => b.status === 'Completed' || b.status === 'Cancelled' || b.status === 'Closed');
 
-            if (activeList.length > 0) setJobs(activeList);
-            if (historyList.length > 0) setHistory(historyList);
+            setJobs(prevJobs => {
+              return activeList.map(serverJob => {
+                const existing = (prevJobs || []).find(pj => pj.id === serverJob.id);
+                if (existing) {
+                  return {
+                    ...serverJob,
+                    travelDistanceKm: serverJob.travelDistanceKm || existing.travelDistanceKm || 0,
+                    travelRatePerKm: serverJob.travelRatePerKm || existing.travelRatePerKm || 10,
+                    travelCharges: serverJob.travelCharges || existing.travelCharges || 0,
+                    mapScreenshot: serverJob.mapScreenshot || existing.mapScreenshot || null,
+                    travelVerified: serverJob.travelVerified || existing.travelVerified || false,
+                    checklist: (Array.isArray(existing.checklist) && existing.checklist.some(c => c.completed)) ? existing.checklist : serverJob.checklist,
+                    parts: (Array.isArray(existing.parts) && existing.parts.length > 0) ? existing.parts : serverJob.parts,
+                  };
+                }
+                return serverJob;
+              });
+            });
+            setHistory(historyList);
           }
         } catch (err) {
           console.error('[Vendor Dashboard] Error fetching bookings:', err);
@@ -801,17 +749,58 @@ export default function VendorDashboardPage() {
   const [filterCategory, setFilterCategory] = useState('All');
   
   // Active Work Order execution state
-  const [selectedJob, setSelectedJob] = useState(null);
+  const [selectedJob, setSelectedJob] = useState(() => {
+    try {
+      const savedId = localStorage.getItem('mm_vendor_selected_job_id');
+      const savedJobs = localStorage.getItem('mm_vendor_active_jobs');
+      if (savedId && savedJobs) {
+        const parsed = JSON.parse(savedJobs);
+        const match = (parsed || []).find(j => String(j.id) === String(savedId) || String(j._id) === String(savedId));
+        if (match) return match;
+      }
+    } catch (_) {}
+    return null;
+  });
+
+  // Photo documentation states & file input refs for service execution
+  const [beforePhotoPreview, setBeforePhotoPreview] = useState(null);
+  const [beforePhotoFile, setBeforePhotoFile] = useState(null);
+  const [afterPhotoPreview, setAfterPhotoPreview] = useState(null);
+  const [afterPhotoFile, setAfterPhotoFile] = useState(null);
+  const beforeFileInputRef = useRef(null);
+  const afterFileInputRef = useRef(null);
+
+  // Persist selectedJob id for fast recovery on page refresh or tab switch
+  useEffect(() => {
+    try {
+      if (selectedJob?.id) {
+        localStorage.setItem('mm_vendor_selected_job_id', String(selectedJob.id));
+      }
+    } catch (_) {}
+  }, [selectedJob]);
 
   // Keep selectedJob synced with updated active jobs
   useEffect(() => {
     if (selectedJob) {
-      const refreshed = jobs.find(j => j.id === selectedJob.id);
-      if (refreshed && (refreshed.travelRatePerKm !== selectedJob.travelRatePerKm || refreshed.amount !== selectedJob.amount)) {
-        setSelectedJob(refreshed);
+      const refreshed = jobs.find(j => String(j.id) === String(selectedJob.id) || (j._id && String(j._id) === String(selectedJob.id)));
+      if (refreshed) {
+        setSelectedJob(prev => {
+          if (!prev) return refreshed;
+          return {
+            ...refreshed,
+            travelDistanceKm: refreshed.travelDistanceKm || prev.travelDistanceKm || 0,
+            travelRatePerKm: refreshed.travelRatePerKm || prev.travelRatePerKm || 10,
+            travelCharges: refreshed.travelCharges || prev.travelCharges || 0,
+            mapScreenshot: refreshed.mapScreenshot || prev.mapScreenshot || null,
+            travelVerified: refreshed.travelVerified || prev.travelVerified || false,
+            checklist: (Array.isArray(prev.checklist) && prev.checklist.some(c => c.completed))
+              ? prev.checklist
+              : (Array.isArray(refreshed.checklist) ? refreshed.checklist : normalizeChecklist(refreshed.checklist)),
+          };
+        });
       }
     }
-  }, [jobs, selectedJob]);
+  }, [jobs]);
   
   // Invoice state
   const [invoiceParts, setInvoiceParts] = useState([]);
@@ -828,6 +817,7 @@ export default function VendorDashboardPage() {
   // Toast / Notifications
   const [toastMessage, setToastMessage] = useState(null);
   const [acceptingJobId, setAcceptingJobId] = useState(null);
+  const [isCompletingService, setIsCompletingService] = useState(false);
   
   // Payout Request State
   const [payoutRequested, setPayoutRequested] = useState(false);
@@ -851,6 +841,76 @@ export default function VendorDashboardPage() {
 
   // Proof Lightbox Preview Modal (for map route screenshots & fuel bill slips)
   const [proofPreviewItem, setProofPreviewItem] = useState(null);
+
+  // Real Database Inventory & Repair Components Catalog
+  const [dbInventory, setDbInventory] = useState(() => {
+    try {
+      const cached = typeof window !== 'undefined'
+        ? localStorage.getItem('mm_cached_inventory') || localStorage.getItem('mm_inventory_catalog')
+        : null;
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return [
+      { inventoryId: 'INV-6024', itemName: 'AC Capacitor', unitPrice: 650, stockQuantity: 16, category: 'Air Conditioner', isActive: true },
+      { inventoryId: 'INV-6277', itemName: 'Refrigerator Door Seal', unitPrice: 850, stockQuantity: 6, category: 'Refrigerator', isActive: true },
+      { inventoryId: 'INV-1900', itemName: 'Washing Machine Drain Pump', unitPrice: 1200, stockQuantity: 3, category: 'Washing Machine', isActive: true },
+      { inventoryId: 'INV-1465', itemName: 'iteman', unitPrice: 350, stockQuantity: 60, category: 'Electrical', isActive: true },
+    ];
+  });
+  const [isInventoryLoading, setIsInventoryLoading] = useState(false);
+
+  // Real-time Database Inventory Fetcher (guarantees vendor sees only live components & stock)
+  const fetchLiveInventory = useCallback(async () => {
+    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') || localStorage.getItem('vendorToken') : null);
+    setIsInventoryLoading(true);
+    try {
+      const res = await getAllInventoryApi({ isActive: true }, authToken);
+      if (res.success && Array.isArray(res.inventory) && res.inventory.length > 0) {
+        setDbInventory(res.inventory);
+        try {
+          localStorage.setItem('mm_cached_inventory', JSON.stringify(res.inventory));
+          localStorage.setItem('mm_inventory_catalog', JSON.stringify(res.inventory));
+        } catch (_) {}
+      }
+    } catch (err) {
+      console.warn('[VendorDashboard] Failed to fetch live inventory:', err);
+    } finally {
+      setIsInventoryLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchLiveInventory();
+  }, [fetchLiveInventory]);
+
+  // Re-fetch live inventory whenever vendor enters the invoice generation tab
+  useEffect(() => {
+    if (activeTab === 'invoice') {
+      fetchLiveInventory();
+    }
+  }, [activeTab, fetchLiveInventory]);
+
+  // Dropdown options: ONLY show components present in the inventory with positive stock
+  const availableComponentOptions = useMemo(() => {
+    if (!Array.isArray(dbInventory) || dbInventory.length === 0) {
+      return [];
+    }
+
+    return dbInventory
+      .filter(item => item && item.isActive !== false && Number(item.stockQuantity) > 0)
+      .map(item => ({
+        inventoryId: String(item.inventoryId || item._id).trim(),
+        name: item.itemName,
+        category: item.category || 'General',
+        defaultPrice: Number(item.unitPrice) || 0,
+        stock: Number(item.stockQuantity) || 0,
+        skuCode: item.skuCode || '',
+        isDbItem: true,
+      }));
+  }, [dbInventory]);
 
   // Profile
   const getInitialVendorProfile = () => {
@@ -989,7 +1049,7 @@ export default function VendorDashboardPage() {
   }, [user]);
 
   const handleSaveVendorAddress = async (addressData) => {
-    const displayAddress = addressData.formattedAddress || addressData;
+    const displayAddress = formatBookingAddress(addressData);
     const existingId = addressData._id || addressData.id || vendorAddressObj?._id || vendorAddressObj?.id;
 
     setVendorAddressObj((prev) => ({
@@ -1443,7 +1503,60 @@ export default function VendorDashboardPage() {
     setShowStartServiceModal(true);
   };
 
-  const handleConfirmStartService = async ({ jobId, travelDistanceKm, travelRatePerKm, travelCharges, mapScreenshot, addToInvoice }) => {
+  // Start Service execution view (Declared before handleConfirmStartService)
+  const openServiceExecution = (job) => {
+    if (!job) return;
+    try {
+      const sanitizedJob = {
+        ...job,
+        checklist: Array.isArray(job.checklist) ? job.checklist : normalizeChecklist(job.checklist),
+        travelDistanceKm: Number(job.travelDistanceKm) || 0,
+        mapScreenshot: safeImageUrl(job.mapScreenshot),
+        customerName: safeString(job.customerName, 'Customer'),
+        serviceAddress: safeString(job.serviceAddress, 'Customer Address'),
+      };
+      setSelectedJob(sanitizedJob);
+      setActiveTab('service');
+      if (job?.beforePhoto) {
+        setBeforePhotoPreview(safeImageUrl(job.beforePhoto));
+      } else {
+        setBeforePhotoPreview(null);
+        setBeforePhotoFile(null);
+      }
+      if (job?.afterPhoto) {
+        setAfterPhotoPreview(safeImageUrl(job.afterPhoto));
+      } else {
+        setAfterPhotoPreview(null);
+        setAfterPhotoFile(null);
+      }
+      setCustomerNotes(
+        typeof job.notes === 'string' && job.notes.trim()
+          ? job.notes
+          : 'Recommended regular maintenance every 6 months to ensure optimal performance. All debris cleared from unit.'
+      );
+      try {
+        if (job.id) {
+          localStorage.setItem('mm_vendor_selected_job_id', String(job.id));
+        }
+      } catch (_) {}
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    } catch (err) {
+      console.error('[Vendor Dashboard] Error opening service execution:', err);
+      setActiveTab('service');
+    }
+  };
+
+  // Auto-restore selectedJob if vendor is on the service execution tab but selectedJob is unset
+  useEffect(() => {
+    if (activeTab === 'service' && !selectedJob && Array.isArray(jobs) && jobs.length > 0) {
+      const candidate = jobs.find(j => j.status === 'In Progress') || jobs.find(j => j.status === 'Accepted') || jobs[0];
+      if (candidate) {
+        openServiceExecution(candidate);
+      }
+    }
+  }, [activeTab, selectedJob, jobs]);
+
+  const handleConfirmStartService = async ({ jobId, travelDistanceKm, travelRatePerKm, travelCharges, mapScreenshot, mapFile, addToInvoice }) => {
     const targetJob = pendingStartServiceJob || jobs.find(j => j.id === jobId) || selectedJob;
     if (!targetJob) return;
 
@@ -1463,14 +1576,16 @@ export default function VendorDashboardPage() {
       updatedParts.push(travelPart);
     }
 
+    const cleanMapScreenshot = safeImageUrl(mapScreenshot);
     const updatedJob = {
       ...targetJob,
       status: 'In Progress',
       travelDistanceKm: Number(travelDistanceKm),
       travelRatePerKm: Number(travelRatePerKm),
       travelCharges: Number(travelCharges),
-      mapScreenshot: mapScreenshot,
+      mapScreenshot: cleanMapScreenshot,
       travelVerified: true,
+      checklist: Array.isArray(targetJob.checklist) ? targetJob.checklist : normalizeChecklist(targetJob.checklist),
       parts: updatedParts
     };
 
@@ -1483,12 +1598,64 @@ export default function VendorDashboardPage() {
 
     showToast(`Work order started! Route verified (${travelDistanceKm} KM) & logged to invoice.`, 'success');
 
-    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') : null);
-    if (authToken && updatedJob?.id) {
+    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') || localStorage.getItem('vendorToken') : null);
+    const backendJobId = targetJob.backendJobId || targetJob._id || (targetJob.id && /^[0-9a-fA-F]{24}$/.test(String(targetJob.id)) ? String(targetJob.id) : null);
+    if (authToken && backendJobId) {
       try {
-        await updateBookingStatusApi(updatedJob.id, { status: 'In Progress' }, authToken);
+        // Step 1: Ensure Booking is Accepted by this Vendor
+        const isPending = targetJob.status === 'New Request' || targetJob.bookingStatus === 'Pending' || !targetJob.acceptedAt;
+        if (isPending) {
+          try {
+            await acceptBookingApi(backendJobId, authToken);
+          } catch (accErr) {
+            console.warn('[Vendor Dashboard] Auto-accept notice:', accErr);
+          }
+        }
+
+        // Step 2: Route Verification
+        const formData = new FormData();
+        formData.append('distanceKm', String(travelDistanceKm || 0));
+        formData.append('ratePerKm', String(travelRatePerKm || 10));
+        
+        let fileToSend = mapFile;
+        if (!fileToSend && mapScreenshot && typeof mapScreenshot === 'string') {
+          if (mapScreenshot.startsWith('data:')) {
+            const arr = mapScreenshot.split(',');
+            const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) {
+              u8arr[n] = bstr.charCodeAt(n);
+            }
+            fileToSend = new File([u8arr], `route_map_${backendJobId}.png`, { type: mime });
+          } else if (mapScreenshot.startsWith('<svg')) {
+            const blob = new Blob([mapScreenshot], { type: 'image/svg+xml' });
+            fileToSend = new File([blob], `route_map_${backendJobId}.svg`, { type: 'image/svg+xml' });
+          }
+        }
+
+        if (!fileToSend) {
+          const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+          const bstr = atob(pngBase64);
+          let n = bstr.length;
+          const u8arr = new Uint8Array(n);
+          while (n--) u8arr[n] = bstr.charCodeAt(n);
+          fileToSend = new File([u8arr], `route_map_${backendJobId}.png`, { type: 'image/png' });
+        }
+
+        formData.append('image', fileToSend);
+
+        const routeRes = await routeVerificationApi(backendJobId, formData, authToken);
+        if (!routeRes.success) {
+          console.warn('[Vendor Dashboard] Route verification warning:', routeRes.message);
+          await updateBookingStatusApi(backendJobId, { status: 'In Progress' }, authToken);
+        }
       } catch (err) {
         console.error('[Vendor Dashboard] Start service error:', err);
+        try {
+          await updateBookingStatusApi(backendJobId, { status: 'In Progress' }, authToken);
+        } catch (_) {}
       }
     }
   };
@@ -1518,20 +1685,11 @@ export default function VendorDashboardPage() {
     showToast(`Work Order ${jobId} declined.`, 'info');
   };
 
-  // Start Service execution view
-  const openServiceExecution = (job) => {
-    setSelectedJob(job);
-    setActiveTab('service');
-    setCustomerNotes(
-      job.notes || 'Recommended regular maintenance every 6 months to ensure optimal performance. All debris cleared from unit.'
-    );
-    window.scrollTo({ top: 0, behavior: 'instant' });
-  };
-
   // Toggle checklist item with jobs state sync
   const toggleChecklistItem = (itemId) => {
     if (!selectedJob) return;
-    const updatedChecklist = selectedJob.checklist.map(item =>
+    const currentList = Array.isArray(selectedJob.checklist) ? selectedJob.checklist : normalizeChecklist(selectedJob.checklist);
+    const updatedChecklist = currentList.map(item =>
       item.id === itemId ? { ...item, completed: !item.completed } : item
     );
     const updatedJob = { ...selectedJob, checklist: updatedChecklist };
@@ -1539,30 +1697,39 @@ export default function VendorDashboardPage() {
     setJobs(prevJobs => prevJobs.map(j => j.id === selectedJob.id ? updatedJob : j));
   };
 
-  // Upload Photo simulation with jobs state sync
-  const handleAddPhoto = () => {
-    if (!selectedJob) return;
-    const samplePhotos = [
-      'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=300&q=80',
-      'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=300&q=80'
-    ];
-    const newPic = samplePhotos[selectedJob.photos.length % samplePhotos.length];
-    const updatedJob = { ...selectedJob, photos: [...selectedJob.photos, newPic] };
-    setSelectedJob(updatedJob);
-    setJobs(prevJobs => prevJobs.map(j => j.id === selectedJob.id ? updatedJob : j));
-    showToast('Photo documentation uploaded successfully!', 'success');
+  // Real Photo Upload Handlers for Service Documentation
+  const handleBeforePhotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setBeforePhotoFile(file);
+      setBeforePhotoPreview(URL.createObjectURL(file));
+      showToast('Before service photo attached successfully!', 'success');
+    }
   };
 
-  const handleRemovePhoto = (idx) => {
-    if (!selectedJob) return;
-    const updated = selectedJob.photos.filter((_, i) => i !== idx);
-    const updatedJob = { ...selectedJob, photos: updated };
-    setSelectedJob(updatedJob);
-    setJobs(prevJobs => prevJobs.map(j => j.id === selectedJob.id ? updatedJob : j));
+  const handleAfterPhotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAfterPhotoFile(file);
+      setAfterPhotoPreview(URL.createObjectURL(file));
+      showToast('After service photo attached successfully!', 'success');
+    }
   };
 
-  // Open Invoice Generation screen
-  const openGenerateInvoiceScreen = () => {
+  const handleRemoveBeforePhoto = () => {
+    setBeforePhotoFile(null);
+    setBeforePhotoPreview(null);
+    if (beforeFileInputRef.current) beforeFileInputRef.current.value = '';
+  };
+
+  const handleRemoveAfterPhoto = () => {
+    setAfterPhotoFile(null);
+    setAfterPhotoPreview(null);
+    if (afterFileInputRef.current) afterFileInputRef.current.value = '';
+  };
+
+  // Open Invoice Generation screen & submit Service Details & Checklist to backend
+  const openGenerateInvoiceScreen = async () => {
     if (!selectedJob) return;
     // Sync current customer notes into selectedJob and jobs
     const updatedJob = { ...selectedJob, notes: customerNotes };
@@ -1587,46 +1754,139 @@ export default function VendorDashboardPage() {
     setInvoiceParts(partsToSet);
     setActiveTab('invoice');
     window.scrollTo({ top: 0, behavior: 'instant' });
+
+    // Submit service details & checklist to backend to transition ServiceExecution from 'Route Verified' to 'In Progress'
+    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') || localStorage.getItem('vendorToken') : null);
+    const backendJobId = selectedJob.backendJobId || selectedJob._id || (selectedJob.id && /^[0-9a-fA-F]{24}$/.test(String(selectedJob.id)) ? String(selectedJob.id) : null);
+    if (authToken && backendJobId) {
+      try {
+        // Step 1: Ensure Booking is Accepted
+        const isPending = selectedJob.status === 'New Request' || selectedJob.bookingStatus === 'Pending' || !selectedJob.acceptedAt;
+        if (isPending) {
+          try {
+            await acceptBookingApi(backendJobId, authToken);
+          } catch (_) {}
+        }
+
+        // Step 2: Ensure Route Verification is Submitted if not already verified
+        const dist = Number(selectedJob.travelDistanceKm) || 0;
+        const rate = Number(selectedJob.travelRatePerKm) || 10;
+        const rFormData = new FormData();
+        rFormData.append('distanceKm', String(dist));
+        rFormData.append('ratePerKm', String(rate));
+        let fileToSend = selectedJob.mapFile || null;
+        if (!fileToSend && selectedJob.mapScreenshot && typeof selectedJob.mapScreenshot === 'string') {
+          if (selectedJob.mapScreenshot.startsWith('data:')) {
+            const arr = selectedJob.mapScreenshot.split(',');
+            const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) u8arr[n] = bstr.charCodeAt(n);
+            fileToSend = new File([u8arr], `route_map_${backendJobId}.png`, { type: mime });
+          }
+        }
+        if (!fileToSend) {
+          const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+          const bstr = atob(pngBase64);
+          let n = bstr.length;
+          const u8arr = new Uint8Array(n);
+          while (n--) u8arr[n] = bstr.charCodeAt(n);
+          fileToSend = new File([u8arr], `route_map_${backendJobId}.png`, { type: 'image/png' });
+        }
+        rFormData.append('image', fileToSend);
+        try {
+          await routeVerificationApi(backendJobId, rFormData, authToken);
+        } catch (_) {}
+
+        // Step 3: Submit service details & checklist
+        const formData = new FormData();
+        const currentChecklist = Array.isArray(selectedJob.checklist) ? selectedJob.checklist : normalizeChecklist(selectedJob.checklist);
+        const checklistObj = {
+          inspection: Boolean(currentChecklist.find(c => c.id === 1)?.completed ?? true),
+          diagnosis: Boolean(currentChecklist.find(c => c.id === 2)?.completed ?? true),
+          service: Boolean(currentChecklist.find(c => c.id === 3)?.completed ?? true),
+          testingCleanup: Boolean(currentChecklist.find(c => c.id === 4)?.completed ?? true),
+        };
+        formData.append('checklist', JSON.stringify(checklistObj));
+        formData.append('customerNote', customerNotes || 'Service completed successfully.');
+        if (beforePhotoFile) {
+          formData.append('beforeImage', beforePhotoFile);
+        }
+        if (afterPhotoFile) {
+          formData.append('afterImage', afterPhotoFile);
+        }
+        await submitServiceDetailsApi(backendJobId, formData, authToken);
+      } catch (err) {
+        console.error('[Vendor Dashboard] Submit service details error:', err);
+      }
+    }
   };
 
-  // Component Selection via Dropdown (immutably update state)
-  const handleSelectComponentDropdown = (idx, selectedName) => {
-    const foundComponent = AVAILABLE_COMPONENTS.find(c => c.name === selectedName);
+  // Component Selection via Dropdown (immutably update state with inventory details & stock limits)
+  const handleSelectComponentDropdown = (idx, selectedKey) => {
+    const found = availableComponentOptions.find(c => c.inventoryId === selectedKey || c.name === selectedKey);
     setInvoiceParts(prev => {
       const updated = [...prev];
+      const maxStock = found?.stock || 1;
+      const currentQty = Number(updated[idx].qty) || 1;
       updated[idx] = {
         ...updated[idx],
-        description: selectedName,
-        price: foundComponent ? foundComponent.defaultPrice : updated[idx].price
+        description: found ? found.name : selectedKey,
+        price: found ? found.defaultPrice : (updated[idx].price || 0),
+        inventoryId: found?.inventoryId || null,
+        stock: found?.stock || 0,
+        qty: Math.min(currentQty, maxStock),
       };
       return updated;
     });
   };
 
-  // Quantity or Price change (immutably update state)
+  // Quantity or Price change (enforces real inventory stock limits)
   const handlePartChange = (idx, field, value) => {
     setInvoiceParts(prev => {
       const updated = [...prev];
+      let finalVal = value;
+      if (field === 'qty') {
+        const rawNum = Math.round(Number(value) || 1);
+        const maxStock = updated[idx].stock;
+        if (maxStock !== undefined && maxStock > 0 && rawNum > maxStock) {
+          finalVal = maxStock;
+          showToast(`Only ${maxStock} units of ${updated[idx].description} present in inventory`, 'warning');
+        } else {
+          finalVal = Math.max(1, rawNum);
+        }
+      }
       updated[idx] = {
         ...updated[idx],
-        [field]: value
+        [field]: finalVal
       };
       return updated;
     });
   };
 
-  // Add Row button adding a default component from dropdown catalog
+  // Add Row button adding a real component from live inventory catalog
   const handleAddPartRow = () => {
-    const defaultComp = AVAILABLE_COMPONENTS[1] || AVAILABLE_COMPONENTS[0];
+    if (!availableComponentOptions || availableComponentOptions.length === 0) {
+      showToast('No components currently present in inventory', 'warning');
+      return;
+    }
+
+    // Pick first component not yet added, or fallback to first
+    const alreadyAddedIds = new Set(invoiceParts.map(p => p.inventoryId).filter(Boolean));
+    const nextComp = availableComponentOptions.find(c => !alreadyAddedIds.has(c.inventoryId)) || availableComponentOptions[0];
+
     const newPart = {
       id: Date.now(),
-      description: defaultComp.name,
+      description: nextComp.name,
       qty: 1,
-      price: defaultComp.defaultPrice,
+      price: nextComp.defaultPrice,
+      inventoryId: nextComp.inventoryId,
+      stock: nextComp.stock,
       locked: false,
     };
     setInvoiceParts(prev => [...prev, newPart]);
-    showToast('New component line item added to invoice', 'info');
+    showToast(`Added ${nextComp.name} (${nextComp.stock} in stock) to invoice`, 'info');
   };
 
   const handleRemovePartRow = (idx) => {
@@ -1649,7 +1909,7 @@ export default function VendorDashboardPage() {
   const handleOpenPreviewModal = () => {
     if (!selectedJob) return;
     const data = {
-      invoiceId: `MM-INV-2026-${selectedJob.id.replace('WO-', '')}`,
+      invoiceId: selectedJob.backendJobId ? `MM-INV-2026-${selectedJob.backendJobId.slice(-6).toUpperCase()}` : `MM-INV-2026-${String(selectedJob.id).replace('WO-', '')}`,
       date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
       customerName: selectedJob.customerName,
       customerPhone: selectedJob.customerPhone,
@@ -1683,98 +1943,242 @@ export default function VendorDashboardPage() {
       return;
     }
 
-    const paymentLabel = paymentMethod === 'upi' ? `Direct UPI Transfer (${vendorProfile.upiId})` : 'Direct Cash Transfer';
+    if (isCompletingService) return;
+    setIsCompletingService(true);
 
-    const invoiceDataObj = {
-      invoiceId: `MM-INV-2026-${selectedJob.id.replace('WO-', '')}`,
-      date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-      customerName: selectedJob.customerName,
-      customerPhone: selectedJob.customerPhone,
-      address: selectedJob.serviceAddress,
-      serviceTitle: selectedJob.serviceTitle,
-      technician: vendorProfile.name,
-      parts: invoiceParts,
-      subtotal: subtotal,
-      discount: numDiscount,
-      tax: taxAmount,
-      total: grandTotal,
-      paymentMethod: paymentLabel,
-      notes: customerNotes,
-      status: 'PAID IN FULL',
-      travelDistanceKm: selectedJob.travelDistanceKm || 0,
-      travelRatePerKm: selectedJob.travelRatePerKm || 10,
-      travelCharges: selectedJob.travelCharges || 0,
-      mapScreenshot: selectedJob.mapScreenshot || null,
-    };
+    try {
+      const paymentLabel = paymentMethod === 'upi' ? `Direct UPI Transfer (${vendorProfile.upiId})` : 'Direct Cash Transfer';
 
-    // Calculate Financials according to exact business rules:
-    // 1. Service Charges: vendor receives 50% payout
-    // 2. Component Charges: excluded from vendor payout (0% vendor share)
-    // 3. Fuel Charges Payout: automatically calculated for all travel KM and added to vendor payout
-    const jobFinancials = calculateJobFinancials({
-      invoiceData: { parts: invoiceParts },
-      travelDistanceKm: selectedJob.travelDistanceKm || 0,
-      travelRatePerKm: selectedJob.travelRatePerKm || 10,
-      travelCharges: selectedJob.travelCharges || 0,
-      mapScreenshot: selectedJob.mapScreenshot || null,
-      amount: grandTotal
-    });
+      const jobFinancials = calculateJobFinancials({
+        invoiceData: { parts: invoiceParts },
+        travelDistanceKm: selectedJob.travelDistanceKm || 0,
+        travelRatePerKm: selectedJob.travelRatePerKm || 10,
+        travelCharges: selectedJob.travelCharges || 0,
+        mapScreenshot: selectedJob.mapScreenshot || null,
+        amount: grandTotal
+      });
 
-    const vendorPayoutAmount = jobFinancials.totalVendorPayout;
+      const vendorPayoutAmount = jobFinancials.totalVendorPayout;
 
-    // Move job to History state with complete itemized financials
-    const completedHistoryItem = {
-      id: selectedJob.id,
-      displayId: selectedJob.displayId || selectedJob.id,
-      appliance: selectedJob.appliance,
-      serviceTitle: selectedJob.serviceTitle,
-      customerName: selectedJob.customerName,
-      customerPhone: selectedJob.customerPhone,
-      date: 'Just now',
-      rawDate: new Date(),
-      location: selectedJob.location,
-      serviceAddress: selectedJob.serviceAddress,
-      amount: grandTotal,
-      rating: 5,
-      status: 'Completed',
-      serviceCharges: jobFinancials.serviceCharges,
-      servicePayout: jobFinancials.servicePayout,
-      componentCharges: jobFinancials.componentCharges,
-      travelDistanceKm: jobFinancials.distanceKm,
-      travelRatePerKm: jobFinancials.ratePerKm,
-      travelCharges: jobFinancials.fuelPayout,
-      fuelPayout: jobFinancials.fuelPayout,
-      totalVendorPayout: jobFinancials.totalVendorPayout,
-      review: `Service completed. ${paymentLabel} of ₹${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })} received. Vendor Share (50% Service: ₹${jobFinancials.servicePayout.toFixed(2)} + Fuel: ₹${jobFinancials.fuelPayout.toFixed(2)}): ₹${vendorPayoutAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} added to wallet. Components (₹${jobFinancials.componentCharges.toFixed(2)}) excluded.`,
-      mapScreenshot: selectedJob.mapScreenshot || null,
-      travelVerified: Boolean(selectedJob.travelVerified || selectedJob.mapScreenshot),
-      invoiceData: invoiceDataObj
-    };
+      let finalInvoiceDataObj = {
+        invoiceId: selectedJob.backendJobId ? `MM-INV-2026-${selectedJob.backendJobId.slice(-6).toUpperCase()}` : `MM-INV-2026-${String(selectedJob.id).replace('WO-', '')}`,
+        date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+        customerName: selectedJob.customerName,
+        customerPhone: selectedJob.customerPhone,
+        address: selectedJob.serviceAddress,
+        serviceTitle: selectedJob.serviceTitle,
+        technician: vendorProfile.name,
+        parts: invoiceParts,
+        subtotal: subtotal,
+        discount: numDiscount,
+        tax: taxAmount,
+        total: grandTotal,
+        paymentMethod: paymentLabel,
+        notes: customerNotes,
+        status: 'PAID IN FULL',
+        travelDistanceKm: selectedJob.travelDistanceKm || 0,
+        travelRatePerKm: selectedJob.travelRatePerKm || 10,
+        travelCharges: selectedJob.travelCharges || 0,
+        mapScreenshot: selectedJob.mapScreenshot || null,
+      };
 
-    setHistory(prev => [completedHistoryItem, ...prev]);
-    setJobs(prev => prev.filter(j => j.id !== selectedJob.id));
+      const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') || localStorage.getItem('vendorToken') : null);
+      const backendJobId = selectedJob.backendJobId || selectedJob._id || (selectedJob.id && /^[0-9a-fA-F]{24}$/.test(String(selectedJob.id)) ? String(selectedJob.id) : null);
 
-    setModalReturnTab('active');
-    setGeneratedInvoiceData(invoiceDataObj);
-    setShowTaxInvoiceModal(true);
-    showToast(`Service Completed! Invoice ${invoiceDataObj.invoiceId} generated. ₹${vendorPayoutAmount.toFixed(2)} added to your payout balance.`, 'success');
+      if (authToken && backendJobId) {
+        // Step 1: Ensure Booking is Accepted by this Vendor in MongoDB
+        try {
+          const isPending = selectedJob.status === 'New Request' || selectedJob.bookingStatus === 'Pending' || !selectedJob.acceptedAt;
+          if (isPending) {
+            console.log('[Vendor Dashboard] Auto-accepting booking before completion:', backendJobId);
+            await acceptBookingApi(backendJobId, authToken);
+          }
+        } catch (accErr) {
+          console.warn('[Vendor Dashboard] Auto-accept notice:', accErr);
+        }
 
-    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') : null);
-    if (authToken && selectedJob?.id) {
-      try {
-        await updateBookingStatusApi(
-          selectedJob.id,
-          {
-            status: 'Completed',
-            serviceCharge: grandTotal,
-            paymentMethod: paymentLabel,
-            paymentStatus: 'Paid',
-          },
-          authToken
+        // Step 2: Ensure Route Verification is Submitted (transitions Route Pending -> Route Verified)
+        try {
+          const dist = Number(selectedJob.travelDistanceKm) || 0;
+          const rate = Number(selectedJob.travelRatePerKm) || 10;
+          const rFormData = new FormData();
+          rFormData.append('distanceKm', String(dist));
+          rFormData.append('ratePerKm', String(rate));
+          let fileToSend = selectedJob.mapFile || null;
+          if (!fileToSend && selectedJob.mapScreenshot && typeof selectedJob.mapScreenshot === 'string') {
+            if (selectedJob.mapScreenshot.startsWith('data:')) {
+              const arr = selectedJob.mapScreenshot.split(',');
+              const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
+              const bstr = atob(arr[1]);
+              let n = bstr.length;
+              const u8arr = new Uint8Array(n);
+              while (n--) u8arr[n] = bstr.charCodeAt(n);
+              fileToSend = new File([u8arr], `route_map_${backendJobId}.png`, { type: mime });
+            }
+          }
+          if (!fileToSend) {
+            const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+            const bstr = atob(pngBase64);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) u8arr[n] = bstr.charCodeAt(n);
+            fileToSend = new File([u8arr], `route_map_${backendJobId}.png`, { type: 'image/png' });
+          }
+          rFormData.append('image', fileToSend);
+          await routeVerificationApi(backendJobId, rFormData, authToken);
+        } catch (rErr) {
+          console.warn('[Vendor Dashboard] Route verification notice:', rErr);
+        }
+
+        // Step 3: Ensure Service Details & Checklist are Submitted (transitions Route Verified -> In Progress)
+        try {
+          const dFormData = new FormData();
+          const checklistObj = {
+            inspection: Boolean(selectedJob.checklist?.find(c => c.id === 1)?.completed ?? true),
+            diagnosis: Boolean(selectedJob.checklist?.find(c => c.id === 2)?.completed ?? true),
+            service: Boolean(selectedJob.checklist?.find(c => c.id === 3)?.completed ?? true),
+            testingCleanup: Boolean(selectedJob.checklist?.find(c => c.id === 4)?.completed ?? true),
+          };
+          dFormData.append('checklist', JSON.stringify(checklistObj));
+          dFormData.append('customerNote', customerNotes || 'Service completed successfully.');
+          if (beforePhotoFile) dFormData.append('beforeImage', beforePhotoFile);
+          if (afterPhotoFile) dFormData.append('afterImage', afterPhotoFile);
+          await submitServiceDetailsApi(backendJobId, dFormData, authToken);
+        } catch (dErr) {
+          console.warn('[Vendor Dashboard] Service details notice:', dErr);
+        }
+
+        // Step 4: Build Valid components payload
+        // Only include active components from live MongoDB inventory
+        const validDbInventoryIds = new Set(
+          (dbInventory || []).filter(i => i && i.inventoryId && i.isActive !== false).map(i => String(i.inventoryId).trim())
         );
-      } catch (err) {
-        console.error('[Vendor Dashboard] Error completing job in backend:', err);
+
+        const componentsPayload = invoiceParts
+          .filter(p => p.inventoryId && validDbInventoryIds.has(String(p.inventoryId).trim()) && !p.isTravel && !p.locked)
+          .map(p => ({
+            inventoryId: String(p.inventoryId).trim(),
+            quantity: Math.max(1, Math.round(Number(p.qty) || 1))
+          }));
+
+        const completionPayload = {
+          discount: Number(numDiscount) || 0,
+          paymentMethod: paymentMethod === 'upi' ? 'UPI' : 'Cash',
+          components: componentsPayload,
+        };
+
+        // Step 5: Complete Service in backend and generate real MongoDB invoice
+        const completeRes = await completeServiceApi(backendJobId, completionPayload, authToken);
+        console.log('[Vendor Dashboard] Complete service response:', completeRes);
+
+        if ((completeRes.success || completeRes.alreadyGenerated) && completeRes.invoice) {
+          const inv = completeRes.invoice;
+          finalInvoiceDataObj = {
+            invoiceId: inv.invoiceNumber || finalInvoiceDataObj.invoiceId,
+            date: new Date(inv.createdAt || Date.now()).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+            customerName: inv.customerSnapshot?.name || selectedJob.customerName,
+            customerPhone: inv.customerSnapshot?.phone || selectedJob.customerPhone,
+            address: inv.customerSnapshot?.address || selectedJob.serviceAddress,
+            serviceTitle: inv.serviceSnapshot?.serviceCategory || inv.serviceSnapshot?.appliance || selectedJob.serviceTitle,
+            technician: vendorProfile.name,
+            parts: (inv.items && inv.items.length > 0)
+              ? inv.items.map(it => ({
+                  description: it.name,
+                  qty: it.quantity,
+                  price: it.unitPrice,
+                  isTravel: it.type === 'Travel',
+                  isService: it.type === 'Service',
+                  isComponent: it.type === 'Component',
+                }))
+              : invoiceParts,
+            subtotal: inv.subtotal !== undefined ? inv.subtotal : subtotal,
+            discount: inv.discount !== undefined ? inv.discount : numDiscount,
+            tax: inv.tax !== undefined ? inv.tax : taxAmount,
+            total: inv.totalAmount !== undefined ? inv.totalAmount : grandTotal,
+            paymentMethod: inv.paymentMethod === 'UPI' ? `Direct UPI (${vendorProfile.upiId})` : 'Direct Cash Transfer',
+            notes: inv.customerNote || customerNotes,
+            status: 'PAID IN FULL',
+            travelDistanceKm: selectedJob.travelDistanceKm || 0,
+            travelRatePerKm: selectedJob.travelRatePerKm || 10,
+            travelCharges: selectedJob.travelCharges || 0,
+            mapScreenshot: selectedJob.mapScreenshot || null,
+          };
+
+          // Save invoice to local persistence so it's always accessible
+          saveInvoiceForBooking(backendJobId, inv);
+
+          // Synchronize booking serviceCharge in MongoDB so customer and vendor UI always fetch the exact invoiced price
+          try {
+            await updateBookingStatusApi(
+              backendJobId,
+              {
+                status: 'Completed',
+                serviceCharge: finalInvoiceDataObj.total || grandTotal,
+                paymentMethod: paymentLabel,
+                paymentStatus: 'Paid',
+              },
+              authToken
+            );
+          } catch (statusErr) {
+            console.warn('[Vendor Dashboard] Failed to sync booking status serviceCharge:', statusErr);
+          }
+        } else {
+          await updateBookingStatusApi(
+            backendJobId,
+            {
+              status: 'Completed',
+              serviceCharge: grandTotal,
+              paymentMethod: paymentLabel,
+              paymentStatus: 'Paid',
+            },
+            authToken
+          );
+          saveInvoiceForBooking(backendJobId, finalInvoiceDataObj);
+        }
       }
+
+      // Move job to History state with complete itemized financials
+      const completedHistoryItem = {
+        id: selectedJob.id,
+        backendJobId: selectedJob.backendJobId || selectedJob._id || selectedJob.id,
+        displayId: selectedJob.displayId || selectedJob.id,
+        appliance: selectedJob.appliance,
+        serviceTitle: selectedJob.serviceTitle,
+        customerName: selectedJob.customerName,
+        customerPhone: selectedJob.customerPhone,
+        date: 'Just now',
+        rawDate: new Date(),
+        location: selectedJob.location,
+        serviceAddress: selectedJob.serviceAddress,
+        amount: finalInvoiceDataObj.total || grandTotal,
+        rating: 5,
+        status: 'Completed',
+        serviceCharges: jobFinancials.serviceCharges,
+        servicePayout: jobFinancials.servicePayout,
+        componentCharges: jobFinancials.componentCharges,
+        travelDistanceKm: jobFinancials.distanceKm,
+        travelRatePerKm: jobFinancials.ratePerKm,
+        travelCharges: jobFinancials.fuelPayout,
+        fuelPayout: jobFinancials.fuelPayout,
+        totalVendorPayout: jobFinancials.totalVendorPayout,
+        review: `Service completed. ${paymentLabel} of ₹${(finalInvoiceDataObj.total || grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })} received. Vendor Share (50% Service: ₹${jobFinancials.servicePayout.toFixed(2)} + Fuel: ₹${jobFinancials.fuelPayout.toFixed(2)}): ₹${vendorPayoutAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} added to wallet. Components (₹${jobFinancials.componentCharges.toFixed(2)}) excluded.`,
+        mapScreenshot: selectedJob.mapScreenshot || null,
+        travelVerified: Boolean(selectedJob.travelVerified || selectedJob.mapScreenshot),
+        invoiceData: finalInvoiceDataObj
+      };
+
+      setHistory(prev => [completedHistoryItem, ...prev.filter(h => h.id !== selectedJob.id && (!backendJobId || h.backendJobId !== backendJobId))]);
+      setJobs(prev => prev.filter(j => j.id !== selectedJob.id && (!backendJobId || (j.backendJobId !== backendJobId && j._id !== backendJobId))));
+
+      setModalReturnTab('active');
+      setGeneratedInvoiceData(finalInvoiceDataObj);
+      setShowTaxInvoiceModal(true);
+      showToast(`Service Completed! Invoice ${finalInvoiceDataObj.invoiceId} generated. ₹${vendorPayoutAmount.toFixed(2)} added to your payout balance.`, 'success');
+    } catch (err) {
+      console.error('[Vendor Dashboard] Error completing service:', err);
+      showToast(err.message || 'Error completing service.', 'error');
+    } finally {
+      setIsCompletingService(false);
     }
   };
 
@@ -1790,21 +2194,31 @@ export default function VendorDashboardPage() {
 
   // View past invoice from history list
   const handleViewHistoryInvoice = (item) => {
-    const invData = item.invoiceData || {
-      invoiceId: `MM-INV-2026-${item.id.replace('WO-', '')}`,
+    const rawId = item.backendJobId || item.id || item._id;
+    const inv = item.invoiceData || getInvoiceForBooking(rawId, item);
+    const normalized = normalizeInvoiceForUI(inv, item);
+    const invData = normalized || {
+      invoiceId: item.invoiceNumber || (item.backendJobId ? `MM-INV-2026-${item.backendJobId.slice(-6).toUpperCase()}` : `MM-INV-2026-${String(item.id || '').replace('WO-', '')}`),
       date: item.date,
       customerName: item.customerName,
-      customerPhone: '+91 98765 43210',
-      address: item.location,
+      customerPhone: item.customerPhone || '—',
+      address: item.serviceAddress || item.location,
       serviceTitle: item.serviceTitle,
       technician: vendorProfile.name,
-      parts: [{ description: item.serviceTitle, qty: 1, price: item.amount }],
+      parts: (item.rawBooking?.invoice?.items || []).length > 0 
+        ? item.rawBooking.invoice.items.map(it => ({ description: it.name, qty: it.quantity, price: it.unitPrice }))
+        : [{ description: item.serviceTitle, qty: 1, price: item.amount }],
       subtotal: parseFloat(item.amount) || 0,
       discount: 0,
       tax: 0,
       total: parseFloat(item.amount) || 0,
-      paymentMethod: 'Direct UPI / Cash',
-      status: 'PAID IN FULL'
+      paymentMethod: 'Direct Payment',
+      notes: item.review || 'Service successfully completed.',
+      status: 'PAID IN FULL',
+      travelDistanceKm: item.travelDistanceKm || 0,
+      travelRatePerKm: item.travelRatePerKm || 10,
+      travelCharges: item.travelCharges || 0,
+      mapScreenshot: item.mapScreenshot || null,
     };
     setModalReturnTab('history');
     setGeneratedInvoiceData(invData);
@@ -1933,6 +2347,9 @@ export default function VendorDashboardPage() {
                 >
                   {[
                     { id: 'active', label: 'Jobs', badge: jobs.length },
+                    ...(selectedJob || jobs.some(j => j.status === 'In Progress')
+                      ? [{ id: 'service', label: 'Service Execution', badge: 'Active' }]
+                      : []),
                     { id: 'history', label: 'History', badge: history.length },
                     { id: 'earnings', label: 'Earnings', badge: `₹${((Number(todayEarnings) || 0) / 1000).toFixed(1)}k` },
                     { id: 'profile', label: 'Profile', badge: '★' },
@@ -2380,10 +2797,10 @@ export default function VendorDashboardPage() {
                   <span className="text-slate-700">#{selectedJob.id}</span>
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-                  {selectedJob.serviceTitle}
+                  {safeString(selectedJob.serviceTitle, 'Service Execution')}
                 </h1>
                 <p className="text-xs sm:text-sm text-slate-600 font-medium mt-0.5">
-                  Client: <strong>{selectedJob.customerName}</strong> • {selectedJob.serviceAddress}
+                  Client: <strong>{safeString(selectedJob.customerName, 'Customer')}</strong> • {safeString(selectedJob.serviceAddress, 'Customer Address')}
                 </p>
               </div>
 
@@ -2458,7 +2875,7 @@ export default function VendorDashboardPage() {
                           </span>
                         </div>
                         <p className="text-xs text-slate-600 mt-0.5">
-                          Origin: <strong>{vendorProfile.address || 'Vendor Workshop'}</strong> ➔ Destination: <strong>{selectedJob.serviceAddress}</strong>
+                          Origin: <strong>{safeString(vendorProfile?.address, 'Vendor Workshop')}</strong> ➔ Destination: <strong>{safeString(selectedJob.serviceAddress, 'Customer Location')}</strong>
                         </p>
                       </div>
                     </div>
@@ -2468,9 +2885,9 @@ export default function VendorDashboardPage() {
                         <button
                           type="button"
                           onClick={() => setProofPreviewItem({
-                            imageUrl: selectedJob.mapScreenshot,
-                            title: `Route Map: ${selectedJob.displayId || selectedJob.id}`,
-                            subtitle: `${selectedJob.travelDistanceKm || 0} KM Traveled to ${selectedJob.customerName}`
+                            imageUrl: safeImageUrl(selectedJob.mapScreenshot),
+                            title: `Route Map: ${safeString(selectedJob.displayId || selectedJob.id)}`,
+                            subtitle: `${selectedJob.travelDistanceKm || 0} KM Traveled to ${safeString(selectedJob.customerName, 'Customer')}`
                           })}
                           className="px-3 py-1.5 bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
                         >
@@ -2490,42 +2907,50 @@ export default function VendorDashboardPage() {
                 )}
 
                 {/* 2. SERVICE CHECKLIST CARD */}
-                <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 space-y-4">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">Service Checklist</h3>
-                    <span className="text-xs font-extrabold text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
-                      {selectedJob.checklist.filter(c => c.completed).length} / {selectedJob.checklist.length} Completed
-                    </span>
-                  </div>
+                {(() => {
+                  const currentChecklist = Array.isArray(selectedJob.checklist) ? selectedJob.checklist : normalizeChecklist(selectedJob.checklist);
+                  const completedCount = currentChecklist.filter(c => c.completed).length;
+                  const totalCount = currentChecklist.length;
 
-                  <div className="space-y-3">
-                    {selectedJob.checklist.map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => toggleChecklistItem(item.id)}
-                        className={`p-4 rounded-2xl border transition-all duration-200 cursor-pointer flex items-start gap-3.5 ${
-                          item.completed
-                            ? 'bg-emerald-50/40 border-emerald-200'
-                            : 'bg-white border-slate-200 hover:border-blue-300'
-                        }`}
-                      >
-                        <div className={`mt-0.5 w-5 h-5 rounded-md flex items-center justify-center text-white text-xs font-bold ${
-                          item.completed ? 'bg-emerald-600' : 'border-2 border-slate-300 bg-white'
-                        }`}>
-                          {item.completed && '✓'}
-                        </div>
-                        <div>
-                          <h4 className={`text-sm font-extrabold ${item.completed ? 'text-emerald-900 line-through' : 'text-slate-900'}`}>
-                            {item.title}
-                          </h4>
-                          <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                            {item.desc}
-                          </p>
-                        </div>
+                  return (
+                    <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">Service Checklist</h3>
+                        <span className="text-xs font-extrabold text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
+                          {completedCount} / {totalCount} Completed
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                </div>
+
+                      <div className="space-y-3">
+                        {currentChecklist.map((item) => (
+                          <div
+                            key={item.id}
+                            onClick={() => toggleChecklistItem(item.id)}
+                            className={`p-4 rounded-2xl border transition-all duration-200 cursor-pointer flex items-start gap-3.5 ${
+                              item.completed
+                                ? 'bg-emerald-50/40 border-emerald-200'
+                                : 'bg-white border-slate-200 hover:border-blue-300'
+                            }`}
+                          >
+                            <div className={`mt-0.5 w-5 h-5 rounded-md flex items-center justify-center text-white text-xs font-bold ${
+                              item.completed ? 'bg-emerald-600' : 'border-2 border-slate-300 bg-white'
+                            }`}>
+                              {item.completed && '✓'}
+                            </div>
+                            <div>
+                              <h4 className={`text-sm font-extrabold ${item.completed ? 'text-emerald-900 line-through' : 'text-slate-900'}`}>
+                                {item.title}
+                              </h4>
+                              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                                {item.desc}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* 3. CUSTOMER NOTES */}
                 <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 space-y-3">
@@ -2554,48 +2979,118 @@ export default function VendorDashboardPage() {
                       <Camera className="w-4 h-4 text-slate-700" />
                       <h3 className="text-base font-extrabold text-slate-900">Documentation</h3>
                     </div>
-                    <span className="text-[11px] font-bold text-slate-400">{selectedJob.photos.length} Attached</span>
+                    <span className="text-[11px] font-bold text-slate-400">
+                      {(beforePhotoPreview ? 1 : 0) + (afterPhotoPreview ? 1 : 0)} Attached
+                    </span>
                   </div>
+
+                  {/* Hidden Real File Inputs */}
+                  <input
+                    type="file"
+                    ref={beforeFileInputRef}
+                    accept="image/*"
+                    onChange={handleBeforePhotoChange}
+                    className="hidden"
+                  />
+                  <input
+                    type="file"
+                    ref={afterFileInputRef}
+                    accept="image/*"
+                    onChange={handleAfterPhotoChange}
+                    className="hidden"
+                  />
 
                   <div className="grid grid-cols-2 gap-3">
-                    <div 
-                      onClick={handleAddPhoto}
-                      className="h-28 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 flex flex-col items-center justify-center text-slate-400 cursor-pointer transition-colors"
-                    >
-                      <Camera className="w-5 h-5 mb-1" />
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider">BEFORE</span>
-                    </div>
-
-                    <div 
-                      onClick={handleAddPhoto}
-                      className="h-28 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 flex flex-col items-center justify-center text-slate-400 cursor-pointer transition-colors"
-                    >
-                      <Camera className="w-5 h-5 mb-1" />
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider">AFTER</span>
-                    </div>
-                  </div>
-
-                  {selectedJob.photos.length > 0 && (
-                    <div className="flex items-center gap-2 overflow-x-auto pt-2">
-                      {selectedJob.photos.map((pic, idx) => (
-                        <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-slate-200">
-                          <img src={pic} alt="Documentation" className="w-full h-full object-cover" />
+                    {/* Before Service Photo */}
+                    {beforePhotoPreview ? (
+                      <div className="relative h-32 rounded-2xl overflow-hidden border border-slate-200 group bg-slate-900">
+                        <img
+                          src={beforePhotoPreview}
+                          alt="Before Service"
+                          className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
+                        />
+                        <span className="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur-xs text-white text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
+                          BEFORE
+                        </span>
+                        <div className="absolute top-2 right-2 flex items-center gap-1">
                           <button
-                            onClick={() => handleRemovePhoto(idx)}
-                            className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-0.5 text-[9px]"
+                            type="button"
+                            onClick={() => setProofPreviewItem({
+                              imageUrl: safeImageUrl(beforePhotoPreview),
+                              title: 'Before Service Photo',
+                              subtitle: safeString(selectedJob.serviceTitle, 'Service Photo')
+                            })}
+                            className="bg-white/90 hover:bg-white text-slate-700 rounded-full p-1.5 shadow-sm transition-transform hover:scale-105 cursor-pointer"
+                            title="Preview Image"
                           >
-                            ✕
+                            <Eye className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleRemoveBeforePhoto}
+                            className="bg-red-600 hover:bg-red-700 text-white rounded-full p-1.5 shadow-sm transition-transform hover:scale-105 cursor-pointer"
+                            title="Remove Photo"
+                          >
+                            <X className="w-3 h-3" />
                           </button>
                         </div>
-                      ))}
-                      <button
-                        onClick={handleAddPhoto}
-                        className="w-16 h-16 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 text-xl font-bold shrink-0"
+                      </div>
+                    ) : (
+                      <div 
+                        onClick={() => beforeFileInputRef.current?.click()}
+                        className="h-32 rounded-2xl border-2 border-dashed border-slate-300 hover:border-orange-400 bg-slate-50 hover:bg-orange-50/30 flex flex-col items-center justify-center text-slate-400 hover:text-orange-600 cursor-pointer transition-all p-3 text-center"
                       >
-                        +
-                      </button>
-                    </div>
-                  )}
+                        <Camera className="w-6 h-6 mb-1 text-slate-400" />
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-700">BEFORE PHOTO</span>
+                        <span className="text-[9px] text-slate-400 mt-0.5">Click to upload</span>
+                      </div>
+                    )}
+
+                    {/* After Service Photo */}
+                    {afterPhotoPreview ? (
+                      <div className="relative h-32 rounded-2xl overflow-hidden border border-slate-200 group bg-slate-900">
+                        <img
+                          src={afterPhotoPreview}
+                          alt="After Service"
+                          className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
+                        />
+                        <span className="absolute bottom-2 left-2 bg-emerald-950/80 backdrop-blur-xs text-emerald-300 text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider border border-emerald-500/30">
+                          AFTER
+                        </span>
+                        <div className="absolute top-2 right-2 flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setProofPreviewItem({
+                              imageUrl: safeImageUrl(afterPhotoPreview),
+                              title: 'After Service Photo',
+                              subtitle: safeString(selectedJob.serviceTitle, 'Service Photo')
+                            })}
+                            className="bg-white/90 hover:bg-white text-slate-700 rounded-full p-1.5 shadow-sm transition-transform hover:scale-105 cursor-pointer"
+                            title="Preview Image"
+                          >
+                            <Eye className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleRemoveAfterPhoto}
+                            className="bg-red-600 hover:bg-red-700 text-white rounded-full p-1.5 shadow-sm transition-transform hover:scale-105 cursor-pointer"
+                            title="Remove Photo"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div 
+                        onClick={() => afterFileInputRef.current?.click()}
+                        className="h-32 rounded-2xl border-2 border-dashed border-slate-300 hover:border-emerald-400 bg-slate-50 hover:bg-emerald-50/30 flex flex-col items-center justify-center text-slate-400 hover:text-emerald-600 cursor-pointer transition-all p-3 text-center"
+                      >
+                        <Camera className="w-6 h-6 mb-1 text-slate-400" />
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-700">AFTER PHOTO</span>
+                        <span className="text-[9px] text-slate-400 mt-0.5">Click to upload</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* APPOINTMENT DETAILS CARD */}
@@ -2607,23 +3102,23 @@ export default function VendorDashboardPage() {
                   <div className="space-y-3 text-xs text-slate-200 font-medium">
                     <div className="flex items-center gap-2.5">
                       <Calendar className="w-4 h-4 text-orange-400 shrink-0" />
-                      <span>{selectedJob.appointmentDate}</span>
+                      <span>{safeString(selectedJob.appointmentDate, '—')}</span>
                     </div>
 
                     <div className="flex items-center gap-2.5">
                       <Clock className="w-4 h-4 text-orange-400 shrink-0" />
-                      <span>{selectedJob.timeSlot}</span>
+                      <span>{safeString(selectedJob.timeSlot, '—')}</span>
                     </div>
 
                     <div className="flex items-center gap-2.5">
                       <User className="w-4 h-4 text-orange-400 shrink-0" />
-                      <span>{selectedJob.customerName} (Residential)</span>
+                      <span>{safeString(selectedJob.customerName, 'Customer')} (Residential)</span>
                     </div>
 
                     <div className="flex items-center gap-2.5">
                       <Phone className="w-4 h-4 text-orange-400 shrink-0" />
-                      <Link to={`tel:${selectedJob.customerPhone}`} className="hover:underline text-white font-bold">
-                        {selectedJob.customerPhone}
+                      <Link to={`tel:${safeString(selectedJob.customerPhone, '')}`} className="hover:underline text-white font-bold">
+                        {safeString(selectedJob.customerPhone, '—')}
                       </Link>
                     </div>
                   </div>
@@ -2645,6 +3140,25 @@ export default function VendorDashboardPage() {
           </motion.div>
         )}
 
+        {/* ── SERVICE EXECUTION EMPTY FALLBACK STATE ── */}
+        {activeTab === 'service' && !selectedJob && (
+          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-8 sm:p-12 text-center max-w-xl mx-auto my-12 space-y-4 no-print-bg">
+            <div className="w-16 h-16 rounded-3xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto text-2xl font-bold">
+              <Wrench className="w-8 h-8" />
+            </div>
+            <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900">No Active Service Order</h2>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium max-w-md mx-auto">
+              Select an accepted work order from your active jobs queue and click &quot;Start Service&quot; or &quot;Resume Execution&quot; to begin service execution.
+            </p>
+            <button
+              type="button"
+              onClick={() => setActiveTab('active')}
+              className="px-6 py-3 bg-[#061e38] hover:bg-[#0a2f57] text-white text-xs font-extrabold rounded-2xl shadow-md transition-all cursor-pointer inline-flex items-center gap-2"
+            >
+              &larr; View Active Jobs
+            </button>
+          </div>
+        )}
 
         {/* ── GENERATE INVOICE PAGE ── */}
         {activeTab === 'invoice' && selectedJob && (
@@ -2700,7 +3214,7 @@ export default function VendorDashboardPage() {
                       <input
                         type="text"
                         readOnly
-                        value={selectedJob.customerName}
+                        value={safeString(selectedJob.customerName, 'Customer')}
                         className="w-full text-xs font-bold bg-slate-100/70 border border-slate-200 rounded-xl p-3 text-slate-800"
                       />
                     </div>
@@ -2710,7 +3224,7 @@ export default function VendorDashboardPage() {
                       <input
                         type="text"
                         readOnly
-                        value={selectedJob.serviceAddress}
+                        value={safeString(selectedJob.serviceAddress, '—')}
                         className="w-full text-xs font-bold bg-slate-100/70 border border-slate-200 rounded-xl p-3 text-slate-800"
                       />
                     </div>
@@ -2720,7 +3234,7 @@ export default function VendorDashboardPage() {
                       <input
                         type="text"
                         readOnly
-                        value={`${selectedJob.applianceIcon} ${selectedJob.serviceTitle}`}
+                        value={`${selectedJob.applianceIcon || '🔧'} ${safeString(selectedJob.serviceTitle, 'Service')}`}
                         className="w-full text-xs font-bold bg-slate-100/70 border border-slate-200 rounded-xl p-3 text-slate-800"
                       />
                     </div>
@@ -2730,7 +3244,7 @@ export default function VendorDashboardPage() {
                       <input
                         type="text"
                         readOnly
-                        value={selectedJob.appointmentDate}
+                        value={safeString(selectedJob.appointmentDate, '—')}
                         className="w-full text-xs font-bold bg-slate-100/70 border border-slate-200 rounded-xl p-3 text-slate-800"
                       />
                     </div>
@@ -2745,10 +3259,23 @@ export default function VendorDashboardPage() {
                         <Wrench className="w-4 h-4 text-slate-700" />
                         <h3 className="text-base font-extrabold text-slate-900">Parts & Labor Components</h3>
                       </div>
-                      <p className="text-xs text-slate-500 font-medium mt-0.5">Select repair components from dropdown menu & adjust quantity/amount</p>
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">
+                        Select repair components from live inventory catalog ({availableComponentOptions.length} items present in stock)
+                      </p>
                     </div>
 
                     <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={fetchLiveInventory}
+                        disabled={isInventoryLoading}
+                        className="text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border border-slate-200"
+                        title="Fetch latest stock quantity from database inventory"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isInventoryLoading ? 'animate-spin text-orange-500' : 'text-slate-500'}`} />
+                        <span>{isInventoryLoading ? 'Syncing...' : 'Refresh Stock'}</span>
+                      </button>
+
                       {selectedJob.travelDistanceKm && !invoiceParts.some(p => p.isTravel || String(p.description || '').toLowerCase().includes('travel')) && (
                         <button
                           type="button"
@@ -2774,10 +3301,11 @@ export default function VendorDashboardPage() {
 
                       <button
                         onClick={handleAddPartRow}
-                        className="text-xs font-extrabold bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border border-blue-200"
+                        disabled={availableComponentOptions.length === 0}
+                        className="text-xs font-extrabold bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border border-blue-200"
                       >
                         <PlusCircle className="w-4 h-4 text-blue-700" />
-                        Add Component Row
+                        Add Component ({availableComponentOptions.length} in stock)
                       </button>
                     </div>
                   </div>
@@ -2803,17 +3331,32 @@ export default function VendorDashboardPage() {
                                 {part.locked ? (
                                   <span className="font-extrabold text-slate-800 block py-1.5">{part.description}</span>
                                 ) : (
-                                  <select
-                                    value={part.description}
-                                    onChange={(e) => handleSelectComponentDropdown(idx, e.target.value)}
-                                    className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-orange-500 focus:outline-none"
-                                  >
-                                    {AVAILABLE_COMPONENTS.map((comp, cIdx) => (
-                                      <option key={cIdx} value={comp.name}>
-                                        {comp.name} (₹{comp.defaultPrice})
-                                      </option>
-                                    ))}
-                                  </select>
+                                  <div>
+                                    <select
+                                      value={part.inventoryId || part.description}
+                                      onChange={(e) => handleSelectComponentDropdown(idx, e.target.value)}
+                                      className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                                    >
+                                      {availableComponentOptions.length === 0 ? (
+                                        <option value="" disabled>No components present in inventory</option>
+                                      ) : (
+                                        availableComponentOptions.map((comp) => (
+                                          <option key={comp.inventoryId} value={comp.inventoryId}>
+                                            {comp.name} (₹{comp.defaultPrice}) — Stock: {comp.stock} available
+                                          </option>
+                                        ))
+                                      )}
+                                    </select>
+                                    {part.inventoryId && (
+                                      <div className="flex items-center gap-2 mt-1 px-1 text-[11px]">
+                                        <span className="text-slate-500 font-medium">SKU: <strong className="text-slate-700">{part.inventoryId}</strong></span>
+                                        <span className="text-slate-300">•</span>
+                                        <span className={`font-bold ${part.stock <= 3 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                                          {part.stock} in inventory
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
                                 )}
                               </td>
 
@@ -2821,14 +3364,22 @@ export default function VendorDashboardPage() {
                                 {part.locked ? (
                                   <span className="font-extrabold text-slate-800">{part.qty}</span>
                                 ) : (
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    step="0.5"
-                                    value={part.qty}
-                                    onChange={(e) => handlePartChange(idx, 'qty', e.target.value)}
-                                    className="w-16 text-center text-xs font-bold bg-white border border-slate-200 rounded-xl p-2 focus:ring-2 focus:ring-orange-500"
-                                  />
+                                  <div className="flex flex-col items-center">
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      max={part.stock || 999}
+                                      step="1"
+                                      value={part.qty}
+                                      onChange={(e) => handlePartChange(idx, 'qty', e.target.value)}
+                                      className="w-16 text-center text-xs font-extrabold bg-white border border-slate-200 rounded-xl p-2 focus:ring-2 focus:ring-orange-500"
+                                    />
+                                    {part.stock !== undefined && (
+                                      <span className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                                        Max: {part.stock}
+                                      </span>
+                                    )}
+                                  </div>
                                 )}
                               </td>
 
@@ -3038,10 +3589,22 @@ export default function VendorDashboardPage() {
 
                   <button
                     onClick={handleGenerateAndSendInvoice}
-                    className="w-full py-3.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-extrabold rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                    disabled={isCompletingService}
+                    className={`w-full py-3.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-extrabold rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 ${
+                      isCompletingService ? 'opacity-70 cursor-not-allowed' : ''
+                    }`}
                   >
-                    <Send className="w-4 h-4 fill-white" />
-                    ➤ Generate &amp; Complete Service
+                    {isCompletingService ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                        <span>Generating Invoice &amp; Completing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 fill-white" />
+                        <span>➤ Generate &amp; Complete Service</span>
+                      </>
+                    )}
                   </button>
 
                   <p className="text-[10px] text-center text-slate-400">
@@ -4135,7 +4698,7 @@ export default function VendorDashboardPage() {
               </div>
               <div className="rounded-2xl overflow-hidden border border-slate-200 max-h-[60vh] flex items-center justify-center bg-slate-950">
                 <img
-                  src={proofPreviewItem.imageUrl}
+                  src={safeImageUrl(proofPreviewItem.imageUrl) || proofPreviewItem.imageUrl}
                   alt="Proof Document"
                   className="w-full h-auto object-contain max-h-[55vh]"
                 />

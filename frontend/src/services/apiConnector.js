@@ -1,17 +1,37 @@
 import axios from 'axios';
 
-// Dynamic URL Resolution: Seamlessly supports localhost and Render production
+// Dynamic URL Resolution: Seamlessly supports localhost, local network (LAN), and Render production
 const isBrowser = typeof window !== 'undefined';
+const hostname = isBrowser ? window.location.hostname : '';
 const isLocalhost = isBrowser && (
-  window.location.hostname === 'localhost' ||
-  window.location.hostname === '127.0.0.1'
+  hostname === 'localhost' ||
+  hostname === '127.0.0.1' ||
+  hostname === '0.0.0.0' ||
+  hostname === '[::1]' ||
+  hostname.endsWith('.local') ||
+  /^192\.168\.\d+\.\d+$/.test(hostname) ||
+  /^10\.\d+\.\d+\.\d+$/.test(hostname) ||
+  /^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+$/.test(hostname)
 );
 
-const customOverride = isBrowser ? localStorage.getItem('mm_api_url') : null;
-let resolvedUrl = customOverride || import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
+const rawOverride = isBrowser ? localStorage.getItem('mm_api_url') : null;
+const customOverride = (rawOverride && rawOverride !== 'null' && rawOverride !== 'undefined' && rawOverride.trim() !== '')
+  ? rawOverride.trim()
+  : null;
 
-if (!resolvedUrl || (isLocalhost && !customOverride && resolvedUrl.includes('onrender.com'))) {
-  resolvedUrl = isLocalhost ? 'http://localhost:5000/api' : 'https://magic-mistry.onrender.com/api';
+// Clean stale onrender override if the developer is testing locally
+if (isLocalhost && customOverride && customOverride.includes('onrender.com')) {
+  try { localStorage.removeItem('mm_api_url'); } catch (_) {}
+}
+
+const activeOverride = (isLocalhost && customOverride && customOverride.includes('onrender.com')) ? null : customOverride;
+
+let resolvedUrl = activeOverride || import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
+
+if (!resolvedUrl || (isLocalhost && !activeOverride && resolvedUrl.includes('onrender.com'))) {
+  resolvedUrl = isLocalhost
+    ? `http://${hostname && hostname !== '0.0.0.0' ? hostname : 'localhost'}:5000/api`
+    : 'https://magic-mistry.onrender.com/api';
 }
 
 const rawBaseUrl = resolvedUrl;
@@ -21,6 +41,34 @@ export const BASE_URL = rawBaseUrl.replace(/\/+$/, '').endsWith('/api')
   : `${rawBaseUrl.replace(/\/+$/, '')}/api`;
 
 export const SOCKET_URL = BASE_URL.replace(/\/api\/?$/, '');
+
+if (isBrowser) {
+  console.log(`[Magic Mistry] API Base URL: ${BASE_URL} | Socket URL: ${SOCKET_URL}`);
+}
+
+/**
+ * Health check to verify frontend-to-backend connectivity
+ */
+export async function checkBackendHealth() {
+  const rootUrl = BASE_URL.replace(/\/api\/?$/, '');
+  try {
+    const res = await axiosInstance.get(`${rootUrl}/`, { timeout: 4000 });
+    return {
+      connected: true,
+      url: BASE_URL,
+      socketUrl: SOCKET_URL,
+      status: res.status,
+      data: res.data,
+    };
+  } catch (err) {
+    return {
+      connected: false,
+      url: BASE_URL,
+      socketUrl: SOCKET_URL,
+      error: err.message,
+    };
+  }
+}
 
 export const axiosInstance = axios.create({
   withCredentials: true,

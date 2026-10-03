@@ -2,6 +2,33 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Printer, X, Wrench, Shield, Navigation, MapPin, Eye } from 'lucide-react';
 
+const safeText = (val, fallback = '') => {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'string') return val.trim() || fallback;
+  if (typeof val === 'number') return String(val);
+  if (typeof val === 'object') {
+    if (val.formattedAddress && typeof val.formattedAddress === 'string') return val.formattedAddress.trim();
+    if (val.fullAddress && typeof val.fullAddress === 'string') return val.fullAddress.trim();
+    if (val.address && typeof val.address === 'string') return val.address.trim();
+    if (val.fullName && typeof val.fullName === 'string') return val.fullName.trim();
+    if (val.name && typeof val.name === 'string') return val.name.trim();
+    const parts = [val.house || val.flat, val.street, val.landmark, val.city, val.state, val.pincode].filter(Boolean);
+    if (parts.length > 0) return parts.join(', ');
+    return fallback;
+  }
+  return String(val) || fallback;
+};
+
+const safeUrl = (val) => {
+  if (!val) return null;
+  if (typeof val === 'string') return val.trim() || null;
+  if (typeof val === 'object') {
+    if (typeof val.url === 'string') return val.url.trim();
+    if (typeof val.secure_url === 'string') return val.secure_url.trim();
+  }
+  return null;
+};
+
 export default function VendorTaxInvoiceModal({
   showTaxInvoiceModal,
   generatedInvoiceData,
@@ -63,11 +90,11 @@ export default function VendorTaxInvoiceModal({
 
                 <div className="text-left sm:text-right">
                   <span className="inline-block bg-emerald-100 text-emerald-800 text-xs font-black px-3 py-1 rounded-full border border-emerald-300 mb-2">
-                    ✓ {generatedInvoiceData.status || 'PAID IN FULL'}
+                    ✓ {safeText(generatedInvoiceData.status, 'PAID IN FULL')}
                   </span>
                   <p className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">Tax Invoice</p>
-                  <p className="text-base font-black text-[#0B1E40]">#{generatedInvoiceData.invoiceId}</p>
-                  <p className="text-xs text-slate-500 font-semibold">Date: {generatedInvoiceData.date}</p>
+                  <p className="text-base font-black text-[#0B1E40]">#{safeText(generatedInvoiceData.invoiceId)}</p>
+                  <p className="text-xs text-slate-500 font-semibold">Date: {safeText(generatedInvoiceData.date)}</p>
                 </div>
               </div>
 
@@ -75,15 +102,15 @@ export default function VendorTaxInvoiceModal({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200/80 text-xs">
                 <div>
                   <p className="font-extrabold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Billed To (Customer)</p>
-                  <p className="font-bold text-slate-900 text-sm">{generatedInvoiceData.customerName}</p>
-                  <p className="text-slate-600 mt-0.5 leading-snug">{generatedInvoiceData.address}</p>
-                  <p className="text-slate-500 mt-0.5">Phone: {generatedInvoiceData.customerPhone}</p>
+                  <p className="font-bold text-slate-900 text-sm">{safeText(generatedInvoiceData.customerName, 'Customer')}</p>
+                  <p className="text-slate-600 mt-0.5 leading-snug">{safeText(generatedInvoiceData.address, '—')}</p>
+                  <p className="text-slate-500 mt-0.5">Phone: {safeText(generatedInvoiceData.customerPhone, '—')}</p>
                 </div>
                 <div className="border-t sm:border-t-0 sm:border-l border-slate-200 pt-3 sm:pt-0 sm:pl-4">
                   <p className="font-extrabold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Service &amp; Payment Details</p>
-                  <p className="font-bold text-slate-900 text-sm">Technician: {generatedInvoiceData.technician}</p>
-                  <p className="text-slate-600 mt-0.5">Service: {generatedInvoiceData.serviceTitle}</p>
-                  <p className="text-slate-600 font-semibold text-blue-800 mt-0.5">Payment: {generatedInvoiceData.paymentMethod}</p>
+                  <p className="font-bold text-slate-900 text-sm">Technician: {safeText(generatedInvoiceData.technician, 'Technician')}</p>
+                  <p className="text-slate-600 mt-0.5">Service: {safeText(generatedInvoiceData.serviceTitle, 'Service')}</p>
+                  <p className="text-slate-600 font-semibold text-blue-800 mt-0.5">Payment: {safeText(generatedInvoiceData.paymentMethod, 'Cash')}</p>
                 </div>
               </div>
 
@@ -134,9 +161,12 @@ export default function VendorTaxInvoiceModal({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 text-slate-700">
-                    {generatedInvoiceData.parts.map((p, pIdx) => {
-                      const amt = (parseFloat(p.qty) || 1) * (parseFloat(p.price) || 0);
-                      const isTravelLine = p.isTravel || String(p.description || '').toLowerCase().includes('travel') || String(p.description || '').toLowerCase().includes('km');
+                    {(generatedInvoiceData.parts || generatedInvoiceData.items || []).map((p, pIdx) => {
+                      const qty = parseFloat(p.qty !== undefined ? p.qty : p.quantity) || 1;
+                      const price = parseFloat(p.price !== undefined ? p.price : p.unitPrice) || 0;
+                      const amt = p.amount !== undefined ? parseFloat(p.amount) : qty * price;
+                      const desc = p.description || p.name || 'Component';
+                      const isTravelLine = p.isTravel || p.type === 'Travel' || String(desc).toLowerCase().includes('travel') || String(desc).toLowerCase().includes('km');
                       return (
                         <tr key={pIdx}>
                           <td className="py-3 px-4 font-bold text-slate-900 flex items-center gap-2">
@@ -145,10 +175,10 @@ export default function VendorTaxInvoiceModal({
                             ) : (
                               <Wrench className="w-3.5 h-3.5 text-orange-500 shrink-0 no-print" />
                             )}
-                            <span>{p.description}</span>
+                            <span>{desc}</span>
                           </td>
-                          <td className="py-3 px-4 text-center font-semibold">{p.qty}</td>
-                          <td className="py-3 px-4 text-right font-medium">₹{parseFloat(p.price).toFixed(2)}</td>
+                          <td className="py-3 px-4 text-center font-semibold">{qty}</td>
+                          <td className="py-3 px-4 text-right font-medium">₹{price.toFixed(2)}</td>
                           <td className="py-3 px-4 text-right font-bold text-slate-900">₹{amt.toFixed(2)}</td>
                         </tr>
                       );
@@ -175,21 +205,21 @@ export default function VendorTaxInvoiceModal({
                 <div className="w-full sm:w-64 space-y-1.5 text-xs text-right">
                   <div className="flex justify-between text-slate-600">
                     <span>Subtotal:</span>
-                    <span className="font-semibold text-slate-800">₹{generatedInvoiceData.subtotal.toFixed(2)}</span>
+                    <span className="font-semibold text-slate-800">₹{(parseFloat(generatedInvoiceData.subtotal) || 0).toFixed(2)}</span>
                   </div>
-                  {generatedInvoiceData.discount > 0 && (
+                  {(parseFloat(generatedInvoiceData.discount) || 0) > 0 && (
                     <div className="flex justify-between text-emerald-700">
                       <span>Discount Applied:</span>
-                      <span className="font-bold">-₹{generatedInvoiceData.discount.toFixed(2)}</span>
+                      <span className="font-bold">-₹{(parseFloat(generatedInvoiceData.discount) || 0).toFixed(2)}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-slate-600">
-                    <span>Taxes (GST 5%):</span>
-                    <span className="font-semibold text-slate-800">₹{generatedInvoiceData.tax.toFixed(2)}</span>
+                    <span>Taxes {(parseFloat(generatedInvoiceData.tax) || 0) > 0 ? '(GST)' : '(GST 0%)'}:</span>
+                    <span className="font-semibold text-slate-800">₹{(parseFloat(generatedInvoiceData.tax) || 0).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm font-black text-[#0B1E40] pt-2 border-t border-slate-200">
                     <span>Total Amount Paid:</span>
-                    <span className="text-orange-600 text-base">₹{generatedInvoiceData.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    <span className="text-orange-600 text-base">₹{(parseFloat(generatedInvoiceData.total !== undefined ? generatedInvoiceData.total : generatedInvoiceData.totalAmount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                   </div>
                 </div>
               </div>
@@ -242,7 +272,7 @@ export default function VendorTaxInvoiceModal({
                 </div>
                 <div className="rounded-2xl overflow-hidden border border-slate-200 max-h-[60vh] flex items-center justify-center bg-slate-950">
                   <img
-                    src={generatedInvoiceData.mapScreenshot}
+                    src={safeUrl(generatedInvoiceData.mapScreenshot) || generatedInvoiceData.mapScreenshot}
                     alt="Map Screenshot Proof"
                     className="w-full h-auto object-contain max-h-[55vh]"
                   />

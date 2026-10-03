@@ -26,6 +26,7 @@ import UserRatingModal         from '../../components/dashboard/user/UserRatingM
 import ApplianceIcon           from '../../components/common/ApplianceIcon';
 import { parseAddressString, formatCleanAddress }  from '../../utils/addressParser';
 import { getLiveBasePriceForAppliance } from '../../services/pricingService';
+import { getInvoiceForBooking, normalizeInvoiceForUI } from '../../services/invoiceService';
 
 
 // ─── Initial Data ────────────────────────────────────────────────────────────
@@ -141,23 +142,35 @@ export default function UserDashboardPage() {
       // Load Bookings
       const resBookings = await getMyBookingsApi(token);
       if (resBookings.success && Array.isArray(resBookings.bookings)) {
-        const formatted = resBookings.bookings.map((b) => ({
-          id: b._id || 'BK-' + Date.now().toString().slice(-6),
-          service: b.serviceCategory || b.appliance || 'Appliance Service',
-          applianceIcon: '🔧',
-          technician: b.vendor?.fullName || 'Verification Pending',
-          techRating: '4.9',
-          techJobs: '100+',
-          techAvatar: 'MM',
-          date: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—',
-          time: b.timeSlot || 'Scheduled Slot',
-          status: b.bookingStatus || 'Pending',
-          price: `₹${b.serviceCategoryCharge ?? getLiveBasePriceForAppliance(b.serviceCategory || b.appliance, 299)}`,
-          customerName: user?.fullName || 'Customer',
-          address: b.address,
-          image: b.image,
-          rawBooking: b,
-        }));
+        const formatted = resBookings.bookings.map((b) => {
+          const inv = getInvoiceForBooking(b._id || b.id, b);
+          const normalizedInv = normalizeInvoiceForUI(inv, b);
+          const realPriceNum = normalizedInv?.total ?? (Number(b.serviceCharge) > 0 ? Number(b.serviceCharge) : (b.serviceCategoryCharge ?? getLiveBasePriceForAppliance(b.serviceCategory || b.appliance, 299)));
+          return {
+            id: b._id || 'BK-' + Date.now().toString().slice(-6),
+            service: b.serviceCategory || b.appliance || 'Appliance Service',
+            applianceIcon: '🔧',
+            technician: b.vendor?.fullName || 'Verification Pending',
+            techRating: '4.9',
+            techJobs: '100+',
+            techAvatar: 'MM',
+            date: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—',
+            time: b.timeSlot || 'Scheduled Slot',
+            status: b.bookingStatus || 'Pending',
+            price: `₹${realPriceNum}`,
+            realPrice: realPriceNum,
+            invoice: normalizedInv,
+            invoiceId: normalizedInv?.invoiceId,
+            customerName: user?.fullName || 'Customer',
+            address: b.address,
+            image: b.image,
+            rawBooking: {
+              ...b,
+              invoice: normalizedInv,
+              serviceCharge: realPriceNum,
+            },
+          };
+        });
         setBookingsList(formatted);
       }
 
@@ -256,23 +269,35 @@ export default function UserDashboardPage() {
   };
 
   // ── Real-Time Booking Event Listeners ─────────────────────────────────────
-  const formatUserBooking = React.useCallback((b) => ({
-    id: b._id || 'BK-' + Date.now().toString().slice(-6),
-    service: b.serviceCategory || b.appliance || 'Appliance Service',
-    applianceIcon: '🔧',
-    technician: b.vendor?.fullName || 'Verification Pending',
-    techRating: '4.9',
-    techJobs: '100+',
-    techAvatar: 'MM',
-    date: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—',
-    time: b.timeSlot || 'Scheduled Slot',
-    status: b.bookingStatus || 'Pending',
-    price: `₹${b.serviceCategoryCharge ?? getLiveBasePriceForAppliance(b.serviceCategory || b.appliance, 299)}`,
-    customerName: user?.fullName || 'Customer',
-    address: b.address,
-    image: b.image,
-    rawBooking: b,
-  }), [user?.fullName]);
+  const formatUserBooking = React.useCallback((b) => {
+    const inv = getInvoiceForBooking(b._id || b.id);
+    const normalizedInv = inv ? normalizeInvoiceForUI(inv, b) : null;
+    const realPriceNum = normalizedInv?.total ?? (Number(b.serviceCharge) > 0 ? Number(b.serviceCharge) : (b.serviceCategoryCharge ?? getLiveBasePriceForAppliance(b.serviceCategory || b.appliance, 299)));
+    return {
+      id: b._id || 'BK-' + Date.now().toString().slice(-6),
+      service: b.serviceCategory || b.appliance || 'Appliance Service',
+      applianceIcon: '🔧',
+      technician: b.vendor?.fullName || 'Verification Pending',
+      techRating: '4.9',
+      techJobs: '100+',
+      techAvatar: 'MM',
+      date: b.serviceDate ? new Date(b.serviceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—',
+      time: b.timeSlot || 'Scheduled Slot',
+      status: b.bookingStatus || 'Pending',
+      price: `₹${realPriceNum}`,
+      realPrice: realPriceNum,
+      invoice: normalizedInv,
+      invoiceId: normalizedInv?.invoiceId,
+      customerName: user?.fullName || 'Customer',
+      address: b.address,
+      image: b.image,
+      rawBooking: {
+        ...b,
+        invoice: normalizedInv,
+        serviceCharge: realPriceNum,
+      },
+    };
+  }, [user?.fullName]);
 
   // Live updates when technician accepts or updates booking status
   useSocketEvent('booking:status_changed', (updatedBooking) => {
@@ -372,7 +397,17 @@ export default function UserDashboardPage() {
   };
 
   const handleOpenInvoice = (booking) => {
-    setSelectedBookingForInvoice(booking);
+    const rawId = booking.id || booking._id || booking.rawBooking?._id;
+    const inv = booking.invoice || getInvoiceForBooking(rawId, booking);
+    const normalized = normalizeInvoiceForUI(inv, booking);
+    setSelectedBookingForInvoice({
+      ...booking,
+      invoice: normalized,
+      rawBooking: {
+        ...(booking.rawBooking || booking),
+        invoice: normalized,
+      },
+    });
     setIsInvoiceOpen(true);
   };
 

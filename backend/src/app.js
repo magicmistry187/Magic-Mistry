@@ -60,6 +60,7 @@ const addressRoutes = require('./routes/address.routes');
 const vendorApplicationRoutes = require('./routes/vendorApplication.routes');
 const vendorRoutes = require('./routes/vendor.routes');
 const adminRoutes = require('./routes/admin.routes')
+const inventoryRoutes = require('./routes/inventory.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/booking', bookingRoutes);
@@ -67,5 +68,6 @@ app.use('/api/address', addressRoutes);
 app.use('/api/vendor-application', vendorApplicationRoutes);
 app.use('/api/vendor', vendorRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/inventory', inventoryRoutes);
 
 module.exports = app;

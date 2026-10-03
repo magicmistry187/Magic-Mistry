@@ -41,12 +41,10 @@ const vendorApplicationSchema = new mongoose.Schema(
     },
 
     // Work Details
-    serviceType: {
-      type: String,
+    serviceTypes: {
+      type: [String],
       required: true,
-      trim: true,
     },
-
     experience: {
       type: Number,
       default: 0,
@@ -89,8 +87,6 @@ const vendorApplicationSchema = new mongoose.Schema(
       enum: ['Pending', 'Approved', 'Rejected'],
       default: 'Pending',
     },
-
-   
 
     vendor: {
       type: mongoose.Schema.Types.ObjectId,

@@ -15,6 +15,9 @@ const {
   getBookingToVendorUnderRange,
   acceptBooking,
   updateBookingStatus,
+  routeVerification,
+  submitServiceDetails,
+  completeService,
 } = require('../controllers/booking.controller');
 
 router.post('/', auth, isCustomer,checkUserRestricted, upload.single('image'), createBooking);
@@ -35,6 +38,36 @@ router.patch('/:bookingId/cancel', auth, isCustomer, checkUserRestricted, cancel
 
 router.get('/:bookingId', auth, getBookingDetails);
 
-module.exports = router;
+router.post(
+  '/:bookingId/route-verification',
+  auth,
+  isVendor,
+  upload.single('image'),
+  routeVerification,
+);
 
-// address model banana h
+router.patch(
+  '/:bookingId/service-details',
+  auth,
+  isVendor,
+  upload.fields([
+    {
+      name: 'beforeImage',
+      maxCount: 1,
+    },
+    {
+      name: 'afterImage',
+      maxCount: 1,
+    },
+  ]),
+  submitServiceDetails,
+);
+
+router.post(
+  '/:bookingId/complete',
+  auth,
+  isVendor,
+  completeService
+);
+
+module.exports = router;

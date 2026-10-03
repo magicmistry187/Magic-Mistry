@@ -2,10 +2,6 @@ const mongoose = require('mongoose');
 
 const invoiceSchema = new mongoose.Schema(
   {
-    // ==========================================
-    // REFERENCES
-    // ==========================================
-
     booking: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Booking',
@@ -32,20 +28,12 @@ const invoiceSchema = new mongoose.Schema(
       unique: true,
     },
 
-    // ==========================================
-    // INVOICE NUMBER
-    // ==========================================
-
     invoiceNumber: {
       type: String,
       required: true,
       unique: true,
       trim: true,
     },
-
-    // ==========================================
-    // CUSTOMER SNAPSHOT
-    // ==========================================
 
     customerSnapshot: {
       name: {
@@ -64,10 +52,6 @@ const invoiceSchema = new mongoose.Schema(
       },
     },
 
-    // ==========================================
-    // SERVICE SNAPSHOT
-    // ==========================================
-
     serviceSnapshot: {
       appliance: {
         type: String,
@@ -85,20 +69,11 @@ const invoiceSchema = new mongoose.Schema(
       },
     },
 
-    // ==========================================
-    // INVOICE ITEMS
-    // ==========================================
-
     items: [
       {
         type: {
           type: String,
-          enum: [
-            'Service',
-            'Travel',
-            'Component',
-            'Warranty',
-          ],
+          enum: ['Service', 'Travel', 'Component', 'Warranty'],
           required: true,
         },
 
@@ -136,10 +111,6 @@ const invoiceSchema = new mongoose.Schema(
       },
     ],
 
-    // ==========================================
-    // AMOUNTS
-    // ==========================================
-
     subtotal: {
       type: Number,
       required: true,
@@ -164,24 +135,18 @@ const invoiceSchema = new mongoose.Schema(
       min: 0,
     },
 
-    // ==========================================
-    // PAYMENT
-    // ==========================================
-
     paymentMethod: {
+      // type: String,
+      // enum: ['Cash', 'UPI'],
+      // required: true,
       type: String,
-      enum: ['Cash', 'UPI'],
       required: true,
+      trim: true,
     },
 
     paymentStatus: {
       type: String,
-      enum: [
-        'Pending',
-        'Paid',
-        'Failed',
-        'Refunded',
-      ],
+      enum: ['Pending', 'Paid', 'Failed', 'Refunded'],
       default: 'Pending',
     },
 
@@ -189,10 +154,6 @@ const invoiceSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
-
-    // ==========================================
-    // CUSTOMER NOTE
-    // ==========================================
 
     customerNote: {
       type: String,
@@ -202,10 +163,7 @@ const invoiceSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
-module.exports = mongoose.model(
-  'Invoice',
-  invoiceSchema
-);
+module.exports = mongoose.model('Invoice', invoiceSchema);

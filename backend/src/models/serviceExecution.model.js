@@ -15,9 +15,7 @@ const serviceExecutionSchema = new mongoose.Schema(
       required: true,
     },
 
-    // ==========================================
-    // ROUTE / TRAVEL VERIFICATION
-    // ==========================================
+   
 
     route: {
       screenshot: {
@@ -62,7 +60,7 @@ const serviceExecutionSchema = new mongoose.Schema(
       ratePerKm: {
         type: Number,
         min: 0,
-        default: 10,
+         default: null,
       },
 
       travelCharge: {
@@ -87,90 +85,57 @@ const serviceExecutionSchema = new mongoose.Schema(
       },
     },
 
-    // ==========================================
-    // SERVICE TIME
-    // ==========================================
 
-    arrivedAt: {
-      type: Date,
+   checklist: {
+  service: {
+    type: Boolean,
+    default: false,
+  },
+
+  inspection: {
+    type: Boolean,
+    default: false,
+  },
+
+  diagnosis: {
+    type: Boolean,
+    default: false,
+  },
+
+  testingCleanup: {
+    type: Boolean,
+    default: false,
+  },
+},
+
+   documentation: {
+  beforeImage: {
+    url: {
+      type: String,
       default: null,
+    
     },
-
-    serviceStartedAt: {
-      type: Date,
+    fileId: {
+      type: String,
       default: null,
+      
     },
+  },
 
-    serviceCompletedAt: {
-      type: Date,
-      default: null,
+  afterImage: {
+    url: {
+      type: String,
+       default: null,
+      
     },
-
-    // ==========================================
-    // SERVICE CHECKLIST
-    // ==========================================
-
-    checklist: [
-      {
-        key: {
-          type: String,
-          required: true,
-        },
-
-        title: {
-          type: String,
-          required: true,
-        },
-
-        completed: {
-          type: Boolean,
-          default: false,
-        },
-
-        completedAt: {
-          type: Date,
-          default: null,
-        },
-      },
-    ],
-
-    // ==========================================
-    // BEFORE / AFTER DOCUMENTATION
-    // ==========================================
-
-    documentation: {
-      beforeImages: [
-        {
-          url: {
-            type: String,
-            required: true,
-          },
-
-          fileId: {
-            type: String,
-            required: true,
-          },
-        },
-      ],
-
-      afterImages: [
-        {
-          url: {
-            type: String,
-            required: true,
-          },
-
-          fileId: {
-            type: String,
-            required: true,
-          },
-        },
-      ],
+    fileId: {
+      type: String,
+       default: null,
+      
     },
-
-    // ==========================================
-    // NOTES
-    // ==========================================
+  },
+},
+    
 
     customerNote: {
       type: String,
@@ -178,15 +143,7 @@ const serviceExecutionSchema = new mongoose.Schema(
       default: '',
     },
 
-    vendorNote: {
-      type: String,
-      trim: true,
-      default: '',
-    },
-
-    // ==========================================
-    // SERVICE STATUS
-    // ==========================================
+  
 
     status: {
       type: String,

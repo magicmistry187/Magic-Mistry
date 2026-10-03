@@ -2,9 +2,7 @@ const mongoose = require('mongoose');
 
 const vendorEarningSchema = new mongoose.Schema(
   {
-    // ==========================================
-    // REFERENCES
-    // ==========================================
+    
 
     booking: {
       type: mongoose.Schema.Types.ObjectId,
@@ -25,19 +23,12 @@ const vendorEarningSchema = new mongoose.Schema(
       required: true,
     },
 
-    // ==========================================
-    // WORK ORDER
-    // ==========================================
-
     workOrderId: {
       type: String,
       required: true,
       trim: true,
     },
 
-    // ==========================================
-    // CUSTOMER INVOICE
-    // ==========================================
 
     customerInvoiceAmount: {
       type: Number,
@@ -45,9 +36,7 @@ const vendorEarningSchema = new mongoose.Schema(
       min: 0,
     },
 
-    // ==========================================
-    // SERVICE EARNING
-    // ==========================================
+ 
 
     serviceAmount: {
       type: Number,
@@ -68,9 +57,6 @@ const vendorEarningSchema = new mongoose.Schema(
       min: 0,
     },
 
-    // ==========================================
-    // COMPONENT
-    // ==========================================
 
     componentAmount: {
       type: Number,
@@ -84,9 +70,7 @@ const vendorEarningSchema = new mongoose.Schema(
       min: 0,
     },
 
-    // ==========================================
-    // TRAVEL / FUEL
-    // ==========================================
+   
 
     travelDistanceKm: {
       type: Number,
@@ -106,9 +90,7 @@ const vendorEarningSchema = new mongoose.Schema(
       min: 0,
     },
 
-    // ==========================================
-    // FINAL EARNING
-    // ==========================================
+   
 
     netEarning: {
       type: Number,

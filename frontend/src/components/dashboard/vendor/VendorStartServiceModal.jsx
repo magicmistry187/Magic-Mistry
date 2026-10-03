@@ -48,6 +48,7 @@ export default function VendorStartServiceModal({
   const [ratePerKm, setRatePerKm] = useState(fuelRate);
   const [mapScreenshot, setMapScreenshot] = useState(null);
   const [mapFileName, setMapFileName] = useState('');
+  const [mapFile, setMapFile] = useState(null);
   const [addToInvoice, setAddToInvoice] = useState(true);
   const [validationError, setValidationError] = useState('');
 
@@ -75,14 +76,32 @@ export default function VendorStartServiceModal({
         setMapScreenshot(null);
         setMapFileName('');
       }
+      setMapFile(null);
       setValidationError('');
     }
   }, [job, isOpen]);
 
   if (!isOpen || !job) return null;
 
-  const vendorOrigin = vendorProfile?.address || 'Vendor Workshop / Current Location';
-  const customerDestination = job.serviceAddress || job.location || 'Customer Address';
+  const safeText = (val, fallback = '') => {
+    if (val === null || val === undefined) return fallback;
+    if (typeof val === 'string') return val.trim() || fallback;
+    if (typeof val === 'number') return String(val);
+    if (typeof val === 'object') {
+      if (val.formattedAddress && typeof val.formattedAddress === 'string') return val.formattedAddress.trim();
+      if (val.fullAddress && typeof val.fullAddress === 'string') return val.fullAddress.trim();
+      if (val.address && typeof val.address === 'string') return val.address.trim();
+      if (val.fullName && typeof val.fullName === 'string') return val.fullName.trim();
+      if (val.name && typeof val.name === 'string') return val.name.trim();
+      const parts = [val.house || val.flat, val.street, val.landmark, val.city, val.state, val.pincode].filter(Boolean);
+      if (parts.length > 0) return parts.join(', ');
+      return fallback;
+    }
+    return String(val) || fallback;
+  };
+
+  const vendorOrigin = safeText(vendorProfile?.address, 'Vendor Workshop / Current Location');
+  const customerDestination = safeText(job.serviceAddress || job.location, 'Customer Address');
 
   // Coordinate-aware Universal Directions URL with turn-by-turn navigation
   const customerCoords = job.customerLocation || job.customerCoordinates || (
@@ -113,24 +132,86 @@ export default function VendorStartServiceModal({
         return;
       }
       setMapFileName(file.name);
+      setMapFile(file);
       setValidationError('');
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setMapScreenshot(event.target.result);
-      };
-      reader.readAsDataURL(file);
+
+      // Create an instant blob URL for instant UI preview without blocking the thread
+      try {
+        const previewUrl = URL.createObjectURL(file);
+        setMapScreenshot(previewUrl);
+
+        // Downscale off-screen to lightweight JPEG base64 (~60KB) for reliable persistence & rendering
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const maxDim = 1000;
+            let { width, height } = img;
+            if (width > maxDim || height > maxDim) {
+              if (width > height) {
+                height = Math.round((height * maxDim) / width);
+                width = maxDim;
+              } else {
+                width = Math.round((width * maxDim) / height);
+                height = maxDim;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressed = canvas.toDataURL('image/jpeg', 0.8);
+            setMapScreenshot(compressed);
+          } catch (_) {
+            // Keep object URL if canvas fails
+          }
+        };
+        img.onerror = () => {
+          // Keep object URL fallback
+        };
+        img.src = previewUrl;
+      } catch (_) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          setMapScreenshot(event.target.result);
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
   const handleUseSampleScreenshot = () => {
+    try {
+      const blob = new Blob([SAMPLE_MAP_ROUTE_SVG], { type: 'image/svg+xml' });
+      const sampleFile = new File([blob], `route_map_${job.id || 'job'}.svg`, { type: 'image/svg+xml' });
+      setMapFile(sampleFile);
+    } catch (_) {}
     setMapScreenshot(SAMPLE_MAP_ROUTE_SVG);
     setMapFileName(`route_map_${job.id}.png`);
     setValidationError('');
   };
 
   const handleRemoveScreenshot = () => {
+    if (mapScreenshot && typeof mapScreenshot === 'string' && mapScreenshot.startsWith('blob:')) {
+      try { URL.revokeObjectURL(mapScreenshot); } catch (_) {}
+    }
     setMapScreenshot(null);
     setMapFileName('');
+    setMapFile(null);
+  };
+
+  const handleDirectStart = () => {
+    const numKm = parseFloat(distanceKm);
+    const validKm = !isNaN(numKm) && numKm > 0 ? numKm : 0;
+    onConfirmStartService({
+      jobId: job?.id || job?._id || job?.bookingId,
+      travelDistanceKm: validKm,
+      travelRatePerKm: Number(ratePerKm) || 10,
+      travelCharges: validKm > 0 ? validKm * (Number(ratePerKm) || 10) : 0,
+      mapScreenshot: typeof mapScreenshot === 'string' ? mapScreenshot : (mapScreenshot?.url || null),
+      mapFile: mapFile || null,
+      addToInvoice: Boolean(addToInvoice && validKm > 0)
+    });
   };
 
   const handleSubmit = () => {
@@ -145,11 +226,12 @@ export default function VendorStartServiceModal({
     }
 
     onConfirmStartService({
-      jobId: job.id,
+      jobId: job?.id || job?._id || job?.bookingId,
       travelDistanceKm: numKm,
       travelRatePerKm: Number(ratePerKm) || 10,
       travelCharges: calculatedTravelCharge,
-      mapScreenshot: mapScreenshot,
+      mapScreenshot: typeof mapScreenshot === 'string' ? mapScreenshot : (mapScreenshot?.url || null),
+      mapFile: mapFile,
       addToInvoice: addToInvoice
     });
   };
@@ -214,7 +296,7 @@ export default function VendorStartServiceModal({
                         Customer Destination
                       </span>
                       <p className="font-bold text-slate-800 line-clamp-1">
-                        {customerDestination} ({job.customerName})
+                        {safeText(customerDestination, 'Customer Location')} ({safeText(job.customerName, 'Customer')})
                       </p>
                     </div>
                   </div>
@@ -403,23 +485,34 @@ export default function VendorStartServiceModal({
           </div>
 
           {/* Footer Actions */}
-          <div className="p-4 sm:p-5 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3 shrink-0">
+          <div className="p-4 sm:p-5 border-t border-slate-100 bg-slate-50 flex flex-wrap items-center justify-between gap-3 shrink-0">
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 rounded-xl text-xs font-extrabold text-slate-600 hover:text-slate-900 hover:bg-slate-200 transition-colors cursor-pointer"
+              className="px-4 py-2.5 rounded-xl text-xs font-extrabold text-slate-600 hover:text-slate-900 hover:bg-slate-200 transition-colors cursor-pointer"
             >
               Cancel
             </button>
 
-            <button
-              type="button"
-              onClick={handleSubmit}
-              className="px-6 py-2.5 rounded-xl text-xs font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-md active:scale-95 flex items-center gap-2 cursor-pointer"
-            >
-              <Check className="w-4 h-4" />
-              Confirm Route &amp; Start Service
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleDirectStart}
+                className="px-4 py-2.5 rounded-xl text-xs font-extrabold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 transition-all cursor-pointer"
+                title="Start service execution immediately"
+              >
+                Start Service Directly &rarr;
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSubmit}
+                className="px-5 py-2.5 rounded-xl text-xs font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-md active:scale-95 flex items-center gap-2 cursor-pointer"
+              >
+                <Check className="w-4 h-4" />
+                Confirm Route &amp; Start
+              </button>
+            </div>
           </div>
         </motion.div>
       </div>

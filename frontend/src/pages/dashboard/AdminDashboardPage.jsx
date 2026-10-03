@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -17,18 +17,31 @@ import AdminExportModal from '../../components/dashboard/admin/AdminExportModal'
 import AdminEditUserModal from '../../components/dashboard/admin/AdminEditUserModal';
 import AdminServicePricingTab from '../../components/dashboard/admin/AdminServicePricingTab';
 import {
-  LayoutDashboard, Users, FileText, UserPlus, TrendingUp, Settings,
+  LayoutDashboard, Users, FileText, UserPlus, TrendingUp,
   Package, AlertTriangle, Truck, DollarSign, Search, ChevronDown,
-  Edit3, Plus, Check, X, Shield, Lock, Clock, ShieldCheck, Mail,
-  Copy, Download, Filter, RefreshCw, LogOut, ChevronRight, Eye,
+  Edit3, Plus, Trash2, Check, X, Shield, Lock, Clock, ShieldCheck, Mail,
+  Copy, Download, Filter, RefreshCw, LogOut, ChevronRight, ChevronLeft, Eye,
   CheckCircle2, AlertCircle, Wrench, IndianRupee, ArrowUpRight,
   FileCheck, UserCheck, UserX, ExternalLink, Briefcase, MapPin, Phone, User,
   Snowflake, Droplets, Store, Star, BadgeCheck, BadgeIcon, Contact, Ban, UserMinus
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket, useSocketEvent } from '../../context/SocketContext';
-import { approveVendorApplication, getAllVendorApplications, rejectVendorApplication, createVendorByAdminApi, getVendorCredentialsApi, updateUserStatusApi, getAllUsersApi } from '../../services/api';
+import {
+  approveVendorApplication,
+  getAllVendorApplications,
+  rejectVendorApplication,
+  createVendorByAdminApi,
+  getVendorCredentialsApi,
+  updateUserStatusApi,
+  getAllUsersApi,
+  getAllInventoryApi,
+  createInventoryApi,
+  deleteInventoryApi,
+  restockInventoryApi,
+} from '../../services/api';
 import { getAdminBookingsApi } from '../../services/operations/bookingAPI';
+import { getLiveServicePricing } from '../../services/pricingService';
 
 // ─── Service Specializations (Exact match to Vendor Application Categories) ──
 export const SERVICE_SPECIALIZATIONS = [
@@ -52,68 +65,526 @@ export const SERVICE_SPECIALIZATIONS = [
   'Electrical Repair',
   'Plumbing Engineer',
 ];
-const INITIAL_INVENTORY = [
+// ─── Master Real Inventory Catalog (Real Genuine Spare Parts & Stock) ────────
+export const MASTER_REAL_INVENTORY = [
+  // ─── Cooling & Air Conditioning ───
   {
-    id: '#INV-0842',
-    name: 'AC Compressor (2 Ton)',
-    category: 'Appliance',
+    id: '#INV-1001',
+    name: 'AC Dual Run Capacitor (45+5 µF / 440V)',
+    category: 'Electrical',
     stockLevel: 'In Stock',
-    stockCount: 45,
-    unitPrice: 1850.00,
-    lastUpdated: 'Today, 10:23 AM',
-    sku: 'ACC-2T-X9',
-    reorderPoint: 20,
-    supplier: 'BlueStar Components'
+    stockCount: 35,
+    unitPrice: 249.00,
+    lastUpdated: 'Today, 11:15 AM',
+    sku: 'ACC-CAP-45UF',
+    reorderPoint: 10,
+    supplier: 'EPCOS / TDK Electronics'
   },
   {
-    id: '#INV-0915',
-    name: 'Refrigerator Thermostat',
+    id: '#INV-1002',
+    name: 'Refrigerant R32 Eco Gas Canister (800g)',
+    category: 'Appliance',
+    stockLevel: 'In Stock',
+    stockCount: 18,
+    unitPrice: 1450.00,
+    lastUpdated: 'Today, 09:30 AM',
+    sku: 'ACC-GAS-R32',
+    reorderPoint: 8,
+    supplier: 'Fluoron / SRF Ltd'
+  },
+  {
+    id: '#INV-1003',
+    name: 'AC Rotary Compressor (1.5 Ton Inverter)',
+    category: 'Appliance',
+    stockLevel: 'In Stock',
+    stockCount: 6,
+    unitPrice: 4850.00,
+    lastUpdated: 'Yesterday, 17:20',
+    sku: 'ACC-COMP-15T',
+    reorderPoint: 3,
+    supplier: 'Highly / GMCC Tech'
+  },
+  {
+    id: '#INV-1004',
+    name: 'Insulated Copper Pipe Pair (1/4" + 1/2" x 10ft)',
+    category: 'Plumbing',
+    stockLevel: 'In Stock',
+    stockCount: 24,
+    unitPrice: 850.00,
+    lastUpdated: 'Yesterday, 14:10',
+    sku: 'ACC-CU-PIPE10',
+    reorderPoint: 10,
+    supplier: 'Mandev Tubes India'
+  },
+  {
+    id: '#INV-1005',
+    name: 'AC Contactor Relay (2-Pole 30A Heavy Duty)',
+    category: 'Electrical',
+    stockLevel: 'In Stock',
+    stockCount: 14,
+    unitPrice: 380.00,
+    lastUpdated: 'Yesterday, 10:45',
+    sku: 'ACC-REL-30A',
+    reorderPoint: 5,
+    supplier: 'L&T Electrical'
+  },
+  {
+    id: '#INV-1006',
+    name: 'Universal AC Indoor Cross-Flow Blower Fan',
+    category: 'Appliance',
+    stockLevel: 'Low Stock',
+    stockCount: 3,
+    unitPrice: 620.00,
+    lastUpdated: 'Today, 08:40 AM',
+    sku: 'ACC-BLW-FAN',
+    reorderPoint: 5,
+    supplier: 'Voltas Spares'
+  },
+
+  // ─── Refrigeration ───
+  {
+    id: '#INV-1007',
+    name: 'Universal Refrigerator Inverter PCB Driver Board',
+    category: 'Appliance',
+    stockLevel: 'In Stock',
+    stockCount: 8,
+    unitPrice: 2150.00,
+    lastUpdated: 'Today, 10:45 AM',
+    sku: 'REF-PCB-INV',
+    reorderPoint: 4,
+    supplier: 'Samsung OEM Spares'
+  },
+  {
+    id: '#INV-1008',
+    name: 'Double Door Defrost Sensor & Bi-Metal Kit',
+    category: 'Appliance',
+    stockLevel: 'In Stock',
+    stockCount: 22,
+    unitPrice: 449.00,
+    lastUpdated: 'Yesterday, 16:00',
+    sku: 'REF-SEN-DEF',
+    reorderPoint: 8,
+    supplier: 'LG Electronics'
+  },
+  {
+    id: '#INV-1009',
+    name: 'Refrigerator Mechanical Thermostat (VT9)',
     category: 'Appliance',
     stockLevel: 'Low Stock',
     stockCount: 4,
     unitPrice: 350.00,
     lastUpdated: 'Yesterday, 14:05',
-    sku: 'REF-TH-04',
+    sku: 'REF-TH-VT9',
+    reorderPoint: 8,
+    supplier: 'Ranco Controls'
+  },
+  {
+    id: '#INV-1010',
+    name: 'Magnetic Door Gasket Seal Strip (1.2m)',
+    category: 'Appliance',
+    stockLevel: 'In Stock',
+    stockCount: 12,
+    unitPrice: 620.00,
+    lastUpdated: 'Yesterday, 12:30',
+    sku: 'REF-GST-MAG',
+    reorderPoint: 5,
+    supplier: 'Godrej Appliances'
+  },
+  {
+    id: '#INV-1011',
+    name: 'PTC Starter Relay & Overload Protector (1/6 HP)',
+    category: 'Electrical',
+    stockLevel: 'In Stock',
+    stockCount: 30,
+    unitPrice: 180.00,
+    lastUpdated: 'Yesterday, 11:10',
+    sku: 'REF-PTC-REL',
     reorderPoint: 10,
-    supplier: 'LG Electronics'
+    supplier: 'Danfoss India'
+  },
+
+  // ─── Washing Machine ───
+  {
+    id: '#INV-1012',
+    name: 'Universal Washing Machine Drain Pump Motor (30W)',
+    category: 'Appliance',
+    stockLevel: 'Low Stock',
+    stockCount: 3,
+    unitPrice: 750.00,
+    lastUpdated: 'Today, 08:50 AM',
+    sku: 'WM-PUMP-UNI',
+    reorderPoint: 6,
+    supplier: 'Whirlpool Spares'
+  },
+  {
+    id: '#INV-1013',
+    name: 'Drum Bearings & Oil Seal Kit (SKF 6205/6206)',
+    category: 'Appliance',
+    stockLevel: 'In Stock',
+    stockCount: 11,
+    unitPrice: 580.00,
+    lastUpdated: 'Yesterday, 11:30',
+    sku: 'WM-BRG-KIT',
+    reorderPoint: 5,
+    supplier: 'SKF India'
+  },
+  {
+    id: '#INV-1014',
+    name: 'Dual Solenoid Water Inlet Valve (220V AC)',
+    category: 'Plumbing',
+    stockLevel: 'In Stock',
+    stockCount: 16,
+    unitPrice: 420.00,
+    lastUpdated: 'Yesterday, 09:40',
+    sku: 'WM-VLV-DUAL',
+    reorderPoint: 5,
+    supplier: 'IFB Industries'
+  },
+  {
+    id: '#INV-1015',
+    name: 'Washing Machine Drive Belt (V-Belt M-21.5)',
+    category: 'Appliance',
+    stockLevel: 'In Stock',
+    stockCount: 25,
+    unitPrice: 220.00,
+    lastUpdated: 'Today, 07:15 AM',
+    sku: 'WM-BLT-M21',
+    reorderPoint: 8,
+    supplier: 'Fenner Belts'
+  },
+  {
+    id: '#INV-1016',
+    name: 'Universal Pulsator Assembly with Bush (375mm)',
+    category: 'Appliance',
+    stockLevel: 'In Stock',
+    stockCount: 7,
+    unitPrice: 890.00,
+    lastUpdated: 'Yesterday, 15:20',
+    sku: 'WM-PLS-375',
+    reorderPoint: 3,
+    supplier: 'LG Components'
+  },
+
+  // ─── Microwave Oven ───
+  {
+    id: '#INV-1017',
+    name: 'Microwave Magnetron 900W (Universal 2M214)',
+    category: 'Appliance',
+    stockLevel: 'In Stock',
+    stockCount: 6,
+    unitPrice: 980.00,
+    lastUpdated: 'Yesterday, 16:45',
+    sku: 'MW-MAG-900W',
+    reorderPoint: 4,
+    supplier: 'Panasonic OEM'
+  },
+  {
+    id: '#INV-1018',
+    name: 'High Voltage Capacitor 0.95µF 2100V with Diode',
+    category: 'Electrical',
+    stockLevel: 'In Stock',
+    stockCount: 15,
+    unitPrice: 320.00,
+    lastUpdated: 'Yesterday, 13:20',
+    sku: 'MW-CAP-HVOLT',
+    reorderPoint: 5,
+    supplier: 'Midea Electronics'
+  },
+  {
+    id: '#INV-1019',
+    name: 'Turntable Glass Synchronous Motor (4W 5/6 RPM)',
+    category: 'Appliance',
+    stockLevel: 'Low Stock',
+    stockCount: 2,
+    unitPrice: 280.00,
+    lastUpdated: 'Today, 10:05 AM',
+    sku: 'MW-MOT-TRN',
+    reorderPoint: 5,
+    supplier: 'Samsung Spares'
+  },
+
+  // ─── Mixer Grinder ───
+  {
+    id: '#INV-1020',
+    name: 'Heavy Duty Teeth Drive Coupler (Pack of 5)',
+    category: 'Appliance',
+    stockLevel: 'In Stock',
+    stockCount: 40,
+    unitPrice: 149.00,
+    lastUpdated: 'Today, 12:10 PM',
+    sku: 'MIX-CPL-5PK',
+    reorderPoint: 15,
+    supplier: 'Preethi Kitchen Spares'
+  },
+  {
+    id: '#INV-1021',
+    name: 'Push-to-Reset Overload Protector Switch (2.7A)',
+    category: 'Electrical',
+    stockLevel: 'In Stock',
+    stockCount: 28,
+    unitPrice: 95.00,
+    lastUpdated: 'Yesterday, 15:40',
+    sku: 'MIX-SW-OVL',
+    reorderPoint: 10,
+    supplier: 'Bajaj Electricals'
   },
   {
     id: '#INV-1022',
-    name: '15A Single Pole Switch',
+    name: 'High-Grade Copper Carbon Brushes with Brass Cap',
     category: 'Electrical',
     stockLevel: 'In Stock',
-    stockCount: 120,
-    unitPrice: 120.00,
-    lastUpdated: 'Oct 24, 2023',
-    sku: 'ELE-SW-15A',
-    reorderPoint: 30,
-    supplier: 'Havells India'
+    stockCount: 50,
+    unitPrice: 65.00,
+    lastUpdated: 'Today, 09:50 AM',
+    sku: 'MIX-BRS-COP',
+    reorderPoint: 20,
+    supplier: 'Sujata Spares'
+  },
+
+  // ─── Pump Motor & Air Cooler ───
+  {
+    id: '#INV-1023',
+    name: 'Mechanical Water Shaft Seal (12mm Silicon Carbide)',
+    category: 'Plumbing',
+    stockLevel: 'In Stock',
+    stockCount: 19,
+    unitPrice: 260.00,
+    lastUpdated: 'Yesterday, 14:15',
+    sku: 'PMP-SEAL-12MM',
+    reorderPoint: 6,
+    supplier: 'Kirloskar Brothers'
   },
   {
-    id: '#INV-1105',
-    name: 'Copper Pipe (3/4" x 10\')',
+    id: '#INV-1024',
+    name: 'Motor Run Capacitor 36µF 440V Heavy Duty',
+    category: 'Electrical',
+    stockLevel: 'In Stock',
+    stockCount: 22,
+    unitPrice: 190.00,
+    lastUpdated: 'Yesterday, 11:50',
+    sku: 'PMP-CAP-36UF',
+    reorderPoint: 8,
+    supplier: 'Crompton Greaves'
+  },
+  {
+    id: '#INV-1025',
+    name: 'Brass Monoblock Impeller (0.5 HP / 1.0 HP)',
     category: 'Plumbing',
     stockLevel: 'Out of Stock',
     stockCount: 0,
     unitPrice: 450.00,
-    lastUpdated: 'Oct 20, 2023',
-    sku: 'PLM-CP-34',
-    reorderPoint: 15,
-    supplier: 'Godrej Climate'
+    lastUpdated: 'Yesterday, 09:10',
+    sku: 'PMP-IMP-BRASS',
+    reorderPoint: 4,
+    supplier: 'CRI Pumps'
   },
   {
-    id: '#INV-1156',
-    name: 'Washing Machine Pump',
+    id: '#INV-1026',
+    name: 'Submersible Cooler Water Pump (18W High Lift 1.8m)',
+    category: 'Appliance',
+    stockLevel: 'In Stock',
+    stockCount: 14,
+    unitPrice: 280.00,
+    lastUpdated: 'Yesterday, 12:20',
+    sku: 'CLR-PMP-18W',
+    reorderPoint: 6,
+    supplier: 'Symphony Comfort'
+  },
+
+  // ─── Induction Cooktop ───
+  {
+    id: '#INV-1027',
+    name: 'IGBT High-Power Transistor 25N120 (1200V 25A)',
+    category: 'Electrical',
+    stockLevel: 'In Stock',
+    stockCount: 20,
+    unitPrice: 240.00,
+    lastUpdated: 'Yesterday, 16:30',
+    sku: 'IND-IGBT-25N',
+    reorderPoint: 8,
+    supplier: 'Infineon Technologies'
+  },
+  {
+    id: '#INV-1028',
+    name: 'Induction Cooktop Toughened Ceramic Glass Top',
     category: 'Appliance',
     stockLevel: 'Low Stock',
-    stockCount: 2,
-    unitPrice: 750.00,
-    lastUpdated: 'Oct 18, 2023',
-    sku: 'WM-PUMP-88',
+    stockCount: 4,
+    unitPrice: 680.00,
+    lastUpdated: 'Today, 08:30 AM',
+    sku: 'IND-GLS-TOP',
     reorderPoint: 5,
-    supplier: 'Whirlpool Spares'
+    supplier: 'Prestige Spares'
   },
+
+  // ─── Geyser (Water Heater) ───
+  {
+    id: '#INV-1029',
+    name: 'Copper Immersion Heating Element (2000W Heavy Flange)',
+    category: 'Appliance',
+    stockLevel: 'In Stock',
+    stockCount: 16,
+    unitPrice: 499.00,
+    lastUpdated: 'Today, 10:15 AM',
+    sku: 'GEY-ELE-2KW',
+    reorderPoint: 6,
+    supplier: 'Racold / Ariston'
+  },
+  {
+    id: '#INV-1030',
+    name: 'Stem-Type Immersion Geyser Thermostat (30-75°C)',
+    category: 'Electrical',
+    stockLevel: 'In Stock',
+    stockCount: 18,
+    unitPrice: 340.00,
+    lastUpdated: 'Yesterday, 14:50',
+    sku: 'GEY-TH-STEM',
+    reorderPoint: 6,
+    supplier: 'AO Smith Spares'
+  },
+  {
+    id: '#INV-1031',
+    name: 'Multi-Functional Pressure Relief Valve (1/2" Brass)',
+    category: 'Plumbing',
+    stockLevel: 'In Stock',
+    stockCount: 12,
+    unitPrice: 290.00,
+    lastUpdated: 'Yesterday, 11:20',
+    sku: 'GEY-VLV-PRV',
+    reorderPoint: 4,
+    supplier: 'Bajaj Geysers'
+  },
+
+  // ─── Fans (Ceiling & Stand) ───
+  {
+    id: '#INV-1032',
+    name: 'Ceiling Fan Run Capacitor (2.5µF 440V EPCOS)',
+    category: 'Electrical',
+    stockLevel: 'In Stock',
+    stockCount: 65,
+    unitPrice: 85.00,
+    lastUpdated: 'Today, 11:45 AM',
+    sku: 'FAN-CAP-25UF',
+    reorderPoint: 25,
+    supplier: 'Havells India'
+  },
+  {
+    id: '#INV-1033',
+    name: 'SKF Deep Groove Ball Bearings (6201 & 6202 Pair)',
+    category: 'Electrical',
+    stockLevel: 'In Stock',
+    stockCount: 38,
+    unitPrice: 160.00,
+    lastUpdated: 'Yesterday, 13:10',
+    sku: 'FAN-BRG-SKF',
+    reorderPoint: 15,
+    supplier: 'SKF Bearings'
+  },
+
+  // ─── TV / Display ───
+  {
+    id: '#INV-1034',
+    name: 'Universal LED Backlight Strips 32" (3V 6-LED Set of 3)',
+    category: 'Appliance',
+    stockLevel: 'In Stock',
+    stockCount: 7,
+    unitPrice: 650.00,
+    lastUpdated: 'Yesterday, 16:15',
+    sku: 'TV-LED-32SET',
+    reorderPoint: 4,
+    supplier: 'Samsung Electronics'
+  },
+
+  // ─── Electrical & Wiring Supplies ───
+  {
+    id: '#INV-1035',
+    name: 'Single Pole C-Curve MCB (16A / 10kA)',
+    category: 'Electrical',
+    stockLevel: 'In Stock',
+    stockCount: 45,
+    unitPrice: 145.00,
+    lastUpdated: 'Today, 09:10 AM',
+    sku: 'ELE-MCB-16A',
+    reorderPoint: 15,
+    supplier: 'Schneider Electric'
+  },
+  {
+    id: '#INV-1036',
+    name: 'Modular 15A Switch with Indicator (Fire Retardant)',
+    category: 'Electrical',
+    stockLevel: 'In Stock',
+    stockCount: 80,
+    unitPrice: 110.00,
+    lastUpdated: 'Yesterday, 10:00',
+    sku: 'ELE-SW-15A',
+    reorderPoint: 25,
+    supplier: 'Havells India'
+  },
+  {
+    id: '#INV-1037',
+    name: 'FR Multistrand Copper Wire 1.5 sq mm (90m Roll)',
+    category: 'Electrical',
+    stockLevel: 'In Stock',
+    stockCount: 10,
+    unitPrice: 1650.00,
+    lastUpdated: 'Yesterday, 15:00',
+    sku: 'ELE-WIR-15SQ',
+    reorderPoint: 5,
+    supplier: 'Polycab India'
+  },
+
+  // ─── Plumbing Fittings & Consumables ───
+  {
+    id: '#INV-1038',
+    name: 'CPVC Brass Concealed Stop Cock / Ball Valve (3/4")',
+    category: 'Plumbing',
+    stockLevel: 'In Stock',
+    stockCount: 18,
+    unitPrice: 380.00,
+    lastUpdated: 'Yesterday, 13:40',
+    sku: 'PLM-VLV-34CPVC',
+    reorderPoint: 6,
+    supplier: 'Astral Pipes'
+  },
+  {
+    id: '#INV-1039',
+    name: 'PTFE Teflon Thread Sealant Tape (Pack of 10 Rolls)',
+    category: 'Plumbing',
+    stockLevel: 'In Stock',
+    stockCount: 55,
+    unitPrice: 120.00,
+    lastUpdated: 'Today, 11:30 AM',
+    sku: 'PLM-TEF-10PK',
+    reorderPoint: 20,
+    supplier: 'Supreme Industries'
+  },
+  {
+    id: '#INV-1040',
+    name: 'Stainless Steel Braided Connection Pipe (24" FxF)',
+    category: 'Plumbing',
+    stockLevel: 'In Stock',
+    stockCount: 22,
+    unitPrice: 175.00,
+    lastUpdated: 'Yesterday, 15:15',
+    sku: 'PLM-CON-24SS',
+    reorderPoint: 8,
+    supplier: 'Jaquar & Co'
+  },
+  {
+    id: '#INV-1041',
+    name: 'PVC Waste Pipe with Rubber Adapter (1.25" Expandable)',
+    category: 'Plumbing',
+    stockLevel: 'Out of Stock',
+    stockCount: 0,
+    unitPrice: 95.00,
+    lastUpdated: 'Yesterday, 08:30',
+    sku: 'PLM-WST-PIPE',
+    reorderPoint: 10,
+    supplier: 'Finolex Pipes'
+  }
 ];
+
+const INITIAL_INVENTORY = MASTER_REAL_INVENTORY;
 
 // ─── Initial Vendor Applications Data ───────────────────────────────────────
 const INITIAL_APPLICATIONS = [];
@@ -506,26 +977,41 @@ export default function AdminDashboardPage() {
   const { token, logout } = useAuth();
   const { playNotificationSound } = useSocket();
 
-  // Navigation tab state: 'overview', 'users', 'applications', 'id-creation', 'analytics', 'settings'
+  // Navigation tab state: 'overview', 'users', 'applications', 'id-creation', 'analytics'
   const [activeTab, setActiveTab] = useState('overview');
 
   // Data states
   const [inventoryList, setInventoryList] = useState(() => {
     try {
+      // First check version 2 data
+      const savedV2 = localStorage.getItem('mm_inventory_data_v2');
+      if (savedV2) {
+        const parsed = JSON.parse(savedV2);
+        if (Array.isArray(parsed) && parsed.length > 5) return parsed;
+      }
+
+      // Check legacy data and auto-migrate if it's the old 5-item mock
       const saved = localStorage.getItem('mm_inventory_data');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        const isLegacyMock = Array.isArray(parsed) && (
+          parsed.length <= 5 ||
+          parsed.some(item => item.id === '#INV-0842' && item.sku === 'ACC-2T-X9')
+        );
+        if (!isLegacyMock && Array.isArray(parsed) && parsed.length > 5) {
+          return parsed;
+        }
       }
     } catch (e) {
       console.error('Error loading inventory from localStorage:', e);
     }
-    return INITIAL_INVENTORY;
+    return MASTER_REAL_INVENTORY;
   });
 
   useEffect(() => {
     try {
       localStorage.setItem('mm_inventory_data', JSON.stringify(inventoryList));
+      localStorage.setItem('mm_inventory_data_v2', JSON.stringify(inventoryList));
     } catch (e) {
       console.error('Error saving inventory to localStorage:', e);
     }
@@ -610,11 +1096,57 @@ export default function AdminDashboardPage() {
     }
   }, [token]);
 
+  const fetchInventory = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await getAllInventoryApi(null, token);
+      if (res.success && Array.isArray(res.inventory) && res.inventory.length > 0) {
+        try {
+          localStorage.setItem('mm_cached_inventory', JSON.stringify(res.inventory));
+          localStorage.setItem('mm_inventory_catalog', JSON.stringify(res.inventory));
+        } catch (_) {}
+        const formatted = res.inventory.map((item) => {
+          const qty = Number(item.stockQuantity) || 0;
+          const threshold = Number(item.reorderThreshold) || 10;
+          let stockLevel = 'In Stock';
+          if (qty === 0) stockLevel = 'Out of Stock';
+          else if (qty <= threshold) stockLevel = 'Low Stock';
+
+          const formattedDate = item.lastRestockedAt
+            ? new Date(item.lastRestockedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : item.updatedAt
+            ? new Date(item.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : 'Today, Just now';
+
+          return {
+            id: item.inventoryId || `#INV-${String(item._id).slice(-4).toUpperCase()}`,
+            rawId: item._id,
+            inventoryId: item.inventoryId,
+            name: item.itemName,
+            category: item.category,
+            stockLevel: stockLevel,
+            stockCount: qty,
+            unitPrice: Number(item.unitPrice) || 0,
+            lastUpdated: formattedDate,
+            sku: item.skuCode,
+            reorderPoint: threshold,
+            supplier: item.supplierName || 'Primary Supplier',
+            isActive: item.isActive !== false,
+          };
+        });
+        setInventoryList(formatted);
+      }
+    } catch (e) {
+      console.error('Error fetching inventory from backend:', e);
+    }
+  }, [token]);
+
   // Initial fetch on mount (real-time socket events keep data up-to-date)
   useEffect(() => {
     fetchApplications();
     fetchBookings();
-  }, [fetchApplications, fetchBookings]);
+    fetchInventory();
+  }, [fetchApplications, fetchBookings, fetchInventory]);
 
   // Keep tables synchronized whenever switching tabs
   useEffect(() => {
@@ -622,16 +1154,205 @@ export default function AdminDashboardPage() {
       fetchApplications();
     } else if (activeTab === 'work-history' || activeTab === 'overview') {
       fetchBookings();
+    } else if (activeTab === 'inventory') {
+      fetchInventory();
     }
-  }, [activeTab, fetchApplications, fetchBookings]);
+  }, [activeTab, fetchApplications, fetchBookings, fetchInventory]);
 
   const [vendorApprovals, setVendorApprovals] = useState(INITIAL_VENDOR_APPROVALS);
   const [paymentRequests, setPaymentRequests] = useState(INITIAL_PAYMENT_REQUESTS);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [selectedStatus, setSelectedStatus] = useState('All Status');
+  const [invCurrentPage, setInvCurrentPage] = useState(1);
+  const [invItemsPerPage, setInvItemsPerPage] = useState(10);
+  const invTableRef = useRef(null);
 
   const pendingApplicationsCount = applicationsList.filter(app => app.status === 'Pending').length;
+
+  // Vendor Applications Pagination & Search State
+  const [appSearchTerm, setAppSearchTerm] = useState('');
+  const [appStatusFilter, setAppStatusFilter] = useState('All');
+  const [appCurrentPage, setAppCurrentPage] = useState(1);
+  const [appItemsPerPage, setAppItemsPerPage] = useState(10);
+  const appTableRef = useRef(null);
+
+  // Filtered Applications
+  const filteredApplications = useMemo(() => {
+    return applicationsList.filter((app) => {
+      const q = (appSearchTerm || '').trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        (app.name && app.name.toLowerCase().includes(q)) ||
+        (app.email && app.email.toLowerCase().includes(q)) ||
+        (app.id && String(app.id).toLowerCase().includes(q)) ||
+        (app.service && String(app.service).toLowerCase().includes(q)) ||
+        (app.city && String(app.city).toLowerCase().includes(q)) ||
+        (app.phone && String(app.phone).toLowerCase().includes(q));
+
+      const matchesStatus =
+        appStatusFilter === 'All' ||
+        app.status?.toLowerCase() === appStatusFilter.toLowerCase();
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [applicationsList, appSearchTerm, appStatusFilter]);
+
+  const totalAppEntries = filteredApplications.length;
+  const totalAppPages = Math.max(1, Math.ceil(totalAppEntries / appItemsPerPage));
+
+  // Reset page to 1 when search, status filter, or itemsPerPage change
+  useEffect(() => {
+    setAppCurrentPage(1);
+  }, [appSearchTerm, appStatusFilter, appItemsPerPage]);
+
+  // Paginated applications slice for current page
+  const paginatedApplications = useMemo(() => {
+    const startIndex = (appCurrentPage - 1) * appItemsPerPage;
+    return filteredApplications.slice(startIndex, startIndex + appItemsPerPage);
+  }, [filteredApplications, appCurrentPage, appItemsPerPage]);
+
+  const handleAppPageChange = (page) => {
+    if (page >= 1 && page <= totalAppPages) {
+      setAppCurrentPage(page);
+      if (appTableRef.current) {
+        appTableRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  };
+
+  const handleAppPrevious = () => {
+    if (appCurrentPage > 1) {
+      handleAppPageChange(appCurrentPage - 1);
+    }
+  };
+
+  const handleAppNext = () => {
+    if (appCurrentPage < totalAppPages) {
+      handleAppPageChange(appCurrentPage + 1);
+    }
+  };
+
+  const getAppPageNumbers = () => {
+    const pages = [];
+    if (totalAppPages <= 5) {
+      for (let i = 1; i <= totalAppPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      pages.push(1);
+
+      if (appCurrentPage > 3) {
+        pages.push('...');
+      }
+
+      const start = Math.max(2, appCurrentPage - 1);
+      const end = Math.min(totalAppPages - 1, appCurrentPage + 1);
+
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+
+      if (appCurrentPage < totalAppPages - 2) {
+        pages.push('...');
+      }
+
+      pages.push(totalAppPages);
+    }
+    return pages;
+  };
+
+  // Payment Requests Pagination & Search State
+  const [paySearchTerm, setPaySearchTerm] = useState('');
+  const [payStatusFilter, setPayStatusFilter] = useState('All');
+  const [payCurrentPage, setPayCurrentPage] = useState(1);
+  const [payItemsPerPage, setPayItemsPerPage] = useState(10);
+  const payTableRef = useRef(null);
+
+  // Filtered Payment Requests
+  const filteredPaymentRequests = useMemo(() => {
+    return paymentRequests.filter((req) => {
+      const q = (paySearchTerm || '').trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        (req.id && String(req.id).toLowerCase().includes(q)) ||
+        (req.vendorName && req.vendorName.toLowerCase().includes(q)) ||
+        (req.vendorId && String(req.vendorId).toLowerCase().includes(q)) ||
+        (req.upiId && String(req.upiId).toLowerCase().includes(q)) ||
+        (req.bankAccount && String(req.bankAccount).toLowerCase().includes(q)) ||
+        (req.amount && String(req.amount).includes(q));
+
+      const matchesStatus =
+        payStatusFilter === 'All' ||
+        req.status?.toLowerCase() === payStatusFilter.toLowerCase();
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [paymentRequests, paySearchTerm, payStatusFilter]);
+
+  const totalPayEntries = filteredPaymentRequests.length;
+  const totalPayPages = Math.max(1, Math.ceil(totalPayEntries / payItemsPerPage));
+
+  // Reset page to 1 when search, status filter, or itemsPerPage change
+  useEffect(() => {
+    setPayCurrentPage(1);
+  }, [paySearchTerm, payStatusFilter, payItemsPerPage]);
+
+  // Paginated payment requests slice for current page
+  const paginatedPaymentRequests = useMemo(() => {
+    const startIndex = (payCurrentPage - 1) * payItemsPerPage;
+    return filteredPaymentRequests.slice(startIndex, startIndex + payItemsPerPage);
+  }, [filteredPaymentRequests, payCurrentPage, payItemsPerPage]);
+
+  const handlePayPageChange = (page) => {
+    if (page >= 1 && page <= totalPayPages) {
+      setPayCurrentPage(page);
+      if (payTableRef.current) {
+        payTableRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  };
+
+  const handlePayPrevious = () => {
+    if (payCurrentPage > 1) {
+      handlePayPageChange(payCurrentPage - 1);
+    }
+  };
+
+  const handlePayNext = () => {
+    if (payCurrentPage < totalPayPages) {
+      handlePayPageChange(payCurrentPage + 1);
+    }
+  };
+
+  const getPayPageNumbers = () => {
+    const pages = [];
+    if (totalPayPages <= 5) {
+      for (let i = 1; i <= totalPayPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      pages.push(1);
+
+      if (payCurrentPage > 3) {
+        pages.push('...');
+      }
+
+      const start = Math.max(2, payCurrentPage - 1);
+      const end = Math.min(totalPayPages - 1, payCurrentPage + 1);
+
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+
+      if (payCurrentPage < totalPayPages - 2) {
+        pages.push('...');
+      }
+
+      pages.push(totalPayPages);
+    }
+    return pages;
+  };
   
   // Dispatch Queue Pagination
   const [dispatchPage, setDispatchPage] = useState(1);
@@ -661,20 +1382,39 @@ export default function AdminDashboardPage() {
     };
   }, [dispatchQueue]);
 
-  // Work History Pagination & Filters
+  // Work History Pagination, Search & Filters
   const [historyPage, setHistoryPage] = useState(1);
+  const [historyItemsPerPage, setHistoryItemsPerPage] = useState(10);
+  const [historySearchTerm, setHistorySearchTerm] = useState('');
+  const historyTableRef = useRef(null);
+
+  // Current Work (Active Dispatches) Pagination
+  const [currentWorkPage, setCurrentWorkPage] = useState(1);
+  const currentWorkItemsPerPage = 5;
+  const currentWorkTableRef = useRef(null);
+
   const filteredHistory = useMemo(() => {
+    let list = workHistory;
     if (workHistoryFilter === 'Completed') {
-      return workHistory.filter(item => item.status === 'Completed' || item.status === 'Closed');
+      list = workHistory.filter(item => item.status === 'Completed' || item.status === 'Closed');
+    } else if (workHistoryFilter === 'Cancelled') {
+      list = workHistory.filter(item => item.status === 'Cancelled');
+    } else if (workHistoryFilter === 'All Records') {
+      list = allBookings.length > 0 ? allBookings : dispatchQueue.concat(workHistory);
     }
-    if (workHistoryFilter === 'Cancelled') {
-      return workHistory.filter(item => item.status === 'Cancelled');
+
+    if (historySearchTerm.trim()) {
+      const q = historySearchTerm.toLowerCase().trim();
+      list = list.filter(item =>
+        (item.id && item.id.toLowerCase().includes(q)) ||
+        (item.appliance && item.appliance.toLowerCase().includes(q)) ||
+        (item.customer && item.customer.toLowerCase().includes(q)) ||
+        (item.technician && item.technician.toLowerCase().includes(q)) ||
+        (item.status && item.status.toLowerCase().includes(q))
+      );
     }
-    if (workHistoryFilter === 'All Records') {
-      return allBookings.length > 0 ? allBookings : dispatchQueue.concat(workHistory);
-    }
-    return workHistory;
-  }, [workHistory, allBookings, dispatchQueue, workHistoryFilter]);
+    return list;
+  }, [workHistory, allBookings, dispatchQueue, workHistoryFilter, historySearchTerm]);
 
   const historyCounts = useMemo(() => {
     return {
@@ -684,14 +1424,79 @@ export default function AdminDashboardPage() {
     };
   }, [workHistory, allBookings, dispatchQueue]);
 
-  const historyItemsPerPage = 5;
-  const historyTotalPages = Math.ceil(filteredHistory.length / historyItemsPerPage) || 1;
-  const paginatedHistory = filteredHistory.slice((historyPage - 1) * historyItemsPerPage, historyPage * historyItemsPerPage);
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [workHistoryFilter, historySearchTerm, historyItemsPerPage]);
+
+  useEffect(() => {
+    setCurrentWorkPage(1);
+  }, [currentWorkFilter]);
+
+  const totalHistoryEntries = filteredHistory.length;
+  const historyTotalPages = Math.ceil(totalHistoryEntries / historyItemsPerPage) || 1;
+
+  const paginatedHistory = useMemo(() => {
+    const startIndex = (historyPage - 1) * historyItemsPerPage;
+    return filteredHistory.slice(startIndex, startIndex + historyItemsPerPage);
+  }, [filteredHistory, historyPage, historyItemsPerPage]);
+
+  const handleHistoryPageChange = (page) => {
+    if (page >= 1 && page <= historyTotalPages) {
+      setHistoryPage(page);
+      if (historyTableRef.current) {
+        historyTableRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  };
+
+  const handleHistoryPrevious = () => {
+    if (historyPage > 1) {
+      handleHistoryPageChange(historyPage - 1);
+    }
+  };
+
+  const handleHistoryNext = () => {
+    if (historyPage < historyTotalPages) {
+      handleHistoryPageChange(historyPage + 1);
+    }
+  };
+
+  const getHistoryPageNumbers = () => {
+    const pages = [];
+    if (historyTotalPages <= 5) {
+      for (let i = 1; i <= historyTotalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      pages.push(1);
+      if (historyPage > 3) {
+        pages.push('...');
+      }
+      const start = Math.max(2, historyPage - 1);
+      const end = Math.min(historyTotalPages - 1, historyPage + 1);
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+      if (historyPage < historyTotalPages - 2) {
+        pages.push('...');
+      }
+      pages.push(historyTotalPages);
+    }
+    return pages;
+  };
+
+  const currentWorkTotalPages = Math.ceil(filteredCurrentWork.length / currentWorkItemsPerPage) || 1;
+  const paginatedCurrentWork = useMemo(() => {
+    const startIndex = (currentWorkPage - 1) * currentWorkItemsPerPage;
+    return filteredCurrentWork.slice(startIndex, startIndex + currentWorkItemsPerPage);
+  }, [filteredCurrentWork, currentWorkPage, currentWorkItemsPerPage]);
+
   const paginatedDispatch = dispatchQueue.slice((dispatchPage - 1) * dispatchItemsPerPage, dispatchPage * dispatchItemsPerPage);
 
   // Restock & Inventory modal state
   const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
   const [isAddInventoryModalOpen, setIsAddInventoryModalOpen] = useState(false);
+  const [isSyncingCatalog, setIsSyncingCatalog] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [restockQty, setRestockQty] = useState('');
   const [purchasePrice, setPurchasePrice] = useState('');
@@ -704,8 +1509,98 @@ export default function AdminDashboardPage() {
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState('All');
   const [userStatusFilter, setUserStatusFilter] = useState('All');
+  const [userCurrentPage, setUserCurrentPage] = useState(1);
+  const [userItemsPerPage, setUserItemsPerPage] = useState(10);
   const [editingUser, setEditingUser] = useState(null);
   const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false);
+  const userTableRef = useRef(null);
+
+  // Filtered Users for User Management Tab
+  const filteredUsers = useMemo(() => {
+    return usersList.filter((usr) => {
+      const q = (userSearchTerm || '').trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        (usr.name && usr.name.toLowerCase().includes(q)) ||
+        (usr.email && usr.email.toLowerCase().includes(q)) ||
+        (usr.id && String(usr.id).toLowerCase().includes(q)) ||
+        (usr.phone && String(usr.phone).toLowerCase().includes(q));
+
+      const matchesRole =
+        userRoleFilter === 'All' ||
+        usr.role?.toLowerCase() === userRoleFilter.toLowerCase();
+
+      const matchesStatus =
+        userStatusFilter === 'All' ||
+        usr.status?.toLowerCase() === userStatusFilter.toLowerCase();
+
+      return matchesSearch && matchesRole && matchesStatus;
+    });
+  }, [usersList, userSearchTerm, userRoleFilter, userStatusFilter]);
+
+  const totalUserEntries = filteredUsers.length;
+  const totalUserPages = Math.max(1, Math.ceil(totalUserEntries / userItemsPerPage));
+
+  // Reset page to 1 when filters or search or itemsPerPage change
+  useEffect(() => {
+    setUserCurrentPage(1);
+  }, [userSearchTerm, userRoleFilter, userStatusFilter, userItemsPerPage]);
+
+  // Paginated users slice for current page
+  const paginatedUsers = useMemo(() => {
+    const startIndex = (userCurrentPage - 1) * userItemsPerPage;
+    return filteredUsers.slice(startIndex, startIndex + userItemsPerPage);
+  }, [filteredUsers, userCurrentPage, userItemsPerPage]);
+
+  const handleUserPageChange = (page) => {
+    if (page >= 1 && page <= totalUserPages) {
+      setUserCurrentPage(page);
+      if (userTableRef.current) {
+        userTableRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  };
+
+  const handleUserPrevious = () => {
+    if (userCurrentPage > 1) {
+      handleUserPageChange(userCurrentPage - 1);
+    }
+  };
+
+  const handleUserNext = () => {
+    if (userCurrentPage < totalUserPages) {
+      handleUserPageChange(userCurrentPage + 1);
+    }
+  };
+
+  const getUserPageNumbers = () => {
+    const pages = [];
+    if (totalUserPages <= 5) {
+      for (let i = 1; i <= totalUserPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      pages.push(1);
+
+      if (userCurrentPage > 3) {
+        pages.push('...');
+      }
+
+      const start = Math.max(2, userCurrentPage - 1);
+      const end = Math.min(totalUserPages - 1, userCurrentPage + 1);
+
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+
+      if (userCurrentPage < totalUserPages - 2) {
+        pages.push('...');
+      }
+
+      pages.push(totalUserPages);
+    }
+    return pages;
+  };
 
   // Sync users and vendors from live backend data (Vendor Applications & Bookings)
   const syncUsersAndVendorsFromBackend = useCallback(() => {
@@ -823,12 +1718,9 @@ export default function AdminDashboardPage() {
     setUsersList(combined);
   }, [applicationsList, dispatchQueue, workHistory]);
 
-  const [isFetchingUsers, setIsFetchingUsers] = useState(false);
-
   // Directly fetch all users from backend API
   const fetchUsers = useCallback(async () => {
     if (!token) return;
-    setIsFetchingUsers(true);
     try {
       const res = await getAllUsersApi(token);
       if (res.success && Array.isArray(res.users) && res.users.length > 0) {
@@ -874,8 +1766,6 @@ export default function AdminDashboardPage() {
       }
     } catch (err) {
       console.warn('Backend users fetch error:', err);
-    } finally {
-      setIsFetchingUsers(false);
     }
 
     // Fallback: Compute from seeded platform roster, applications and bookings
@@ -1119,10 +2009,10 @@ export default function AdminDashboardPage() {
   // Toast notification state
   const [toastMessage, setToastMessage] = useState(null);
 
-  const showToast = (msg) => {
+  const showToast = useCallback((msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
-  };
+  }, []);
 
   // ── Real-Time Socket Listeners for Admin ──────────────────────────────────
   useSocketEvent('admin:new_booking', (newBooking) => {
@@ -1158,11 +2048,13 @@ export default function AdminDashboardPage() {
   };
 
   // Confirm Restock
-  const handleConfirmRestock = () => {
+  const handleConfirmRestock = async () => {
     if (!selectedItem) return;
     const addedCount = Number(restockQty || 0);
+    const cleanId = String(selectedItem.inventoryId || selectedItem.id).replace(/^#/, '');
+
     setInventoryList(prev => prev.map(inv => {
-      if (inv.id === selectedItem.id) {
+      if (inv.id === selectedItem.id || inv.inventoryId === cleanId) {
         const newCount = inv.stockCount + addedCount;
         const threshold = inv.reorderPoint || 10;
         return {
@@ -1178,12 +2070,23 @@ export default function AdminDashboardPage() {
     }));
     setIsRestockModalOpen(false);
     showToast(`Inventory restocked for ${selectedItem.name}! (+${addedCount} units)`);
+
+    // Connect to backend restock endpoint: PATCH /api/inventory/:inventoryId/restock
+    if (token && addedCount > 0) {
+      try {
+        await restockInventoryApi(cleanId, addedCount, token);
+      } catch (err) {
+        console.error('Error restocking inventory in backend:', err);
+      }
+    }
   };
 
   // Add New Inventory Item handler
-  const handleAddNewInventoryItem = (newItemData) => {
+  const handleAddNewInventoryItem = async (newItemData) => {
     const threshold = Number(newItemData.reorderPoint) || 10;
     const initialCount = Number(newItemData.stockCount) || 0;
+    const skuCode = newItemData.sku ? newItemData.sku.toUpperCase() : `SKU-${Math.floor(1000 + Math.random() * 9000)}`;
+
     const newItem = {
       id: `#INV-${Math.floor(1000 + Math.random() * 9000)}`,
       name: newItemData.name,
@@ -1192,13 +2095,97 @@ export default function AdminDashboardPage() {
       stockCount: initialCount,
       unitPrice: Number(newItemData.unitPrice) || 0,
       lastUpdated: 'Today, Just now',
-      sku: newItemData.sku,
+      sku: skuCode,
       reorderPoint: threshold,
-      supplier: newItemData.supplier,
+      supplier: newItemData.supplier || 'Primary Supplier',
     };
+
     setInventoryList(prev => [newItem, ...prev]);
     showToast(`Added "${newItem.name}" to inventory!`);
+
+    // Connect to backend create endpoint: POST /api/inventory
+    if (token) {
+      try {
+        const payload = {
+          itemName: newItemData.name,
+          category: newItemData.category,
+          skuCode: skuCode,
+          stockQuantity: initialCount,
+          reorderThreshold: threshold,
+          unitPrice: Number(newItemData.unitPrice) || 0,
+          supplierName: newItemData.supplier || '',
+        };
+        const res = await createInventoryApi(payload, token);
+        if (res.success && res.inventory?.inventoryId) {
+          setInventoryList(prev => prev.map(item => item.id === newItem.id ? { ...item, id: item.id, inventoryId: res.inventory.inventoryId } : item));
+        }
+      } catch (err) {
+        console.error('Error creating inventory item in backend:', err);
+      }
+    }
   };
+
+  // Delete Inventory Item
+  const handleDeleteInventoryItem = async (itemId, itemName) => {
+    if (window.confirm(`Are you sure you want to delete "${itemName || itemId}" from inventory?`)) {
+      const cleanId = String(itemId).replace(/^#/, '');
+      setInventoryList(prev => prev.filter(item => item.id !== itemId && item.inventoryId !== cleanId));
+      showToast(`Deleted "${itemName || itemId}" from inventory`);
+
+      // Connect to backend delete endpoint: DELETE /api/inventory/:inventoryId
+      if (token) {
+        try {
+          await deleteInventoryApi(cleanId, token);
+        } catch (err) {
+          console.error('Error deleting inventory item from backend:', err);
+        }
+      }
+    }
+  };
+
+  // Synchronize inventory with real service catalog and accurate market pricing
+  const handleSyncRealCatalog = useCallback(() => {
+    setIsSyncingCatalog(true);
+    try {
+      const livePricing = getLiveServicePricing();
+      const updated = MASTER_REAL_INVENTORY.map((item) => {
+        let price = item.unitPrice;
+        if (livePricing && Array.isArray(livePricing)) {
+          for (const cat of livePricing) {
+            if (cat.subServices && Array.isArray(cat.subServices)) {
+              const matchedSub = cat.subServices.find((s) =>
+                s.label.toLowerCase().includes(item.name.toLowerCase()) ||
+                item.name.toLowerCase().includes(s.label.toLowerCase())
+              );
+              if (matchedSub && matchedSub.price) {
+                price = Number(matchedSub.price);
+                break;
+              }
+            }
+          }
+        }
+        return {
+          ...item,
+          unitPrice: price,
+          lastUpdated: 'Today, Just now',
+        };
+      });
+
+      setInventoryList(updated);
+      try {
+        localStorage.setItem('mm_inventory_data', JSON.stringify(updated));
+        localStorage.setItem('mm_inventory_data_v2', JSON.stringify(updated));
+      } catch (e) {
+        console.error('Error saving synced inventory:', e);
+      }
+      showToast(`Synchronized ${updated.length} genuine spare parts with live service catalog!`);
+    } catch (err) {
+      console.error('Error syncing real inventory:', err);
+      showToast('Error syncing real inventory catalog');
+    } finally {
+      setTimeout(() => setIsSyncingCatalog(false), 500);
+    }
+  }, [showToast]);
 
   // View Vendor Application Details Modal
   const handleViewApplication = (app) => {
@@ -1540,17 +2527,78 @@ export default function AdminDashboardPage() {
   };
 
   // Filtered inventory list with broader search across name, ID, SKU, and supplier
-  const filteredInventory = inventoryList.filter(item => {
-    const q = (searchTerm || '').toLowerCase().trim();
-    const matchesSearch = !q ||
-      (item.name || '').toLowerCase().includes(q) ||
-      (item.id || '').toLowerCase().includes(q) ||
-      (item.sku || '').toLowerCase().includes(q) ||
-      (item.supplier || '').toLowerCase().includes(q);
-    const matchesCategory = selectedCategory === 'All Categories' || item.category === selectedCategory;
-    const matchesStatus = selectedStatus === 'All Status' || item.stockLevel === selectedStatus;
-    return matchesSearch && matchesCategory && matchesStatus;
-  });
+  const filteredInventory = useMemo(() => {
+    return inventoryList.filter(item => {
+      const q = (searchTerm || '').toLowerCase().trim();
+      const matchesSearch = !q ||
+        (item.name || '').toLowerCase().includes(q) ||
+        (item.id || '').toLowerCase().includes(q) ||
+        (item.sku || '').toLowerCase().includes(q) ||
+        (item.supplier || '').toLowerCase().includes(q);
+      const matchesCategory = selectedCategory === 'All Categories' || item.category === selectedCategory;
+      const matchesStatus = selectedStatus === 'All Status' || item.stockLevel === selectedStatus;
+      return matchesSearch && matchesCategory && matchesStatus;
+    });
+  }, [inventoryList, searchTerm, selectedCategory, selectedStatus]);
+
+  const totalInvEntries = filteredInventory.length;
+  const totalInvPages = Math.max(1, Math.ceil(totalInvEntries / invItemsPerPage));
+
+  // Reset page to 1 when search, category, status filter, or itemsPerPage change
+  useEffect(() => {
+    setInvCurrentPage(1);
+  }, [searchTerm, selectedCategory, selectedStatus, invItemsPerPage]);
+
+  // Paginated inventory slice for current page
+  const paginatedInventory = useMemo(() => {
+    const startIndex = (invCurrentPage - 1) * invItemsPerPage;
+    return filteredInventory.slice(startIndex, startIndex + invItemsPerPage);
+  }, [filteredInventory, invCurrentPage, invItemsPerPage]);
+
+  const handleInvPageChange = (page) => {
+    if (page >= 1 && page <= totalInvPages) {
+      setInvCurrentPage(page);
+      if (invTableRef.current) {
+        invTableRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  };
+
+  const handleInvPrevious = () => {
+    if (invCurrentPage > 1) {
+      handleInvPageChange(invCurrentPage - 1);
+    }
+  };
+
+  const handleInvNext = () => {
+    if (invCurrentPage < totalInvPages) {
+      handleInvPageChange(invCurrentPage + 1);
+    }
+  };
+
+  const getInvPageNumbers = () => {
+    const pages = [];
+    if (totalInvPages <= 5) {
+      for (let i = 1; i <= totalInvPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      pages.push(1);
+      if (invCurrentPage > 3) {
+        pages.push('...');
+      }
+      const start = Math.max(2, invCurrentPage - 1);
+      const end = Math.min(totalInvPages - 1, invCurrentPage + 1);
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+      if (invCurrentPage < totalInvPages - 2) {
+        pages.push('...');
+      }
+      pages.push(totalInvPages);
+    }
+    return pages;
+  };
 
   // Dynamic Inventory KPI Metrics
   const totalInventoryCount = inventoryList.length;
@@ -1564,12 +2612,11 @@ export default function AdminDashboardPage() {
     { id: 'service-pricing', label: 'Services & Fuel Pricing', icon: IndianRupee },
     { id: 'work-history', label: 'Work History',       icon: Clock },
     { id: 'inventory',    label: 'Inventory Management',icon: Package },
-    { id: 'users',        label: 'User Management',    icon: Users, badge: usersList.length > 0 ? usersList.length.toString() : null },
+    { id: 'users',        label: 'User Management',    icon: Users },
     { id: 'applications', label: 'Vendor Applications', icon: FileText, badge: pendingApplicationsCount > 0 ? pendingApplicationsCount.toString() : null },
     { id: 'payment-requests', label: 'Payment Requests', icon: IndianRupee, badge: paymentRequests.filter(p => p.status === 'Pending').length > 0 ? paymentRequests.filter(p => p.status === 'Pending').length.toString() : null },
     { id: 'id-creation', label: 'Vandor id creation',  icon: UserPlus, isOrange: true },
     { id: 'analytics',    label: 'Financial Analytics',icon: TrendingUp },
-    { id: 'settings',     label: 'Platform Settings',  icon: Settings },
   ];
 
   return (
@@ -1929,7 +2976,15 @@ export default function AdminDashboardPage() {
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-3 shrink-0">
-
+                        <button
+                          onClick={handleSyncRealCatalog}
+                          disabled={isSyncingCatalog}
+                          className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 hover:text-orange-600 font-extrabold text-xs rounded-xl shadow-xs hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                          title="Fetch and sync genuine parts catalog and accurate pricing data"
+                        >
+                          <RefreshCw className={`w-4 h-4 ${isSyncingCatalog ? 'animate-spin text-orange-500' : 'text-slate-500'}`} />
+                          <span>Sync Real Catalog</span>
+                        </button>
                         <button
                           onClick={() => {
                             setExportType('inventory');
@@ -2030,7 +3085,7 @@ export default function AdminDashboardPage() {
                     </div>
 
                     {/* ─ CONTROL BAR & DATA TABLE CONTAINER (Exact match to Screenshots 1 & 3) ─ */}
-                    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden space-y-4">
+                    <div ref={invTableRef} className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden space-y-4">
 
                       {/* Search Bar & Dropdowns */}
                       <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -2058,9 +3113,9 @@ export default function AdminDashboardPage() {
                               className="w-full appearance-none pl-3 pr-8 py-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500"
                             >
                               <option value="All Categories">All Categories</option>
-                              <option value="Appliance">Appliance</option>
-                              <option value="Electrical">Electrical</option>
-                              <option value="Plumbing">Plumbing</option>
+                              {Array.from(new Set(['Appliance', 'Electrical', 'Plumbing', ...inventoryList.map((item) => item.category).filter(Boolean)])).map((cat) => (
+                                <option key={cat} value={cat}>{cat}</option>
+                              ))}
                             </select>
                             <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                           </div>
@@ -2098,53 +3153,154 @@ export default function AdminDashboardPage() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {filteredInventory.map((row) => (
-                              <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
-                                <td className="py-4 px-6 font-bold text-slate-900">{row.id}</td>
-                                <td className="py-4 px-4 font-bold text-slate-800">{row.name}</td>
-                                <td className="py-4 px-4 font-semibold text-slate-500">{row.category}</td>
-                                <td className="py-4 px-4">
-                                  <StockLevelBadge level={row.stockLevel} count={row.stockCount} />
-                                </td>
-                                <td className="py-4 px-4 font-extrabold text-slate-900">₹{Number(row.unitPrice || 0).toLocaleString('en-IN')}</td>
-                                <td className="py-4 px-4 font-medium text-slate-500">{row.lastUpdated}</td>
-                                <td className="py-4 px-6 text-right">
-                                  <div className="flex items-center justify-end gap-2">
-                                    <button
-                                      onClick={() => handleOpenRestock(row)}
-                                      className="p-1.5 text-slate-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors cursor-pointer"
-                                      title="Edit Item"
-                                    >
-                                      <Edit3 className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => handleOpenRestock(row)}
-                                      className="p-1.5 text-slate-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors cursor-pointer"
-                                      title="Restock Inventory"
-                                    >
-                                      <Plus className="w-4 h-4" />
-                                    </button>
+                            {filteredInventory.length === 0 ? (
+                              <tr>
+                                <td colSpan="7" className="py-16 text-center text-slate-400">
+                                  <div className="flex flex-col items-center justify-center gap-2">
+                                    <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-1">
+                                      <Package className="w-6 h-6" />
+                                    </div>
+                                    <p className="font-extrabold text-sm text-slate-700">No inventory items found</p>
+                                    <p className="text-xs text-slate-400 max-w-sm">
+                                      {inventoryList.length === 0
+                                        ? 'No inventory items tracked yet. Click "Add New Item" to populate your catalog.'
+                                        : 'No items match your search or filter criteria. Try adjusting the filters above.'}
+                                    </p>
                                   </div>
                                 </td>
                               </tr>
-                            ))}
+                            ) : (
+                              paginatedInventory.map((row) => (
+                                <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
+                                  <td className="py-4 px-6 font-bold text-slate-900">{row.id}</td>
+                                  <td className="py-4 px-4 font-bold text-slate-800">{row.name}</td>
+                                  <td className="py-4 px-4 font-semibold text-slate-500">{row.category}</td>
+                                  <td className="py-4 px-4">
+                                    <StockLevelBadge level={row.stockLevel} count={row.stockCount} />
+                                  </td>
+                                  <td className="py-4 px-4 font-extrabold text-slate-900">₹{Number(row.unitPrice || 0).toLocaleString('en-IN')}</td>
+                                  <td className="py-4 px-4 font-medium text-slate-500">{row.lastUpdated}</td>
+                                  <td className="py-4 px-6 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button
+                                        onClick={() => handleOpenRestock(row)}
+                                        className="p-1.5 text-slate-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors cursor-pointer"
+                                        title="Restock Inventory"
+                                      >
+                                        <Plus className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteInventoryItem(row.id, row.name)}
+                                        className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                        title="Delete Item"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
                           </tbody>
                         </table>
                       </div>
 
-                      {/* Pagination Bar (Matching Screenshot 1) */}
-                      <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-semibold text-slate-500">
-                        <span>Showing {filteredInventory.length} of {inventoryList.length} item{inventoryList.length === 1 ? '' : 's'}</span>
-                        <div className="flex items-center gap-1.5">
-                          <button className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-400 cursor-not-allowed">Previous</button>
-                          <button className="px-3 py-1.5 rounded-lg bg-[#02182e] text-white font-bold">1</button>
-                          <button className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700">2</button>
-                          <button className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700">3</button>
-                          <span>...</span>
-                          <button className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700">250</button>
-                          <button className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700">Next</button>
+                      {/* Professional Inventory Pagination Controls */}
+                      {totalInvEntries > 0 && (
+                        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/70 flex flex-col sm:flex-row items-center justify-between gap-4">
+                          {/* Showing Entries Counter & Rows Per Page */}
+                          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 font-medium">
+                            <div>
+                              Showing{' '}
+                              <span className="font-extrabold text-slate-900">
+                                {(invCurrentPage - 1) * invItemsPerPage + 1}
+                              </span>{' '}
+                              to{' '}
+                              <span className="font-extrabold text-slate-900">
+                                {Math.min(invCurrentPage * invItemsPerPage, totalInvEntries)}
+                              </span>{' '}
+                              of{' '}
+                              <span className="font-extrabold text-slate-900">
+                                {totalInvEntries}
+                              </span>{' '}
+                              items
+                            </div>
+
+                            <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">
+                              <span className="text-[11px] text-slate-400 font-semibold">Rows per page:</span>
+                              <select
+                                value={invItemsPerPage}
+                                onChange={(e) => setInvItemsPerPage(Number(e.target.value))}
+                                className="bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-slate-400 cursor-pointer shadow-2xs"
+                              >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Navigation Buttons (Previous, Page Numbers, Next) */}
+                          <div className="flex items-center gap-1.5">
+                            {/* Previous Button */}
+                            <button
+                              type="button"
+                              onClick={handleInvPrevious}
+                              disabled={invCurrentPage === 1}
+                              className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                              aria-label="Previous Page"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                              <span>Previous</span>
+                            </button>
+
+                            {/* Page Numbers */}
+                            <div className="flex items-center gap-1">
+                              {getInvPageNumbers().map((page, idx) => {
+                                if (page === '...') {
+                                  return (
+                                    <span
+                                      key={`inv-ellipsis-${idx}`}
+                                      className="px-2 py-1 text-slate-400 text-xs font-bold select-none"
+                                    >
+                                      ...
+                                    </span>
+                                  );
+                                }
+
+                                const isActive = page === invCurrentPage;
+                                return (
+                                  <button
+                                    key={`inv-page-${page}`}
+                                    type="button"
+                                    onClick={() => handleInvPageChange(page)}
+                                    className={`min-w-[32px] h-8 px-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
+                                      isActive
+                                        ? 'bg-slate-900 text-white shadow-sm ring-2 ring-slate-900/20'
+                                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 shadow-2xs'
+                                    }`}
+                                  >
+                                    {page}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Next Button */}
+                            <button
+                              type="button"
+                              onClick={handleInvNext}
+                              disabled={invCurrentPage === totalInvPages}
+                              className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                              aria-label="Next Page"
+                            >
+                              <span>Next</span>
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                     </div>
 
@@ -2176,7 +3332,41 @@ export default function AdminDashboardPage() {
                       </div>
                     </div>
 
-                    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden space-y-4">
+                    {/* Search & Filter Toolbar */}
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+                      <div className="relative flex-1 w-full">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input
+                          type="text"
+                          value={appSearchTerm}
+                          onChange={(e) => setAppSearchTerm(e.target.value)}
+                          placeholder="Search by applicant name, email, app ID, service, city, or phone..."
+                          className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                        {/* Status Filter */}
+                        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                          {['All', 'Pending', 'Approved', 'Rejected'].map((status) => (
+                            <button
+                              key={status}
+                              type="button"
+                              onClick={() => setAppStatusFilter(status)}
+                              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                appStatusFilter === status
+                                  ? 'bg-white text-slate-900 shadow-sm'
+                                  : 'text-slate-500 hover:text-slate-900'
+                              }`}
+                            >
+                              {status}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div ref={appTableRef} className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
                       <div className="overflow-x-auto">
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
@@ -2190,87 +3380,201 @@ export default function AdminDashboardPage() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {applicationsList.map((app) => (
-                              <tr key={app.id} className="hover:bg-slate-50/80 transition-colors">
-                                <td className="py-4 px-6 font-bold text-slate-900">{app.id}</td>
-                                <td className="py-4 px-4">
-                                  <div className="font-extrabold text-slate-900 text-sm">{app.name}</div>
-                                  <div className="text-[11px] text-slate-400 font-medium">{app.email}</div>
+                            {filteredApplications.length === 0 ? (
+                              <tr>
+                                <td colSpan="6" className="py-16 text-center text-slate-400">
+                                  <div className="flex flex-col items-center justify-center gap-2">
+                                    <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-1">
+                                      <FileText className="w-6 h-6" />
+                                    </div>
+                                    <p className="font-extrabold text-sm text-slate-700">No vendor applications found</p>
+                                    <p className="text-xs text-slate-400 max-w-sm">
+                                      {applicationsList.length === 0
+                                        ? 'Submitted technician partner applications will appear here for review and verification.'
+                                        : 'No applications match your current search or filter criteria. Try adjusting the filters above.'}
+                                    </p>
+                                  </div>
                                 </td>
-                                <td className="py-4 px-4 font-bold text-slate-700">{app.service}</td>
-                                <td className="py-4 px-4 text-slate-500 font-medium">{app.city}</td>
-                                <td className="py-4 px-4">
-                                  <StockLevelBadge level={app.status} />
-                                </td>
-                                <td className="py-4 px-6 text-right">
-                                  <div className="flex items-center justify-end gap-2">
+                              </tr>
+                            ) : (
+                              paginatedApplications.map((app) => (
+                                <tr key={app.id} className="hover:bg-slate-50/80 transition-colors">
+                                  <td className="py-4 px-6 font-bold text-slate-900">{app.id}</td>
+                                  <td className="py-4 px-4">
+                                    <div className="font-extrabold text-slate-900 text-sm">{app.name}</div>
+                                    <div className="text-[11px] text-slate-400 font-medium">{app.email}</div>
+                                  </td>
+                                  <td className="py-4 px-4 font-bold text-slate-700">{app.service}</td>
+                                  <td className="py-4 px-4 text-slate-500 font-medium">{app.city}</td>
+                                  <td className="py-4 px-4">
+                                    <StockLevelBadge level={app.status} />
+                                  </td>
+                                  <td className="py-4 px-6 text-right">
+                                    <div className="flex items-center justify-end gap-2">
 
-                                    {/* View Application Button */}
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        handleViewApplication(app);
-                                      }}
-                                      className="px-3.5 py-2 bg-[#02182e] hover:bg-[#082848] text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-                                    >
-                                      <Eye className="w-3.5 h-3.5 text-orange-400" /> View Application
-                                    </button>
-
-                                    {/* View Vendor ID — shown when approved or ID has been generated */}
-                                    {(app.status === 'Approved' || vendorCredentials[app.id]) && (
+                                      {/* View Application Button */}
                                       <button
                                         type="button"
                                         onClick={(e) => {
                                           e.preventDefault();
                                           e.stopPropagation();
-                                          handleViewVendorCreds(app.id);
+                                          handleViewApplication(app);
                                         }}
-                                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-                                        title="View Vendor ID"
+                                        className="px-3.5 py-2 bg-[#02182e] hover:bg-[#082848] text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
                                       >
-                                        <ShieldCheck className="w-3.5 h-3.5" /> View Vendor ID
+                                        <Eye className="w-3.5 h-3.5 text-orange-400" /> View Application
                                       </button>
-                                    )}
 
-                                    {/* Quick Approve / Reject — only if Pending AND no ID yet */}
-                                    {app.status === 'Pending' && !vendorCredentials[app.id] && (
-                                      <>
+                                      {/* View Vendor ID — shown when approved or ID has been generated */}
+                                      {(app.status === 'Approved' || vendorCredentials[app.id]) && (
                                         <button
                                           type="button"
                                           onClick={(e) => {
                                             e.preventDefault();
                                             e.stopPropagation();
-                                            handleApproveNavigate(app);
+                                            handleViewVendorCreds(app.id);
                                           }}
-                                          className="p-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors cursor-pointer"
-                                          title="Approve & Create Vendor ID"
+                                          className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                                          title="View Vendor ID"
                                         >
-                                          <Check className="w-4 h-4" />
+                                          <ShieldCheck className="w-3.5 h-3.5" /> View Vendor ID
                                         </button>
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            handleRejectApp(app.id);
-                                          }}
-                                          className="p-2 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-xl transition-colors cursor-pointer"
-                                          title="Reject Application"
-                                        >
-                                          <X className="w-4 h-4" />
-                                        </button>
-                                      </>
-                                    )}
+                                      )}
 
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
+                                      {/* Quick Approve / Reject — only if Pending AND no ID yet */}
+                                      {app.status === 'Pending' && !vendorCredentials[app.id] && (
+                                        <>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              handleApproveNavigate(app);
+                                            }}
+                                            className="p-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors cursor-pointer"
+                                            title="Approve & Create Vendor ID"
+                                          >
+                                            <Check className="w-4 h-4" />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              handleRejectApp(app.id);
+                                            }}
+                                            className="p-2 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-xl transition-colors cursor-pointer"
+                                            title="Reject Application"
+                                          >
+                                            <X className="w-4 h-4" />
+                                          </button>
+                                        </>
+                                      )}
+
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
                           </tbody>
                         </table>
                       </div>
+
+                      {/* Pagination Controls */}
+                      {totalAppEntries > 0 && (
+                        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/70 flex flex-col sm:flex-row items-center justify-between gap-4">
+                          {/* Showing Entries Counter & Rows Per Page */}
+                          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 font-medium">
+                            <div>
+                              Showing{' '}
+                              <span className="font-extrabold text-slate-900">
+                                {(appCurrentPage - 1) * appItemsPerPage + 1}
+                              </span>{' '}
+                              to{' '}
+                              <span className="font-extrabold text-slate-900">
+                                {Math.min(appCurrentPage * appItemsPerPage, totalAppEntries)}
+                              </span>{' '}
+                              of{' '}
+                              <span className="font-extrabold text-slate-900">
+                                {totalAppEntries}
+                              </span>{' '}
+                              applications
+                            </div>
+
+                            <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">
+                              <span className="text-[11px] text-slate-400">Rows per page:</span>
+                              <select
+                                value={appItemsPerPage}
+                                onChange={(e) => setAppItemsPerPage(Number(e.target.value))}
+                                className="bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-slate-400 cursor-pointer shadow-2xs"
+                              >
+                                <option value={10}>10</option>
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Navigation Buttons */}
+                          <div className="flex items-center gap-1.5">
+                            {/* Previous Button */}
+                            <button
+                              type="button"
+                              onClick={handleAppPrevious}
+                              disabled={appCurrentPage === 1}
+                              className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                              aria-label="Previous Page"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                              <span>Previous</span>
+                            </button>
+
+                            {/* Page Numbers */}
+                            <div className="flex items-center gap-1">
+                              {getAppPageNumbers().map((page, idx) => {
+                                if (page === '...') {
+                                  return (
+                                    <span
+                                      key={`app-ellipsis-${idx}`}
+                                      className="px-2 py-1 text-slate-400 text-xs font-bold select-none"
+                                    >
+                                      ...
+                                    </span>
+                                  );
+                                }
+
+                                const isActive = page === appCurrentPage;
+                                return (
+                                  <button
+                                    key={`app-page-${page}`}
+                                    type="button"
+                                    onClick={() => handleAppPageChange(page)}
+                                    className={`min-w-[32px] h-8 px-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
+                                      isActive
+                                        ? 'bg-slate-900 text-white shadow-sm ring-2 ring-slate-900/20'
+                                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 shadow-2xs'
+                                    }`}
+                                  >
+                                    {page}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Next Button */}
+                            <button
+                              type="button"
+                              onClick={handleAppNext}
+                              disabled={appCurrentPage === totalAppPages}
+                              className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                              aria-label="Next Page"
+                            >
+                              <span>Next</span>
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 )}
@@ -2341,14 +3645,47 @@ export default function AdminDashboardPage() {
                       </div>
                     </div>
 
-                    {/* Data Table */}
-                    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
-                      <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-                        <h2 className="text-lg font-extrabold text-[#02182e]">Recent Requests</h2>
-                        <div className="relative w-full sm:w-64">
-                          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                          <input type="text" placeholder="Search by ID or Vendor..." className="w-full pl-9 pr-3 py-2 bg-slate-50 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                    {/* Search & Filter Toolbar */}
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+                      <div className="relative flex-1 w-full">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input
+                          type="text"
+                          value={paySearchTerm}
+                          onChange={(e) => setPaySearchTerm(e.target.value)}
+                          placeholder="Search by request ID, vendor name, vendor ID, or UPI..."
+                          className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                        {/* Status Filter */}
+                        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                          {['All', 'Pending', 'Approved', 'Paid'].map((status) => (
+                            <button
+                              key={status}
+                              type="button"
+                              onClick={() => setPayStatusFilter(status)}
+                              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                payStatusFilter === status
+                                  ? 'bg-white text-slate-900 shadow-sm'
+                                  : 'text-slate-500 hover:text-slate-900'
+                              }`}
+                            >
+                              {status}
+                            </button>
+                          ))}
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Data Table */}
+                    <div ref={payTableRef} className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
+                      <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
+                        <h2 className="text-lg font-extrabold text-[#02182e]">Payment Requests</h2>
+                        <span className="text-xs font-bold text-slate-500">
+                          {totalPayEntries} total {totalPayEntries === 1 ? 'record' : 'records'}
+                        </span>
                       </div>
                       
                       <div className="overflow-x-auto">
@@ -2366,75 +3703,189 @@ export default function AdminDashboardPage() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {paymentRequests.map((req) => (
-                              <tr key={req.id} className="hover:bg-slate-50/80 transition-colors">
-                                <td className="py-4 px-5 font-bold text-slate-700">{req.id}</td>
-                                <td className="py-4 px-4">
-                                  <div className="font-bold text-slate-900">{req.vendorName}</div>
-                                  <div className="text-[10px] text-slate-500 mt-0.5">{req.vendorId}</div>
-                                </td>
-                                <td className="py-4 px-4">
-                                  <div className="text-xs font-semibold text-slate-700">UPI: <span className="text-blue-600">{req.upiId}</span></div>
-                                  <div className="text-[10px] text-slate-500 mt-0.5">A/C: {req.bankAccount}</div>
-                                </td>
-                                <td className="py-4 px-4 font-semibold text-slate-600">{req.daysOfWork} Days</td>
-                                <td className="py-4 px-4 font-black text-slate-900">₹{req.amount.toLocaleString()}</td>
-                                <td className="py-4 px-4 text-slate-500 font-medium">{req.date}</td>
-                                <td className="py-4 px-4">
-                                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                                    req.status === 'Paid' ? 'bg-emerald-100/90 text-emerald-800 border border-emerald-200' :
-                                    req.status === 'Approved' ? 'bg-blue-100/90 text-blue-800 border border-blue-200' :
-                                    'bg-amber-100/90 text-amber-800 border border-amber-200'
-                                  }`}>
-                                    <span className={`w-1.5 h-1.5 rounded-full ${
-                                      req.status === 'Paid' ? 'bg-emerald-500' :
-                                      req.status === 'Approved' ? 'bg-blue-500' :
-                                      'bg-amber-500 animate-pulse'
-                                    }`} />
-                                    {req.status}
-                                  </span>
-                                </td>
-                                <td className="py-4 px-5 text-right">
-                                  {req.status === 'Pending' ? (
-                                    <div className="flex items-center justify-end gap-2">
-                                      <button 
-                                        onClick={() => {
-                                          setPaymentRequests(prev => prev.map(p => p.id === req.id ? { ...p, status: 'Approved' } : p));
-                                          showToast(`Request ${req.id} Approved`);
-                                        }}
-                                        className="p-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg transition-colors" title="Approve"
-                                      >
-                                        <Check className="w-4 h-4" />
-                                      </button>
-                                      <button 
-                                        onClick={() => {
-                                          setPaymentRequests(prev => prev.filter(p => p.id !== req.id));
-                                          showToast(`Request ${req.id} Rejected`);
-                                        }}
-                                        className="p-1.5 bg-rose-100 text-rose-700 hover:bg-rose-200 rounded-lg transition-colors" title="Reject"
-                                      >
-                                        <X className="w-4 h-4" />
-                                      </button>
+                            {filteredPaymentRequests.length === 0 ? (
+                              <tr>
+                                <td colSpan="8" className="py-16 text-center text-slate-400">
+                                  <div className="flex flex-col items-center justify-center gap-2">
+                                    <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-1">
+                                      <IndianRupee className="w-6 h-6" />
                                     </div>
-                                  ) : req.status === 'Approved' ? (
-                                    <button 
-                                      onClick={() => {
-                                        setPaymentRequests(prev => prev.map(p => p.id === req.id ? { ...p, status: 'Paid' } : p));
-                                        showToast(`Request ${req.id} Marked as Paid`);
-                                      }}
-                                      className="px-3 py-1.5 bg-[#02182e] hover:bg-[#082848] text-white text-xs font-bold rounded-lg transition-colors"
-                                    >
-                                      Mark Paid
-                                    </button>
-                                  ) : (
-                                    <span className="text-[10px] font-bold text-slate-400">COMPLETED</span>
-                                  )}
+                                    <p className="font-extrabold text-sm text-slate-700">No payment requests found</p>
+                                    <p className="text-xs text-slate-400 max-w-sm">
+                                      {paymentRequests.length === 0
+                                        ? 'Vendor payout requests will appear here once submitted.'
+                                        : 'No requests match your current search or filter criteria. Try adjusting the filters above.'}
+                                    </p>
+                                  </div>
                                 </td>
                               </tr>
-                            ))}
+                            ) : (
+                              paginatedPaymentRequests.map((req) => (
+                                <tr key={req.id} className="hover:bg-slate-50/80 transition-colors">
+                                  <td className="py-4 px-5 font-bold text-slate-700">{req.id}</td>
+                                  <td className="py-4 px-4">
+                                    <div className="font-bold text-slate-900">{req.vendorName}</div>
+                                    <div className="text-[10px] text-slate-500 mt-0.5">{req.vendorId}</div>
+                                  </td>
+                                  <td className="py-4 px-4">
+                                    <div className="text-xs font-semibold text-slate-700">UPI: <span className="text-blue-600">{req.upiId}</span></div>
+                                    <div className="text-[10px] text-slate-500 mt-0.5">A/C: {req.bankAccount}</div>
+                                  </td>
+                                  <td className="py-4 px-4 font-semibold text-slate-600">{req.daysOfWork} Days</td>
+                                  <td className="py-4 px-4 font-black text-slate-900">₹{req.amount.toLocaleString()}</td>
+                                  <td className="py-4 px-4 text-slate-500 font-medium">{req.date}</td>
+                                  <td className="py-4 px-4">
+                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                                      req.status === 'Paid' ? 'bg-emerald-100/90 text-emerald-800 border border-emerald-200' :
+                                      req.status === 'Approved' ? 'bg-blue-100/90 text-blue-800 border border-blue-200' :
+                                      'bg-amber-100/90 text-amber-800 border border-amber-200'
+                                    }`}>
+                                      <span className={`w-1.5 h-1.5 rounded-full ${
+                                        req.status === 'Paid' ? 'bg-emerald-500' :
+                                        req.status === 'Approved' ? 'bg-blue-500' :
+                                        'bg-amber-500 animate-pulse'
+                                      }`} />
+                                      {req.status}
+                                    </span>
+                                  </td>
+                                  <td className="py-4 px-5 text-right">
+                                    {req.status === 'Pending' ? (
+                                      <div className="flex items-center justify-end gap-2">
+                                        <button 
+                                          onClick={() => {
+                                            setPaymentRequests(prev => prev.map(p => p.id === req.id ? { ...p, status: 'Approved' } : p));
+                                            showToast(`Request ${req.id} Approved`);
+                                          }}
+                                          className="p-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg transition-colors cursor-pointer" title="Approve"
+                                        >
+                                          <Check className="w-4 h-4" />
+                                        </button>
+                                        <button 
+                                          onClick={() => {
+                                            setPaymentRequests(prev => prev.filter(p => p.id !== req.id));
+                                            showToast(`Request ${req.id} Rejected`);
+                                          }}
+                                          className="p-1.5 bg-rose-100 text-rose-700 hover:bg-rose-200 rounded-lg transition-colors cursor-pointer" title="Reject"
+                                        >
+                                          <X className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                    ) : req.status === 'Approved' ? (
+                                      <button 
+                                        onClick={() => {
+                                          setPaymentRequests(prev => prev.map(p => p.id === req.id ? { ...p, status: 'Paid' } : p));
+                                          showToast(`Request ${req.id} Marked as Paid`);
+                                        }}
+                                        className="px-3 py-1.5 bg-[#02182e] hover:bg-[#082848] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                                      >
+                                        Mark Paid
+                                      </button>
+                                    ) : (
+                                      <span className="text-[10px] font-bold text-slate-400">COMPLETED</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
                           </tbody>
                         </table>
                       </div>
+
+                      {/* Pagination Controls */}
+                      {totalPayEntries > 0 && (
+                        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/70 flex flex-col sm:flex-row items-center justify-between gap-4">
+                          {/* Showing Entries Counter & Rows Per Page */}
+                          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 font-medium">
+                            <div>
+                              Showing{' '}
+                              <span className="font-extrabold text-slate-900">
+                                {(payCurrentPage - 1) * payItemsPerPage + 1}
+                              </span>{' '}
+                              to{' '}
+                              <span className="font-extrabold text-slate-900">
+                                {Math.min(payCurrentPage * payItemsPerPage, totalPayEntries)}
+                              </span>{' '}
+                              of{' '}
+                              <span className="font-extrabold text-slate-900">
+                                {totalPayEntries}
+                              </span>{' '}
+                              requests
+                            </div>
+
+                            <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">
+                              <span className="text-[11px] text-slate-400">Rows per page:</span>
+                              <select
+                                value={payItemsPerPage}
+                                onChange={(e) => setPayItemsPerPage(Number(e.target.value))}
+                                className="bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-slate-400 cursor-pointer shadow-2xs"
+                              >
+                                <option value={10}>10</option>
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Navigation Buttons */}
+                          <div className="flex items-center gap-1.5">
+                            {/* Previous Button */}
+                            <button
+                              type="button"
+                              onClick={handlePayPrevious}
+                              disabled={payCurrentPage === 1}
+                              className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                              aria-label="Previous Page"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                              <span>Previous</span>
+                            </button>
+
+                            {/* Page Numbers */}
+                            <div className="flex items-center gap-1">
+                              {getPayPageNumbers().map((page, idx) => {
+                                if (page === '...') {
+                                  return (
+                                    <span
+                                      key={`pay-ellipsis-${idx}`}
+                                      className="px-2 py-1 text-slate-400 text-xs font-bold select-none"
+                                    >
+                                      ...
+                                    </span>
+                                  );
+                                }
+
+                                const isActive = page === payCurrentPage;
+                                return (
+                                  <button
+                                    key={`pay-page-${page}`}
+                                    type="button"
+                                    onClick={() => handlePayPageChange(page)}
+                                    className={`min-w-[32px] h-8 px-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
+                                      isActive
+                                        ? 'bg-slate-900 text-white shadow-sm ring-2 ring-slate-900/20'
+                                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 shadow-2xs'
+                                    }`}
+                                  >
+                                    {page}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Next Button */}
+                            <button
+                              type="button"
+                              onClick={handlePayNext}
+                              disabled={payCurrentPage === totalPayPages}
+                              className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                              aria-label="Next Page"
+                            >
+                              <span>Next</span>
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 )}
@@ -2657,20 +4108,9 @@ export default function AdminDashboardPage() {
                     transition={{ duration: 0.3 }}
                     className="space-y-6"
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                      <div>
-                        <h1 className="text-3xl font-extrabold text-slate-900">User & Partner Management</h1>
-                        <p className="text-slate-500 text-sm mt-1">Manage active customers, technician partners, status (Active, Blocked, Suspended), and profile access.</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => fetchUsers()}
-                        disabled={isFetchingUsers}
-                        className="self-start sm:self-auto px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer disabled:opacity-60 shadow-sm"
-                      >
-                        <RefreshCw className={`w-3.5 h-3.5 ${isFetchingUsers ? 'animate-spin' : ''}`} />
-                        {isFetchingUsers ? 'Fetching...' : 'Sync Live Users'}
-                      </button>
+                    <div>
+                      <h1 className="text-3xl font-extrabold text-slate-900">User & Partner Management</h1>
+                      <p className="text-slate-500 text-sm mt-1">Manage active customers, technician partners, status (Active, Blocked, Suspended), and profile access.</p>
                     </div>
 
                     {/* KPI Quick Counter Cards */}
@@ -2752,7 +4192,7 @@ export default function AdminDashboardPage() {
                     </div>
 
                     {/* Users Table */}
-                    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div ref={userTableRef} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
                       <div className="overflow-x-auto">
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
@@ -2766,45 +4206,24 @@ export default function AdminDashboardPage() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {(() => {
-                              const filtered = usersList.filter((usr) => {
-                                const matchesSearch =
-                                  (usr.name && usr.name.toLowerCase().includes(userSearchTerm.toLowerCase())) ||
-                                  (usr.email && usr.email.toLowerCase().includes(userSearchTerm.toLowerCase())) ||
-                                  (usr.id && String(usr.id).toLowerCase().includes(userSearchTerm.toLowerCase()));
-
-                                const matchesRole =
-                                  userRoleFilter === 'All' ||
-                                  usr.role.toLowerCase() === userRoleFilter.toLowerCase();
-
-                                const matchesStatus =
-                                  userStatusFilter === 'All' ||
-                                  usr.status.toLowerCase() === userStatusFilter.toLowerCase();
-
-                                return matchesSearch && matchesRole && matchesStatus;
-                              });
-
-                              if (filtered.length === 0) {
-                                return (
-                                  <tr>
-                                    <td colSpan="6" className="py-16 text-center text-slate-400">
-                                      <div className="flex flex-col items-center justify-center gap-2">
-                                        <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-1">
-                                          <Users className="w-6 h-6" />
-                                        </div>
-                                        <p className="font-extrabold text-sm text-slate-700">No original users or partners found</p>
-                                        <p className="text-xs text-slate-400 max-w-sm">
-                                          {usersList.length === 0
-                                            ? 'Newly registered customers, applied technicians, and approved vendors from the database will appear here automatically.'
-                                            : 'No users match your current search or filter criteria. Try adjusting the filters above.'}
-                                        </p>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                );
-                              }
-
-                              return filtered.map((usr) => {
+                            {filteredUsers.length === 0 ? (
+                              <tr>
+                                <td colSpan="6" className="py-16 text-center text-slate-400">
+                                  <div className="flex flex-col items-center justify-center gap-2">
+                                    <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-1">
+                                      <Users className="w-6 h-6" />
+                                    </div>
+                                    <p className="font-extrabold text-sm text-slate-700">No original users or partners found</p>
+                                    <p className="text-xs text-slate-400 max-w-sm">
+                                      {usersList.length === 0
+                                        ? 'Newly registered customers, applied technicians, and approved vendors from the database will appear here automatically.'
+                                        : 'No users match your current search or filter criteria. Try adjusting the filters above.'}
+                                    </p>
+                                  </div>
+                                </td>
+                              </tr>
+                            ) : (
+                              paginatedUsers.map((usr) => {
                                 const st = usr.status?.toLowerCase();
                                 const isBlocked = st === 'blocked';
                                 const isSuspended = st === 'suspended';
@@ -2916,11 +4335,107 @@ export default function AdminDashboardPage() {
                                     </td>
                                   </tr>
                                 );
-                              });
-                            })()}
+                              })
+                            )}
                           </tbody>
                         </table>
                       </div>
+
+                      {/* Pagination Controls */}
+                      {totalUserEntries > 0 && (
+                        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/70 flex flex-col sm:flex-row items-center justify-between gap-4">
+                          {/* Showing Entries Counter & Rows Per Page */}
+                          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 font-medium">
+                            <div>
+                              Showing{' '}
+                              <span className="font-extrabold text-slate-900">
+                                {(userCurrentPage - 1) * userItemsPerPage + 1}
+                              </span>{' '}
+                              to{' '}
+                              <span className="font-extrabold text-slate-900">
+                                {Math.min(userCurrentPage * userItemsPerPage, totalUserEntries)}
+                              </span>{' '}
+                              of{' '}
+                              <span className="font-extrabold text-slate-900">
+                                {totalUserEntries}
+                              </span>{' '}
+                              users
+                            </div>
+
+                            <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">
+                              <span className="text-[11px] text-slate-400">Rows per page:</span>
+                              <select
+                                value={userItemsPerPage}
+                                onChange={(e) => setUserItemsPerPage(Number(e.target.value))}
+                                className="bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-slate-400 cursor-pointer shadow-2xs"
+                              >
+                                <option value={10}>10</option>
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Navigation Buttons */}
+                          <div className="flex items-center gap-1.5">
+                            {/* Previous Button */}
+                            <button
+                              type="button"
+                              onClick={handleUserPrevious}
+                              disabled={userCurrentPage === 1}
+                              className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                              aria-label="Previous Page"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                              <span>Previous</span>
+                            </button>
+
+                            {/* Page Numbers */}
+                            <div className="flex items-center gap-1">
+                              {getUserPageNumbers().map((page, idx) => {
+                                if (page === '...') {
+                                  return (
+                                    <span
+                                      key={`user-ellipsis-${idx}`}
+                                      className="px-2 py-1 text-slate-400 text-xs font-bold select-none"
+                                    >
+                                      ...
+                                    </span>
+                                  );
+                                }
+
+                                const isActive = page === userCurrentPage;
+                                return (
+                                  <button
+                                    key={`user-page-${page}`}
+                                    type="button"
+                                    onClick={() => handleUserPageChange(page)}
+                                    className={`min-w-[32px] h-8 px-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
+                                      isActive
+                                        ? 'bg-slate-900 text-white shadow-sm ring-2 ring-slate-900/20'
+                                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 shadow-2xs'
+                                    }`}
+                                  >
+                                    {page}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Next Button */}
+                            <button
+                              type="button"
+                              onClick={handleUserNext}
+                              disabled={userCurrentPage === totalUserPages}
+                              className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                              aria-label="Next Page"
+                            >
+                              <span>Next</span>
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 )}
@@ -3097,39 +4612,6 @@ export default function AdminDashboardPage() {
                 )}
 
 
-                {/* ───────────────────────────────────────────────────────────────── */}
-                {/* 6. PLATFORM SETTINGS TAB                                         */}
-                {/* ───────────────────────────────────────────────────────────────── */}
-                {activeTab === 'settings' && (
-                  <motion.div
-                    key="settings"
-                    initial={{ opacity: 0, y: 15 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -15 }}
-                    transition={{ duration: 0.3 }}
-                    className="space-y-6"
-                  >
-                    <div>
-                      <h1 className="text-3xl font-extrabold text-slate-900">Platform Settings</h1>
-                      <p className="text-slate-500 text-sm mt-1">System parameters, commission rates, and gateway keys.</p>
-                    </div>
-
-                    <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4 max-w-md">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Standard Platform Commission (%)</label>
-                        <input type="number" defaultValue={15} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Service Radius Limit (km)</label>
-                        <input type="number" defaultValue={25} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
-                      </div>
-                      <button onClick={() => showToast('Platform settings updated!')} className="px-6 py-2.5 bg-[#02182e] text-white font-extrabold text-xs rounded-xl shadow cursor-pointer">
-                        Save System Settings
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-
                 {/* ── SERVICES & FUEL PRICING TAB ── */}
                 {activeTab === 'service-pricing' && (
                   <AdminServicePricingTab showToast={showToast} />
@@ -3176,7 +4658,7 @@ export default function AdminDashboardPage() {
                       </div>
 
                       {/* Current Work */}
-                      <div className="p-5 border-b border-slate-100">
+                      <div ref={currentWorkTableRef} className="p-5 border-b border-slate-100">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                           <h3 className="text-sm font-extrabold text-[#02182e] flex items-center gap-2">
                              <Clock className="w-4 h-4 text-orange-500" /> Current Work & Active Dispatches ({currentWorkCounts.all})
@@ -3218,8 +4700,8 @@ export default function AdminDashboardPage() {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                              {filteredCurrentWork.length > 0 ? (
-                                filteredCurrentWork.map(item => (
+                              {paginatedCurrentWork.length > 0 ? (
+                                paginatedCurrentWork.map(item => (
                                   <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
                                     <td className="py-4 px-5 font-bold text-slate-600">{item.id}</td>
                                     <td className="py-4 px-4 font-bold text-slate-800">{item.appliance}</td>
@@ -3248,10 +4730,42 @@ export default function AdminDashboardPage() {
                             </tbody>
                           </table>
                         </div>
+
+                        {/* Current Work Pagination */}
+                        {filteredCurrentWork.length > currentWorkItemsPerPage && (
+                          <div className="mt-3 pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 font-medium">
+                            <span>
+                              Showing <span className="font-extrabold text-slate-900">{(currentWorkPage - 1) * currentWorkItemsPerPage + 1}</span> to <span className="font-extrabold text-slate-900">{Math.min(currentWorkPage * currentWorkItemsPerPage, filteredCurrentWork.length)}</span> of <span className="font-extrabold text-slate-900">{filteredCurrentWork.length}</span> active dispatches
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setCurrentWorkPage(p => Math.max(1, p - 1))}
+                                disabled={currentWorkPage === 1}
+                                className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer shadow-2xs transition-all"
+                              >
+                                <ChevronLeft className="w-3.5 h-3.5" />
+                                <span>Prev</span>
+                              </button>
+                              <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold">
+                                {currentWorkPage} / {currentWorkTotalPages}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setCurrentWorkPage(p => Math.min(currentWorkTotalPages, p + 1))}
+                                disabled={currentWorkPage === currentWorkTotalPages}
+                                className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer shadow-2xs transition-all"
+                              >
+                                <span>Next</span>
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Work Done / Full History */}
-                      <div className="p-5">
+                      <div ref={historyTableRef} className="p-5">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
                           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                             <h3 className="text-sm font-extrabold text-[#02182e] flex items-center gap-2">
@@ -3281,12 +4795,24 @@ export default function AdminDashboardPage() {
                           </div>
 
                           <div className="flex flex-wrap items-center gap-3">
+                            {/* Work History Search Bar */}
+                            <div className="relative w-full sm:w-64">
+                              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                              <input
+                                type="text"
+                                value={historySearchTerm}
+                                onChange={(e) => setHistorySearchTerm(e.target.value)}
+                                placeholder="Search by ID, customer, appliance..."
+                                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white transition-all"
+                              />
+                            </div>
+
                             <button 
                               onClick={() => {
                                 setExportType('history');
                                 setIsExportModalOpen(true);
                               }}
-                              className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 flex items-center gap-2 cursor-pointer transition-colors"
+                              className="px-3.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold hover:bg-emerald-100 flex items-center gap-2 cursor-pointer transition-colors shadow-2xs"
                             >
                               <Download className="w-3.5 h-3.5" />
                               Export Excel
@@ -3308,40 +4834,60 @@ export default function AdminDashboardPage() {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                              {paginatedHistory.length > 0 ? paginatedHistory.map(item => (
-                                <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                                  <td className="py-4 px-5 font-bold text-slate-600">{item.id}</td>
-                                  <td className="py-4 px-4 font-bold text-slate-800">{item.appliance}</td>
-                                  <td className="py-4 px-4 font-semibold text-slate-700">{item.customer}</td>
-                                  <td className="py-4 px-4 font-semibold text-slate-700">{item.technician}</td>
-                                  <td className="py-4 px-4 font-semibold text-slate-700">{item.dateCompleted !== '—' ? item.dateCompleted : (item.serviceDate || '—')}</td>
-                                  <td className="py-4 px-4">
-                                    {renderBookingStatusBadge(item.status)}
-                                  </td>
-                                  <td className="py-4 px-5 text-right">
-                                    <button 
-                                      onClick={() => { setSelectedReportItem(item); setIsReportModalOpen(true); }}
-                                      className="text-xs font-bold cursor-pointer text-slate-500 hover:text-slate-800"
-                                    >
-                                      View Report
-                                    </button>
-                                  </td>
-                                </tr>
-                              )) : (
+                              {paginatedHistory.length > 0 ? (
+                                paginatedHistory.map(item => (
+                                  <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                                    <td className="py-4 px-5 font-bold text-slate-600">{item.id}</td>
+                                    <td className="py-4 px-4 font-bold text-slate-800">{item.appliance}</td>
+                                    <td className="py-4 px-4 font-semibold text-slate-700">{item.customer}</td>
+                                    <td className="py-4 px-4 font-semibold text-slate-700">{item.technician}</td>
+                                    <td className="py-4 px-4 font-semibold text-slate-700">{item.dateCompleted !== '—' ? item.dateCompleted : (item.serviceDate || '—')}</td>
+                                    <td className="py-4 px-4">
+                                      {renderBookingStatusBadge(item.status)}
+                                    </td>
+                                    <td className="py-4 px-5 text-right">
+                                      <button 
+                                        onClick={() => { setSelectedReportItem(item); setIsReportModalOpen(true); }}
+                                        className="text-xs font-bold cursor-pointer text-slate-500 hover:text-slate-800"
+                                      >
+                                        View Report
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))
+                              ) : (
                                 <tr>
-                                  <td colSpan="7" className="py-8 text-center text-slate-500 font-medium">
-                                    <div className="max-w-md mx-auto space-y-2">
-                                      <CheckCircle2 className="w-8 h-8 text-slate-300 mx-auto" />
-                                      <p className="font-bold text-slate-700">No {workHistoryFilter === 'Cancelled' ? 'cancelled' : 'completed'} records found</p>
+                                  <td colSpan="7" className="py-12 text-center text-slate-400">
+                                    <div className="max-w-md mx-auto space-y-2 flex flex-col items-center justify-center">
+                                      <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-1">
+                                        <CheckCircle2 className="w-6 h-6 text-slate-400" />
+                                      </div>
+                                      <p className="font-extrabold text-sm text-slate-700">
+                                        {historySearchTerm.trim() 
+                                          ? `No records found matching "${historySearchTerm}"`
+                                          : `No ${workHistoryFilter === 'Cancelled' ? 'cancelled' : 'completed'} records found`
+                                        }
+                                      </p>
                                       <p className="text-xs text-slate-500">
-                                        When ongoing jobs are finished, their completed reports will appear here. Switch to{' '}
-                                        <button
-                                          onClick={() => { setWorkHistoryFilter('All Records'); setHistoryPage(1); }}
-                                          className="text-blue-600 font-bold underline hover:text-blue-800 cursor-pointer"
-                                        >
-                                          All Records Ledger
-                                        </button>{' '}
-                                        to view all {historyCounts.all} service requests.
+                                        {historySearchTerm.trim() ? (
+                                          <button
+                                            onClick={() => setHistorySearchTerm('')}
+                                            className="text-orange-600 font-bold underline hover:text-orange-700 cursor-pointer"
+                                          >
+                                            Clear search filter
+                                          </button>
+                                        ) : (
+                                          <>
+                                            When ongoing jobs are finished, their completed reports will appear here. Switch to{' '}
+                                            <button
+                                              onClick={() => { setWorkHistoryFilter('All Records'); setHistoryPage(1); }}
+                                              className="text-blue-600 font-bold underline hover:text-blue-800 cursor-pointer"
+                                            >
+                                              All Records Ledger
+                                            </button>{' '}
+                                            to view all {historyCounts.all} service requests.
+                                          </>
+                                        )}
                                       </p>
                                     </div>
                                   </td>
@@ -3351,44 +4897,101 @@ export default function AdminDashboardPage() {
                           </table>
                         </div>
 
-                        {/* Pagination */}
-                        <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-semibold text-slate-500">
-                          <span>Showing {filteredHistory.length > 0 ? ((historyPage - 1) * historyItemsPerPage) + 1 : 0} to {Math.min(historyPage * historyItemsPerPage, filteredHistory.length)} of {filteredHistory.length} results</span>
-                          
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
-                              disabled={historyPage === 1}
-                              className={`px-3 py-1.5 rounded-lg border border-slate-200 transition-colors ${historyPage === 1 ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : 'hover:bg-slate-50 text-slate-700 cursor-pointer'}`}
-                            >
-                              Prev
-                            </button>
-                            
-                            <div className="flex items-center gap-1">
-                              {[...Array(historyTotalPages)].map((_, i) => (
-                                <button
-                                  key={i}
-                                  onClick={() => setHistoryPage(i + 1)}
-                                  className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
-                                    historyPage === i + 1 
-                                      ? 'bg-[#02182e] text-white font-bold' 
-                                      : 'hover:bg-slate-100 text-slate-600 cursor-pointer'
-                                  }`}
+                        {/* Professional Work History Pagination Controls */}
+                        {totalHistoryEntries > 0 && (
+                          <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/70 flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 rounded-xl">
+                            {/* Showing Entries Counter & Rows Per Page */}
+                            <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 font-medium">
+                              <div>
+                                Showing{' '}
+                                <span className="font-extrabold text-slate-900">
+                                  {(historyPage - 1) * historyItemsPerPage + 1}
+                                </span>{' '}
+                                to{' '}
+                                <span className="font-extrabold text-slate-900">
+                                  {Math.min(historyPage * historyItemsPerPage, totalHistoryEntries)}
+                                </span>{' '}
+                                of{' '}
+                                <span className="font-extrabold text-slate-900">
+                                  {totalHistoryEntries}
+                                </span>{' '}
+                                records
+                              </div>
+
+                              <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">
+                                <span className="text-[11px] text-slate-400 font-semibold">Rows per page:</span>
+                                <select
+                                  value={historyItemsPerPage}
+                                  onChange={(e) => setHistoryItemsPerPage(Number(e.target.value))}
+                                  className="bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-slate-400 cursor-pointer shadow-2xs"
                                 >
-                                  {i + 1}
-                                </button>
-                              ))}
+                                  <option value={5}>5</option>
+                                  <option value={10}>10</option>
+                                  <option value={20}>20</option>
+                                  <option value={50}>50</option>
+                                </select>
+                              </div>
                             </div>
 
-                            <button
-                              onClick={() => setHistoryPage(p => Math.min(historyTotalPages, p + 1))}
-                              disabled={historyPage === historyTotalPages}
-                              className={`px-3 py-1.5 rounded-lg border border-slate-200 transition-colors ${historyPage === historyTotalPages ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : 'hover:bg-slate-50 text-slate-700 cursor-pointer'}`}
-                            >
-                              Next
-                            </button>
+                            {/* Navigation Buttons (Previous, Page Numbers, Next) */}
+                            <div className="flex items-center gap-1.5">
+                              {/* Previous Button */}
+                              <button
+                                type="button"
+                                onClick={handleHistoryPrevious}
+                                disabled={historyPage === 1}
+                                className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                                aria-label="Previous Page"
+                              >
+                                <ChevronLeft className="w-4 h-4" />
+                                <span>Previous</span>
+                              </button>
+
+                              {/* Page Numbers */}
+                              <div className="flex items-center gap-1">
+                                {getHistoryPageNumbers().map((page, idx) => {
+                                  if (page === '...') {
+                                    return (
+                                      <span
+                                        key={`hist-ellipsis-${idx}`}
+                                        className="px-2 py-1 text-slate-400 text-xs font-bold select-none"
+                                      >
+                                        ...
+                                      </span>
+                                    );
+                                  }
+                                  const isCurrent = historyPage === page;
+                                  return (
+                                    <button
+                                      key={`hist-page-${page}`}
+                                      type="button"
+                                      onClick={() => handleHistoryPageChange(page)}
+                                      className={`min-w-8 h-8 px-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                                        isCurrent
+                                          ? 'bg-[#02182e] text-white shadow-xs'
+                                          : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 shadow-2xs'
+                                      }`}
+                                    >
+                                      {page}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Next Button */}
+                              <button
+                                type="button"
+                                onClick={handleHistoryNext}
+                                disabled={historyPage === historyTotalPages}
+                                className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                                aria-label="Next Page"
+                              >
+                                <span>Next</span>
+                                <ChevronRight className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     </div>
                   </motion.div>

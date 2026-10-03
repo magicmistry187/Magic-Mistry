@@ -1,9 +1,10 @@
-const mongoose = require('mongoose');
 const Booking = require('../models/booking.model');
 const Address = require('../models/address.model');
 const VendorProfile = require('../models/vendorProfile.model');
 const { uploadImageToImageKit } = require('../config/imagekit');
 const ServiceExecution = require('../models/serviceExecution.model');
+const Invoice = require('../models/invoice.model');
+const Inventory = require('../models/inventory.model');
 const {
   emitNewBooking,
   emitBookingStatusUpdated,
@@ -150,13 +151,19 @@ exports.createBooking = async (req, res) => {
 
     if (latNum === null || lngNum === null) {
       try {
-        const defaultAddr = await Address.findOne({ user: req.user.id, isDefault: true });
+        const defaultAddr = await Address.findOne({
+          user: req.user.id,
+          isDefault: true,
+        });
         if (defaultAddr?.location?.coordinates?.length === 2) {
           lngNum = Number(defaultAddr.location.coordinates[0]);
           latNum = Number(defaultAddr.location.coordinates[1]);
         }
       } catch (addrErr) {
-        console.warn('[Booking] Could not fallback to default address coordinates:', addrErr);
+        console.warn(
+          '[Booking] Could not fallback to default address coordinates:',
+          addrErr,
+        );
       }
     }
 
@@ -169,8 +176,10 @@ exports.createBooking = async (req, res) => {
 
     const booking = await Booking.create(bookingData);
 
-    const populatedBooking = await Booking.findById(booking._id)
-      .populate('customer', 'fullName email phoneNumber');
+    const populatedBooking = await Booking.findById(booking._id).populate(
+      'customer',
+      'fullName email phoneNumber',
+    );
 
     // Real-time: notify vendors and admin immediately
     emitNewBooking(populatedBooking || booking);
@@ -380,8 +389,8 @@ exports.getBookingToVendorUnderRange = async (req, res) => {
     const assignedBookings = await Booking.find({
       vendor: vendorId,
     })
-      .populate("customer", "fullName email phoneNumber")
-      .populate("vendor", "fullName email phoneNumber")
+      .populate('customer', 'fullName email phoneNumber')
+      .populate('vendor', 'fullName email phoneNumber')
       .lean();
 
     // 2. Fetch vendor profile & determine active location and radius
@@ -415,12 +424,12 @@ exports.getBookingToVendorUnderRange = async (req, res) => {
           {
             $geoNear: {
               near: vendorLocation,
-              key: "location",
-              distanceField: "distance",
+              key: 'location',
+              distanceField: 'distance',
               maxDistance: radius * 1000,
               spherical: true,
               query: {
-                bookingStatus: "Pending",
+                bookingStatus: 'Pending',
                 $or: [{ vendor: null }, { vendor: { $exists: false } }],
               },
             },
@@ -429,90 +438,48 @@ exports.getBookingToVendorUnderRange = async (req, res) => {
         ]);
 
         await Booking.populate(geoPending, [
-          { path: "customer", select: "fullName email phoneNumber" },
-          { path: "vendor", select: "fullName email phoneNumber" },
+          { path: 'customer', select: 'fullName email phoneNumber' },
+          { path: 'vendor', select: 'fullName email phoneNumber' },
         ]);
 
-        // Also fetch pending bookings without location coordinates ONLY if in the same city as vendor
-        let nonGeoPending = [];
-        const vendorCity = (vendorAddress?.city || "").trim();
-
-        if (vendorCity) {
-          const escapedCity = vendorCity.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          nonGeoPending = await Booking.find({
-            $and: [
-              { bookingStatus: "Pending" },
-              { $or: [{ vendor: null }, { vendor: { $exists: false } }] },
-              {
-                $or: [
-                  { location: { $exists: false } },
-                  { location: null },
-                  { "location.coordinates": { $exists: false } },
-                  { "location.coordinates": { $size: 0 } },
-                ],
-              },
-              {
-                $or: [
-                  { "address.city": new RegExp(`^${escapedCity}$`, "i") },
-                  { "address": new RegExp(`\\b${escapedCity}\\b`, "i") },
-                ],
-              },
-            ],
-          })
-            .populate("customer", "fullName email phoneNumber")
-            .populate("vendor", "fullName email phoneNumber")
-            .lean();
-        }
+        // Also fetch pending bookings without location coordinates so they are never dropped
+        const nonGeoPending = await Booking.find({
+          bookingStatus: 'Pending',
+          $or: [{ vendor: null }, { vendor: { $exists: false } }],
+          $or: [
+            { location: { $exists: false } },
+            { location: null },
+            { 'location.coordinates': { $exists: false } },
+            { 'location.coordinates': { $size: 0 } },
+          ],
+        })
+          .populate('customer', 'fullName email phoneNumber')
+          .populate('vendor', 'fullName email phoneNumber')
+          .lean();
 
         pendingBookings = [...geoPending, ...nonGeoPending];
       } catch (geoErr) {
-        console.warn("Geo query failed, falling back to city match:", geoErr.message);
-        const vendorCity = (vendorAddress?.city || "").trim();
-        if (vendorCity) {
-          const escapedCity = vendorCity.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          pendingBookings = await Booking.find({
-            $and: [
-              { bookingStatus: "Pending" },
-              { $or: [{ vendor: null }, { vendor: { $exists: false } }] },
-              {
-                $or: [
-                  { "address.city": new RegExp(`^${escapedCity}$`, "i") },
-                  { "address": new RegExp(`\\b${escapedCity}\\b`, "i") },
-                ],
-              },
-            ],
-          })
-            .populate("customer", "fullName email phoneNumber")
-            .populate("vendor", "fullName email phoneNumber")
-            .lean();
-        } else {
-          pendingBookings = [];
-        }
+        console.warn(
+          'Geo query failed, falling back to all pending:',
+          geoErr.message,
+        );
+        pendingBookings = await Booking.find({
+          bookingStatus: 'Pending',
+          $or: [{ vendor: null }, { vendor: { $exists: false } }],
+        })
+          .populate('customer', 'fullName email phoneNumber')
+          .populate('vendor', 'fullName email phoneNumber')
+          .lean();
       }
     } else {
-      // Vendor has no coordinates configured yet -> match by city if available, otherwise return empty
-      const vendorCity = (vendorAddress?.city || "").trim();
-      if (vendorCity) {
-        const escapedCity = vendorCity.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        pendingBookings = await Booking.find({
-          $and: [
-            { bookingStatus: "Pending" },
-            { $or: [{ vendor: null }, { vendor: { $exists: false } }] },
-            {
-              $or: [
-                { "address.city": new RegExp(`^${escapedCity}$`, "i") },
-                { "address": new RegExp(`\\b${escapedCity}\\b`, "i") },
-              ],
-            },
-          ],
-        })
-          .populate("customer", "fullName email phoneNumber")
-          .populate("vendor", "fullName email phoneNumber")
-          .lean();
-      } else {
-        // Vendor has no service address or city -> do not leak nationwide bookings
-        pendingBookings = [];
-      }
+      // Vendor has no address/coordinates configured yet -> return all pending bookings as fallback
+      pendingBookings = await Booking.find({
+        bookingStatus: 'Pending',
+        $or: [{ vendor: null }, { vendor: { $exists: false } }],
+      })
+        .populate('customer', 'fullName email phoneNumber')
+        .populate('vendor', 'fullName email phoneNumber')
+        .lean();
     }
 
     // Combine and deduplicate by booking ID
@@ -534,18 +501,17 @@ exports.getBookingToVendorUnderRange = async (req, res) => {
       count: allBookings.length,
       bookings: allBookings,
       radius,
-      message: "Vendor bookings fetched successfully.",
+      message: 'Vendor bookings fetched successfully.',
     });
   } catch (err) {
-    console.error("Error while fetching vendor bookings: ", err);
+    console.error('Error while fetching vendor bookings: ', err);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch vendor bookings",
+      message: 'Failed to fetch vendor bookings',
       error: err.message,
     });
   }
 };
-
 exports.acceptBooking = async (req, res) => {
   try {
     const { bookingId } = req.params;
@@ -576,7 +542,8 @@ exports.acceptBooking = async (req, res) => {
     }
 
     // updated part
-     await ServiceExecution.create({
+
+    await ServiceExecution.create({
       booking: booking._id,
       vendor: vendorId,
       status: 'Route Pending',
@@ -669,6 +636,780 @@ exports.updateBookingStatus = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to update booking status.',
+      error: error.message,
+    });
+  }
+};
+
+exports.routeVerification = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const vendorId = req.user.id;
+    const { distanceKm, ratePerKm } = req.body;
+
+    if (distanceKm === undefined || distanceKm === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Distance is required for route verification.',
+      });
+    }
+
+    if (ratePerKm === undefined || ratePerKm === '') {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Rate per kilometer is required.' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Route screenshot is required.',
+      });
+    }
+
+    const execution = await ServiceExecution.findOne({
+      booking: bookingId,
+      vendor: vendorId,
+      status: 'Route Pending',
+    });
+
+    if (!execution) {
+      return res.status(404).json({
+        success: false,
+        message: 'Service execution not found.',
+      });
+    }
+
+    const distanceNum = Number(distanceKm);
+    const rateNum = Number(ratePerKm);
+
+    if (!Number.isFinite(distanceNum) || distanceNum < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Distance must be a valid  number.',
+      });
+    }
+    if (!Number.isFinite(rateNum) || rateNum < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rate per kilometer must be a valid number.',
+      });
+    }
+
+    let screenshot = {
+      url: null,
+      fileId: null,
+    };
+
+    if (req.file) {
+      try {
+        const result = await uploadImageToImageKit(
+          req.file.buffer,
+          req.file.originalname || `route-${Date.now()}.jpg`,
+        );
+
+        screenshot.url = result.url;
+        screenshot.fileId = result.fileId;
+      } catch (error) {
+        console.error('Route screenshot upload failed:', error);
+
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to upload route screenshot.',
+        });
+      }
+    }
+
+    // calculating travel charge
+    const travelCharge = distanceNum * rateNum;
+
+    //saving the ddata to the database
+    execution.route.screenshot = screenshot;
+
+    execution.route.distanceKm = distanceNum;
+    execution.route.ratePerKm = rateNum;
+    execution.route.travelCharge = travelCharge;
+
+    execution.route.verified = true;
+    execution.route.verifiedAt = new Date();
+
+    execution.status = 'Route Verified';
+
+    await execution.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Route verified successfully.',
+      serviceExecution: execution,
+    });
+  } catch (error) {
+    console.error('Submit Route Verification Error:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to submit route verification.',
+      error: error.message,
+    });
+  }
+};
+
+exports.submitServiceDetails = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const vendorId = req.user.id;
+
+    const { checklist, customerNote } = req.body;
+
+    const execution = await ServiceExecution.findOne({
+      booking: bookingId,
+      vendor: vendorId,
+      status: 'Route Verified',
+    });
+
+    if (!execution) {
+      return res.status(404).json({
+        success: false,
+        message:
+          'Service execution not found or route verification is not completed.',
+      });
+    }
+
+    let parsedChecklist;
+
+    try {
+      parsedChecklist =
+        typeof checklist === 'string' ? JSON.parse(checklist) : checklist;
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid checklist format.',
+      });
+    }
+
+    if (!parsedChecklist || typeof parsedChecklist !== 'object') {
+      return res.status(400).json({
+        success: false,
+        message: 'Checklist is required.',
+      });
+    }
+
+    const checklistFields = [
+      'service',
+      'inspection',
+      'diagnosis',
+      'testingCleanup',
+    ];
+
+    for (const field of checklistFields) {
+      if (typeof parsedChecklist[field] !== 'boolean') {
+        return res.status(400).json({
+          success: false,
+          message: `${field} must be true or false.`,
+        });
+      }
+    }
+
+    execution.checklist = {
+      service: parsedChecklist.service,
+      inspection: parsedChecklist.inspection,
+      diagnosis: parsedChecklist.diagnosis,
+      testingCleanup: parsedChecklist.testingCleanup,
+    };
+
+    execution.customerNote = customerNote || '';
+
+    const beforeImage = req.files?.beforeImage?.[0];
+
+    if (beforeImage) {
+      const beforeUpload = await uploadImageToImageKit(
+        beforeImage.buffer,
+        beforeImage.originalname || `before-${Date.now()}.jpg`,
+      );
+
+      execution.documentation.beforeImage = {
+        url: beforeUpload.url,
+        fileId: beforeUpload.fileId,
+      };
+    }
+
+    const afterImage = req.files?.afterImage?.[0];
+
+    if (afterImage) {
+      const afterUpload = await uploadImageToImageKit(
+        afterImage.buffer,
+        afterImage.originalname || `after-${Date.now()}.jpg`,
+      );
+
+      execution.documentation.afterImage = {
+        url: afterUpload.url,
+        fileId: afterUpload.fileId,
+      };
+    }
+
+    // Route Verified -> In Progress
+    execution.status = 'In Progress';
+
+    await execution.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Service details submitted successfully.',
+      serviceExecution: execution,
+    });
+  } catch (error) {
+    console.error('Submit Service Details Error:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to submit service details.',
+      error: error.message,
+    });
+  }
+};
+
+// exports.completeService = async (req, res) => {
+//   try {
+//     const { bookingId } = req.params;
+//     const vendorId = req.user.id;
+
+//     const { paymentMethod, discount = 0 } = req.body;
+
+//     if (!paymentMethod) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Payment method is required.',
+//       });
+//     }
+
+//     if (!['Cash', 'UPI'].includes(paymentMethod)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Payment method must be Cash or UPI.',
+//       });
+//     }
+
+//     const discountAmount = Number(discount);
+
+//     if (!Number.isFinite(discountAmount) || discountAmount < 0) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Discount must be a valid positive number.',
+//       });
+//     }
+
+//     const execution = await ServiceExecution.findOne({
+//       booking: bookingId,
+//       vendor: vendorId,
+//       status: 'In Progress',
+//     });
+
+//     if (!execution) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Service execution not found or service is not in progress.',
+//       });
+//     }
+
+//     const booking = await Booking.findOne({
+//       _id: bookingId,
+//       vendor: vendorId,
+//     });
+
+//     if (!booking) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Booking not found.',
+//       });
+//     }
+
+//     await booking.populate('customer', 'fullName phoneNumber');
+
+//     if (!booking.customer) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Customer associated with this booking was not found.',
+//       });
+//     }
+
+//     const existingInvoice = await Invoice.findOne({
+//       booking: bookingId,
+//     });
+
+//     if (existingInvoice) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Invoice has already been generated for this booking.',
+//         invoice: existingInvoice,
+//       });
+//     }
+
+//     const serviceCharge = Number(booking.serviceCategoryCharge || 0);
+
+//     if (!Number.isFinite(serviceCharge) || serviceCharge < 0) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Invalid service charge.',
+//       });
+//     }
+
+//     let travelCharge = 0;
+
+//     if (execution.route?.addToInvoice) {
+//       travelCharge = Number(execution.route?.travelCharge || 0);
+//     }
+
+//     if (!Number.isFinite(travelCharge) || travelCharge < 0) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Invalid travel charge.',
+//       });
+//     }
+
+//     //  Prepare invoice items
+
+//     const items = [];
+
+//     // Service item
+//     items.push({
+//       type: 'Service',
+//       name: booking.serviceCategory,
+//       quantity: 1,
+//       unitPrice: serviceCharge,
+//       amount: serviceCharge,
+//     });
+
+//     // Travel item
+//     if (travelCharge > 0) {
+//       items.push({
+//         type: 'Travel',
+//         name: 'Travel Charge',
+//         quantity: 1,
+//         unitPrice: travelCharge,
+//         amount: travelCharge,
+//       });
+//     }
+
+//     //  INVENTORY / COMPONENTS -- when inventory is created then here i have to add invenntory item code
+
+//     // 10. Calculate subtotal
+
+//     const subtotal = items.reduce((total, item) => total + item.amount, 0);
+
+//     //  TAX --- when admin fix the tax , than i have to write tax calculation code
+
+//     // Temporary tax until PricingConfig is created
+//     const tax = 0;
+
+//     //Validate Discount
+//     if (discountAmount > subtotal) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Discount cannot be greater than the subtotal.',
+//       });
+//     }
+
+//     //  Calculate total
+
+//     const totalAmount = subtotal - discountAmount + tax;
+
+//     // Generate invoice number
+
+//     const invoiceNumber = `MM-${Date.now()}`;
+
+//     const address = booking.address || {};
+
+//     const customerAddress = [
+//       address.addressLine1,
+//       address.street,
+//       address.city,
+//       address.state,
+//       address.pincode,
+//       address.landmark,
+//     ]
+//       .filter(Boolean)
+//       .join(', ');
+
+//     // Create invoice
+
+//     const invoice = await Invoice.create({
+//       booking: booking._id,
+
+//       customer: booking.customer._id,
+
+//       vendor: vendorId,
+
+//       serviceExecution: execution._id,
+
+//       invoiceNumber,
+
+//       customerSnapshot: {
+//         name: booking.customer.fullName,
+//         phone: booking.customer.phoneNumber || '',
+//         address: customerAddress,
+//       },
+
+//       serviceSnapshot: {
+//         appliance: booking.appliance,
+//         serviceCategory: booking.serviceCategory || '',
+//         serviceDate: booking.serviceDate,
+//       },
+
+//       items,
+
+//       // Amounts
+
+//       subtotal,
+
+//       discount: discountAmount,
+
+//       tax,
+
+//       totalAmount,
+
+//       // Payment
+
+//       paymentMethod,
+
+//       paymentStatus: 'Paid',
+
+//       paidAt: new Date(),
+
+//       customerNote: execution.customerNote || '',
+//     });
+
+//     execution.status = 'Completed';
+
+//     await execution.save();
+
+//     booking.bookingStatus = 'Completed';
+
+//     booking.completedAt = new Date();
+
+//     booking.paymentStatus = 'Paid';
+
+//     booking.paymentMethod = paymentMethod;
+
+//     await booking.save();
+
+//     return res.status(200).json({
+//       success: true,
+//       message: 'Service completed and invoice generated successfully.',
+
+//       invoice,
+
+//       serviceExecution: execution,
+
+//       booking,
+//     });
+//   } catch (error) {
+//     console.error('Complete Service Error:', error);
+
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Failed to complete service and generate invoice.',
+//       error: error.message,
+//     });
+//   }
+// };
+
+// ...new controller.........
+
+exports.completeService = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const vendorId = req.user.id;
+
+    const { paymentMethod, discount = 0, components = [] } = req.body;
+
+    if (!paymentMethod) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment method is required.',
+      });
+    }
+
+    if (!['Cash', 'UPI'].includes(paymentMethod)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment method must be Cash or UPI.',
+      });
+    }
+
+    const discountAmount = Number(discount);
+
+    if (!Number.isFinite(discountAmount) || discountAmount < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Discount must be a valid positive number.',
+      });
+    }
+
+    if (!Array.isArray(components)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Components must be an array.',
+      });
+    }
+
+    const execution = await ServiceExecution.findOne({
+      booking: bookingId,
+      vendor: vendorId,
+      status: 'In Progress',
+    });
+
+    if (!execution) {
+      return res.status(404).json({
+        success: false,
+        message: 'Service execution not found or service is not in progress.',
+      });
+    }
+
+    const booking = await Booking.findOne({
+      _id: bookingId,
+      vendor: vendorId,
+    });
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found.',
+      });
+    }
+
+    const vendorProfile = await VendorProfile.findOne({
+      user: vendorId,
+    });
+
+    // Check vendor profile before doing completion work
+    if (!vendorProfile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor profile not found. Cannot complete service.',
+      });
+    }
+
+    await booking.populate('customer', 'fullName phoneNumber');
+
+    if (!booking.customer) {
+      return res.status(400).json({
+        success: false,
+        message: 'Customer associated with this booking was not found.',
+      });
+    }
+
+    const existingInvoice = await Invoice.findOne({
+      booking: bookingId,
+    });
+
+    if (existingInvoice) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invoice has already been generated for this booking.',
+        invoice: existingInvoice,
+      });
+    }
+
+    const serviceCharge = Number(booking.serviceCategoryCharge || 0);
+
+    if (!Number.isFinite(serviceCharge) || serviceCharge < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid service charge.',
+      });
+    }
+
+    let travelCharge = 0;
+
+    if (execution.route?.addToInvoice) {
+      travelCharge = Number(execution.route?.travelCharge || 0);
+    }
+
+    if (!Number.isFinite(travelCharge) || travelCharge < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid travel charge.',
+      });
+    }
+
+    const items = [];
+
+    items.push({
+      type: 'Service',
+      name: booking.serviceCategory,
+      quantity: 1,
+      unitPrice: serviceCharge,
+      amount: serviceCharge,
+    });
+
+    if (travelCharge > 0) {
+      items.push({
+        type: 'Travel',
+        name: 'Travel Charge',
+        quantity: 1,
+        unitPrice: travelCharge,
+        amount: travelCharge,
+      });
+    }
+
+    const inventoryUpdates = [];
+
+    for (const component of components) {
+      const { inventoryId, quantity } = component;
+
+      if (!inventoryId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Inventory ID is required for every component.',
+        });
+      }
+
+      const componentQuantity = Number(quantity);
+
+      if (!Number.isInteger(componentQuantity) || componentQuantity <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Component quantity must be a positive whole number.',
+        });
+      }
+
+      const inventoryItem = await Inventory.findOne({
+        inventoryId: inventoryId,
+        isActive: true,
+      });
+
+      if (!inventoryItem) {
+        return res.status(404).json({
+          success: false,
+          message: `Inventory item not found: ${inventoryId}`,
+        });
+      }
+
+      if (inventoryItem.stockQuantity < componentQuantity) {
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient stock for ${inventoryItem.itemName}. Available: ${inventoryItem.stockQuantity}, Required: ${componentQuantity}`,
+        });
+      }
+
+      const unitPrice = Number(inventoryItem.unitPrice);
+
+      if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid unit price for ${inventoryItem.itemName}.`,
+        });
+      }
+
+      const amount = componentQuantity * unitPrice;
+
+      items.push({
+        type: 'Component',
+        name: inventoryItem.itemName,
+        inventoryItem: inventoryItem._id,
+        quantity: componentQuantity,
+        unitPrice,
+        amount,
+      });
+
+      inventoryUpdates.push({
+        inventoryItem,
+        quantity: componentQuantity,
+      });
+    }
+
+    const subtotal = items.reduce((total, item) => total + item.amount, 0);
+
+    const tax = 0;
+
+    if (discountAmount > subtotal) {
+      return res.status(400).json({
+        success: false,
+        message: 'Discount cannot be greater than the subtotal.',
+      });
+    }
+
+    const totalAmount = subtotal - discountAmount + tax;
+
+    const invoiceNumber = `MM-${Date.now()}`;
+
+    const address = booking.address || {};
+
+    const customerAddress = [
+      address.addressLine1,
+      address.street,
+      address.city,
+      address.state,
+      address.pincode,
+      address.landmark,
+    ]
+      .filter(Boolean)
+      .join(', ');
+
+    const invoice = await Invoice.create({
+      booking: booking._id,
+      customer: booking.customer._id,
+      vendor: vendorId,
+      serviceExecution: execution._id,
+      invoiceNumber,
+
+      customerSnapshot: {
+        name: booking.customer.fullName,
+        phone: booking.customer.phoneNumber || '',
+        address: customerAddress,
+      },
+
+      serviceSnapshot: {
+        appliance: booking.appliance,
+        serviceCategory: booking.serviceCategory || '',
+        serviceDate: booking.serviceDate,
+      },
+
+      items,
+
+      subtotal,
+      discount: discountAmount,
+      tax,
+      totalAmount,
+
+      paymentMethod,
+      paymentStatus: 'Paid',
+      paidAt: new Date(),
+
+      customerNote: execution.customerNote || '',
+    });
+
+    for (const update of inventoryUpdates) {
+      update.inventoryItem.stockQuantity -= update.quantity;
+      await update.inventoryItem.save();
+    }
+
+    execution.status = 'Completed';
+    await execution.save();
+
+    booking.bookingStatus = 'Completed';
+    booking.completedAt = new Date();
+    booking.paymentStatus = 'Paid';
+    booking.paymentMethod = paymentMethod;
+
+    await booking.save();
+
+    // increasing job count in the vendor profile
+    vendorProfile.jobsCompleted += 1;
+    await vendorProfile.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Service completed and invoice generated successfully.',
+      invoice,
+      serviceExecution: execution,
+      booking,
+    });
+  } catch (error) {
+    console.error('Complete Service Error:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to complete service and generate invoice.',
       error: error.message,
     });
   }
