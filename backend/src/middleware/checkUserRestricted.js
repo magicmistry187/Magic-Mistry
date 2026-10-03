@@ -1,4 +1,5 @@
 const User = require("../models/user.model");
+const Booking = require("../models/booking.model");
 
 exports.checkUserRestricted = async (req, res, next) => {
   try {
@@ -44,7 +45,7 @@ exports.checkUserRestricted = async (req, res, next) => {
     if (user.status === "suspended") {
       //Active suspension
 
-      if (user.suspendedUntil && user.suspendedUntil >= new Date()) {
+      if (user.suspendedUntil && user.suspendedUntil > new Date()) {
         return res.status(403).json({
           success: false,
           message:
@@ -54,8 +55,11 @@ exports.checkUserRestricted = async (req, res, next) => {
 
       //Suspension expired
       if (user.suspendedUntil && user.suspendedUntil <= new Date()) {
+
         user.status = "active";
         user.suspendedUntil = null;
+
+
       }
 
       await user.save();

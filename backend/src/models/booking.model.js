@@ -1,16 +1,16 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const bookingSchema = new mongoose.Schema(
   {
     customer: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
     },
 
     vendor: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       default: null,
     },
 
@@ -38,7 +38,6 @@ const bookingSchema = new mongoose.Schema(
     image: {
       type: String,
     },
-    
 
     // Address snapshot at the time of booking
     address: {
@@ -50,7 +49,7 @@ const bookingSchema = new mongoose.Schema(
     location: {
       type: {
         type: String,
-        enum: ['Point'],
+        enum: ["Point"],
       },
       coordinates: {
         type: [Number],
@@ -67,25 +66,30 @@ const bookingSchema = new mongoose.Schema(
     bookingStatus: {
       type: String,
       enum: [
-        'Pending',
-        'Accepted',
-        'On The Way',
-        'In Progress',
-        'Completed',
-        'Cancelled',
-        'Closed',
+        "Pending",
+        "Accepted",
+        "On The Way",
+        "In Progress",
+        "Completed",
+        "Cancelled",
+        "Closed",
       ],
-      default: 'Pending',
+      default: "Pending",
+    },
+
+    cancelDueToSuspension: {
+      type: Boolean,
+      default: false,
     },
     paymentStatus: {
       type: String,
-      enum: ['Pending', 'Paid'],
-      default: 'Pending',
+      enum: ["Pending", "Paid"],
+      default: "Pending",
     },
     paymentMethod: {
       type: String,
-      enum: ['Cash After Service', 'UPI', 'Online Payment'],
-      default: 'Cash After Service',
+      enum: ["Cash After Service", "UPI", "Online Payment"],
+      default: "Cash After Service",
     },
     serviceCharge: {
       type: Number,
@@ -108,7 +112,7 @@ const bookingSchema = new mongoose.Schema(
 );
 
 // Ensure location is omitted completely if coordinates are missing or invalid
-bookingSchema.pre('validate', function (next) {
+bookingSchema.pre("validate", function (next) {
   if (
     !this.location ||
     !Array.isArray(this.location.coordinates) ||
@@ -118,7 +122,7 @@ bookingSchema.pre('validate', function (next) {
   ) {
     this.location = undefined;
   } else if (!this.location.type) {
-    this.location.type = 'Point';
+    this.location.type = "Point";
   }
   next();
 });
@@ -135,6 +139,6 @@ bookingSchema.index({ vendor: 1, bookingStatus: 1 });
 bookingSchema.index({ bookingStatus: 1, serviceDate: 1 });
 
 // Geospatial index for distance and radius queries
-bookingSchema.index({ location: '2dsphere' }, { sparse: true });
+bookingSchema.index({ location: "2dsphere" }, { sparse: true });
 
-module.exports = mongoose.model('Booking', bookingSchema);
+module.exports = mongoose.model("Booking", bookingSchema);

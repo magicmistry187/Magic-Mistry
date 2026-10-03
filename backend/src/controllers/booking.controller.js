@@ -11,6 +11,14 @@ const {
   emitBookingCancelled,
 } = require('../socket/socketEmitter');
 
+
+
+const checkHandleSuspensionForBooking = async(booking)=>{
+     
+  
+}
+
+
 exports.createBooking = async (req, res) => {
   try {
     let {
