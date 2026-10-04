@@ -1,5 +1,6 @@
 const User = require("../models/user.model");
 const Booking = require("../models/booking.model");
+const sendEmail = require("../utils/sendEmail");
 
 //Update User Account Status
 exports.updateUserStatus = async (req, res) => {
@@ -37,9 +38,11 @@ exports.updateUserStatus = async (req, res) => {
       });
     }
 
+    const newStatus = status.toLowerCase();
+
     //Handle each status
 
-    if (status === "suspended") {
+    if (newStatus === "suspended") {
       if (
         durationDays === undefined ||
         !Number.isInteger(durationDays) ||
@@ -76,7 +79,6 @@ exports.updateUserStatus = async (req, res) => {
             booking.cancelDueToSuspension = false;
             await booking.save();
           } else {
-            
             //Booking happens after suspension
             //Temporarily cancel it
 
@@ -86,10 +88,10 @@ exports.updateUserStatus = async (req, res) => {
           }
         }
       }
-    } else if (status === "active") {
+    } else if (newStatus === "active") {
       user.status = "active";
       user.suspendedUntil = null;
-    } else if (status === "blocked") {
+    } else if (newStatus === "blocked") {
       user.status = "blocked";
       user.suspendedUntil = null;
 
@@ -100,7 +102,7 @@ exports.updateUserStatus = async (req, res) => {
           {
             customer: user._id,
             bookingStatus: {
-              $in: ["Pending", "Accepeted", "On the Way"],
+              $in: ["Pending", "Accepted", "On the Way"],
             },
           },
           {
@@ -113,7 +115,90 @@ exports.updateUserStatus = async (req, res) => {
       }
     }
 
-    //Save Changes
+    if (
+      user.role === "vendor" &&
+      (newStatus === "suspended" || newStatus === "blocked")
+    ) {
+      //Find the accepted Booking of vendor and update it
+
+      // await Booking.updateOne(
+      //   {
+      //     vendor: user._id,
+      //     bookingStatus: "Accepted",
+      //   },
+      //   {
+      //     $set: {
+      //       vendor: null,
+      //       bookingStatus: "Pending",
+      //       isReassignmentRequired: true,
+      //     },
+      //   },
+      // );
+
+      const booking = await Booking.findOneAndUpdate(
+        {
+          vendor: user._id,
+          bookingStatus: "Accepted",
+        },
+        {
+          $set: {
+            vendor: null,
+            bookingStatus: "Pending",
+            isReassignmentRequired: true,
+          },
+        },
+        {
+          new: true,
+        },
+      ).populate("customer", "email fullName phoneNumber");
+
+      console.log("Email of customer : ", booking.customer.email);
+
+      if (booking) {
+        try {
+          //sending mail to customer for updating about booking
+
+          const emailBody = `
+  <div>
+    <p>Dear ${booking.customer.fullName},</p>
+
+    <p>
+      We wanted to let you know that due to an unexpected issue with the
+      service provider assigned to your booking, there may be a delay in
+      your scheduled service.
+    </p>
+
+    <p>
+      We apologize for the inconvenience. Our team is currently working to
+      arrange another suitable service provider for you and will update you
+      as soon as possible.
+    </p>
+
+    <p>
+      Thank you for your patience and understanding.
+    </p>
+
+    <p>
+      Regards,<br>
+      <strong>Magic Mistry Team</strong>
+    </p>
+  </div>
+`;
+
+          await sendEmail(
+            booking.customer.email,
+            "Update regarding your Magic Mistry service booking",
+            emailBody,
+          );
+        } catch (emailErr) {
+          console.warn(
+            " Email notification failed while updating customer about service:",
+            emailErr.message,
+          );
+        }
+      }
+    }
+
     await user.save();
 
     return res.status(200).json({

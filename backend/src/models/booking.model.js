@@ -99,6 +99,13 @@ const bookingSchema = new mongoose.Schema(
       // required: true,
       min: 0,
     },
+
+    //For assigning booking to another vendor if the original vendor is unable to complete the service or blocked or suspended by admin.
+    isReassignmentRequired: {
+      type: Boolean,
+      default: false,
+    },
+
     acceptedAt: {
       type: Date,
       default: null,

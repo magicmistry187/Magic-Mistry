@@ -1,24 +1,16 @@
-const Booking = require('../models/booking.model');
-const Address = require('../models/address.model');
-const VendorProfile = require('../models/vendorProfile.model');
-const { uploadImageToImageKit } = require('../config/imagekit');
-const ServiceExecution = require('../models/serviceExecution.model');
-const Invoice = require('../models/invoice.model');
-const Inventory = require('../models/inventory.model');
+const Booking = require("../models/booking.model");
+const Address = require("../models/address.model");
+const VendorProfile = require("../models/vendorProfile.model");
+const { uploadImageToImageKit } = require("../config/imagekit");
+const ServiceExecution = require("../models/serviceExecution.model");
+const Invoice = require("../models/invoice.model");
+const Inventory = require("../models/inventory.model");
 const {
   emitNewBooking,
   emitBookingStatusUpdated,
   emitBookingTaken,
   emitBookingCancelled,
-} = require('../socket/socketEmitter');
-
-
-
-const checkHandleSuspensionForBooking = async(booking)=>{
-     
-  
-}
-
+} = require("../socket/socketEmitter");
 
 exports.createBooking = async (req, res) => {
   try {
@@ -37,32 +29,32 @@ exports.createBooking = async (req, res) => {
     const selectedAppliance = appliance || serviceCategory;
 
     console.log(
-      'Value of longitude and latitude came from frontend:  ',
+      "Value of longitude and latitude came from frontend:  ",
       longitude,
-      ',',
+      ",",
       latitude,
     );
 
     // If address was sent as multipart form-data bracket fields like address[addressLine1]
     if (
       !address &&
-      (req.body['address[addressLine1]'] ||
-        req.body['address[city]'] ||
-        req.body['address[street]'])
+      (req.body["address[addressLine1]"] ||
+        req.body["address[city]"] ||
+        req.body["address[street]"])
     ) {
       address = {
-        addressLine1: req.body['address[addressLine1]'] || '',
-        street: req.body['address[street]'] || '',
-        city: req.body['address[city]'] || '',
-        state: req.body['address[state]'] || '',
-        pincode: req.body['address[pincode]'] || '',
-        landmark: req.body['address[landmark]'] || '',
-        country: req.body['address[country]'] || 'India',
+        addressLine1: req.body["address[addressLine1]"] || "",
+        street: req.body["address[street]"] || "",
+        city: req.body["address[city]"] || "",
+        state: req.body["address[state]"] || "",
+        pincode: req.body["address[pincode]"] || "",
+        landmark: req.body["address[landmark]"] || "",
+        country: req.body["address[country]"] || "India",
       };
-    } else if (typeof address === 'string') {
+    } else if (typeof address === "string") {
       try {
         const parsed = JSON.parse(address);
-        if (typeof parsed === 'object' && parsed !== null) {
+        if (typeof parsed === "object" && parsed !== null) {
           address = parsed;
         }
       } catch (_) {
@@ -75,12 +67,12 @@ exports.createBooking = async (req, res) => {
       return res.status(400).json({
         success: false,
         message:
-          'All required fields (appliance, address, serviceDate, timeSlot) must be provided.',
+          "All required fields (appliance, address, serviceDate, timeSlot) must be provided.",
       });
     }
 
     // Upload image if provided
-    let image = '';
+    let image = "";
 
     if (req.file) {
       try {
@@ -90,11 +82,11 @@ exports.createBooking = async (req, res) => {
         );
         image = result.url;
       } catch (error) {
-        console.error('Image upload failed:', error);
+        console.error("Image upload failed:", error);
 
         return res.status(500).json({
           success: false,
-          message: 'Failed to upload image.',
+          message: "Failed to upload image.",
         });
       }
     }
@@ -103,7 +95,7 @@ exports.createBooking = async (req, res) => {
     const bookingData = {
       customer: req.user.id,
       appliance: selectedAppliance,
-      issue: issue || 'General Repair & Maintenance',
+      issue: issue || "General Repair & Maintenance",
       image,
       address,
       serviceDate,
@@ -115,21 +107,21 @@ exports.createBooking = async (req, res) => {
     let latNum =
       latitude !== null &&
       latitude !== undefined &&
-      latitude !== '' &&
+      latitude !== "" &&
       !isNaN(Number(latitude))
         ? Number(latitude)
         : null;
     let lngNum =
       longitude !== null &&
       longitude !== undefined &&
-      longitude !== '' &&
+      longitude !== "" &&
       !isNaN(Number(longitude))
         ? Number(longitude)
         : null;
 
     // Fallback: If coordinates were omitted, attempt extraction from address object or customer default Address
     if (latNum === null || lngNum === null) {
-      if (typeof address === 'object' && address !== null) {
+      if (typeof address === "object" && address !== null) {
         if (
           address.location?.coordinates?.length === 2 &&
           !isNaN(Number(address.location.coordinates[0])) &&
@@ -161,7 +153,7 @@ exports.createBooking = async (req, res) => {
         }
       } catch (addrErr) {
         console.warn(
-          '[Booking] Could not fallback to default address coordinates:',
+          "[Booking] Could not fallback to default address coordinates:",
           addrErr,
         );
       }
@@ -169,7 +161,7 @@ exports.createBooking = async (req, res) => {
 
     if (latNum !== null && lngNum !== null) {
       bookingData.location = {
-        type: 'Point',
+        type: "Point",
         coordinates: [lngNum, latNum],
       };
     }
@@ -177,8 +169,8 @@ exports.createBooking = async (req, res) => {
     const booking = await Booking.create(bookingData);
 
     const populatedBooking = await Booking.findById(booking._id).populate(
-      'customer',
-      'fullName email phoneNumber',
+      "customer",
+      "fullName email phoneNumber",
     );
 
     // Real-time: notify vendors and admin immediately
@@ -186,15 +178,15 @@ exports.createBooking = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Booking created successfully.',
+      message: "Booking created successfully.",
       booking: populatedBooking || booking,
     });
   } catch (error) {
-    console.error('Create Booking Error:', error);
+    console.error("Create Booking Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: 'Internal Server Error.',
+      message: "Internal Server Error.",
       error: error.message,
     });
   }
@@ -205,8 +197,8 @@ exports.getMyBookings = async (req, res) => {
   try {
     const userId = req.user.id;
     const bookings = await Booking.find({ customer: req.user.id })
-      .populate('customer', 'fullName email phoneNumber')
-      .populate('vendor', 'fullName email phoneNumber')
+      .populate("customer", "fullName email phoneNumber")
+      .populate("vendor", "fullName email phoneNumber")
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
@@ -215,11 +207,11 @@ exports.getMyBookings = async (req, res) => {
       bookings,
     });
   } catch (error) {
-    console.error('Get My Bookings Error:', error);
+    console.error("Get My Bookings Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to fetch bookings.',
+      message: "Failed to fetch bookings.",
       error: error.message,
     });
   }
@@ -232,22 +224,22 @@ exports.getBookingDetails = async (req, res) => {
 
     let query = { _id: bookingId };
 
-    if (req.user.role === 'customer') {
+    if (req.user.role === "customer") {
       query.customer = req.user.id;
     }
 
-    if (req.user.role === 'vendor') {
+    if (req.user.role === "vendor") {
       query.vendor = req.user.id;
     }
 
     const booking = await Booking.findOne(query)
-      .populate('customer', 'fullName email phoneNumber')
-      .populate('vendor', 'fullName email phoneNumber');
+      .populate("customer", "fullName email phoneNumber")
+      .populate("vendor", "fullName email phoneNumber");
 
     if (!booking) {
       return res.status(404).json({
         success: false,
-        message: 'Booking not found.',
+        message: "Booking not found.",
       });
     }
 
@@ -256,11 +248,11 @@ exports.getBookingDetails = async (req, res) => {
       booking,
     });
   } catch (error) {
-    console.error('Get Booking Details Error:', error);
+    console.error("Get Booking Details Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to fetch booking details.',
+      message: "Failed to fetch booking details.",
       error: error.message,
     });
   }
@@ -279,49 +271,49 @@ exports.cancelBooking = async (req, res) => {
     if (!booking) {
       return res.status(404).json({
         success: false,
-        message: 'Booking not found or you are not authorized to cancel it.',
+        message: "Booking not found or you are not authorized to cancel it.",
       });
     }
 
-    if (booking.bookingStatus === 'Cancelled') {
+    if (booking.bookingStatus === "Cancelled") {
       return res.status(400).json({
         success: false,
-        message: 'Booking is already cancelled.',
+        message: "Booking is already cancelled.",
       });
     }
 
-    if (booking.bookingStatus === 'Completed') {
+    if (booking.bookingStatus === "Completed") {
       return res.status(400).json({
         success: false,
-        message: 'Completed bookings cannot be cancelled.',
+        message: "Completed bookings cannot be cancelled.",
       });
     }
-    if (booking.bookingStatus === 'Accepted') {
+    if (booking.bookingStatus === "Accepted") {
       return res.status(400).json({
         success: false,
-        message: 'Accepted bookings cannot be cancelled.',
+        message: "Accepted bookings cannot be cancelled.",
       });
     }
-    booking.bookingStatus = 'Cancelled';
+    booking.bookingStatus = "Cancelled";
     await booking.save();
 
     const populatedBooking = await Booking.findById(booking._id)
-      .populate('customer', 'fullName email phoneNumber')
-      .populate('vendor', 'fullName email phoneNumber');
+      .populate("customer", "fullName email phoneNumber")
+      .populate("vendor", "fullName email phoneNumber");
 
     emitBookingCancelled(populatedBooking || booking);
 
     return res.status(200).json({
       success: true,
-      message: 'Booking cancelled successfully.',
+      message: "Booking cancelled successfully.",
       booking: populatedBooking || booking,
     });
   } catch (error) {
-    console.error('Cancel Booking Error:', error);
+    console.error("Cancel Booking Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to cancel booking.',
+      message: "Failed to cancel booking.",
       error: error.message,
     });
   }
@@ -330,8 +322,8 @@ exports.cancelBooking = async (req, res) => {
 exports.getBookingsToAdmin = async (req, res) => {
   try {
     const bookings = await Booking.find()
-      .populate('customer', 'fullName email phoneNumber')
-      .populate('vendor', 'fullName email phoneNumber')
+      .populate("customer", "fullName email phoneNumber")
+      .populate("vendor", "fullName email phoneNumber")
       .sort({ createdAt: -1 });
     // console.log('Bookings fetched:', bookings);
 
@@ -339,14 +331,14 @@ exports.getBookingsToAdmin = async (req, res) => {
       success: true,
       count: bookings.length,
       bookings,
-      message: 'All bookings fetched successfully.',
+      message: "All bookings fetched successfully.",
     });
   } catch (error) {
-    console.error('Get All Bookings Error:', error);
+    console.error("Get All Bookings Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to fetch bookings.',
+      message: "Failed to fetch bookings.",
       error: error.message,
     });
   }
@@ -356,24 +348,24 @@ exports.getBookingsToVendor = async (req, res) => {
   try {
     const vendorId = req.user.id;
     const bookings = await Booking.find({
-      $or: [{ bookingStatus: 'Pending' }, { vendor: vendorId }],
+      $or: [{ bookingStatus: "Pending" }, { vendor: vendorId }],
     })
-      .populate('customer', 'fullName email phoneNumber')
-      .populate('vendor', 'fullName email phoneNumber')
+      .populate("customer", "fullName email phoneNumber")
+      .populate("vendor", "fullName email phoneNumber")
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
       count: bookings.length,
       bookings,
-      message: 'Vendor bookings fetched successfully.',
+      message: "Vendor bookings fetched successfully.",
     });
   } catch (error) {
-    console.error('Get Bookings to Vendor Error:', error);
+    console.error("Get Bookings to Vendor Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to fetch bookings.',
+      message: "Failed to fetch bookings.",
       error: error.message,
     });
   }
@@ -389,8 +381,8 @@ exports.getBookingToVendorUnderRange = async (req, res) => {
     const assignedBookings = await Booking.find({
       vendor: vendorId,
     })
-      .populate('customer', 'fullName email phoneNumber')
-      .populate('vendor', 'fullName email phoneNumber')
+      .populate("customer", "fullName email phoneNumber")
+      .populate("vendor", "fullName email phoneNumber")
       .lean();
 
     // 2. Fetch vendor profile & determine active location and radius
@@ -424,12 +416,12 @@ exports.getBookingToVendorUnderRange = async (req, res) => {
           {
             $geoNear: {
               near: vendorLocation,
-              key: 'location',
-              distanceField: 'distance',
+              key: "location",
+              distanceField: "distance",
               maxDistance: radius * 1000,
               spherical: true,
               query: {
-                bookingStatus: 'Pending',
+                bookingStatus: "Pending",
                 $or: [{ vendor: null }, { vendor: { $exists: false } }],
               },
             },
@@ -438,47 +430,47 @@ exports.getBookingToVendorUnderRange = async (req, res) => {
         ]);
 
         await Booking.populate(geoPending, [
-          { path: 'customer', select: 'fullName email phoneNumber' },
-          { path: 'vendor', select: 'fullName email phoneNumber' },
+          { path: "customer", select: "fullName email phoneNumber" },
+          { path: "vendor", select: "fullName email phoneNumber" },
         ]);
 
         // Also fetch pending bookings without location coordinates so they are never dropped
         const nonGeoPending = await Booking.find({
-          bookingStatus: 'Pending',
+          bookingStatus: "Pending",
           $or: [{ vendor: null }, { vendor: { $exists: false } }],
           $or: [
             { location: { $exists: false } },
             { location: null },
-            { 'location.coordinates': { $exists: false } },
-            { 'location.coordinates': { $size: 0 } },
+            { "location.coordinates": { $exists: false } },
+            { "location.coordinates": { $size: 0 } },
           ],
         })
-          .populate('customer', 'fullName email phoneNumber')
-          .populate('vendor', 'fullName email phoneNumber')
+          .populate("customer", "fullName email phoneNumber")
+          .populate("vendor", "fullName email phoneNumber")
           .lean();
 
         pendingBookings = [...geoPending, ...nonGeoPending];
       } catch (geoErr) {
         console.warn(
-          'Geo query failed, falling back to all pending:',
+          "Geo query failed, falling back to all pending:",
           geoErr.message,
         );
         pendingBookings = await Booking.find({
-          bookingStatus: 'Pending',
+          bookingStatus: "Pending",
           $or: [{ vendor: null }, { vendor: { $exists: false } }],
         })
-          .populate('customer', 'fullName email phoneNumber')
-          .populate('vendor', 'fullName email phoneNumber')
+          .populate("customer", "fullName email phoneNumber")
+          .populate("vendor", "fullName email phoneNumber")
           .lean();
       }
     } else {
       // Vendor has no address/coordinates configured yet -> return all pending bookings as fallback
       pendingBookings = await Booking.find({
-        bookingStatus: 'Pending',
+        bookingStatus: "Pending",
         $or: [{ vendor: null }, { vendor: { $exists: false } }],
       })
-        .populate('customer', 'fullName email phoneNumber')
-        .populate('vendor', 'fullName email phoneNumber')
+        .populate("customer", "fullName email phoneNumber")
+        .populate("vendor", "fullName email phoneNumber")
         .lean();
     }
 
@@ -501,72 +493,150 @@ exports.getBookingToVendorUnderRange = async (req, res) => {
       count: allBookings.length,
       bookings: allBookings,
       radius,
-      message: 'Vendor bookings fetched successfully.',
+      message: "Vendor bookings fetched successfully.",
     });
   } catch (err) {
-    console.error('Error while fetching vendor bookings: ', err);
+    console.error("Error while fetching vendor bookings: ", err);
     return res.status(500).json({
       success: false,
-      message: 'Failed to fetch vendor bookings',
+      message: "Failed to fetch vendor bookings",
       error: err.message,
     });
   }
 };
+// exports.acceptBooking = async (req, res) => {
+//   try {
+//     const { bookingId } = req.params;
+//     const vendorId = req.user.id;
+
+//     const booking = await Booking.findOneAndUpdate(
+//       {
+//         _id: bookingId,
+//         bookingStatus: "Pending",
+//       },
+//       {
+//         $set: {
+//           vendor: vendorId,
+//           bookingStatus: "Accepted",
+//           acceptedAt: new Date(),
+//         },
+//       },
+//       {
+//         new: true,
+//       },
+//     );
+
+//     const reassignedBooking = await Booking.findOneAndUpdate(
+//       {
+//         _id: bookingId,
+//         isReassignmentRequired: true,
+//         bookingStatus: "Pending",
+//       },
+//       {
+//         $set: {
+//           vendor: vendorId,
+//           bookingStatus: "Accepted",
+//           isReassignmentRequired: false,
+//         },
+//       },
+//     );
+
+//     if (!booking || !reassignedBooking) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Booking is no longer available.",
+//       });
+//     }
+
+//     // updated part
+
+//     await ServiceExecution.create({
+//       booking: booking._id,
+//       vendor: vendorId,
+//       status: "Route Pending",
+//     });
+
+//     const updated = await Booking.findById(bookingId)
+//       .populate("customer", "fullName email phoneNumber")
+//       .populate("vendor", "fullName email phoneNumber");
+
+//     // Real-time: update customer & admin, and remove from other vendors' pools
+//     emitBookingStatusUpdated(updated);
+//     emitBookingTaken(bookingId, vendorId);
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Booking accepted successfully.",
+//       booking: updated,
+//     });
+//   } catch (error) {
+//     console.error("Accept Booking Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to accept booking.",
+//       error: error.message,
+//     });
+//   }
+// };
+
+
+//little bit modification for reassigning vendor 
 exports.acceptBooking = async (req, res) => {
   try {
     const { bookingId } = req.params;
     const vendorId = req.user.id;
 
-    const booking = await Booking.findOneAndUpdate(
-      {
-        _id: bookingId,
-        bookingStatus: 'Pending',
-      },
-      {
-        $set: {
-          vendor: vendorId,
-          bookingStatus: 'Accepted',
-          acceptedAt: new Date(),
-        },
-      },
-      {
-        new: true,
-      },
-    );
+    // Find booking
+    const booking = await Booking.findOne({
+      _id: bookingId,
+      bookingStatus: "Pending",
+    });
 
     if (!booking) {
       return res.status(400).json({
         success: false,
-        message: 'Booking is no longer available.',
+        message: "Booking is no longer available.",
       });
     }
 
-    // updated part
+    // Accept booking
+    booking.vendor = vendorId;
+    booking.bookingStatus = "Accepted";
+    booking.acceptedAt = new Date();
 
+    // If this was a reassignment booking
+    if (booking.isReassignmentRequired) {
+      booking.isReassignmentRequired = false;
+    }
+
+    await booking.save();
+
+    // Create service execution
     await ServiceExecution.create({
       booking: booking._id,
       vendor: vendorId,
-      status: 'Route Pending',
+      status: "Route Pending",
     });
 
     const updated = await Booking.findById(bookingId)
-      .populate('customer', 'fullName email phoneNumber')
-      .populate('vendor', 'fullName email phoneNumber');
+      .populate("customer", "fullName email phoneNumber")
+      .populate("vendor", "fullName email phoneNumber");
 
-    // Real-time: update customer & admin, and remove from other vendors' pools
+    // Real-time updates
     emitBookingStatusUpdated(updated);
     emitBookingTaken(bookingId, vendorId);
 
     return res.status(200).json({
       success: true,
-      message: 'Booking accepted successfully.',
+      message: "Booking accepted successfully.",
       booking: updated,
     });
   } catch (error) {
-    console.error('Accept Booking Error:', error);
+    console.error("Accept Booking Error:", error);
+
     return res.status(500).json({
       success: false,
-      message: 'Failed to accept booking.',
+      message: "Failed to accept booking.",
       error: error.message,
     });
   }
@@ -586,11 +656,11 @@ exports.updateBookingStatus = async (req, res) => {
     if (!booking) {
       return res.status(404).json({
         success: false,
-        message: 'Booking not found or not assigned to you.',
+        message: "Booking not found or not assigned to you.",
       });
     }
 
-    const allowedStatuses = ['In Progress', 'Completed', 'Cancelled'];
+    const allowedStatuses = ["In Progress", "Completed", "Cancelled"];
     if (status && !allowedStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -602,9 +672,9 @@ exports.updateBookingStatus = async (req, res) => {
       booking.bookingStatus = status;
     }
 
-    if (status === 'Completed') {
+    if (status === "Completed") {
       booking.completedAt = new Date();
-      booking.paymentStatus = paymentStatus || 'Paid';
+      booking.paymentStatus = paymentStatus || "Paid";
     }
 
     if (serviceCharge !== undefined && serviceCharge !== null) {
@@ -620,8 +690,8 @@ exports.updateBookingStatus = async (req, res) => {
     await booking.save();
 
     const updated = await Booking.findById(bookingId)
-      .populate('customer', 'fullName email phoneNumber')
-      .populate('vendor', 'fullName email phoneNumber');
+      .populate("customer", "fullName email phoneNumber")
+      .populate("vendor", "fullName email phoneNumber");
 
     // Real-time: inform customer, vendor, and admin
     emitBookingStatusUpdated(updated);
@@ -632,10 +702,10 @@ exports.updateBookingStatus = async (req, res) => {
       booking: updated,
     });
   } catch (error) {
-    console.error('Update Booking Status Error:', error);
+    console.error("Update Booking Status Error:", error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to update booking status.',
+      message: "Failed to update booking status.",
       error: error.message,
     });
   }
@@ -647,36 +717,36 @@ exports.routeVerification = async (req, res) => {
     const vendorId = req.user.id;
     const { distanceKm, ratePerKm } = req.body;
 
-    if (distanceKm === undefined || distanceKm === '') {
+    if (distanceKm === undefined || distanceKm === "") {
       return res.status(400).json({
         success: false,
-        message: 'Distance is required for route verification.',
+        message: "Distance is required for route verification.",
       });
     }
 
-    if (ratePerKm === undefined || ratePerKm === '') {
+    if (ratePerKm === undefined || ratePerKm === "") {
       return res
         .status(400)
-        .json({ success: false, message: 'Rate per kilometer is required.' });
+        .json({ success: false, message: "Rate per kilometer is required." });
     }
 
     if (!req.file) {
       return res.status(400).json({
         success: false,
-        message: 'Route screenshot is required.',
+        message: "Route screenshot is required.",
       });
     }
 
     const execution = await ServiceExecution.findOne({
       booking: bookingId,
       vendor: vendorId,
-      status: 'Route Pending',
+      status: "Route Pending",
     });
 
     if (!execution) {
       return res.status(404).json({
         success: false,
-        message: 'Service execution not found.',
+        message: "Service execution not found.",
       });
     }
 
@@ -686,13 +756,13 @@ exports.routeVerification = async (req, res) => {
     if (!Number.isFinite(distanceNum) || distanceNum < 0) {
       return res.status(400).json({
         success: false,
-        message: 'Distance must be a valid  number.',
+        message: "Distance must be a valid  number.",
       });
     }
     if (!Number.isFinite(rateNum) || rateNum < 0) {
       return res.status(400).json({
         success: false,
-        message: 'Rate per kilometer must be a valid number.',
+        message: "Rate per kilometer must be a valid number.",
       });
     }
 
@@ -711,11 +781,11 @@ exports.routeVerification = async (req, res) => {
         screenshot.url = result.url;
         screenshot.fileId = result.fileId;
       } catch (error) {
-        console.error('Route screenshot upload failed:', error);
+        console.error("Route screenshot upload failed:", error);
 
         return res.status(500).json({
           success: false,
-          message: 'Failed to upload route screenshot.',
+          message: "Failed to upload route screenshot.",
         });
       }
     }
@@ -733,21 +803,21 @@ exports.routeVerification = async (req, res) => {
     execution.route.verified = true;
     execution.route.verifiedAt = new Date();
 
-    execution.status = 'Route Verified';
+    execution.status = "Route Verified";
 
     await execution.save();
 
     return res.status(200).json({
       success: true,
-      message: 'Route verified successfully.',
+      message: "Route verified successfully.",
       serviceExecution: execution,
     });
   } catch (error) {
-    console.error('Submit Route Verification Error:', error);
+    console.error("Submit Route Verification Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to submit route verification.',
+      message: "Failed to submit route verification.",
       error: error.message,
     });
   }
@@ -763,14 +833,14 @@ exports.submitServiceDetails = async (req, res) => {
     const execution = await ServiceExecution.findOne({
       booking: bookingId,
       vendor: vendorId,
-      status: 'Route Verified',
+      status: "Route Verified",
     });
 
     if (!execution) {
       return res.status(404).json({
         success: false,
         message:
-          'Service execution not found or route verification is not completed.',
+          "Service execution not found or route verification is not completed.",
       });
     }
 
@@ -778,30 +848,30 @@ exports.submitServiceDetails = async (req, res) => {
 
     try {
       parsedChecklist =
-        typeof checklist === 'string' ? JSON.parse(checklist) : checklist;
+        typeof checklist === "string" ? JSON.parse(checklist) : checklist;
     } catch (error) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid checklist format.',
+        message: "Invalid checklist format.",
       });
     }
 
-    if (!parsedChecklist || typeof parsedChecklist !== 'object') {
+    if (!parsedChecklist || typeof parsedChecklist !== "object") {
       return res.status(400).json({
         success: false,
-        message: 'Checklist is required.',
+        message: "Checklist is required.",
       });
     }
 
     const checklistFields = [
-      'service',
-      'inspection',
-      'diagnosis',
-      'testingCleanup',
+      "service",
+      "inspection",
+      "diagnosis",
+      "testingCleanup",
     ];
 
     for (const field of checklistFields) {
-      if (typeof parsedChecklist[field] !== 'boolean') {
+      if (typeof parsedChecklist[field] !== "boolean") {
         return res.status(400).json({
           success: false,
           message: `${field} must be true or false.`,
@@ -816,7 +886,7 @@ exports.submitServiceDetails = async (req, res) => {
       testingCleanup: parsedChecklist.testingCleanup,
     };
 
-    execution.customerNote = customerNote || '';
+    execution.customerNote = customerNote || "";
 
     const beforeImage = req.files?.beforeImage?.[0];
 
@@ -847,21 +917,21 @@ exports.submitServiceDetails = async (req, res) => {
     }
 
     // Route Verified -> In Progress
-    execution.status = 'In Progress';
+    execution.status = "In Progress";
 
     await execution.save();
 
     return res.status(200).json({
       success: true,
-      message: 'Service details submitted successfully.',
+      message: "Service details submitted successfully.",
       serviceExecution: execution,
     });
   } catch (error) {
-    console.error('Submit Service Details Error:', error);
+    console.error("Submit Service Details Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to submit service details.',
+      message: "Failed to submit service details.",
       error: error.message,
     });
   }
@@ -1124,14 +1194,14 @@ exports.completeService = async (req, res) => {
     if (!paymentMethod) {
       return res.status(400).json({
         success: false,
-        message: 'Payment method is required.',
+        message: "Payment method is required.",
       });
     }
 
-    if (!['Cash', 'UPI'].includes(paymentMethod)) {
+    if (!["Cash", "UPI"].includes(paymentMethod)) {
       return res.status(400).json({
         success: false,
-        message: 'Payment method must be Cash or UPI.',
+        message: "Payment method must be Cash or UPI.",
       });
     }
 
@@ -1140,27 +1210,27 @@ exports.completeService = async (req, res) => {
     if (!Number.isFinite(discountAmount) || discountAmount < 0) {
       return res.status(400).json({
         success: false,
-        message: 'Discount must be a valid positive number.',
+        message: "Discount must be a valid positive number.",
       });
     }
 
     if (!Array.isArray(components)) {
       return res.status(400).json({
         success: false,
-        message: 'Components must be an array.',
+        message: "Components must be an array.",
       });
     }
 
     const execution = await ServiceExecution.findOne({
       booking: bookingId,
       vendor: vendorId,
-      status: 'In Progress',
+      status: "In Progress",
     });
 
     if (!execution) {
       return res.status(404).json({
         success: false,
-        message: 'Service execution not found or service is not in progress.',
+        message: "Service execution not found or service is not in progress.",
       });
     }
 
@@ -1172,7 +1242,7 @@ exports.completeService = async (req, res) => {
     if (!booking) {
       return res.status(404).json({
         success: false,
-        message: 'Booking not found.',
+        message: "Booking not found.",
       });
     }
 
@@ -1184,16 +1254,16 @@ exports.completeService = async (req, res) => {
     if (!vendorProfile) {
       return res.status(404).json({
         success: false,
-        message: 'Vendor profile not found. Cannot complete service.',
+        message: "Vendor profile not found. Cannot complete service.",
       });
     }
 
-    await booking.populate('customer', 'fullName phoneNumber');
+    await booking.populate("customer", "fullName phoneNumber");
 
     if (!booking.customer) {
       return res.status(400).json({
         success: false,
-        message: 'Customer associated with this booking was not found.',
+        message: "Customer associated with this booking was not found.",
       });
     }
 
@@ -1204,7 +1274,7 @@ exports.completeService = async (req, res) => {
     if (existingInvoice) {
       return res.status(400).json({
         success: false,
-        message: 'Invoice has already been generated for this booking.',
+        message: "Invoice has already been generated for this booking.",
         invoice: existingInvoice,
       });
     }
@@ -1214,7 +1284,7 @@ exports.completeService = async (req, res) => {
     if (!Number.isFinite(serviceCharge) || serviceCharge < 0) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid service charge.',
+        message: "Invalid service charge.",
       });
     }
 
@@ -1227,14 +1297,14 @@ exports.completeService = async (req, res) => {
     if (!Number.isFinite(travelCharge) || travelCharge < 0) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid travel charge.',
+        message: "Invalid travel charge.",
       });
     }
 
     const items = [];
 
     items.push({
-      type: 'Service',
+      type: "Service",
       name: booking.serviceCategory,
       quantity: 1,
       unitPrice: serviceCharge,
@@ -1243,8 +1313,8 @@ exports.completeService = async (req, res) => {
 
     if (travelCharge > 0) {
       items.push({
-        type: 'Travel',
-        name: 'Travel Charge',
+        type: "Travel",
+        name: "Travel Charge",
         quantity: 1,
         unitPrice: travelCharge,
         amount: travelCharge,
@@ -1259,7 +1329,7 @@ exports.completeService = async (req, res) => {
       if (!inventoryId) {
         return res.status(400).json({
           success: false,
-          message: 'Inventory ID is required for every component.',
+          message: "Inventory ID is required for every component.",
         });
       }
 
@@ -1268,7 +1338,7 @@ exports.completeService = async (req, res) => {
       if (!Number.isInteger(componentQuantity) || componentQuantity <= 0) {
         return res.status(400).json({
           success: false,
-          message: 'Component quantity must be a positive whole number.',
+          message: "Component quantity must be a positive whole number.",
         });
       }
 
@@ -1303,7 +1373,7 @@ exports.completeService = async (req, res) => {
       const amount = componentQuantity * unitPrice;
 
       items.push({
-        type: 'Component',
+        type: "Component",
         name: inventoryItem.itemName,
         inventoryItem: inventoryItem._id,
         quantity: componentQuantity,
@@ -1324,7 +1394,7 @@ exports.completeService = async (req, res) => {
     if (discountAmount > subtotal) {
       return res.status(400).json({
         success: false,
-        message: 'Discount cannot be greater than the subtotal.',
+        message: "Discount cannot be greater than the subtotal.",
       });
     }
 
@@ -1343,7 +1413,7 @@ exports.completeService = async (req, res) => {
       address.landmark,
     ]
       .filter(Boolean)
-      .join(', ');
+      .join(", ");
 
     const invoice = await Invoice.create({
       booking: booking._id,
@@ -1354,13 +1424,13 @@ exports.completeService = async (req, res) => {
 
       customerSnapshot: {
         name: booking.customer.fullName,
-        phone: booking.customer.phoneNumber || '',
+        phone: booking.customer.phoneNumber || "",
         address: customerAddress,
       },
 
       serviceSnapshot: {
         appliance: booking.appliance,
-        serviceCategory: booking.serviceCategory || '',
+        serviceCategory: booking.serviceCategory || "",
         serviceDate: booking.serviceDate,
       },
 
@@ -1372,10 +1442,10 @@ exports.completeService = async (req, res) => {
       totalAmount,
 
       paymentMethod,
-      paymentStatus: 'Paid',
+      paymentStatus: "Paid",
       paidAt: new Date(),
 
-      customerNote: execution.customerNote || '',
+      customerNote: execution.customerNote || "",
     });
 
     for (const update of inventoryUpdates) {
@@ -1383,12 +1453,12 @@ exports.completeService = async (req, res) => {
       await update.inventoryItem.save();
     }
 
-    execution.status = 'Completed';
+    execution.status = "Completed";
     await execution.save();
 
-    booking.bookingStatus = 'Completed';
+    booking.bookingStatus = "Completed";
     booking.completedAt = new Date();
-    booking.paymentStatus = 'Paid';
+    booking.paymentStatus = "Paid";
     booking.paymentMethod = paymentMethod;
 
     await booking.save();
@@ -1399,17 +1469,17 @@ exports.completeService = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Service completed and invoice generated successfully.',
+      message: "Service completed and invoice generated successfully.",
       invoice,
       serviceExecution: execution,
       booking,
     });
   } catch (error) {
-    console.error('Complete Service Error:', error);
+    console.error("Complete Service Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to complete service and generate invoice.',
+      message: "Failed to complete service and generate invoice.",
       error: error.message,
     });
   }

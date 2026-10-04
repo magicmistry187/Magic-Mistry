@@ -5,7 +5,6 @@ exports.checkUserRestricted = async (req, res, next) => {
   try {
     const userId = req.user?.id;
 
-
     if (!userId) {
       return res.status(401).json({
         success: false,
@@ -55,11 +54,24 @@ exports.checkUserRestricted = async (req, res, next) => {
 
       //Suspension expired
       if (user.suspendedUntil && user.suspendedUntil <= new Date()) {
-
         user.status = "active";
         user.suspendedUntil = null;
 
+        //Restoore all booking which are temporarily closed due to suspension
 
+        await Booking.updateMany(
+          {
+            customer: user._id,
+            bookingStatus: "Cancelled",
+            cancelDueToSuspension: true,
+          },
+          {
+            $set: {
+              bookingStatus: "Pending",
+              cancelDueToSuspension: false,
+            },
+          },
+        );
       }
 
       await user.save();
