@@ -346,7 +346,7 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
                 required
                 value={street}
                 onChange={(e) => setStreet(e.target.value)}
-                placeholder="e.g. Sripur Bazar, MG Road, Sector 4"
+                placeholder="Enter street, area, or landmark"
                 className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
               />
             </div>
@@ -362,7 +362,7 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
                   required
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  placeholder="e.g. Asansol / Jamuria"
+                  placeholder="Enter city / town"
                   className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
                 />
               </div>
@@ -376,7 +376,7 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
                   list="vendor-states-list"
                   value={state}
                   onChange={(e) => setState(e.target.value)}
-                  placeholder="e.g. West Bengal"
+                  placeholder="Enter state"
                   className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
                 />
                 <datalist id="vendor-states-list">

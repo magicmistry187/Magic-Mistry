@@ -441,7 +441,7 @@ export default function AddressForm() {
                 required
                 value={street}
                 onChange={(e) => setStreet(e.target.value)}
-                placeholder="e.g. Sripur Bazar, MG Road, Sector 4"
+                placeholder="Enter street, area, or landmark"
                 className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all"
               />
             </div>
@@ -456,7 +456,7 @@ export default function AddressForm() {
                   required
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  placeholder="e.g. Asansol / Jamuria"
+                  placeholder="Enter city / town"
                   className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all"
                 />
               </div>
@@ -469,7 +469,7 @@ export default function AddressForm() {
                   required
                   value={state}
                   onChange={(e) => setState(e.target.value)}
-                  placeholder="e.g. West Bengal"
+                  placeholder="Enter state"
                   className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all"
                 />
               </div>

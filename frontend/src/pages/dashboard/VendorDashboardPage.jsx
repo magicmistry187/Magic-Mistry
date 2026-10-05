@@ -2466,9 +2466,6 @@ export default function VendorDashboardPage() {
                 >
                   {[
                     { id: 'active', label: 'Jobs', badge: jobs.length },
-                    ...(selectedJob || jobs.some(j => j.status === 'In Progress')
-                      ? [{ id: 'service', label: 'Service Execution', badge: 'Active' }]
-                      : []),
                     { id: 'history', label: 'History', badge: history.length },
                     { id: 'earnings', label: 'Earnings', badge: `₹${((Number(todayEarnings) || 0) / 1000).toFixed(1)}k` },
                     { id: 'profile', label: 'Profile', badge: '★' },
@@ -4793,7 +4790,7 @@ export default function VendorDashboardPage() {
                         type="text"
                         value={editProfileForm.address}
                         onChange={e => setEditProfileForm({ ...editProfileForm, address: e.target.value })}
-                        placeholder="e.g. Flat 402, Green Valley Apartments, 10th Main Road, Indiranagar, 560038"
+                        placeholder="Enter workshop / service address"
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-36 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
                       />
                       <button

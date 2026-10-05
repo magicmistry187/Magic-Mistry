@@ -2055,7 +2055,7 @@ export default function UserDashboardPage() {
                               type="text"
                               value={location}
                               onChange={(e) => updateLocation(e.target.value)}
-                              placeholder="e.g. Salt Lake, Kolkata, West Bengal"
+                              placeholder="Enter your location or address"
                               className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-36 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
                             />
                             <button
