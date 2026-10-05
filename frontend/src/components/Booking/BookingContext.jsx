@@ -71,15 +71,6 @@ export const BookingProvider = ({ children, initialAppliance = null }) => {
     latitude: null,
     longitude: null,
     paymentMethod: 'Cash',
-    paymentDetails: {
-      category: 'Cash',
-      upiId: '',
-      referenceNumber: '',
-      cashNotes: '',
-      cashDenominations: '',
-      gatewayToken: '',
-      gatewayType: 'card',
-    },
     images: [],
     imageFile: null,
     priceInfo: {
@@ -158,23 +149,13 @@ export const BookingProvider = ({ children, initialAppliance = null }) => {
     });
   };
 
-  const updatePaymentDetails = (field, value) => {
-    setBookingState((prev) => ({
-      ...prev,
-      paymentDetails: {
-        ...(prev.paymentDetails || {}),
-        [field]: value,
-      },
-    }));
-  };
-
   const unlockApplianceSelection = () => {
     setBookingState((prev) => ({ ...prev, isApplianceLocked: false }));
   };
 
   return (
     <BookingContext.Provider
-      value={{ bookingState, updateBooking, updatePaymentDetails, unlockApplianceSelection, scrollToNextStep }}
+      value={{ bookingState, updateBooking, unlockApplianceSelection, scrollToNextStep }}
     >
       {children}
     </BookingContext.Provider>

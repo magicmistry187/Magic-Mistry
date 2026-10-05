@@ -103,23 +103,8 @@ export default function BookingSummary() {
       // Backend expects 'Cash' or 'UPI'
       const backendPaymentMethod = rawMethod === 'upi' ? 'UPI' : 'Cash';
 
-      const rawDetails = bookingState.paymentDetails || {};
       const standardizedPaymentDetails = {
         category: backendPaymentMethod,
-        ...(backendPaymentMethod === 'UPI' && {
-          upi: {
-            upiId: rawDetails.upiId?.trim() || '',
-            transactionRef: rawDetails.referenceNumber?.trim() || '',
-          },
-        }),
-        ...(backendPaymentMethod === 'Cash' && {
-          cash: {
-            notes: rawDetails.cashNotes?.trim() || '',
-            denomination: rawDetails.cashDenominations?.trim() || '',
-            collectedBy: 'Technician',
-            receivedAmount: Number(serviceChargeVal) || 0,
-          },
-        }),
         metadata: {
           timestamp: new Date().toISOString(),
           source: 'customer_checkout',
@@ -132,15 +117,7 @@ export default function BookingSummary() {
       formData.append('serviceCategoryCharge', serviceChargeVal);
       formData.append('paymentMethod', backendPaymentMethod);
       formData.append('paymentDetails', JSON.stringify(standardizedPaymentDetails));
-
-      // Append multi-part bracket notation fields for server parsers
       formData.append('paymentDetails[category]', backendPaymentMethod);
-      if (backendPaymentMethod === 'UPI') {
-        if (rawDetails.upiId) formData.append('paymentDetails[upi][upiId]', rawDetails.upiId.trim());
-        if (rawDetails.referenceNumber) formData.append('paymentDetails[upi][transactionRef]', rawDetails.referenceNumber.trim());
-      } else if (backendPaymentMethod === 'Cash') {
-        if (rawDetails.cashNotes) formData.append('paymentDetails[cash][notes]', rawDetails.cashNotes.trim());
-      }
 
       formData.append('issue', bookingState.problemDescription || (bookingState.selectedSubServices.length > 0 ? bookingState.selectedSubServices.map(s => s.label).join(', ') : 'General Repair & Maintenance'));
       const parsedAddr = parseAddressString(bookingState.address);
@@ -298,21 +275,6 @@ export default function BookingSummary() {
                 ? 'UPI After Service'
                 : 'Cash After Service'}
             </span>
-            {String(bookingState.paymentMethod).toLowerCase() === 'upi' && bookingState.paymentDetails?.upiId && (
-              <span className="text-[10px] text-slate-300 block font-mono">
-                {bookingState.paymentDetails.upiId}
-              </span>
-            )}
-            {String(bookingState.paymentMethod).toLowerCase() === 'upi' && bookingState.paymentDetails?.referenceNumber && (
-              <span className="text-[10px] text-emerald-400 block font-mono">
-                Ref: {bookingState.paymentDetails.referenceNumber}
-              </span>
-            )}
-            {String(bookingState.paymentMethod).toLowerCase() !== 'upi' && bookingState.paymentDetails?.cashNotes && (
-              <span className="text-[10px] text-slate-400 block truncate max-w-[140px]">
-                {bookingState.paymentDetails.cashNotes}
-              </span>
-            )}
           </div>
         </div>
 
