@@ -178,7 +178,19 @@ export default function UserInvoiceModal({ isOpen, onClose, booking }) {
                 <p className="font-extrabold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Service Details</p>
                 <p className="font-bold text-slate-900 text-sm">Assigned Technician: {inv.technician || booking.technician || 'Verified Expert'}</p>
                 <p className="text-slate-600 mt-0.5">Status: Completed &amp; Verified</p>
-                <p className="text-slate-600 font-semibold text-blue-800 mt-0.5">Payment: {inv.paymentMethod ? `${inv.paymentMethod} (Paid)` : 'Cash / Digital Payment After Service'}</p>
+                <p className="text-slate-600 font-semibold text-blue-800 mt-0.5">
+                  Payment: {inv.paymentMethod ? `${inv.paymentMethod} (Paid)` : 'Cash / Digital Payment After Service'}
+                  {inv.paymentDetails?.upi?.transactionRef && (
+                    <span className="block text-[10px] text-emerald-700 font-mono font-medium">
+                      UTR / Ref: {inv.paymentDetails.upi.transactionRef}
+                    </span>
+                  )}
+                  {inv.paymentDetails?.online?.transactionId && (
+                    <span className="block text-[10px] text-purple-700 font-mono font-medium">
+                      Txn ID: {inv.paymentDetails.online.transactionId}
+                    </span>
+                  )}
+                </p>
               </div>
             </div>
 

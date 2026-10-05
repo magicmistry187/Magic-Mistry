@@ -24,6 +24,7 @@ exports.createBooking = async (req, res) => {
       serviceCategoryCharge,
       longitude,
       latitude,
+      paymentMethod,
     } = req.body;
 
     const selectedAppliance = appliance || serviceCategory;
@@ -102,6 +103,7 @@ exports.createBooking = async (req, res) => {
       timeSlot,
       serviceCategory: serviceCategory || selectedAppliance,
       serviceCategoryCharge: Number(serviceCategoryCharge),
+      paymentMethod,
     };
 
     let latNum =

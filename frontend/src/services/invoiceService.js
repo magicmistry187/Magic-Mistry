@@ -122,22 +122,32 @@ export function generateInvoiceFromBooking(booking = {}) {
       : totalAmount;
 
   // Build itemized list dynamically from backend charges
+  // Travel allowance is 100% reimbursed by Admin directly into vendor wallet and NEVER charged to customer
   let items = [];
 
   if (Array.isArray(rawBooking.parts) && rawBooking.parts.length > 0) {
-    items = rawBooking.parts.map((p) => ({
-      name: p.name || p.description || 'Service Part',
-      description: p.name || p.description || 'Service Part',
-      quantity: Number(p.quantity || p.qty || 1),
-      qty: Number(p.quantity || p.qty || 1),
-      unitPrice: Number(p.unitPrice || p.price || 0),
-      price: Number(p.unitPrice || p.price || 0),
-      amount: Number(p.amount !== undefined ? p.amount : (p.quantity || p.qty || 1) * (p.unitPrice || p.price || 0)),
-      type: p.type || (p.isTravel ? 'Travel' : p.isComponent ? 'Component' : 'Service'),
-      isTravel: Boolean(p.isTravel || p.type === 'Travel'),
-      isComponent: Boolean(p.isComponent || p.type === 'Component'),
-      isService: Boolean(p.isService || p.type === 'Service'),
-    }));
+    items = rawBooking.parts
+      .filter((p) => {
+        const isTravel = Boolean(p.isTravel || p.type === 'Travel' || String(p.name || p.description || '').toLowerCase().includes('travel'));
+        return !isTravel;
+      })
+      .map((p) => {
+        const isService = Boolean(p.isService || p.type === 'Service' || p.locked || !p.inventoryId);
+        return {
+          name: p.name || p.description || 'Service Part',
+          description: p.name || p.description || 'Service Part',
+          quantity: Number(p.quantity || p.qty || 1),
+          qty: Number(p.quantity || p.qty || 1),
+          unitPrice: Number(p.unitPrice || p.price || 0),
+          price: Number(p.unitPrice || p.price || 0),
+          amount: Number(p.amount !== undefined ? p.amount : (p.quantity || p.qty || 1) * (p.unitPrice || p.price || 0)),
+          type: isService ? 'Service' : 'Component',
+          isTravel: false,
+          isComponent: Boolean(p.isComponent || p.type === 'Component' || !isService),
+          isService,
+          locked: isService || Boolean(p.locked),
+        };
+      });
   } else {
     // Standard Base Labor Service Item
     items.push({
@@ -152,6 +162,7 @@ export function generateInvoiceFromBooking(booking = {}) {
       isService: true,
       isComponent: false,
       isTravel: false,
+      locked: true,
     });
 
     // If total billed in MongoDB is greater than base labor, the difference is parts/travel added
@@ -269,34 +280,36 @@ export function normalizeInvoiceForUI(inv, booking = {}) {
     rawBooking.vendor?.fullName ||
     'Magic Mistry Certified Expert';
 
-  const items = Array.isArray(inv.items) && inv.items.length > 0
-    ? inv.items.map((it) => ({
-        description: it.name || it.description || 'Service',
-        name: it.name || it.description || 'Service',
-        qty: Number(it.quantity || it.qty || 1),
-        quantity: Number(it.quantity || it.qty || 1),
-        unitPrice: Number(it.unitPrice || it.price || 0),
-        price: Number(it.unitPrice || it.price || 0),
-        amount: Number(it.amount !== undefined ? it.amount : (it.quantity || it.qty || 1) * (it.unitPrice || it.price || 0)),
-        type: it.type || (it.isTravel ? 'Travel' : it.isComponent ? 'Component' : 'Service'),
-        isTravel: Boolean(it.type === 'Travel' || it.isTravel),
-        isComponent: Boolean(it.type === 'Component' || it.isComponent),
-        isService: Boolean(it.type === 'Service' || it.isService),
-      }))
+  // Travel allowance is 100% reimbursed by Admin directly into vendor wallet and NEVER charged to customer
+  const sourceItems = Array.isArray(inv.items) && inv.items.length > 0
+    ? inv.items
     : Array.isArray(booking.parts) && booking.parts.length > 0
-    ? booking.parts.map((it) => ({
-        description: it.name || it.description || 'Service',
-        name: it.name || it.description || 'Service',
-        qty: Number(it.quantity || it.qty || 1),
-        quantity: Number(it.quantity || it.qty || 1),
-        unitPrice: Number(it.unitPrice || it.price || 0),
-        price: Number(it.unitPrice || it.price || 0),
-        amount: Number(it.amount !== undefined ? it.amount : (it.quantity || it.qty || 1) * (it.unitPrice || it.price || 0)),
-        type: it.type || (it.isTravel ? 'Travel' : it.isComponent ? 'Component' : 'Service'),
-        isTravel: Boolean(it.type === 'Travel' || it.isTravel),
-        isComponent: Boolean(it.type === 'Component' || it.isComponent),
-        isService: Boolean(it.type === 'Service' || it.isService),
-      }))
+    ? booking.parts
+    : [];
+
+  const nonTravelItems = sourceItems.filter((it) => {
+    const isTravel = Boolean(it.type === 'Travel' || it.isTravel || String(it.name || it.description || '').toLowerCase().includes('travel'));
+    return !isTravel;
+  });
+
+  const items = nonTravelItems.length > 0
+    ? nonTravelItems.map((it) => {
+        const isService = Boolean(it.type === 'Service' || it.isService || it.locked || (!it.inventoryId && !it.isComponent));
+        return {
+          description: it.name || it.description || 'Service',
+          name: it.name || it.description || 'Service',
+          qty: Number(it.quantity || it.qty || 1),
+          quantity: Number(it.quantity || it.qty || 1),
+          unitPrice: Number(it.unitPrice || it.price || 0),
+          price: Number(it.unitPrice || it.price || 0),
+          amount: Number(it.amount !== undefined ? it.amount : (it.quantity || it.qty || 1) * (it.unitPrice || it.price || 0)),
+          type: isService ? 'Service' : 'Component',
+          isTravel: false,
+          isComponent: Boolean(it.type === 'Component' || it.isComponent || !isService),
+          isService,
+          locked: isService || Boolean(it.locked),
+        };
+      })
     : [
         {
           description: serviceTitle,
@@ -310,6 +323,7 @@ export function normalizeInvoiceForUI(inv, booking = {}) {
           isService: true,
           isComponent: false,
           isTravel: false,
+          locked: true,
         },
       ];
 

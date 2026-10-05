@@ -98,10 +98,50 @@ export default function BookingSummary() {
         ? `${bookingState.serviceName} (${bookingState.selectedSubServices.map(s => s.label).join(', ')})`
         : bookingState.serviceName || 'Appliance Repair';
 
+      const serviceChargeVal = Number(basePrice) > 0 ? Number(basePrice) : (Number(total) > 0 ? Number(total) : 199);
+      const rawMethod = String(bookingState.paymentMethod || 'Cash').toLowerCase();
+      // Backend expects 'Cash' or 'UPI'
+      const backendPaymentMethod = rawMethod === 'upi' ? 'UPI' : 'Cash';
+
+      const rawDetails = bookingState.paymentDetails || {};
+      const standardizedPaymentDetails = {
+        category: backendPaymentMethod,
+        ...(backendPaymentMethod === 'UPI' && {
+          upi: {
+            upiId: rawDetails.upiId?.trim() || '',
+            transactionRef: rawDetails.referenceNumber?.trim() || '',
+          },
+        }),
+        ...(backendPaymentMethod === 'Cash' && {
+          cash: {
+            notes: rawDetails.cashNotes?.trim() || '',
+            denomination: rawDetails.cashDenominations?.trim() || '',
+            collectedBy: 'Technician',
+            receivedAmount: Number(serviceChargeVal) || 0,
+          },
+        }),
+        metadata: {
+          timestamp: new Date().toISOString(),
+          source: 'customer_checkout',
+        },
+      };
+
       const formData = new FormData();
       formData.append('appliance', bookingState.serviceName || 'Appliance Repair');
       formData.append('serviceCategory', serviceTitle);
-      formData.append('serviceCategoryCharge', basePrice);
+      formData.append('serviceCategoryCharge', serviceChargeVal);
+      formData.append('paymentMethod', backendPaymentMethod);
+      formData.append('paymentDetails', JSON.stringify(standardizedPaymentDetails));
+
+      // Append multi-part bracket notation fields for server parsers
+      formData.append('paymentDetails[category]', backendPaymentMethod);
+      if (backendPaymentMethod === 'UPI') {
+        if (rawDetails.upiId) formData.append('paymentDetails[upi][upiId]', rawDetails.upiId.trim());
+        if (rawDetails.referenceNumber) formData.append('paymentDetails[upi][transactionRef]', rawDetails.referenceNumber.trim());
+      } else if (backendPaymentMethod === 'Cash') {
+        if (rawDetails.cashNotes) formData.append('paymentDetails[cash][notes]', rawDetails.cashNotes.trim());
+      }
+
       formData.append('issue', bookingState.problemDescription || (bookingState.selectedSubServices.length > 0 ? bookingState.selectedSubServices.map(s => s.label).join(', ') : 'General Repair & Maintenance'));
       const parsedAddr = parseAddressString(bookingState.address);
       const addressLine1 = parsedAddr.flat || parsedAddr.street || bookingState.address.trim();
@@ -252,13 +292,28 @@ export default function BookingSummary() {
         {/* Payment */}
         <div className="flex justify-between items-start gap-2">
           <span className="text-slate-400 shrink-0">Payment</span>
-          <span className="font-medium capitalize text-xs text-blue-300">
-            {bookingState.paymentMethod === 'upi'
-              ? 'UPI After Service'
-              : bookingState.paymentMethod === 'cash'
-              ? 'Cash After Service'
-              : 'Cash / UPI'}
-          </span>
+          <div className="text-right">
+            <span className="font-semibold capitalize text-xs text-blue-300 block">
+              {String(bookingState.paymentMethod).toLowerCase() === 'upi'
+                ? 'UPI After Service'
+                : 'Cash After Service'}
+            </span>
+            {String(bookingState.paymentMethod).toLowerCase() === 'upi' && bookingState.paymentDetails?.upiId && (
+              <span className="text-[10px] text-slate-300 block font-mono">
+                {bookingState.paymentDetails.upiId}
+              </span>
+            )}
+            {String(bookingState.paymentMethod).toLowerCase() === 'upi' && bookingState.paymentDetails?.referenceNumber && (
+              <span className="text-[10px] text-emerald-400 block font-mono">
+                Ref: {bookingState.paymentDetails.referenceNumber}
+              </span>
+            )}
+            {String(bookingState.paymentMethod).toLowerCase() !== 'upi' && bookingState.paymentDetails?.cashNotes && (
+              <span className="text-[10px] text-slate-400 block truncate max-w-[140px]">
+                {bookingState.paymentDetails.cashNotes}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Issue description — Optional */}

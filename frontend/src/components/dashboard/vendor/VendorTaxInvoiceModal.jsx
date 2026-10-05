@@ -110,7 +110,19 @@ export default function VendorTaxInvoiceModal({
                   <p className="font-extrabold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Service &amp; Payment Details</p>
                   <p className="font-bold text-slate-900 text-sm">Technician: {safeText(generatedInvoiceData.technician, 'Technician')}</p>
                   <p className="text-slate-600 mt-0.5">Service: {safeText(generatedInvoiceData.serviceTitle, 'Service')}</p>
-                  <p className="text-slate-600 font-semibold text-blue-800 mt-0.5">Payment: {safeText(generatedInvoiceData.paymentMethod, 'Cash')}</p>
+                  <p className="text-slate-600 font-semibold text-blue-800 mt-0.5">
+                    Payment: {safeText(generatedInvoiceData.paymentMethod, 'Cash')}
+                    {generatedInvoiceData.paymentDetails?.upi?.transactionRef && (
+                      <span className="block text-[10px] text-emerald-700 font-mono font-medium">
+                        UTR / Ref: {generatedInvoiceData.paymentDetails.upi.transactionRef}
+                      </span>
+                    )}
+                    {generatedInvoiceData.paymentDetails?.online?.transactionId && (
+                      <span className="block text-[10px] text-purple-700 font-mono font-medium">
+                        Txn ID: {generatedInvoiceData.paymentDetails.online.transactionId}
+                      </span>
+                    )}
+                  </p>
                 </div>
               </div>
 
@@ -161,28 +173,29 @@ export default function VendorTaxInvoiceModal({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 text-slate-700">
-                    {(generatedInvoiceData.parts || generatedInvoiceData.items || []).map((p, pIdx) => {
-                      const qty = parseFloat(p.qty !== undefined ? p.qty : p.quantity) || 1;
-                      const price = parseFloat(p.price !== undefined ? p.price : p.unitPrice) || 0;
-                      const amt = p.amount !== undefined ? parseFloat(p.amount) : qty * price;
-                      const desc = p.description || p.name || 'Component';
-                      const isTravelLine = p.isTravel || p.type === 'Travel' || String(desc).toLowerCase().includes('travel') || String(desc).toLowerCase().includes('km');
-                      return (
-                        <tr key={pIdx}>
-                          <td className="py-3 px-4 font-bold text-slate-900 flex items-center gap-2">
-                            {isTravelLine ? (
-                              <Navigation className="w-3.5 h-3.5 text-blue-600 shrink-0 no-print" />
-                            ) : (
+                    {(generatedInvoiceData.parts || generatedInvoiceData.items || [])
+                      .filter((p) => {
+                        const desc = String(p.description || p.name || '').toLowerCase();
+                        const isTravelLine = p.isTravel || p.type === 'Travel' || desc.includes('travel') || desc.includes('distance charge') || desc.includes('km @');
+                        return !isTravelLine;
+                      })
+                      .map((p, pIdx) => {
+                        const qty = parseFloat(p.qty !== undefined ? p.qty : p.quantity) || 1;
+                        const price = parseFloat(p.price !== undefined ? p.price : p.unitPrice) || 0;
+                        const amt = p.amount !== undefined ? parseFloat(p.amount) : qty * price;
+                        const desc = p.description || p.name || 'Component';
+                        return (
+                          <tr key={pIdx}>
+                            <td className="py-3 px-4 font-bold text-slate-900 flex items-center gap-2">
                               <Wrench className="w-3.5 h-3.5 text-orange-500 shrink-0 no-print" />
-                            )}
-                            <span>{desc}</span>
-                          </td>
-                          <td className="py-3 px-4 text-center font-semibold">{qty}</td>
-                          <td className="py-3 px-4 text-right font-medium">₹{price.toFixed(2)}</td>
-                          <td className="py-3 px-4 text-right font-bold text-slate-900">₹{amt.toFixed(2)}</td>
-                        </tr>
-                      );
-                    })}
+                              <span>{desc}</span>
+                            </td>
+                            <td className="py-3 px-4 text-center font-semibold">{qty}</td>
+                            <td className="py-3 px-4 text-right font-medium">₹{price.toFixed(2)}</td>
+                            <td className="py-3 px-4 text-right font-bold text-slate-900">₹{amt.toFixed(2)}</td>
+                          </tr>
+                        );
+                      })}
                     <tr className="bg-slate-50/50">
                       <td className="py-2.5 px-4 text-slate-600 font-medium">30-Day Service Guarantee &amp; Diagnostic Checkup</td>
                       <td className="py-2.5 px-4 text-center font-semibold">1</td>

@@ -50,6 +50,7 @@ export async function createBookingApi(formData, token) {
     return {
       success: false,
       message:
+        error.response?.data?.error ||
         error.response?.data?.message ||
         error.message ||
         "Booking could not be created",
