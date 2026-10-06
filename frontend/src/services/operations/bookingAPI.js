@@ -20,6 +20,7 @@ const getAuthToken = (token) =>
   (typeof window !== "undefined"
     ? localStorage.getItem("mm_token") ||
       localStorage.getItem("token") ||
+      localStorage.getItem("adminToken") ||
       localStorage.getItem("vendorToken")
     : null);
 

@@ -322,7 +322,7 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
               </div>
             </div>
 
-            {/* House / Flat / Mohalla */}
+            {/* Store / Shop / Building No. */}
             <div>
               <label className="block font-bold text-xs text-slate-600 mb-1.5">
                 Store / Shop / Building No. <span className="text-gray-400 font-normal text-xs">(Optional)</span>
@@ -331,15 +331,15 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
                 type="text"
                 value={flat}
                 onChange={(e) => setFlat(e.target.value)}
-                placeholder="e.g. Nazirpara, Shop #12, Building 3"
+                placeholder="e.g. Shop #12, Building 3"
                 className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
               />
             </div>
 
-            {/* Street / Locality / Bazar */}
+            {/* Street / Locality */}
             <div>
               <label className="block font-bold text-xs text-slate-600 mb-1.5">
-                Street / Locality / Bazar <span className="text-red-500">*</span>
+                Street / Locality <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -397,7 +397,7 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
                   type="text"
                   value={landmark}
                   onChange={(e) => setLandmark(e.target.value)}
-                  placeholder="e.g. Near Gurudwara, Opp Bank"
+                  placeholder="e.g. Opp Bank, Near Main Road"
                   className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
                 />
               </div>

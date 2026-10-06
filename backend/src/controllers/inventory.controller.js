@@ -1,4 +1,8 @@
 const Inventory = require('../models/inventory.model');
+const {
+  emitInventoryUpdated,
+  emitLowStockAlert,
+} = require('../socket/socketEmitter');
 
 // controller post man pe checck krna h 'GET' se
 
@@ -58,6 +62,11 @@ exports.createInventory = async (req, res) => {
       createdBy: req.user?.id || null,
       lastRestockedAt: quantity > 0 ? new Date() : null,
     });
+
+    emitInventoryUpdated(inventory);
+    if (inventory.stockQuantity <= (inventory.reorderThreshold || 10)) {
+      emitLowStockAlert(inventory);
+    }
 
     return res.status(201).json({
       success: true,
@@ -240,6 +249,11 @@ exports.updateInventory = async (req, res) => {
 
     await inventory.save();
 
+    emitInventoryUpdated(inventory);
+    if (inventory.stockQuantity <= (inventory.reorderThreshold || 10)) {
+      emitLowStockAlert(inventory);
+    }
+
     return res.status(200).json({
       success: true,
       message: 'Inventory item updated successfully',
@@ -343,6 +357,8 @@ exports.restockInventory = async (req, res) => {
 
     await inventory.save();
 
+    emitInventoryUpdated(inventory);
+
     return res.status(200).json({
       success: true,
       message: 'Inventory restocked successfully',
@@ -391,6 +407,11 @@ exports.reduceInventoryStock = async (req, res) => {
     inventory.stockQuantity -= Number(quantity);
 
     await inventory.save();
+
+    emitInventoryUpdated(inventory);
+    if (inventory.stockQuantity <= (inventory.reorderThreshold || 10)) {
+      emitLowStockAlert(inventory);
+    }
 
     return res.status(200).json({
       success: true,

@@ -9,9 +9,11 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Phone, MessageSquare, ShieldCheck, MapPin, Navigation, Clock, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import ChatModal from '../../common/ChatModal';
 
 export default function UserTechnicianMapModal({ isOpen, onClose, technician, booking }) {
   const [eta, setEta] = useState(18); // 18 mins ETA
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -144,8 +146,8 @@ export default function UserTechnicianMapModal({ isOpen, onClose, technician, bo
                   <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
                 </Link>
                 <button
-                  onClick={() => alert(`Messaging ${technician?.name || 'Technician'}...`)}
-                  className="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 transition-colors shadow-md shadow-blue-200"
+                  onClick={() => setIsChatOpen(true)}
+                  className="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 transition-colors shadow-md shadow-blue-200 cursor-pointer"
                   title="Chat with Technician"
                 >
                   <MessageSquare className="w-5 h-5" />
@@ -166,6 +168,17 @@ export default function UserTechnicianMapModal({ isOpen, onClose, technician, bo
             </div>
           </div>
         </motion.div>
+
+        {/* Real-Time WebSocket In-App Chat Modal */}
+        <ChatModal
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
+          bookingId={booking?.id || booking?._id}
+          bookingTitle={booking?.service || 'Service Booking'}
+          otherPartyName={technician?.name || 'Technician'}
+          otherPartyRole="Assigned Expert"
+          recipientId={technician?.id || technician?._id || technician?.userId}
+        />
       </div>
     </AnimatePresence>
   );

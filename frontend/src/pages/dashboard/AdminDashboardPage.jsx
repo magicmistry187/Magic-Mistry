@@ -899,6 +899,8 @@ const formatBookingAddress = (addr) => {
   if (!addr) return 'Address not provided';
   if (typeof addr === 'string') return addr;
   if (typeof addr === 'object') {
+    const directStr = addr[''] || addr.fullAddress || addr.formattedAddress;
+    if (directStr && typeof directStr === 'string' && directStr.trim()) return directStr.trim();
     const parts = [
       addr.house || addr.flat,
       addr.addressLine1 || addr.street,
@@ -917,7 +919,7 @@ const getApplianceIcon = (applianceName) => {
   if (name.includes('ac') || name.includes('cooler')) return Snowflake;
   if (name.includes('fridge') || name.includes('refrigerat')) return Snowflake;
   if (name.includes('wash') || name.includes('pump') || name.includes('geyser')) return Droplets;
-  if (name.includes('tv') || name.includes('microwave') || name.includes('induction')) return Package;
+  if (name.includes('tv') || name.includes('microwave') || name.includes('induction') || name.includes('fan') || name.includes('mixer')) return Package;
   return Wrench;
 };
 
@@ -975,7 +977,7 @@ const renderBookingStatusBadge = (status) => {
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
   const { token, logout } = useAuth();
-  const { playNotificationSound } = useSocket();
+  const { socket, playNotificationSound } = useSocket();
 
   // Navigation tab state: 'overview', 'users', 'applications', 'id-creation', 'analytics'
   const [activeTab, setActiveTab] = useState('overview');
@@ -1018,17 +1020,53 @@ export default function AdminDashboardPage() {
   }, [inventoryList]);
 
   const [applicationsList, setApplicationsList] = useState(INITIAL_APPLICATIONS);
-  const [dispatchQueue, setDispatchQueue] = useState(INITIAL_DISPATCH_QUEUE);
-  const [workHistory, setWorkHistory] = useState(INITIAL_WORK_HISTORY);
-  const [allBookings, setAllBookings] = useState([]);
+  const [dispatchQueue, setDispatchQueue] = useState(() => {
+    try {
+      const cached = localStorage.getItem('mm_cached_dispatch_queue');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return [];
+  });
+  const [workHistory, setWorkHistory] = useState(() => {
+    try {
+      const cached = localStorage.getItem('mm_cached_work_history');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return [];
+  });
+  const [allBookings, setAllBookings] = useState(() => {
+    try {
+      const cached = localStorage.getItem('mm_cached_all_bookings');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return [];
+  });
+  const [isBookingsLoading, setIsBookingsLoading] = useState(true);
+  const [bookingsFetchError, setBookingsFetchError] = useState(null);
   const [isRefreshingBookings, setIsRefreshingBookings] = useState(false);
   const [currentWorkFilter, setCurrentWorkFilter] = useState('All');
-  const [workHistoryFilter, setWorkHistoryFilter] = useState('Completed');
+  const [workHistoryFilter, setWorkHistoryFilter] = useState('All Records');
 
   const fetchApplications = useCallback(async () => {
-    if (!token) return;
+    const activeToken =
+      token ||
+      (typeof window !== 'undefined'
+        ? localStorage.getItem('mm_token') ||
+          localStorage.getItem('token') ||
+          localStorage.getItem('adminToken')
+        : null);
+    if (!activeToken) return;
     try {
-      const resApps = await getAllVendorApplications(token);
+      const resApps = await getAllVendorApplications(activeToken);
       if (resApps.success && resApps.applications) {
         setApplicationsList(resApps.applications.map(app => ({
           ...app,
@@ -1046,15 +1084,31 @@ export default function AdminDashboardPage() {
   }, [token]);
 
   const fetchBookings = useCallback(async () => {
-    if (!token) return;
+    const activeToken =
+      token ||
+      (typeof window !== 'undefined'
+        ? localStorage.getItem('mm_token') ||
+          localStorage.getItem('token') ||
+          localStorage.getItem('adminToken') ||
+          localStorage.getItem('vendorToken')
+        : null);
+
+    if (!activeToken) {
+      setIsBookingsLoading(false);
+      setBookingsFetchError('Admin authentication token is missing. Please sign in with the admin account (magicmistry187@gmail.com).');
+      return;
+    }
+
     try {
-      const resBookings = await getAdminBookingsApi(token);
-      if (resBookings.success && resBookings.bookings) {
+      setIsBookingsLoading(true);
+      setBookingsFetchError(null);
+      const resBookings = await getAdminBookingsApi(activeToken);
+      if (resBookings.success && Array.isArray(resBookings.bookings)) {
         const formatted = resBookings.bookings.map(b => {
           const displayId = b.displayId || `#WO-${String(b._id).slice(-4).toUpperCase()}`;
           const formattedAddr = formatBookingAddress(b.address);
           const ApplianceIcon = getApplianceIcon(b.appliance);
-          const pay = b.serviceCategoryCharge || b.serviceCharge || 0;
+          const pay = b.serviceCharge || b.serviceCategoryCharge || 0;
 
           return {
             id: displayId,
@@ -1062,18 +1116,18 @@ export default function AdminDashboardPage() {
             displayId: displayId,
             appliance: b.appliance || 'Service Request',
             applianceIcon: ApplianceIcon,
-            customer: b.customer?.fullName || 'Guest Customer',
-            customerPhone: b.customer?.phoneNumber || '—',
+            customer: b.customer?.fullName || b.customer?.name || (typeof b.customer === 'string' ? 'Customer' : 'Guest Customer'),
+            customerPhone: b.customer?.phoneNumber || b.customer?.phone || '—',
             customerEmail: b.customer?.email || '—',
             customerAddress: formattedAddr,
-            technician: b.vendor?.fullName || 'Unassigned',
-            technicianPhone: b.vendor?.phoneNumber || '—',
-            technicianAvatar: b.vendor ? b.vendor.fullName.substring(0, 2).toUpperCase() : '',
+            technician: b.vendor?.fullName || b.vendor?.name || (typeof b.vendor === 'string' ? 'Assigned Vendor' : 'Unassigned'),
+            technicianPhone: b.vendor?.phoneNumber || b.vendor?.phone || '—',
+            technicianAvatar: (b.vendor?.fullName || b.vendor?.name) ? (b.vendor.fullName || b.vendor.name).substring(0, 2).toUpperCase() : '',
             status: b.bookingStatus || 'Pending',
             dateCompleted: b.completedAt
               ? new Date(b.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-              : b.bookingStatus === 'Completed'
-              ? new Date(b.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+              : (String(b.bookingStatus || '').toLowerCase() === 'completed' || String(b.bookingStatus || '').toLowerCase() === 'closed')
+              ? new Date(b.updatedAt || b.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
               : '—',
             serviceDate: b.serviceDate
               ? new Date(b.serviceDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -1082,24 +1136,50 @@ export default function AdminDashboardPage() {
             amount: pay,
             paymentStatus: b.paymentStatus || 'Pending',
             paymentMethod: b.paymentMethod || 'Cash After Service',
-            issue: b.issue || 'Standard Service Required',
+            issue: b.issue || b.serviceCategory || 'Standard Service Required',
             rawBooking: b,
           };
         });
 
+        const isClosedStatus = (st) => {
+          const s = String(st || '').trim().toUpperCase();
+          return s === 'COMPLETED' || s === 'CANCELLED' || s === 'CLOSED';
+        };
+
+        const activeQueue = formatted.filter(b => !isClosedStatus(b.status));
+        const historyList = formatted.filter(b => isClosedStatus(b.status));
+
         setAllBookings(formatted);
-        setDispatchQueue(formatted.filter(b => b.status !== 'Completed' && b.status !== 'Cancelled' && b.status !== 'Closed'));
-        setWorkHistory(formatted.filter(b => b.status === 'Completed' || b.status === 'Cancelled' || b.status === 'Closed'));
+        setDispatchQueue(activeQueue);
+        setWorkHistory(historyList);
+
+        try {
+          localStorage.setItem('mm_cached_all_bookings', JSON.stringify(formatted));
+          localStorage.setItem('mm_cached_dispatch_queue', JSON.stringify(activeQueue));
+          localStorage.setItem('mm_cached_work_history', JSON.stringify(historyList));
+        } catch (_) {}
+      } else {
+        setBookingsFetchError(resBookings.message || 'Failed to fetch bookings');
       }
     } catch (e) {
       console.error('Error fetching bookings:', e);
+      setBookingsFetchError(e.message || 'Error connecting to bookings API');
+    } finally {
+      setIsBookingsLoading(false);
     }
   }, [token]);
 
   const fetchInventory = useCallback(async () => {
-    if (!token) return;
+    const activeToken =
+      token ||
+      (typeof window !== 'undefined'
+        ? localStorage.getItem('mm_token') ||
+          localStorage.getItem('token') ||
+          localStorage.getItem('adminToken')
+        : null);
+    if (!activeToken) return;
     try {
-      const res = await getAllInventoryApi(null, token);
+      const res = await getAllInventoryApi(null, activeToken);
       if (res.success && Array.isArray(res.inventory) && res.inventory.length > 0) {
         try {
           localStorage.setItem('mm_cached_inventory', JSON.stringify(res.inventory));
@@ -1362,13 +1442,22 @@ export default function AdminDashboardPage() {
   // Filtered Current Work (Active Dispatches)
   const filteredCurrentWork = useMemo(() => {
     if (currentWorkFilter === 'In Progress') {
-      return dispatchQueue.filter(item => item.status === 'In Progress' || item.status === 'Under Diagnosis');
+      return dispatchQueue.filter(item => {
+        const s = String(item.status || '').trim().toUpperCase();
+        return s === 'IN PROGRESS' || s === 'UNDER DIAGNOSIS';
+      });
     }
     if (currentWorkFilter === 'Assigned') {
-      return dispatchQueue.filter(item => item.status === 'Accepted' || item.status === 'Assigned' || item.status === 'On The Way');
+      return dispatchQueue.filter(item => {
+        const s = String(item.status || '').trim().toUpperCase();
+        return s === 'ACCEPTED' || s === 'ASSIGNED' || s === 'ON THE WAY';
+      });
     }
     if (currentWorkFilter === 'Pending') {
-      return dispatchQueue.filter(item => item.status === 'Pending' || item.status === 'Awaiting Tech');
+      return dispatchQueue.filter(item => {
+        const s = String(item.status || '').trim().toUpperCase();
+        return s === 'PENDING' || s === 'AWAITING TECH';
+      });
     }
     return dispatchQueue;
   }, [dispatchQueue, currentWorkFilter]);
@@ -1376,9 +1465,18 @@ export default function AdminDashboardPage() {
   const currentWorkCounts = useMemo(() => {
     return {
       all: dispatchQueue.length,
-      inProgress: dispatchQueue.filter(i => i.status === 'In Progress' || i.status === 'Under Diagnosis').length,
-      assigned: dispatchQueue.filter(i => i.status === 'Accepted' || i.status === 'Assigned' || i.status === 'On The Way').length,
-      pending: dispatchQueue.filter(i => i.status === 'Pending' || i.status === 'Awaiting Tech').length,
+      inProgress: dispatchQueue.filter(item => {
+        const s = String(item.status || '').trim().toUpperCase();
+        return s === 'IN PROGRESS' || s === 'UNDER DIAGNOSIS';
+      }).length,
+      assigned: dispatchQueue.filter(item => {
+        const s = String(item.status || '').trim().toUpperCase();
+        return s === 'ACCEPTED' || s === 'ASSIGNED' || s === 'ON THE WAY';
+      }).length,
+      pending: dispatchQueue.filter(item => {
+        const s = String(item.status || '').trim().toUpperCase();
+        return s === 'PENDING' || s === 'AWAITING TECH';
+      }).length,
     };
   }, [dispatchQueue]);
 
@@ -1393,14 +1491,76 @@ export default function AdminDashboardPage() {
   const currentWorkItemsPerPage = 5;
   const currentWorkTableRef = useRef(null);
 
+  const historyCounts = useMemo(() => {
+    const isCompleted = (s) => {
+      const u = String(s || '').trim().toUpperCase();
+      return u === 'COMPLETED' || u === 'CLOSED';
+    };
+    const isCancelled = (s) => {
+      const u = String(s || '').trim().toUpperCase();
+      return u === 'CANCELLED';
+    };
+    const isInProgress = (s) => {
+      const u = String(s || '').trim().toUpperCase();
+      return u === 'IN PROGRESS' || u === 'UNDER DIAGNOSIS';
+    };
+    const isPending = (s) => {
+      const u = String(s || '').trim().toUpperCase();
+      return u === 'PENDING' || u === 'AWAITING TECH';
+    };
+    const isAccepted = (s) => {
+      const u = String(s || '').trim().toUpperCase();
+      return u === 'ACCEPTED' || u === 'ASSIGNED' || u === 'ON THE WAY';
+    };
+
+    const source = allBookings.length > 0 ? allBookings : dispatchQueue.concat(workHistory);
+    return {
+      all: source.length,
+      inProgress: source.filter(i => isInProgress(i.status)).length,
+      pending: source.filter(i => isPending(i.status)).length,
+      assigned: source.filter(i => isAccepted(i.status)).length,
+      completed: source.filter(i => isCompleted(i.status)).length,
+      cancelled: source.filter(i => isCancelled(i.status)).length,
+    };
+  }, [workHistory, allBookings, dispatchQueue]);
+
   const filteredHistory = useMemo(() => {
-    let list = workHistory;
+    const fullList = allBookings.length > 0 ? allBookings : dispatchQueue.concat(workHistory);
+    let list = fullList;
+
+    const isCompleted = (s) => {
+      const u = String(s || '').trim().toUpperCase();
+      return u === 'COMPLETED' || u === 'CLOSED';
+    };
+    const isCancelled = (s) => {
+      const u = String(s || '').trim().toUpperCase();
+      return u === 'CANCELLED';
+    };
+    const isInProgress = (s) => {
+      const u = String(s || '').trim().toUpperCase();
+      return u === 'IN PROGRESS' || u === 'UNDER DIAGNOSIS';
+    };
+    const isPending = (s) => {
+      const u = String(s || '').trim().toUpperCase();
+      return u === 'PENDING' || u === 'AWAITING TECH';
+    };
+    const isAccepted = (s) => {
+      const u = String(s || '').trim().toUpperCase();
+      return u === 'ACCEPTED' || u === 'ASSIGNED' || u === 'ON THE WAY';
+    };
+
     if (workHistoryFilter === 'Completed') {
-      list = workHistory.filter(item => item.status === 'Completed' || item.status === 'Closed');
+      list = fullList.filter(item => isCompleted(item.status));
+    } else if (workHistoryFilter === 'In Progress') {
+      list = fullList.filter(item => isInProgress(item.status));
+    } else if (workHistoryFilter === 'Pending') {
+      list = fullList.filter(item => isPending(item.status));
+    } else if (workHistoryFilter === 'Accepted' || workHistoryFilter === 'Assigned') {
+      list = fullList.filter(item => isAccepted(item.status));
     } else if (workHistoryFilter === 'Cancelled') {
-      list = workHistory.filter(item => item.status === 'Cancelled');
-    } else if (workHistoryFilter === 'All Records') {
-      list = allBookings.length > 0 ? allBookings : dispatchQueue.concat(workHistory);
+      list = fullList.filter(item => isCancelled(item.status));
+    } else {
+      list = fullList;
     }
 
     if (historySearchTerm.trim()) {
@@ -1415,14 +1575,6 @@ export default function AdminDashboardPage() {
     }
     return list;
   }, [workHistory, allBookings, dispatchQueue, workHistoryFilter, historySearchTerm]);
-
-  const historyCounts = useMemo(() => {
-    return {
-      completed: workHistory.filter(i => i.status === 'Completed' || i.status === 'Closed').length,
-      cancelled: workHistory.filter(i => i.status === 'Cancelled').length,
-      all: allBookings.length > 0 ? allBookings.length : dispatchQueue.concat(workHistory).length,
-    };
-  }, [workHistory, allBookings, dispatchQueue]);
 
   useEffect(() => {
     setHistoryPage(1);
@@ -2039,6 +2191,52 @@ export default function AdminDashboardPage() {
     fetchApplications();
   });
 
+  // Real-Time Inventory Stock updates
+  useSocketEvent('inventory:stock_updated', (updatedItem) => {
+    if (!updatedItem) return;
+    const incomingId = updatedItem.inventoryId || updatedItem.id || updatedItem._id;
+    const incomingSku = (updatedItem.skuCode || updatedItem.sku || '').toUpperCase();
+    const newQty = Number(updatedItem.stockQuantity !== undefined ? updatedItem.stockQuantity : updatedItem.stock);
+
+    setInventoryList((prev) =>
+      prev.map((item) => {
+        const curId = item.inventoryId || item.id || item._id;
+        const curSku = (item.skuCode || item.sku || '').toUpperCase();
+        if (curId === incomingId || (incomingSku && curSku === incomingSku)) {
+          const threshold = Number(item.reorderThreshold || item.threshold || 10);
+          const computedStatus =
+            newQty <= 0
+              ? 'Out of Stock'
+              : newQty <= threshold
+              ? 'Low Stock'
+              : 'In Stock';
+          return {
+            ...item,
+            stock: newQty,
+            stockQuantity: newQty,
+            status: computedStatus,
+          };
+        }
+        return item;
+      })
+    );
+  });
+
+  // Real-Time Low Stock Alert
+  useSocketEvent('inventory:low_stock_alert', (item) => {
+    if (!item) return;
+    if (playNotificationSound) playNotificationSound();
+    showToast(`⚠️ Low Stock Alert: ${item.itemName} (${item.skuCode}) has only ${item.stockQuantity} units left!`);
+  });
+
+  // Real-Time Invoice Generated alert
+  useSocketEvent('admin:invoice_generated', (invoice) => {
+    if (!invoice) return;
+    fetchBookings();
+    if (playNotificationSound) playNotificationSound();
+    showToast(`🧾 Invoice Generated: ₹${invoice.totalAmount} for ${invoice.serviceSnapshot?.appliance || 'Service'}`);
+  });
+
   // Open Restock Modal (Screenshot 2)
   const handleOpenRestock = (item) => {
     setSelectedItem(item);
@@ -2308,7 +2506,8 @@ export default function AdminDashboardPage() {
 
   const handleExportExcel = (exportFrom, exportTo) => {
     const dataToExport = workHistory.filter(item => {
-      const itemDate = new Date(item.dateCompleted);
+      const dateVal = item.dateCompleted !== '—' ? item.dateCompleted : (item.serviceDate !== '—' ? item.serviceDate : null);
+      const itemDate = dateVal ? new Date(dateVal) : new Date();
       const start = exportFrom ? new Date(exportFrom) : new Date('2000-01-01');
       const end = exportTo ? new Date(exportTo) : new Date('2100-01-01');
       return itemDate >= start && itemDate <= end;
@@ -2804,11 +3003,21 @@ export default function AdminDashboardPage() {
                                   <th className="py-3 px-5 text-right">ACTION</th>
                                 </tr>
                               </thead>
-                                {paginatedDispatch.length > 0 ? (
+                              <tbody className="divide-y divide-slate-100">
+                                {isBookingsLoading ? (
+                                  <tr>
+                                    <td colSpan="6" className="py-8 text-center text-slate-500 font-medium">
+                                      <div className="flex items-center justify-center gap-2">
+                                        <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                                        <span>Loading live dispatches from server...</span>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ) : paginatedDispatch.length > 0 ? (
                                   paginatedDispatch.map((item) => {
                                     const AppIcon = item.applianceIcon || Wrench;
                                     return (
-                                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                                      <tr key={item.rawId || item.id} className="hover:bg-slate-50/80 transition-colors">
                                         <td className="py-4 px-5 font-bold text-slate-600">{item.id}</td>
                                         <td className="py-4 px-4">
                                           <div className="flex items-center gap-2">
@@ -2852,6 +3061,7 @@ export default function AdminDashboardPage() {
                                     </td>
                                   </tr>
                                 )}
+                              </tbody>
                             </table>
                           </div>
 
@@ -3754,6 +3964,14 @@ export default function AdminDashboardPage() {
                                         <button 
                                           onClick={() => {
                                             setPaymentRequests(prev => prev.map(p => p.id === req.id ? { ...p, status: 'Approved' } : p));
+                                            if (socket && req.vendorId) {
+                                              socket.emit('admin:update_payout', {
+                                                vendorId: req.vendorId,
+                                                payoutId: req.id,
+                                                status: 'Approved',
+                                                amount: req.amount,
+                                              });
+                                            }
                                             showToast(`Request ${req.id} Approved`);
                                           }}
                                           className="p-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg transition-colors cursor-pointer" title="Approve"
@@ -3763,6 +3981,14 @@ export default function AdminDashboardPage() {
                                         <button 
                                           onClick={() => {
                                             setPaymentRequests(prev => prev.filter(p => p.id !== req.id));
+                                            if (socket && req.vendorId) {
+                                              socket.emit('admin:update_payout', {
+                                                vendorId: req.vendorId,
+                                                payoutId: req.id,
+                                                status: 'Rejected',
+                                                amount: req.amount,
+                                              });
+                                            }
                                             showToast(`Request ${req.id} Rejected`);
                                           }}
                                           className="p-1.5 bg-rose-100 text-rose-700 hover:bg-rose-200 rounded-lg transition-colors cursor-pointer" title="Reject"
@@ -3774,6 +4000,14 @@ export default function AdminDashboardPage() {
                                       <button 
                                         onClick={() => {
                                           setPaymentRequests(prev => prev.map(p => p.id === req.id ? { ...p, status: 'Paid' } : p));
+                                          if (socket && req.vendorId) {
+                                            socket.emit('admin:update_payout', {
+                                              vendorId: req.vendorId,
+                                              payoutId: req.id,
+                                              status: 'Paid',
+                                              amount: req.amount,
+                                            });
+                                          }
                                           showToast(`Request ${req.id} Marked as Paid`);
                                         }}
                                         className="px-3 py-1.5 bg-[#02182e] hover:bg-[#082848] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
@@ -4644,6 +4878,9 @@ export default function AdminDashboardPage() {
                               setIsRefreshingBookings(true);
                               try {
                                 await fetchBookings();
+                                showToast('Live bookings synchronized with database!');
+                              } catch {
+                                showToast('Failed to sync live bookings');
                               } finally {
                                 setIsRefreshingBookings(false);
                               }
@@ -4652,10 +4889,28 @@ export default function AdminDashboardPage() {
                             disabled={isRefreshingBookings}
                           >
                             <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingBookings ? 'animate-spin' : ''}`} />
-                            Sync Live Data
+                            {isRefreshingBookings ? 'Syncing...' : 'Sync Live Data'}
                           </button>
                         </div>
                       </div>
+
+                      {bookingsFetchError && (
+                        <div className="p-4 mx-5 my-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                            <div>
+                              <p className="font-bold text-amber-900">Database Sync Status</p>
+                              <p className="text-[11px] text-amber-700">{bookingsFetchError}</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => fetchBookings()}
+                            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg cursor-pointer transition-colors shadow-2xs self-start sm:self-auto"
+                          >
+                            Retry Sync
+                          </button>
+                        </div>
+                      )}
 
                       {/* Current Work */}
                       <div ref={currentWorkTableRef} className="p-5 border-b border-slate-100">
@@ -4700,9 +4955,18 @@ export default function AdminDashboardPage() {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                              {paginatedCurrentWork.length > 0 ? (
+                              {isBookingsLoading ? (
+                                <tr>
+                                  <td colSpan="6" className="py-8 text-center text-slate-500 font-medium">
+                                    <div className="flex items-center justify-center gap-2">
+                                      <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                                      <span>Loading active service dispatches...</span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ) : paginatedCurrentWork.length > 0 ? (
                                 paginatedCurrentWork.map(item => (
-                                  <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                                  <tr key={item.rawId || item.id} className="hover:bg-slate-50/80 transition-colors">
                                     <td className="py-4 px-5 font-bold text-slate-600">{item.id}</td>
                                     <td className="py-4 px-4 font-bold text-slate-800">{item.appliance}</td>
                                     <td className="py-4 px-4 font-semibold text-slate-700">{item.customer}</td>
@@ -4775,9 +5039,12 @@ export default function AdminDashboardPage() {
                             {/* Work History Filter Tabs */}
                             <div className="flex flex-wrap items-center gap-1.5">
                               {[
+                                { id: 'All Records', label: `All Records (${historyCounts.all})` },
+                                { id: 'In Progress', label: `In Progress (${historyCounts.inProgress})` },
+                                { id: 'Pending', label: `Pending (${historyCounts.pending})` },
+                                { id: 'Accepted', label: `Accepted (${historyCounts.assigned})` },
                                 { id: 'Completed', label: `Completed (${historyCounts.completed})` },
                                 { id: 'Cancelled', label: `Cancelled (${historyCounts.cancelled})` },
-                                { id: 'All Records', label: `All Records Ledger (${historyCounts.all})` },
                               ].map((tab) => (
                                 <button
                                   key={tab.id}
@@ -4834,9 +5101,18 @@ export default function AdminDashboardPage() {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                              {paginatedHistory.length > 0 ? (
+                              {isBookingsLoading ? (
+                                <tr>
+                                  <td colSpan="7" className="py-12 text-center text-slate-500 font-medium">
+                                    <div className="flex flex-col items-center justify-center gap-2">
+                                      <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                                      <span className="text-sm font-extrabold text-slate-700">Loading live work history from database...</span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ) : paginatedHistory.length > 0 ? (
                                 paginatedHistory.map(item => (
-                                  <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                                  <tr key={item.rawId || item.id} className="hover:bg-slate-50/80 transition-colors">
                                     <td className="py-4 px-5 font-bold text-slate-600">{item.id}</td>
                                     <td className="py-4 px-4 font-bold text-slate-800">{item.appliance}</td>
                                     <td className="py-4 px-4 font-semibold text-slate-700">{item.customer}</td>
@@ -4865,7 +5141,7 @@ export default function AdminDashboardPage() {
                                       <p className="font-extrabold text-sm text-slate-700">
                                         {historySearchTerm.trim() 
                                           ? `No records found matching "${historySearchTerm}"`
-                                          : `No ${workHistoryFilter === 'Cancelled' ? 'cancelled' : 'completed'} records found`
+                                          : `No records found under filter "${workHistoryFilter}"`
                                         }
                                       </p>
                                       <p className="text-xs text-slate-500">
@@ -4877,16 +5153,12 @@ export default function AdminDashboardPage() {
                                             Clear search filter
                                           </button>
                                         ) : (
-                                          <>
-                                            When ongoing jobs are finished, their completed reports will appear here. Switch to{' '}
-                                            <button
-                                              onClick={() => { setWorkHistoryFilter('All Records'); setHistoryPage(1); }}
-                                              className="text-blue-600 font-bold underline hover:text-blue-800 cursor-pointer"
-                                            >
-                                              All Records Ledger
-                                            </button>{' '}
-                                            to view all {historyCounts.all} service requests.
-                                          </>
+                                          <button
+                                            onClick={() => { setWorkHistoryFilter('All Records'); setHistoryPage(1); }}
+                                            className="text-blue-600 font-bold underline hover:text-blue-800 cursor-pointer"
+                                          >
+                                            Show all {historyCounts.all} live database records
+                                          </button>
                                         )}
                                       </p>
                                     </div>

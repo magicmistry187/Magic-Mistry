@@ -421,20 +421,20 @@ export default function AddressForm() {
 
             <div>
               <label className="block font-bold text-xs text-slate-600 mb-1.5">
-                House / Flat / Mohalla <span className="text-gray-400 font-normal text-xs">(Optional)</span>
+                House / Flat <span className="text-gray-400 font-normal text-xs">(Optional)</span>
               </label>
               <input
                 type="text"
                 value={flat}
                 onChange={(e) => setFlat(e.target.value)}
-                placeholder="e.g. Nazirpara, House #4B, Flat 201"
+                placeholder="e.g. House #4B, Flat 201"
                 className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all"
               />
             </div>
 
             <div>
               <label className="block font-bold text-xs text-slate-600 mb-1.5">
-                Street / Locality / Bazar <span className="text-red-500">*</span>
+                Street / Locality <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -484,7 +484,7 @@ export default function AddressForm() {
                   type="text"
                   value={landmark}
                   onChange={(e) => setLandmark(e.target.value)}
-                  placeholder="e.g. Near Gurudwara, Opp Temple"
+                  placeholder="e.g. Near Park, Opp Temple"
                   className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all"
                 />
               </div>

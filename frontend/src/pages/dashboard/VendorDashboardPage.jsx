@@ -21,6 +21,7 @@ import VendorAddressModal from '../../components/dashboard/vendor/VendorAddressM
 import VendorRadiusModal from '../../components/dashboard/vendor/VendorRadiusModal';
 import VendorStartServiceModal from '../../components/dashboard/vendor/VendorStartServiceModal';
 import VendorFuelClaimModal from '../../components/dashboard/vendor/VendorFuelClaimModal';
+import ChatModal from '../../components/common/ChatModal';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket, useSocketEvent } from '../../context/SocketContext';
 import {
@@ -486,7 +487,9 @@ export default function VendorDashboardPage() {
   const navigate = useNavigate();
   const routerLocation = useLocation();
   const { token, user, loading, location, updateProfile } = useAuth();
-  const { playNotificationSound } = useSocket();
+  const { socket, playNotificationSound } = useSocket();
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [selectedJobForChat, setSelectedJobForChat] = useState(null);
   
   // Navigation tabs: 'active', 'service', 'invoice', 'history', 'earnings', 'profile'
   const [activeTab, setActiveTab] = useState(() => {
@@ -1457,16 +1460,35 @@ export default function VendorDashboardPage() {
     showToast('A booking was cancelled by the customer.', 'warning');
   });
 
-  // Toggle Online/Offline
+  // Toggle Online/Offline with Real-Time Socket Room Sync
   const handleToggleOnline = () => {
     const nextState = !isOnline;
     setIsOnline(nextState);
+    if (socket) {
+      socket.emit('vendor:toggle_online', { isOnline: nextState });
+    }
     if (nextState) {
       showToast('You are now ONLINE. Ready for new repair requests.', 'success');
     } else {
       showToast('You are now OFFLINE. Requests paused.', 'warning');
     }
   };
+
+  // Real-Time Payout & Fuel Claim listeners
+  useSocketEvent('payout:updated', (payload) => {
+    if (!payload) return;
+    if (playNotificationSound) playNotificationSound();
+    showToast(`Payout status updated to "${payload.status || 'Processed'}".`, 'success');
+    if (payload.status === 'Paid') {
+      setPayoutRequested(false);
+    }
+  });
+
+  useSocketEvent('fuel_claim:updated', (payload) => {
+    if (!payload) return;
+    if (playNotificationSound) playNotificationSound();
+    showToast(`Fuel Claim status updated to "${payload.status || 'Approved'}".`, 'success');
+  });
 
   const handleRequestPayout = () => {
     if (todayEarnings <= 0) {
@@ -2815,6 +2837,18 @@ export default function VendorDashboardPage() {
                                       >
                                         <Navigation className="w-3.5 h-3.5 text-blue-500" />
                                         Track
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedJobForChat(job);
+                                          setIsChatOpen(true);
+                                        }}
+                                        className="flex-1 sm:flex-none px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold rounded-xl flex items-center justify-center gap-1.5 transition-colors border border-blue-200 cursor-pointer"
+                                        title="Chat with Customer"
+                                      >
+                                        <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
+                                        Chat
                                       </button>
                                       <button
                                         onClick={() => handleStartService(job)}
@@ -4862,6 +4896,20 @@ export default function VendorDashboardPage() {
           completedJobs={history.filter(h => h.status === 'Completed')}
           vendorProfile={vendorProfile}
           onSubmitClaim={handleSubmitFuelClaim}
+        />
+
+        {/* ── REAL-TIME CHAT MODAL ── */}
+        <ChatModal
+          isOpen={isChatOpen}
+          onClose={() => {
+            setIsChatOpen(false);
+            setSelectedJobForChat(null);
+          }}
+          bookingId={selectedJobForChat?.id || selectedJobForChat?._id || selectedJobForChat?.rawBooking?._id}
+          bookingTitle={selectedJobForChat?.serviceTitle || selectedJobForChat?.service || 'Service Order'}
+          otherPartyName={selectedJobForChat?.customerName || 'Customer'}
+          otherPartyRole="Customer"
+          recipientId={selectedJobForChat?.customerId || selectedJobForChat?.rawBooking?.customer?._id || selectedJobForChat?.rawBooking?.customer}
         />
 
         {/* ── PROOF LIGHTBOX PREVIEW MODAL ── */}
