@@ -6,4 +6,20 @@
 **/node_modules/
 
 # Documentation
-docs/
+docs/
+
+# AI Agent & Tooling Configurations
+.agent/
+agent/
+.agents/
+agents/
+.gemini/
+gemini/
+.gsd/
+gsd/
+.qodo/
+qodo/
+.qudo/
+qudo/
+adapters/
+.adapters/
