@@ -4,23 +4,23 @@ import { Banknote, Smartphone, CreditCard, Lock } from 'lucide-react';
 
 const methods = [
   {
-    id: 'cash',
+    id: 'Cash',
     label: 'Pay Cash After Service',
-    description: 'Hand over cash directly to the technician once the job is done.',
+    description: 'Hand over cash directly to the technician once the job is completed.',
     icon: <Banknote className="w-5 h-5" />,
     badge: null,
     enabled: true,
   },
   {
-    id: 'upi',
+    id: 'UPI',
     label: 'Pay via UPI After Service',
-    description: 'Scan &amp; pay via PhonePe, Google Pay, Paytm or any UPI app after service.',
+    description: 'Scan & pay via PhonePe, Google Pay, Paytm, or any UPI app after service.',
     icon: <Smartphone className="w-5 h-5" />,
     badge: 'RECOMMENDED',
     enabled: true,
   },
   {
-    id: 'online',
+    id: 'Online Payment',
     label: 'Online Payment (Card / Net Banking)',
     description: 'Coming soon — online prepayment is currently unavailable.',
     icon: <CreditCard className="w-5 h-5" />,
@@ -31,7 +31,9 @@ const methods = [
 
 export default function PaymentMethod() {
   const { bookingState, updateBooking, scrollToNextStep } = useBooking();
-  const selected = bookingState.paymentMethod || null;
+  const selected = bookingState.paymentMethod || 'Cash';
+  const isSelectedMethod = (id) =>
+    String(selected).toLowerCase() === String(id).toLowerCase();
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
@@ -44,11 +46,12 @@ export default function PaymentMethod() {
 
       <div className="space-y-3">
         {methods.map((method) => {
-          const isSelected = selected === method.id && method.enabled;
+          const isSelected = isSelectedMethod(method.id) && method.enabled;
 
           return (
             <button
               key={method.id}
+              type="button"
               disabled={!method.enabled}
               onClick={() => {
                 if (method.enabled) {
@@ -58,7 +61,7 @@ export default function PaymentMethod() {
               }}
               className={`w-full text-left flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
                 !method.enabled
-                  ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
+                  ? 'border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed'
                   : isSelected
                   ? 'border-blue-600 bg-blue-50/60 shadow-sm ring-2 ring-blue-500/20'
                   : 'border-gray-200 hover:border-blue-300 hover:bg-slate-50 cursor-pointer'
@@ -75,8 +78,12 @@ export default function PaymentMethod() {
 
               {/* Icon */}
               <span
-                className={`flex-shrink-0 p-2 rounded-lg ${
-                  isSelected ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+                className={`flex-shrink-0 p-2.5 rounded-xl ${
+                  !method.enabled
+                    ? 'bg-gray-100 text-gray-400'
+                    : isSelected
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-gray-100 text-gray-500'
                 }`}
               >
                 {method.icon}
@@ -87,7 +94,11 @@ export default function PaymentMethod() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <span
                     className={`font-semibold text-sm ${
-                      isSelected ? 'text-blue-900' : 'text-slate-800'
+                      !method.enabled
+                        ? 'text-gray-500'
+                        : isSelected
+                        ? 'text-blue-900'
+                        : 'text-slate-800'
                     }`}
                   >
                     {method.label}

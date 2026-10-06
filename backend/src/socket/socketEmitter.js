@@ -183,6 +183,63 @@ const emitVendorApplicationStatus = (application) => {
   ioInstance.to('admin').emit('admin:application_updated', application);
 };
 
+/**
+ * Emits when an invoice is generated upon service completion.
+ */
+const emitInvoiceGenerated = (invoice) => {
+  if (!ioInstance) return;
+  const customerId = invoice.customer?._id || invoice.customer;
+  if (customerId) {
+    ioInstance.to(`user:${String(customerId)}`).emit('invoice:generated', invoice);
+  }
+  ioInstance.to('admin').emit('admin:invoice_generated', invoice);
+};
+
+/**
+ * Emits when inventory stock is modified (restocked, reduced, or used in service).
+ */
+const emitInventoryUpdated = (inventoryItem) => {
+  if (!ioInstance) return;
+  const plainItem = typeof inventoryItem.toObject === 'function' ? inventoryItem.toObject() : inventoryItem;
+  ioInstance.to('admin').emit('inventory:stock_updated', plainItem);
+};
+
+/**
+ * Emits when an inventory item falls below its reorder threshold.
+ */
+const emitLowStockAlert = (inventoryItem) => {
+  if (!ioInstance) return;
+  const plainItem = typeof inventoryItem.toObject === 'function' ? inventoryItem.toObject() : inventoryItem;
+  ioInstance.to('admin').emit('inventory:low_stock_alert', plainItem);
+};
+
+/**
+ * Emits when an account is blocked or suspended by admin to force client logout.
+ */
+const emitAccountStatusUpdated = (userId, status, message) => {
+  if (!ioInstance) return;
+  ioInstance.to(`user:${String(userId)}`).emit('auth:account_suspended', {
+    status,
+    message: message || 'Your account status has been changed by the administrator.',
+  });
+};
+
+/**
+ * Emits when a vendor payout status is updated.
+ */
+const emitPayoutStatusUpdated = (vendorId, payout) => {
+  if (!ioInstance) return;
+  ioInstance.to(`vendor:${String(vendorId)}`).emit('payout:updated', payout);
+};
+
+/**
+ * Emits when a vendor fuel claim status is updated.
+ */
+const emitFuelClaimStatusUpdated = (vendorId, fuelClaim) => {
+  if (!ioInstance) return;
+  ioInstance.to(`vendor:${String(vendorId)}`).emit('fuel_claim:updated', fuelClaim);
+};
+
 module.exports = {
   setIO,
   getIO,
@@ -192,4 +249,10 @@ module.exports = {
   emitBookingCancelled,
   emitNewVendorApplication,
   emitVendorApplicationStatus,
+  emitInvoiceGenerated,
+  emitInventoryUpdated,
+  emitLowStockAlert,
+  emitAccountStatusUpdated,
+  emitPayoutStatusUpdated,
+  emitFuelClaimStatusUpdated,
 };

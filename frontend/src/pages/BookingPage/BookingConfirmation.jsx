@@ -134,11 +134,11 @@ export default function BookingConfirmation() {
   const priceDisplay = activeBooking.serviceCategoryCharge ?? activeBooking.basePrice ?? getLiveBasePriceForAppliance(serviceDisplayName, 299);
 
   const paymentLabel =
-    activeBooking.paymentMethod === 'upi'
+    String(activeBooking.paymentMethod || '').toLowerCase() === 'upi'
       ? 'Pay via UPI After Service'
-      : activeBooking.paymentMethod === 'cash'
+      : String(activeBooking.paymentMethod || '').toLowerCase() === 'cash'
       ? 'Pay Cash After Service'
-      : 'Cash / UPI After Service';
+      : (activeBooking.paymentMethod || 'Cash / UPI After Service');
 
   return (
     <>

@@ -21,6 +21,7 @@ import VendorAddressModal from '../../components/dashboard/vendor/VendorAddressM
 import VendorRadiusModal from '../../components/dashboard/vendor/VendorRadiusModal';
 import VendorStartServiceModal from '../../components/dashboard/vendor/VendorStartServiceModal';
 import VendorFuelClaimModal from '../../components/dashboard/vendor/VendorFuelClaimModal';
+import ChatModal from '../../components/common/ChatModal';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket, useSocketEvent } from '../../context/SocketContext';
 import {
@@ -36,6 +37,7 @@ import { updateVendorProfileApi, getVendorProfileApi, updateVendorProfileImageAp
 import { useLivePricing, getLiveFuelRate, getLiveBasePriceForAppliance } from '../../services/pricingService';
 import { getAllInventoryApi } from '../../services/operations/inventoryAPI';
 import { getInvoiceForBooking, saveInvoiceForBooking, normalizeInvoiceForUI } from '../../services/invoiceService';
+import { recordTravelAllowanceToLedger } from '../../services/vendorEarningsService';
 
 
 // Predefined Indian Banks for Profile
@@ -356,13 +358,55 @@ export const formatVendorBooking = (b) => {
     checklist: normalizeChecklist(b.checklist || b.execution?.checklist || b.serviceExecution?.checklist),
     photos: Array.isArray(b.photos) ? b.photos : [],
     notes: b.notes || '',
-    parts: normalizedInv?.items && normalizedInv.items.length > 0 ? normalizedInv.items : (b.parts || [
-      { id: 1, description: b.serviceCategory || b.appliance || 'Diagnostic & Service Charge', qty: 1, price: pay, locked: true },
-    ]),
+    parts: normalizedInv?.items && normalizedInv.items.length > 0 
+      ? normalizedInv.items.filter(p => !isTravelItem(p)).map(p => {
+          const service = isServiceItem(p);
+          return {
+            ...p,
+            isService: service,
+            locked: service || Boolean(p.locked),
+          };
+        }) 
+      : (b.parts || [
+          { id: 1, description: b.serviceCategory || b.appliance || 'Diagnostic & Service Charge', qty: 1, price: pay, locked: true, isService: true },
+        ]).filter(p => !isTravelItem(p)),
     invoiceData: normalizedInv || undefined,
     invoiceNumber: normalizedInv?.invoiceId,
     rawBooking: b,
   };
+};
+
+// ── Item Classification Helpers (Guarantees Service & Travel are locked and never treated as inventory components) ──
+export const isTravelItem = (part) => {
+  if (!part) return false;
+  if (part.isTravel || part.type === 'Travel') return true;
+  const desc = String(part.description || part.name || '').toLowerCase();
+  return desc.includes('travel') || desc.includes('distance') || desc.includes('km @') || desc.includes('km charge') || desc.endsWith('km');
+};
+
+export const isServiceItem = (part) => {
+  if (!part) return false;
+  if (isTravelItem(part)) return false;
+  if (part.isService || part.type === 'Service') return true;
+  if (part.isComponent || part.type === 'Component' || part.inventoryId) return false;
+  const desc = String(part.description || part.name || '').toLowerCase();
+  return (
+    Boolean(part.locked) ||
+    desc.includes('diagnostic') ||
+    desc.includes('inspection') ||
+    desc.includes('service') ||
+    desc.includes('labor') ||
+    desc.includes('cleaning') ||
+    desc.includes('jet clean') ||
+    desc.includes('installation') ||
+    desc.includes('repair fee') ||
+    desc.includes('visit')
+  );
+};
+
+export const isLockedInvoiceItem = (part) => {
+  if (!part) return false;
+  return isTravelItem(part) || isServiceItem(part) || Boolean(part.locked);
 };
 
 // ── Financial Calculation Helper: 50% Service Payout, 0% Components, 100% Fuel Payout ──
@@ -379,25 +423,12 @@ export const calculateJobFinancials = (job) => {
 
   if (parts.length > 0) {
     parts.forEach(part => {
-      const q = parseFloat(part.qty) || 1;
-      const p = parseFloat(part.price) || 0;
+      const q = parseFloat(part.qty !== undefined ? part.qty : part.quantity) || 1;
+      const p = parseFloat(part.price !== undefined ? part.price : part.unitPrice) || 0;
       const rowTotal = q * p;
-      const desc = String(part.description || '').toLowerCase();
 
-      const isTravel = part.isTravel || desc.includes('travel') || desc.includes('distance') || desc.includes('km ') || desc.endsWith('km');
-      const isService = !isTravel && (
-        part.locked || 
-        part.isService || 
-        desc.includes('diagnostic') || 
-        desc.includes('inspection') || 
-        desc.includes('service') || 
-        desc.includes('labor') || 
-        desc.includes('cleaning') || 
-        desc.includes('jet clean') || 
-        desc.includes('installation') || 
-        desc.includes('visit') || 
-        desc.includes('repair fee')
-      );
+      const isTravel = isTravelItem(part);
+      const isService = !isTravel && isServiceItem(part);
 
       if (isTravel) {
         travelCharges += rowTotal;
@@ -424,11 +455,12 @@ export const calculateJobFinancials = (job) => {
   const servicePayout = serviceCharges * 0.5;
   // 2. Component Charges: strictly 0% vendor payout (excluded)
   const componentPayout = 0;
-  // 3. Fuel Charges Payout: automatically calculated from total distance (KM)
+  // 3. Fuel Charges Payout: 100% paid by Admin directly to vendor (NOT charged to customer!)
   const fuelPayout = travelCharges;
-  // Total Vendor Payout = (50% of Service Charges) + (Fuel Charges Payout)
+  // Total Vendor Payout = (50% of Service Charges) + (Fuel Charges Payout from Admin)
   const totalVendorPayout = servicePayout + fuelPayout;
-  const totalBilled = serviceCharges + componentCharges + travelCharges;
+  // Customer Invoiced Total: strictly Service Charges + Components (Travel is NOT charged to customer!)
+  const totalBilled = serviceCharges + componentCharges;
 
   return {
     serviceCharges,
@@ -455,7 +487,9 @@ export default function VendorDashboardPage() {
   const navigate = useNavigate();
   const routerLocation = useLocation();
   const { token, user, loading, location, updateProfile } = useAuth();
-  const { playNotificationSound } = useSocket();
+  const { socket, playNotificationSound } = useSocket();
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [selectedJobForChat, setSelectedJobForChat] = useState(null);
   
   // Navigation tabs: 'active', 'service', 'invoice', 'history', 'earnings', 'profile'
   const [activeTab, setActiveTab] = useState(() => {
@@ -671,15 +705,21 @@ export default function VendorDashboardPage() {
 
             setJobs(prevJobs => {
               return activeList.map(serverJob => {
-                const existing = (prevJobs || []).find(pj => pj.id === serverJob.id);
+                const existing = (prevJobs || []).find(pj => pj.id === serverJob.id || pj._id === serverJob._id);
                 if (existing) {
+                  const resolvedStatus = (existing.status === 'In Progress' && (serverJob.status === 'Accepted' || serverJob.status === 'New Request'))
+                    ? 'In Progress'
+                    : serverJob.status;
                   return {
                     ...serverJob,
+                    status: resolvedStatus,
+                    bookingStatus: resolvedStatus === 'In Progress' ? 'In Progress' : serverJob.bookingStatus,
                     travelDistanceKm: serverJob.travelDistanceKm || existing.travelDistanceKm || 0,
                     travelRatePerKm: serverJob.travelRatePerKm || existing.travelRatePerKm || 10,
                     travelCharges: serverJob.travelCharges || existing.travelCharges || 0,
                     mapScreenshot: serverJob.mapScreenshot || existing.mapScreenshot || null,
-                    travelVerified: serverJob.travelVerified || existing.travelVerified || false,
+                    travelVerified: Boolean(serverJob.travelVerified || existing.travelVerified),
+                    addToInvoice: false,
                     checklist: (Array.isArray(existing.checklist) && existing.checklist.some(c => c.completed)) ? existing.checklist : serverJob.checklist,
                     parts: (Array.isArray(existing.parts) && existing.parts.length > 0) ? existing.parts : serverJob.parts,
                   };
@@ -786,13 +826,19 @@ export default function VendorDashboardPage() {
       if (refreshed) {
         setSelectedJob(prev => {
           if (!prev) return refreshed;
+          const resolvedStatus = (prev.status === 'In Progress' && (refreshed.status === 'Accepted' || refreshed.status === 'New Request'))
+            ? 'In Progress'
+            : refreshed.status;
           return {
             ...refreshed,
+            status: resolvedStatus,
+            bookingStatus: resolvedStatus === 'In Progress' ? 'In Progress' : refreshed.bookingStatus,
             travelDistanceKm: refreshed.travelDistanceKm || prev.travelDistanceKm || 0,
             travelRatePerKm: refreshed.travelRatePerKm || prev.travelRatePerKm || 10,
             travelCharges: refreshed.travelCharges || prev.travelCharges || 0,
             mapScreenshot: refreshed.mapScreenshot || prev.mapScreenshot || null,
-            travelVerified: refreshed.travelVerified || prev.travelVerified || false,
+            travelVerified: Boolean(refreshed.travelVerified || prev.travelVerified),
+            addToInvoice: false,
             checklist: (Array.isArray(prev.checklist) && prev.checklist.some(c => c.completed))
               ? prev.checklist
               : (Array.isArray(refreshed.checklist) ? refreshed.checklist : normalizeChecklist(refreshed.checklist)),
@@ -807,6 +853,9 @@ export default function VendorDashboardPage() {
   const [invoiceDiscount, setInvoiceDiscount] = useState(0);
   // Payment methods: 'upi' (Direct UPI Transfer), 'cash' (Direct Cash Transfer), or 'online_gateway' (In Progress)
   const [paymentMethod, setPaymentMethod] = useState('upi');
+  const [vendorPaymentRef, setVendorPaymentRef] = useState('');
+  const [vendorCashNote, setVendorCashNote] = useState('');
+  const [vendorGatewayToken, setVendorGatewayToken] = useState('');
   const [customerNotes, setCustomerNotes] = useState('');
 
   // Printable Tax Invoice Modal
@@ -886,10 +935,21 @@ export default function VendorDashboardPage() {
     fetchLiveInventory();
   }, [fetchLiveInventory]);
 
-  // Re-fetch live inventory whenever vendor enters the invoice generation tab
+  // Re-fetch live inventory and sanitize invoiceParts whenever vendor enters the invoice generation tab
   useEffect(() => {
     if (activeTab === 'invoice') {
       fetchLiveInventory();
+      setInvoiceParts(prev => {
+        if (!Array.isArray(prev) || prev.length === 0) return prev;
+        // Strip travel allowance from customer invoice (reimbursed by Admin on Earnings page)
+        const stripped = prev.filter(p => !isTravelItem(p));
+        return stripped.map(p => {
+          if (isServiceItem(p) && (!p.locked || !p.isService)) {
+            return { ...p, isService: true, locked: true };
+          }
+          return p;
+        });
+      });
     }
   }, [activeTab, fetchLiveInventory]);
 
@@ -1400,16 +1460,35 @@ export default function VendorDashboardPage() {
     showToast('A booking was cancelled by the customer.', 'warning');
   });
 
-  // Toggle Online/Offline
+  // Toggle Online/Offline with Real-Time Socket Room Sync
   const handleToggleOnline = () => {
     const nextState = !isOnline;
     setIsOnline(nextState);
+    if (socket) {
+      socket.emit('vendor:toggle_online', { isOnline: nextState });
+    }
     if (nextState) {
       showToast('You are now ONLINE. Ready for new repair requests.', 'success');
     } else {
       showToast('You are now OFFLINE. Requests paused.', 'warning');
     }
   };
+
+  // Real-Time Payout & Fuel Claim listeners
+  useSocketEvent('payout:updated', (payload) => {
+    if (!payload) return;
+    if (playNotificationSound) playNotificationSound();
+    showToast(`Payout status updated to "${payload.status || 'Processed'}".`, 'success');
+    if (payload.status === 'Paid') {
+      setPayoutRequested(false);
+    }
+  });
+
+  useSocketEvent('fuel_claim:updated', (payload) => {
+    if (!payload) return;
+    if (playNotificationSound) playNotificationSound();
+    showToast(`Fuel Claim status updated to "${payload.status || 'Approved'}".`, 'success');
+  });
 
   const handleRequestPayout = () => {
     if (todayEarnings <= 0) {
@@ -1560,36 +1639,25 @@ export default function VendorDashboardPage() {
     const targetJob = pendingStartServiceJob || jobs.find(j => j.id === jobId) || selectedJob;
     if (!targetJob) return;
 
-    let updatedParts = [...(targetJob.parts || [])];
-
-    if (addToInvoice) {
-      // Remove any prior travel line item to avoid duplicate additions
-      updatedParts = updatedParts.filter(p => !p.isTravel && !String(p.description || '').toLowerCase().includes('travel'));
-      const travelPart = {
-        id: `travel-${Date.now()}`,
-        description: `Travel & Distance Charge (${travelDistanceKm} km @ ₹${travelRatePerKm}/km)`,
-        qty: travelDistanceKm,
-        price: travelRatePerKm,
-        locked: false,
-        isTravel: true
-      };
-      updatedParts.push(travelPart);
-    }
+    // Customer invoice parts MUST NOT contain travel allowance (Admin reimburses vendor on Earnings page)
+    const updatedParts = (targetJob.parts || []).filter(p => !isTravelItem(p));
 
     const cleanMapScreenshot = safeImageUrl(mapScreenshot);
     const updatedJob = {
       ...targetJob,
       status: 'In Progress',
+      bookingStatus: 'In Progress',
       travelDistanceKm: Number(travelDistanceKm),
       travelRatePerKm: Number(travelRatePerKm),
       travelCharges: Number(travelCharges),
       mapScreenshot: cleanMapScreenshot,
       travelVerified: true,
+      addToInvoice: Boolean(addToInvoice),
       checklist: Array.isArray(targetJob.checklist) ? targetJob.checklist : normalizeChecklist(targetJob.checklist),
       parts: updatedParts
     };
 
-    setJobs(prevJobs => prevJobs.map(j => j.id === updatedJob.id ? updatedJob : j));
+    setJobs(prevJobs => prevJobs.map(j => (String(j.id) === String(updatedJob.id) || String(j._id) === String(updatedJob.id)) ? updatedJob : j));
     setSelectedJob(updatedJob);
     setInvoiceParts(updatedParts);
     setShowStartServiceModal(false);
@@ -1616,6 +1684,7 @@ export default function VendorDashboardPage() {
         const formData = new FormData();
         formData.append('distanceKm', String(travelDistanceKm || 0));
         formData.append('ratePerKm', String(travelRatePerKm || 10));
+        formData.append('addToInvoice', String(Boolean(addToInvoice)));
         
         let fileToSend = mapFile;
         if (!fileToSend && mapScreenshot && typeof mapScreenshot === 'string') {
@@ -1646,10 +1715,22 @@ export default function VendorDashboardPage() {
 
         formData.append('image', fileToSend);
 
-        const routeRes = await routeVerificationApi(backendJobId, formData, authToken);
-        if (!routeRes.success) {
-          console.warn('[Vendor Dashboard] Route verification warning:', routeRes.message);
+        try {
+          const routeRes = await routeVerificationApi(backendJobId, formData, authToken);
+          if (!routeRes.success) {
+            console.warn('[Vendor Dashboard] Route verification notice:', routeRes.message);
+          }
+        } catch (rErr) {
+          console.warn('[Vendor Dashboard] Route verification attempt notice:', rErr);
+        }
+
+        // Step 3: CRITICAL STATUS SYNCHRONIZATION
+        // ALWAYS update the Booking status in MongoDB to 'In Progress' via updateBookingStatusApi
+        // This notifies Customer & Admin via WebSockets in real time and ensures page reloads stay 'In Progress'
+        try {
           await updateBookingStatusApi(backendJobId, { status: 'In Progress' }, authToken);
+        } catch (statusErr) {
+          console.warn('[Vendor Dashboard] Booking status synchronization notice:', statusErr);
         }
       } catch (err) {
         console.error('[Vendor Dashboard] Start service error:', err);
@@ -1736,20 +1817,16 @@ export default function VendorDashboardPage() {
     setSelectedJob(updatedJob);
     setJobs(prevJobs => prevJobs.map(j => j.id === selectedJob.id ? updatedJob : j));
 
-    let partsToSet = selectedJob.parts || [];
-    // Ensure verified travel line item is present if travel distance was logged
-    if (selectedJob.travelDistanceKm && !partsToSet.some(p => p.isTravel || String(p.description || '').toLowerCase().includes('travel'))) {
-      const travelRate = selectedJob.travelRatePerKm || 10;
-      const travelPart = {
-        id: `travel-${Date.now()}`,
-        description: `Travel & Distance Charge (${selectedJob.travelDistanceKm} km @ ₹${travelRate}/km)`,
-        qty: selectedJob.travelDistanceKm,
-        price: travelRate,
-        locked: false,
-        isTravel: true
-      };
-      partsToSet = [...partsToSet, travelPart];
-    }
+    // Customer invoice parts MUST NOT contain travel allowance (Admin reimburses vendor on Earnings page)
+    let partsToSet = (selectedJob.parts || []).filter(p => !isTravelItem(p));
+
+    // Ensure all service parts have locked: true and components have isComponent: true
+    partsToSet = partsToSet.map(p => {
+      if (isServiceItem(p)) {
+        return { ...p, isService: true, locked: true };
+      }
+      return { ...p, isComponent: true };
+    });
 
     setInvoiceParts(partsToSet);
     setActiveTab('invoice');
@@ -1768,45 +1845,48 @@ export default function VendorDashboardPage() {
           } catch (_) {}
         }
 
-        // Step 2: Ensure Route Verification is Submitted if not already verified
-        const dist = Number(selectedJob.travelDistanceKm) || 0;
-        const rate = Number(selectedJob.travelRatePerKm) || 10;
-        const rFormData = new FormData();
-        rFormData.append('distanceKm', String(dist));
-        rFormData.append('ratePerKm', String(rate));
-        let fileToSend = selectedJob.mapFile || null;
-        if (!fileToSend && selectedJob.mapScreenshot && typeof selectedJob.mapScreenshot === 'string') {
-          if (selectedJob.mapScreenshot.startsWith('data:')) {
-            const arr = selectedJob.mapScreenshot.split(',');
-            const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
-            const bstr = atob(arr[1]);
+        // Step 2: Ensure Route Verification is Submitted if not already verified (addToInvoice is false: covered by Admin)
+        if (!selectedJob.travelVerified) {
+          const dist = Number(selectedJob.travelDistanceKm) || 0;
+          const rate = Number(selectedJob.travelRatePerKm) || 10;
+          const rFormData = new FormData();
+          rFormData.append('distanceKm', String(dist));
+          rFormData.append('ratePerKm', String(rate));
+          rFormData.append('addToInvoice', 'false');
+          let fileToSend = selectedJob.mapFile || null;
+          if (!fileToSend && selectedJob.mapScreenshot && typeof selectedJob.mapScreenshot === 'string') {
+            if (selectedJob.mapScreenshot.startsWith('data:')) {
+              const arr = selectedJob.mapScreenshot.split(',');
+              const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
+              const bstr = atob(arr[1]);
+              let n = bstr.length;
+              const u8arr = new Uint8Array(n);
+              while (n--) u8arr[n] = bstr.charCodeAt(n);
+              fileToSend = new File([u8arr], `route_map_${backendJobId}.png`, { type: mime });
+            }
+          }
+          if (!fileToSend) {
+            const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+            const bstr = atob(pngBase64);
             let n = bstr.length;
             const u8arr = new Uint8Array(n);
             while (n--) u8arr[n] = bstr.charCodeAt(n);
-            fileToSend = new File([u8arr], `route_map_${backendJobId}.png`, { type: mime });
+            fileToSend = new File([u8arr], `route_map_${backendJobId}.png`, { type: 'image/png' });
           }
+          rFormData.append('image', fileToSend);
+          try {
+            await routeVerificationApi(backendJobId, rFormData, authToken);
+          } catch (_) {}
         }
-        if (!fileToSend) {
-          const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
-          const bstr = atob(pngBase64);
-          let n = bstr.length;
-          const u8arr = new Uint8Array(n);
-          while (n--) u8arr[n] = bstr.charCodeAt(n);
-          fileToSend = new File([u8arr], `route_map_${backendJobId}.png`, { type: 'image/png' });
-        }
-        rFormData.append('image', fileToSend);
-        try {
-          await routeVerificationApi(backendJobId, rFormData, authToken);
-        } catch (_) {}
 
         // Step 3: Submit service details & checklist
         const formData = new FormData();
         const currentChecklist = Array.isArray(selectedJob.checklist) ? selectedJob.checklist : normalizeChecklist(selectedJob.checklist);
         const checklistObj = {
-          inspection: Boolean(currentChecklist.find(c => c.id === 1)?.completed ?? true),
-          diagnosis: Boolean(currentChecklist.find(c => c.id === 2)?.completed ?? true),
-          service: Boolean(currentChecklist.find(c => c.id === 3)?.completed ?? true),
-          testingCleanup: Boolean(currentChecklist.find(c => c.id === 4)?.completed ?? true),
+          inspection: Boolean(currentChecklist.find(c => c.id === 1)?.completed ?? false),
+          diagnosis: Boolean(currentChecklist.find(c => c.id === 2)?.completed ?? false),
+          service: Boolean(currentChecklist.find(c => c.id === 3)?.completed ?? false),
+          testingCleanup: Boolean(currentChecklist.find(c => c.id === 4)?.completed ?? false),
         };
         formData.append('checklist', JSON.stringify(checklistObj));
         formData.append('customerNote', customerNotes || 'Service completed successfully.');
@@ -1816,7 +1896,11 @@ export default function VendorDashboardPage() {
         if (afterPhotoFile) {
           formData.append('afterImage', afterPhotoFile);
         }
-        await submitServiceDetailsApi(backendJobId, formData, authToken);
+        try {
+          await submitServiceDetailsApi(backendJobId, formData, authToken);
+        } catch (dErr) {
+          console.warn('[Vendor Dashboard] Submit service details notice:', dErr);
+        }
       } catch (err) {
         console.error('[Vendor Dashboard] Submit service details error:', err);
       }
@@ -1960,6 +2044,39 @@ export default function VendorDashboardPage() {
 
       const vendorPayoutAmount = jobFinancials.totalVendorPayout;
 
+      const vendorPaymentCategory =
+        paymentMethod === 'upi' ? 'UPI' :
+        paymentMethod === 'online_gateway' ? 'ONLINE' : 'CASH';
+
+      const standardizedPaymentDetails = {
+        category: vendorPaymentCategory,
+        ...(vendorPaymentCategory === 'UPI' && {
+          upi: {
+            upiId: vendorProfile.upiId || '',
+            transactionRef: vendorPaymentRef?.trim() || '',
+          },
+        }),
+        ...(vendorPaymentCategory === 'CASH' && {
+          cash: {
+            notes: vendorCashNote?.trim() || customerNotes?.trim() || '',
+            collectedBy: vendorProfile.name || 'Vendor',
+            receivedAmount: Number(grandTotal) || 0,
+          },
+        }),
+        ...(vendorPaymentCategory === 'ONLINE' && {
+          online: {
+            gateway: 'integrated_gateway',
+            gatewayToken: vendorGatewayToken?.trim() || '',
+            transactionId: vendorPaymentRef?.trim() || '',
+            paymentStatus: 'captured',
+          },
+        }),
+        metadata: {
+          timestamp: new Date().toISOString(),
+          source: 'vendor_completion',
+        },
+      };
+
       let finalInvoiceDataObj = {
         invoiceId: selectedJob.backendJobId ? `MM-INV-2026-${selectedJob.backendJobId.slice(-6).toUpperCase()}` : `MM-INV-2026-${String(selectedJob.id).replace('WO-', '')}`,
         date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
@@ -1974,6 +2091,7 @@ export default function VendorDashboardPage() {
         tax: taxAmount,
         total: grandTotal,
         paymentMethod: paymentLabel,
+        paymentDetails: standardizedPaymentDetails,
         notes: customerNotes,
         status: 'PAID IN FULL',
         travelDistanceKm: selectedJob.travelDistanceKm || 0,
@@ -1997,47 +2115,51 @@ export default function VendorDashboardPage() {
           console.warn('[Vendor Dashboard] Auto-accept notice:', accErr);
         }
 
-        // Step 2: Ensure Route Verification is Submitted (transitions Route Pending -> Route Verified)
-        try {
-          const dist = Number(selectedJob.travelDistanceKm) || 0;
-          const rate = Number(selectedJob.travelRatePerKm) || 10;
-          const rFormData = new FormData();
-          rFormData.append('distanceKm', String(dist));
-          rFormData.append('ratePerKm', String(rate));
-          let fileToSend = selectedJob.mapFile || null;
-          if (!fileToSend && selectedJob.mapScreenshot && typeof selectedJob.mapScreenshot === 'string') {
-            if (selectedJob.mapScreenshot.startsWith('data:')) {
-              const arr = selectedJob.mapScreenshot.split(',');
-              const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
-              const bstr = atob(arr[1]);
+        // Step 2: Ensure Route Verification is Submitted (transitions Route Pending -> Route Verified) if not already verified
+        if (!selectedJob.travelVerified) {
+          try {
+            const dist = Number(selectedJob.travelDistanceKm) || 0;
+            const rate = Number(selectedJob.travelRatePerKm) || 10;
+            const rFormData = new FormData();
+            rFormData.append('distanceKm', String(dist));
+            rFormData.append('ratePerKm', String(rate));
+            rFormData.append('addToInvoice', 'false');
+            let fileToSend = selectedJob.mapFile || null;
+            if (!fileToSend && selectedJob.mapScreenshot && typeof selectedJob.mapScreenshot === 'string') {
+              if (selectedJob.mapScreenshot.startsWith('data:')) {
+                const arr = selectedJob.mapScreenshot.split(',');
+                const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
+                const bstr = atob(arr[1]);
+                let n = bstr.length;
+                const u8arr = new Uint8Array(n);
+                while (n--) u8arr[n] = bstr.charCodeAt(n);
+                fileToSend = new File([u8arr], `route_map_${backendJobId}.png`, { type: mime });
+              }
+            }
+            if (!fileToSend) {
+              const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+              const bstr = atob(pngBase64);
               let n = bstr.length;
               const u8arr = new Uint8Array(n);
               while (n--) u8arr[n] = bstr.charCodeAt(n);
-              fileToSend = new File([u8arr], `route_map_${backendJobId}.png`, { type: mime });
+              fileToSend = new File([u8arr], `route_map_${backendJobId}.png`, { type: 'image/png' });
             }
+            rFormData.append('image', fileToSend);
+            await routeVerificationApi(backendJobId, rFormData, authToken);
+          } catch (rErr) {
+            console.warn('[Vendor Dashboard] Route verification notice:', rErr);
           }
-          if (!fileToSend) {
-            const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
-            const bstr = atob(pngBase64);
-            let n = bstr.length;
-            const u8arr = new Uint8Array(n);
-            while (n--) u8arr[n] = bstr.charCodeAt(n);
-            fileToSend = new File([u8arr], `route_map_${backendJobId}.png`, { type: 'image/png' });
-          }
-          rFormData.append('image', fileToSend);
-          await routeVerificationApi(backendJobId, rFormData, authToken);
-        } catch (rErr) {
-          console.warn('[Vendor Dashboard] Route verification notice:', rErr);
         }
 
         // Step 3: Ensure Service Details & Checklist are Submitted (transitions Route Verified -> In Progress)
         try {
           const dFormData = new FormData();
+          const currentChecklist = Array.isArray(selectedJob.checklist) ? selectedJob.checklist : normalizeChecklist(selectedJob.checklist);
           const checklistObj = {
-            inspection: Boolean(selectedJob.checklist?.find(c => c.id === 1)?.completed ?? true),
-            diagnosis: Boolean(selectedJob.checklist?.find(c => c.id === 2)?.completed ?? true),
-            service: Boolean(selectedJob.checklist?.find(c => c.id === 3)?.completed ?? true),
-            testingCleanup: Boolean(selectedJob.checklist?.find(c => c.id === 4)?.completed ?? true),
+            inspection: Boolean(currentChecklist.find(c => c.id === 1)?.completed ?? false),
+            diagnosis: Boolean(currentChecklist.find(c => c.id === 2)?.completed ?? false),
+            service: Boolean(currentChecklist.find(c => c.id === 3)?.completed ?? false),
+            testingCleanup: Boolean(currentChecklist.find(c => c.id === 4)?.completed ?? false),
           };
           dFormData.append('checklist', JSON.stringify(checklistObj));
           dFormData.append('customerNote', customerNotes || 'Service completed successfully.');
@@ -2055,7 +2177,7 @@ export default function VendorDashboardPage() {
         );
 
         const componentsPayload = invoiceParts
-          .filter(p => p.inventoryId && validDbInventoryIds.has(String(p.inventoryId).trim()) && !p.isTravel && !p.locked)
+          .filter(p => !isTravelItem(p) && !isServiceItem(p) && !p.locked && p.inventoryId && validDbInventoryIds.has(String(p.inventoryId).trim()))
           .map(p => ({
             inventoryId: String(p.inventoryId).trim(),
             quantity: Math.max(1, Math.round(Number(p.qty) || 1))
@@ -2063,7 +2185,8 @@ export default function VendorDashboardPage() {
 
         const completionPayload = {
           discount: Number(numDiscount) || 0,
-          paymentMethod: paymentMethod === 'upi' ? 'UPI' : 'Cash',
+          paymentMethod: vendorPaymentCategory,
+          paymentDetails: standardizedPaymentDetails,
           components: componentsPayload,
         };
 
@@ -2082,20 +2205,21 @@ export default function VendorDashboardPage() {
             serviceTitle: inv.serviceSnapshot?.serviceCategory || inv.serviceSnapshot?.appliance || selectedJob.serviceTitle,
             technician: vendorProfile.name,
             parts: (inv.items && inv.items.length > 0)
-              ? inv.items.map(it => ({
+              ? inv.items.filter(it => it.type !== 'Travel' && !String(it.name).toLowerCase().includes('travel')).map(it => ({
                   description: it.name,
                   qty: it.quantity,
                   price: it.unitPrice,
-                  isTravel: it.type === 'Travel',
+                  isTravel: false,
                   isService: it.type === 'Service',
                   isComponent: it.type === 'Component',
                 }))
-              : invoiceParts,
+              : invoiceParts.filter(p => !isTravelItem(p)),
             subtotal: inv.subtotal !== undefined ? inv.subtotal : subtotal,
             discount: inv.discount !== undefined ? inv.discount : numDiscount,
             tax: inv.tax !== undefined ? inv.tax : taxAmount,
             total: inv.totalAmount !== undefined ? inv.totalAmount : grandTotal,
             paymentMethod: inv.paymentMethod === 'UPI' ? `Direct UPI (${vendorProfile.upiId})` : 'Direct Cash Transfer',
+            paymentDetails: standardizedPaymentDetails,
             notes: inv.customerNote || customerNotes,
             status: 'PAID IN FULL',
             travelDistanceKm: selectedJob.travelDistanceKm || 0,
@@ -2114,7 +2238,8 @@ export default function VendorDashboardPage() {
               {
                 status: 'Completed',
                 serviceCharge: finalInvoiceDataObj.total || grandTotal,
-                paymentMethod: paymentLabel,
+                paymentMethod: vendorPaymentCategory,
+                paymentDetails: standardizedPaymentDetails,
                 paymentStatus: 'Paid',
               },
               authToken
@@ -2128,7 +2253,8 @@ export default function VendorDashboardPage() {
             {
               status: 'Completed',
               serviceCharge: grandTotal,
-              paymentMethod: paymentLabel,
+              paymentMethod: vendorPaymentCategory,
+              paymentDetails: standardizedPaymentDetails,
               paymentStatus: 'Paid',
             },
             authToken
@@ -2169,6 +2295,21 @@ export default function VendorDashboardPage() {
 
       setHistory(prev => [completedHistoryItem, ...prev.filter(h => h.id !== selectedJob.id && (!backendJobId || h.backendJobId !== backendJobId))]);
       setJobs(prev => prev.filter(j => j.id !== selectedJob.id && (!backendJobId || (j.backendJobId !== backendJobId && j._id !== backendJobId))));
+
+      // Automatically credit Admin-reimbursed fuel allowance to vendor's Earnings ledger
+      if (jobFinancials.distanceKm > 0 || jobFinancials.fuelPayout > 0) {
+        recordTravelAllowanceToLedger({
+          jobId: backendJobId || selectedJob.id,
+          displayId: selectedJob.displayId || selectedJob.id,
+          distanceKm: jobFinancials.distanceKm,
+          ratePerKm: jobFinancials.ratePerKm,
+          fuelPayout: jobFinancials.fuelPayout,
+          mapScreenshot: selectedJob.mapScreenshot || null,
+          customerName: selectedJob.customerName,
+          serviceAddress: selectedJob.serviceAddress,
+          serviceTitle: selectedJob.serviceTitle,
+        }, authToken);
+      }
 
       setModalReturnTab('active');
       setGeneratedInvoiceData(finalInvoiceDataObj);
@@ -2347,9 +2488,6 @@ export default function VendorDashboardPage() {
                 >
                   {[
                     { id: 'active', label: 'Jobs', badge: jobs.length },
-                    ...(selectedJob || jobs.some(j => j.status === 'In Progress')
-                      ? [{ id: 'service', label: 'Service Execution', badge: 'Active' }]
-                      : []),
                     { id: 'history', label: 'History', badge: history.length },
                     { id: 'earnings', label: 'Earnings', badge: `₹${((Number(todayEarnings) || 0) / 1000).toFixed(1)}k` },
                     { id: 'profile', label: 'Profile', badge: '★' },
@@ -2699,6 +2837,18 @@ export default function VendorDashboardPage() {
                                       >
                                         <Navigation className="w-3.5 h-3.5 text-blue-500" />
                                         Track
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedJobForChat(job);
+                                          setIsChatOpen(true);
+                                        }}
+                                        className="flex-1 sm:flex-none px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold rounded-xl flex items-center justify-center gap-1.5 transition-colors border border-blue-200 cursor-pointer"
+                                        title="Chat with Customer"
+                                      >
+                                        <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
+                                        Chat
                                       </button>
                                       <button
                                         onClick={() => handleStartService(job)}
@@ -3276,27 +3426,14 @@ export default function VendorDashboardPage() {
                         <span>{isInventoryLoading ? 'Syncing...' : 'Refresh Stock'}</span>
                       </button>
 
-                      {selectedJob.travelDistanceKm && !invoiceParts.some(p => p.isTravel || String(p.description || '').toLowerCase().includes('travel')) && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const travelRate = selectedJob.travelRatePerKm || 10;
-                            const travelPart = {
-                              id: `travel-${Date.now()}`,
-                              description: `Travel & Distance Charge (${selectedJob.travelDistanceKm} km @ ₹${travelRate}/km)`,
-                              qty: selectedJob.travelDistanceKm,
-                              price: travelRate,
-                              locked: false,
-                              isTravel: true
-                            };
-                            setInvoiceParts(prev => [...prev, travelPart]);
-                            showToast(`Added ${selectedJob.travelDistanceKm} KM travel charge to invoice`, 'success');
-                          }}
-                          className="text-xs font-extrabold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border border-emerald-200"
+                      {Number(selectedJob.travelDistanceKm) > 0 && (
+                        <div
+                          className="text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5 shrink-0"
+                          title="Travel allowance is 100% reimbursed by Admin directly into your Earnings & Payouts wallet. Customer is never billed."
                         >
-                          <Navigation className="w-3.5 h-3.5 text-emerald-700" />
-                          + Add Travel ({selectedJob.travelDistanceKm} KM)
-                        </button>
+                          <Fuel className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Route: {selectedJob.travelDistanceKm} KM (100% Admin Reimbursed)</span>
+                        </div>
                       )}
 
                       <button
@@ -3323,20 +3460,41 @@ export default function VendorDashboardPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-semibold">
-                        {invoiceParts.map((part, idx) => {
+                        {invoiceParts.filter(p => !isTravelItem(p)).map((part, idx) => {
                           const lineTotal = (parseFloat(part.qty) || 0) * (parseFloat(part.price) || 0);
+                          const isTravel = isTravelItem(part);
+                          const isService = !isTravel && isServiceItem(part);
+                          const isLocked = isLockedInvoiceItem(part);
+
                           return (
                             <tr key={part.id || idx} className="hover:bg-slate-50/50">
                               <td className="p-3">
-                                {part.locked ? (
-                                  <span className="font-extrabold text-slate-800 block py-1.5">{part.description}</span>
+                                {isTravel ? (
+                                  <div className="flex items-center gap-2">
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200 uppercase tracking-wider shrink-0">
+                                      <Navigation className="w-3 h-3 text-emerald-600" /> Travel Allowance
+                                    </span>
+                                    <span className="font-extrabold text-slate-800 text-xs">
+                                      {part.description || `Travel & Distance Charge (${part.qty} km @ ₹${part.price}/km)`}
+                                    </span>
+                                  </div>
+                                ) : isService ? (
+                                  <div className="flex items-center gap-2">
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black bg-blue-50 text-blue-800 border border-blue-200 uppercase tracking-wider shrink-0">
+                                      <Wrench className="w-3 h-3 text-blue-600" /> Base Service Fee
+                                    </span>
+                                    <span className="font-extrabold text-slate-800 text-xs">
+                                      {part.description || selectedJob?.serviceTitle || 'Diagnostic & Service Inspection Fee'}
+                                    </span>
+                                  </div>
                                 ) : (
                                   <div>
                                     <select
-                                      value={part.inventoryId || part.description}
+                                      value={part.inventoryId || ''}
                                       onChange={(e) => handleSelectComponentDropdown(idx, e.target.value)}
                                       className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-orange-500 focus:outline-none"
                                     >
+                                      <option value="" disabled>Select component from inventory...</option>
                                       {availableComponentOptions.length === 0 ? (
                                         <option value="" disabled>No components present in inventory</option>
                                       ) : (
@@ -3361,8 +3519,12 @@ export default function VendorDashboardPage() {
                               </td>
 
                               <td className="p-3 text-center">
-                                {part.locked ? (
-                                  <span className="font-extrabold text-slate-800">{part.qty}</span>
+                                {isTravel ? (
+                                  <span className="font-extrabold text-slate-800 text-xs">{part.qty} km</span>
+                                ) : isService ? (
+                                  <span className="font-extrabold text-slate-800 text-xs">{part.qty || 1}</span>
+                                ) : isLocked ? (
+                                  <span className="font-extrabold text-slate-800 text-xs">{part.qty}</span>
                                 ) : (
                                   <div className="flex flex-col items-center">
                                     <input
@@ -3384,11 +3546,14 @@ export default function VendorDashboardPage() {
                               </td>
 
                               <td className="p-3 text-right">
-                                {part.locked ? (
-                                  <span className="font-bold text-slate-800">₹{parseFloat(part.price).toFixed(2)}</span>
+                                {isTravel ? (
+                                  <span className="font-bold text-slate-800 text-xs">₹{parseFloat(part.price).toFixed(2)}/km</span>
+                                ) : isService || isLocked ? (
+                                  <span className="font-bold text-slate-800 text-xs">₹{parseFloat(part.price).toFixed(2)}</span>
                                 ) : (
                                   <input
                                     type="number"
+                                    min="0"
                                     value={part.price}
                                     onChange={(e) => handlePartChange(idx, 'price', e.target.value)}
                                     className="w-20 text-right text-xs font-bold bg-white border border-slate-200 rounded-xl p-2 focus:ring-2 focus:ring-orange-500"
@@ -3401,12 +3566,22 @@ export default function VendorDashboardPage() {
                               </td>
 
                               <td className="p-3 text-center">
-                                {part.locked ? (
-                                  <Lock className="w-3.5 h-3.5 text-slate-400 mx-auto" />
+                                {isService ? (
+                                  <Lock className="w-3.5 h-3.5 text-slate-400 mx-auto" title="Standard Base Service Fee" />
+                                ) : isTravel ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemovePartRow(idx)}
+                                    className="text-slate-400 hover:text-red-600 transition-colors p-1 cursor-pointer"
+                                    title="Remove travel allowance"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
                                 ) : (
                                   <button
+                                    type="button"
                                     onClick={() => handleRemovePartRow(idx)}
-                                    className="text-slate-400 hover:text-red-600 transition-colors p-1"
+                                    className="text-slate-400 hover:text-red-600 transition-colors p-1 cursor-pointer"
                                     title="Remove component"
                                   >
                                     <Trash2 className="w-4 h-4" />
@@ -3458,6 +3633,18 @@ export default function VendorDashboardPage() {
                                 Vendor UPI ID: <span className="font-extrabold text-slate-900 bg-blue-50 px-1.5 py-0.5 rounded">{vendorProfile.upiId}</span>
                               </p>
                               <p className="text-[10px] text-slate-500 font-normal">Customer scans QR or transfers directly to technician</p>
+                              <div className="pt-1.5" onClick={(e) => e.stopPropagation()}>
+                                <label className="text-[10px] font-bold text-slate-700 block mb-1">
+                                  Customer UTR / Transaction Reference (Optional)
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. 12-digit UTR (428192837482)"
+                                  value={vendorPaymentRef}
+                                  onChange={(e) => setVendorPaymentRef(e.target.value)}
+                                  className="w-full text-xs bg-white border border-blue-200 rounded-lg p-2 text-slate-900 font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                />
+                              </div>
                             </div>
                           )}
                         </div>
@@ -3477,12 +3664,26 @@ export default function VendorDashboardPage() {
                         }`}>
                           {paymentMethod === 'cash' && <div className="w-1.5 h-1.5 rounded-full bg-white"></div>}
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-1 flex-1">
                           <div className="flex items-center gap-1.5">
                             <IndianRupee className="w-4 h-4 text-emerald-700" />
                             <p className="text-xs font-extrabold text-slate-900">Direct Cash / Hand Transfer</p>
                           </div>
                           <p className="text-[11px] text-slate-500">Cash collected in-hand directly from customer on-site</p>
+                          {paymentMethod === 'cash' && (
+                            <div className="mt-2 p-2.5 bg-white rounded-xl border border-emerald-200 text-[11px] space-y-1" onClick={(e) => e.stopPropagation()}>
+                              <label className="text-[10px] font-bold text-slate-700 block mb-1">
+                                Cash Collection Note / Receipt Note (Optional)
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="e.g. Paid in full with ₹500 notes"
+                                value={vendorCashNote}
+                                onChange={(e) => setVendorCashNote(e.target.value)}
+                                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                              />
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -3521,6 +3722,18 @@ export default function VendorDashboardPage() {
                               <p className="text-[10px] font-medium text-amber-800 leading-relaxed">
                                 Online Payment Gateway is currently under development & in progress. Please accept payment via <strong>Direct UPI Transfer</strong> or <strong>Cash on-site</strong>.
                               </p>
+                              <div className="pt-1.5" onClick={(e) => e.stopPropagation()}>
+                                <label className="text-[10px] font-bold text-amber-900 block mb-1">
+                                  Gateway Transaction / Token (Optional)
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. tok_gateway_demo"
+                                  value={vendorGatewayToken}
+                                  onChange={(e) => setVendorGatewayToken(e.target.value)}
+                                  className="w-full text-xs bg-white border border-amber-300 rounded-lg p-2 text-slate-900 font-mono focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                />
+                              </div>
                             </div>
                           )}
                         </div>
@@ -3630,11 +3843,19 @@ export default function VendorDashboardPage() {
                     <div className="text-xs text-slate-600 space-y-1.5 leading-relaxed">
                       <p className="truncate"><strong>Origin:</strong> {vendorProfile.address || 'Vendor Hub'}</p>
                       <p className="truncate"><strong>Customer:</strong> {selectedJob.serviceAddress}</p>
-                      <div className="p-2.5 bg-blue-50/70 border border-blue-100 rounded-xl text-blue-900 font-semibold text-[11px] flex items-center justify-between">
-                        <span>Travel Charge ({selectedJob.travelDistanceKm || 0} km @ ₹{selectedJob.travelRatePerKm || 10}/km):</span>
-                        <strong className="text-xs text-blue-950">
-                          ₹{((selectedJob.travelDistanceKm || 0) * (selectedJob.travelRatePerKm || 10)).toFixed(2)}
-                        </strong>
+                      <div className="p-2.5 bg-emerald-50/80 border border-emerald-200 rounded-xl text-emerald-950 font-semibold text-[11px] space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1 font-bold text-emerald-900">
+                            <Fuel className="w-3.5 h-3.5 text-emerald-700" />
+                            Admin Fuel Allowance ({selectedJob.travelDistanceKm || 0} km @ ₹{selectedJob.travelRatePerKm || 10}/km):
+                          </span>
+                          <strong className="text-xs font-black text-emerald-800">
+                            +₹{((selectedJob.travelDistanceKm || 0) * (selectedJob.travelRatePerKm || 10)).toFixed(2)}
+                          </strong>
+                        </div>
+                        <p className="text-[10px] text-emerald-700 font-normal">
+                          100% paid by Admin directly into your Earnings &amp; Payouts wallet. Not added to customer invoice.
+                        </p>
                       </div>
                     </div>
 
@@ -4603,7 +4824,7 @@ export default function VendorDashboardPage() {
                         type="text"
                         value={editProfileForm.address}
                         onChange={e => setEditProfileForm({ ...editProfileForm, address: e.target.value })}
-                        placeholder="e.g. Flat 402, Green Valley Apartments, 10th Main Road, Indiranagar, 560038"
+                        placeholder="Enter workshop / service address"
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-36 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
                       />
                       <button
@@ -4675,6 +4896,20 @@ export default function VendorDashboardPage() {
           completedJobs={history.filter(h => h.status === 'Completed')}
           vendorProfile={vendorProfile}
           onSubmitClaim={handleSubmitFuelClaim}
+        />
+
+        {/* ── REAL-TIME CHAT MODAL ── */}
+        <ChatModal
+          isOpen={isChatOpen}
+          onClose={() => {
+            setIsChatOpen(false);
+            setSelectedJobForChat(null);
+          }}
+          bookingId={selectedJobForChat?.id || selectedJobForChat?._id || selectedJobForChat?.rawBooking?._id}
+          bookingTitle={selectedJobForChat?.serviceTitle || selectedJobForChat?.service || 'Service Order'}
+          otherPartyName={selectedJobForChat?.customerName || 'Customer'}
+          otherPartyRole="Customer"
+          recipientId={selectedJobForChat?.customerId || selectedJobForChat?.rawBooking?.customer?._id || selectedJobForChat?.rawBooking?.customer}
         />
 
         {/* ── PROOF LIGHTBOX PREVIEW MODAL ── */}

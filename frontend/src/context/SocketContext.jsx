@@ -42,7 +42,7 @@ const playNotificationSound = () => {
 };
 
 export const SocketProvider = ({ children }) => {
-  const { token, user } = useAuth();
+  const { token, user, logout } = useAuth();
   const navigate = useNavigate();
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -152,6 +152,49 @@ export const SocketProvider = ({ children }) => {
       }
     });
 
+    // ── Account Suspension Force Logout ───────────────────────
+    newSocket.on('auth:account_suspended', (data) => {
+      showGlobalNotification({
+        id: Date.now(),
+        title: 'Account Restricted ⚠️',
+        message: data?.message || 'Your account has been suspended or blocked by the administrator.',
+        type: 'warning',
+      });
+      if (typeof logout === 'function') {
+        setTimeout(() => {
+          logout();
+          navigate('/login');
+        }, 2000);
+      }
+    });
+
+    // ── Real-Time Chat Notifications (When user is not in chat) ─
+    newSocket.on('chat:notification', (chatNotif) => {
+      showGlobalNotification({
+        id: Date.now(),
+        title: `Message from ${chatNotif?.senderName || 'Technician'} 💬`,
+        message: chatNotif?.text ? `"${chatNotif.text.slice(0, 60)}..."` : 'You received a new message.',
+        type: 'info',
+        actionUrl: userRole === 'vendor' ? '/vendor-dashboard' : '/dashboard',
+        actionLabel: 'Open Chat',
+      });
+    });
+
+    // ── Invoice Generated Real-Time Alert ──────────────────────
+    newSocket.on('invoice:generated', (invoice) => {
+      if (window.location.pathname === '/dashboard') return;
+      const num = invoice?.invoiceNumber || '';
+      const amt = invoice?.totalAmount ? `₹${invoice.totalAmount}` : '';
+      showGlobalNotification({
+        id: Date.now(),
+        title: 'Invoice Generated 🧾',
+        message: `Your service is complete! Invoice ${num} for ${amt} is ready.`,
+        type: 'success',
+        actionUrl: '/dashboard',
+        actionLabel: 'View Invoice',
+      });
+    });
+
     // Vendor events
     if (userRole === 'vendor') {
       newSocket.on('booking:new', (newBooking) => {
@@ -165,6 +208,28 @@ export const SocketProvider = ({ children }) => {
           type: 'info',
           actionUrl: '/vendor-dashboard',
           actionLabel: 'View Request',
+        });
+      });
+
+      newSocket.on('payout:updated', (payload) => {
+        showGlobalNotification({
+          id: Date.now(),
+          title: 'Payout Update 💳',
+          message: `Payout request ${payload?.payoutId || ''} marked as ${payload?.status || 'processed'}.`,
+          type: payload?.status === 'Paid' ? 'success' : 'info',
+          actionUrl: '/vendor-dashboard',
+          actionLabel: 'View Earnings',
+        });
+      });
+
+      newSocket.on('fuel_claim:updated', (payload) => {
+        showGlobalNotification({
+          id: Date.now(),
+          title: 'Fuel Claim Update ⛽',
+          message: `Fuel claim status updated to "${payload?.status || 'Reviewed'}".`,
+          type: 'success',
+          actionUrl: '/vendor-dashboard',
+          actionLabel: 'View Claims',
         });
       });
     }
@@ -195,6 +260,17 @@ export const SocketProvider = ({ children }) => {
           type: 'info',
           actionUrl: '/admin-dashboard',
           actionLabel: 'Review Application',
+        });
+      });
+
+      newSocket.on('inventory:low_stock_alert', (item) => {
+        showGlobalNotification({
+          id: Date.now(),
+          title: 'Low Stock Alert ⚠️',
+          message: `${item?.itemName || 'Item'} (${item?.skuCode || ''}) has only ${item?.stockQuantity ?? 0} units left!`,
+          type: 'warning',
+          actionUrl: '/admin-dashboard',
+          actionLabel: 'Restock Now',
         });
       });
     }

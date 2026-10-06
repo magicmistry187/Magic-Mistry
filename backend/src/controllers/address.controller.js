@@ -443,12 +443,7 @@ function parseIndianAddress(data, nearbyList = []) {
     if (detectedCity && detectedCity.toLowerCase() !== a.village.toLowerCase()) {
       villageLocality = a.village.trim();
     } else if (!detectedCity) {
-      if (a.county && a.county.toLowerCase().includes('sriniketan') && a.village.toLowerCase() === 'sriniketan') {
-        detectedCity = 'Bolpur';
-        villageLocality = 'Sriniketan';
-      } else {
-        detectedCity = a.village.trim();
-      }
+      detectedCity = a.village.trim();
     }
   }
 
@@ -658,7 +653,6 @@ exports.reverseGeocode = async (req, res) => {
       Date.now() - cached.timestamp < CACHE_TTL_MS &&
       cached.data &&
       !isAdministrativeToken(cached.data.street) &&
-      !cached.data.street.toLowerCase().includes('bolpur sriniketan') &&
       !cached.data.street.toLowerCase().includes('main road')
     ) {
       return res.status(200).json({ success: true, data: cached.data });
@@ -815,11 +809,6 @@ exports.autocomplete = async (req, res) => {
           district: cachedGeo.data.city,
           state: cachedGeo.data.state,
         };
-      } else {
-        // Approximate context for coords (e.g. Asansol / Bardhaman if in lat 23.6-23.8, lng 86.8-87.2)
-        if (lat >= 23.5 && lat <= 23.9 && lng >= 86.8 && lng <= 87.3) {
-          userLocContext = { pincodePrefix: '7133', district: 'Bardhaman', state: 'West Bengal' };
-        }
       }
     }
 

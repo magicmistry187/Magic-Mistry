@@ -20,6 +20,7 @@ const getAuthToken = (token) =>
   (typeof window !== "undefined"
     ? localStorage.getItem("mm_token") ||
       localStorage.getItem("token") ||
+      localStorage.getItem("adminToken") ||
       localStorage.getItem("vendorToken")
     : null);
 
@@ -50,6 +51,7 @@ export async function createBookingApi(formData, token) {
     return {
       success: false,
       message:
+        error.response?.data?.error ||
         error.response?.data?.message ||
         error.message ||
         "Booking could not be created",

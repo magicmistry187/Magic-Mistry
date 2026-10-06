@@ -49,7 +49,7 @@ export default function VendorStartServiceModal({
   const [mapScreenshot, setMapScreenshot] = useState(null);
   const [mapFileName, setMapFileName] = useState('');
   const [mapFile, setMapFile] = useState(null);
-  const [addToInvoice, setAddToInvoice] = useState(true);
+  const [addToInvoice, setAddToInvoice] = useState(false);
   const [validationError, setValidationError] = useState('');
 
   // Extract or parse estimated distance from job if available
@@ -103,23 +103,51 @@ export default function VendorStartServiceModal({
   const vendorOrigin = safeText(vendorProfile?.address, 'Vendor Workshop / Current Location');
   const customerDestination = safeText(job.serviceAddress || job.location, 'Customer Address');
 
-  // Coordinate-aware Universal Directions URL with turn-by-turn navigation
-  const customerCoords = job.customerLocation || job.customerCoordinates || (
-    job.lat && job.lng ? { lat: job.lat, lng: job.lng } : null
-  );
-  const vendorCoords = vendorProfile?.coordinates || (
-    vendorProfile?.latitude && vendorProfile?.longitude ? { lat: vendorProfile.latitude, lng: vendorProfile.longitude } : null
-  );
+  // Safely extract { lat, lng } from any format (flat, nested, GeoJSON coordinates)
+  const extractSafeCoords = (source) => {
+    if (!source) return null;
+    if (source.lat !== undefined && source.lng !== undefined && source.lat !== null && source.lng !== null) {
+      const lat = Number(source.lat);
+      const lng = Number(source.lng);
+      if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+    }
+    if (source.latitude !== undefined && source.longitude !== undefined && source.latitude !== null && source.longitude !== null) {
+      const lat = Number(source.latitude);
+      const lng = Number(source.longitude);
+      if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+    }
+    if (Array.isArray(source.location?.coordinates) && source.location.coordinates.length >= 2) {
+      const lng = Number(source.location.coordinates[0]);
+      const lat = Number(source.location.coordinates[1]);
+      if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+    }
+    if (Array.isArray(source.coordinates) && source.coordinates.length >= 2) {
+      const lng = Number(source.coordinates[0]);
+      const lat = Number(source.coordinates[1]);
+      if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+    }
+    if (source.address && typeof source.address === 'object') {
+      return extractSafeCoords(source.address);
+    }
+    return null;
+  };
+
+  const customerCoords = extractSafeCoords(job.customerLocation || job.customerCoordinates || job);
+  const vendorCoords = extractSafeCoords(vendorProfile?.coordinates || vendorProfile);
 
   let googleMapsUrl;
   if (customerCoords && vendorCoords) {
     googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${vendorCoords.lat},${vendorCoords.lng}&destination=${customerCoords.lat},${customerCoords.lng}&travelmode=driving&dir_action=navigate`;
   } else if (customerCoords) {
     googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${customerCoords.lat},${customerCoords.lng}&travelmode=driving&dir_action=navigate`;
+  } else if (customerDestination && customerDestination !== 'Customer Address') {
+    if (vendorCoords) {
+      googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${vendorCoords.lat},${vendorCoords.lng}&destination=${encodeURIComponent(customerDestination)}&travelmode=driving&dir_action=navigate`;
+    } else {
+      googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(customerDestination)}&travelmode=driving&dir_action=navigate`;
+    }
   } else {
-    googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(
-      vendorOrigin
-    )}&destination=${encodeURIComponent(customerDestination)}&travelmode=driving&dir_action=navigate`;
+    googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customerDestination || 'Customer Address')}`;
   }
 
   const calculatedTravelCharge = Math.max(0, (Number(distanceKm) || 0) * (Number(ratePerKm) || 0));
@@ -182,12 +210,34 @@ export default function VendorStartServiceModal({
 
   const handleUseSampleScreenshot = () => {
     try {
-      const blob = new Blob([SAMPLE_MAP_ROUTE_SVG], { type: 'image/svg+xml' });
-      const sampleFile = new File([blob], `route_map_${job.id || 'job'}.svg`, { type: 'image/svg+xml' });
-      setMapFile(sampleFile);
-    } catch (_) {}
-    setMapScreenshot(SAMPLE_MAP_ROUTE_SVG);
-    setMapFileName(`route_map_${job.id}.png`);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = 600;
+          canvas.height = 340;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const sampleFile = new File([blob], `route_map_${job.id || 'sample'}.png`, { type: 'image/png' });
+              setMapFile(sampleFile);
+            }
+          }, 'image/png');
+          const pngUrl = canvas.toDataURL('image/png');
+          setMapScreenshot(pngUrl);
+        } catch (_) {
+          setMapScreenshot(SAMPLE_MAP_ROUTE_SVG);
+        }
+      };
+      img.onerror = () => {
+        setMapScreenshot(SAMPLE_MAP_ROUTE_SVG);
+      };
+      img.src = SAMPLE_MAP_ROUTE_SVG;
+    } catch (_) {
+      setMapScreenshot(SAMPLE_MAP_ROUTE_SVG);
+    }
+    setMapFileName(`route_map_${job.id || 'job'}.png`);
     setValidationError('');
   };
 
@@ -210,7 +260,7 @@ export default function VendorStartServiceModal({
       travelCharges: validKm > 0 ? validKm * (Number(ratePerKm) || 10) : 0,
       mapScreenshot: typeof mapScreenshot === 'string' ? mapScreenshot : (mapScreenshot?.url || null),
       mapFile: mapFile || null,
-      addToInvoice: Boolean(addToInvoice && validKm > 0)
+      addToInvoice: false
     });
   };
 
@@ -232,7 +282,7 @@ export default function VendorStartServiceModal({
       travelCharges: calculatedTravelCharge,
       mapScreenshot: typeof mapScreenshot === 'string' ? mapScreenshot : (mapScreenshot?.url || null),
       mapFile: mapFile,
-      addToInvoice: addToInvoice
+      addToInvoice: false
     });
   };
 
@@ -258,7 +308,7 @@ export default function VendorStartServiceModal({
                 Start Service &amp; Route Log
               </h2>
               <p className="text-xs text-slate-300 mt-1">
-                Upload a map screenshot from your location to customer to calculate KM &amp; add to invoice.
+                Upload a map screenshot to verify your route distance. 100% of fuel allowance is reimbursed by Admin and credited to your Earnings wallet.
               </p>
             </div>
             <button
@@ -456,23 +506,18 @@ export default function VendorStartServiceModal({
                 </span>
               </div>
 
-              {/* Add to Invoice Checkbox */}
-              <label className="flex items-start gap-3 cursor-pointer select-none pt-1">
-                <input
-                  type="checkbox"
-                  checked={addToInvoice}
-                  onChange={(e) => setAddToInvoice(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 rounded text-orange-600 focus:ring-orange-500 border-slate-300"
-                />
+              {/* Admin Fuel Allowance Info Card (Never billed to customer) */}
+              <div className="flex items-start gap-3 p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-2xl">
+                <ShieldCheck className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
                 <div>
-                  <span className="text-xs font-extrabold text-slate-800 block">
-                    Add Travel Distance &amp; KM Charge to Customer Invoice
+                  <span className="text-xs font-extrabold text-emerald-900 block">
+                    100% Admin Reimbursed Fuel Allowance
                   </span>
-                  <p className="text-[11px] text-slate-500 leading-relaxed">
-                    Automatically creates an itemized travel line item in the invoice ({distanceKm || 0} km @ ₹{ratePerKm}/km).
+                  <p className="text-[11px] text-emerald-800 leading-relaxed mt-0.5">
+                    This travel allowance (<strong>₹{calculatedTravelCharge.toFixed(2)}</strong> for {distanceKm || 0} KM) is provided directly by Magic Mistry Admin and credited to your <strong>Earnings &amp; Payouts</strong> page. Customers are <strong>never charged</strong> for technician travel.
                   </p>
                 </div>
-              </label>
+              </div>
             </div>
 
             {/* Validation Error Banner */}

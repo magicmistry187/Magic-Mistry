@@ -23,6 +23,7 @@ import UserTechnicianMapModal from '../../components/dashboard/user/UserTechnici
 import UserInvoiceModal       from '../../components/dashboard/user/UserInvoiceModal';
 import UserAddressModal        from '../../components/dashboard/user/UserAddressModal';
 import UserRatingModal         from '../../components/dashboard/user/UserRatingModal';
+import ChatModal               from '../../components/common/ChatModal';
 import ApplianceIcon           from '../../components/common/ApplianceIcon';
 import { parseAddressString, formatCleanAddress }  from '../../utils/addressParser';
 import { getLiveBasePriceForAppliance } from '../../services/pricingService';
@@ -207,6 +208,9 @@ export default function UserDashboardPage() {
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
   const [selectedBookingForInvoice, setSelectedBookingForInvoice] = useState(null);
 
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [selectedBookingForChat, setSelectedBookingForChat] = useState(null);
+
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState(null);
   const [addresses, setAddresses] = useState(initialAddresses);
@@ -303,10 +307,10 @@ export default function UserDashboardPage() {
   useSocketEvent('booking:status_changed', (updatedBooking) => {
     if (!updatedBooking) return;
     const bId = String(updatedBooking._id || updatedBooking.id);
+    const formatted = formatUserBooking(updatedBooking);
 
     setBookingsList((prev) => {
       const idx = prev.findIndex((b) => String(b.id) === bId || String(b.rawBooking?._id) === bId);
-      const formatted = formatUserBooking(updatedBooking);
       if (idx !== -1) {
         const next = [...prev];
         next[idx] = formatted;
@@ -317,6 +321,20 @@ export default function UserDashboardPage() {
 
     if (playNotificationSound) playNotificationSound();
     showToast(`Booking Update: Status is now "${updatedBooking.bookingStatus}"`);
+
+    // If completed in real-time, automatically prompt invoice & rating modal
+    if (updatedBooking.bookingStatus === 'Completed') {
+      setSelectedBookingForInvoice(formatted);
+      setSelectedBookingForRating(formatted);
+      setIsInvoiceOpen(true);
+    }
+  });
+
+  // Live real-time invoice notification
+  useSocketEvent('invoice:generated', (invoice) => {
+    if (!invoice) return;
+    if (playNotificationSound) playNotificationSound();
+    showToast(`Invoice ${invoice.invoiceNumber || ''} generated for your completed service!`);
   });
 
   // Live updates if booking is cancelled
@@ -1315,20 +1333,43 @@ export default function UserDashboardPage() {
                                     <span className="text-xl sm:text-2xl font-extrabold text-slate-900">{item.price}</span>
                                     <div className="flex items-center gap-2">
                                       {['Pending', 'Accepted', 'In Progress', 'On The Way'].includes(item.status) && (
-                                        <button
-                                          onClick={() => handleOpenMap(item)}
-                                          className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
-                                        >
-                                          <Navigation className="w-3.5 h-3.5 text-orange-500" /> Track
-                                        </button>
+                                        <>
+                                          <button
+                                            onClick={() => handleOpenMap(item)}
+                                            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+                                          >
+                                            <Navigation className="w-3.5 h-3.5 text-orange-500" /> Track
+                                          </button>
+                                          <button
+                                            onClick={() => {
+                                              setSelectedBookingForChat(item);
+                                              setIsChatOpen(true);
+                                            }}
+                                            className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+                                            title="Chat with Technician"
+                                          >
+                                            <MessageSquare className="w-3.5 h-3.5 text-blue-600" /> Chat
+                                          </button>
+                                        </>
                                       )}
                                       {item.status === 'Completed' && (
-                                        <button
-                                          onClick={() => handleOpenInvoice(item)}
-                                          className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors"
-                                        >
-                                          <Download className="w-3.5 h-3.5" /> Invoice
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                          <button
+                                            onClick={() => handleOpenInvoice(item)}
+                                            className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors"
+                                          >
+                                            <Download className="w-3.5 h-3.5" /> Invoice
+                                          </button>
+                                          <button
+                                            onClick={() => {
+                                              setSelectedBookingForRating(item);
+                                              setIsRatingModalOpen(true);
+                                            }}
+                                            className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+                                          >
+                                            <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400" /> Review
+                                          </button>
+                                        </div>
                                       )}
                                       {item.status === 'Cancelled' && (
                                         <button
@@ -2055,7 +2096,7 @@ export default function UserDashboardPage() {
                               type="text"
                               value={location}
                               onChange={(e) => updateLocation(e.target.value)}
-                              placeholder="e.g. Salt Lake, Kolkata, West Bengal"
+                              placeholder="Enter your location or address"
                               className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-36 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
                             />
                             <button
@@ -2171,6 +2212,20 @@ export default function UserDashboardPage() {
         onClose={() => setIsRatingModalOpen(false)}
         booking={selectedBookingForRating}
         onSubmitRating={handleSubmitRating}
+      />
+
+      {/* Real-Time WebSocket In-App Chat Modal */}
+      <ChatModal
+        isOpen={isChatOpen}
+        onClose={() => {
+          setIsChatOpen(false);
+          setSelectedBookingForChat(null);
+        }}
+        bookingId={selectedBookingForChat?.id || selectedBookingForChat?._id || selectedBookingForChat?.rawBooking?._id}
+        bookingTitle={selectedBookingForChat?.service || 'Service Booking'}
+        otherPartyName={selectedBookingForChat?.technician || 'Technician'}
+        otherPartyRole="Assigned Expert"
+        recipientId={selectedBookingForChat?.rawBooking?.vendor?._id || selectedBookingForChat?.rawBooking?.vendor}
       />
 
       {/* ── FLOATING TOAST NOTIFICATION ── */}

@@ -209,20 +209,9 @@ function enrichAddressWithPostalData(parsed) {
     enriched.street = `${enriched.street}, ${postalInfo.primaryOffice}`;
   }
 
-  // 2. City refinement (especially for Paschim Bardhaman / Asansol / Jamuria / Barabani area)
+  // 2. City / Taluk from real India Post data
   if (!enriched.city || enriched.city === 'Local Area') {
     enriched.city = postalInfo.taluk || postalInfo.district;
-  }
-
-  // Known city corrections:
-  // In Paschim Bardhaman (PINs 7133xx), the municipal corporation and urban hub is Asansol
-  if (
-    pin.startsWith('7133') &&
-    (postalInfo.district.toLowerCase().includes('bardhaman') || postalInfo.district.toLowerCase().includes('burdwan'))
-  ) {
-    if (enriched.city.toLowerCase() === 'baraboni' || enriched.city.toLowerCase() === 'barabani') {
-      enriched.city = 'Asansol';
-    }
   }
 
   // 3. State & District

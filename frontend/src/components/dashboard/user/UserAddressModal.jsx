@@ -323,31 +323,31 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
               </div>
             </div>
 
-            {/* House / Flat / Mohalla */}
+            {/* House / Flat */}
             <div>
               <label className="block font-bold text-xs text-slate-600 mb-1.5">
-                House / Flat / Mohalla <span className="text-gray-400 font-normal text-xs">(Optional)</span>
+                House / Flat <span className="text-gray-400 font-normal text-xs">(Optional)</span>
               </label>
               <input
                 type="text"
                 value={flat}
                 onChange={(e) => setFlat(e.target.value)}
-                placeholder="e.g. Nazirpara, House #4B, Flat 201"
+                placeholder="e.g. House #4B, Flat 201"
                 className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
               />
             </div>
 
-            {/* Street / Locality / Bazar */}
+            {/* Street / Locality */}
             <div>
               <label className="block font-bold text-xs text-slate-600 mb-1.5">
-                Street / Locality / Bazar <span className="text-red-500">*</span>
+                Street / Locality <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 required
                 value={street}
                 onChange={(e) => setStreet(e.target.value)}
-                placeholder="e.g. Sripur Bazar, MG Road, Sector 4"
+                placeholder="Enter street, area, or landmark"
                 className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
               />
             </div>
@@ -363,7 +363,7 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
                   required
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  placeholder="e.g. Asansol / Jamuria"
+                  placeholder="Enter city / town"
                   className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
                 />
               </div>
@@ -377,7 +377,7 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
                   list="user-states-list"
                   value={state}
                   onChange={(e) => setState(e.target.value)}
-                  placeholder="e.g. West Bengal"
+                  placeholder="Enter state"
                   className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
                 />
                 <datalist id="user-states-list">
@@ -398,7 +398,7 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
                   type="text"
                   value={landmark}
                   onChange={(e) => setLandmark(e.target.value)}
-                  placeholder="e.g. Near Gurudwara, Opp Bank"
+                  placeholder="e.g. Opp Bank, Near Park"
                   className="w-full px-4 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-200 font-medium text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
                 />
               </div>

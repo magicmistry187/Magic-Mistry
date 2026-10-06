@@ -98,10 +98,27 @@ export default function BookingSummary() {
         ? `${bookingState.serviceName} (${bookingState.selectedSubServices.map(s => s.label).join(', ')})`
         : bookingState.serviceName || 'Appliance Repair';
 
+      const serviceChargeVal = Number(basePrice) > 0 ? Number(basePrice) : (Number(total) > 0 ? Number(total) : 199);
+      const rawMethod = String(bookingState.paymentMethod || 'Cash').toLowerCase();
+      // Backend expects 'Cash' or 'UPI'
+      const backendPaymentMethod = rawMethod === 'upi' ? 'UPI' : 'Cash';
+
+      const standardizedPaymentDetails = {
+        category: backendPaymentMethod,
+        metadata: {
+          timestamp: new Date().toISOString(),
+          source: 'customer_checkout',
+        },
+      };
+
       const formData = new FormData();
       formData.append('appliance', bookingState.serviceName || 'Appliance Repair');
       formData.append('serviceCategory', serviceTitle);
-      formData.append('serviceCategoryCharge', basePrice);
+      formData.append('serviceCategoryCharge', serviceChargeVal);
+      formData.append('paymentMethod', backendPaymentMethod);
+      formData.append('paymentDetails', JSON.stringify(standardizedPaymentDetails));
+      formData.append('paymentDetails[category]', backendPaymentMethod);
+
       formData.append('issue', bookingState.problemDescription || (bookingState.selectedSubServices.length > 0 ? bookingState.selectedSubServices.map(s => s.label).join(', ') : 'General Repair & Maintenance'));
       const parsedAddr = parseAddressString(bookingState.address);
       const addressLine1 = parsedAddr.flat || parsedAddr.street || bookingState.address.trim();
@@ -113,7 +130,7 @@ export default function BookingSummary() {
         formData.append('address[street]', street);
       }
       formData.append('address[city]', parsedAddr.city || '');
-      formData.append('address[state]', parsedAddr.state || 'West Bengal');
+      formData.append('address[state]', parsedAddr.state || '');
       formData.append('address[pincode]', parsedAddr.pincode || '');
       if (parsedAddr.landmark) {
         formData.append('address[landmark]', parsedAddr.landmark);
@@ -252,13 +269,13 @@ export default function BookingSummary() {
         {/* Payment */}
         <div className="flex justify-between items-start gap-2">
           <span className="text-slate-400 shrink-0">Payment</span>
-          <span className="font-medium capitalize text-xs text-blue-300">
-            {bookingState.paymentMethod === 'upi'
-              ? 'UPI After Service'
-              : bookingState.paymentMethod === 'cash'
-              ? 'Cash After Service'
-              : 'Cash / UPI'}
-          </span>
+          <div className="text-right">
+            <span className="font-semibold capitalize text-xs text-blue-300 block">
+              {String(bookingState.paymentMethod).toLowerCase() === 'upi'
+                ? 'UPI After Service'
+                : 'Cash After Service'}
+            </span>
+          </div>
         </div>
 
         {/* Issue description — Optional */}

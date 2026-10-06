@@ -70,7 +70,7 @@ export const BookingProvider = ({ children, initialAppliance = null }) => {
     address: savedLocation,
     latitude: null,
     longitude: null,
-    paymentMethod: 'cash',
+    paymentMethod: 'Cash',
     images: [],
     imageFile: null,
     priceInfo: {

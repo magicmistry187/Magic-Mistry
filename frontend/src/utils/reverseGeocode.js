@@ -161,12 +161,7 @@ function parseIndianAddress(data, nearbyList = []) {
     if (detectedCity && detectedCity.toLowerCase() !== a.village.toLowerCase()) {
       villageLocality = a.village.trim();
     } else if (!detectedCity) {
-      if (a.county && a.county.toLowerCase().includes('sriniketan') && a.village.toLowerCase() === 'sriniketan') {
-        detectedCity = 'Bolpur';
-        villageLocality = 'Sriniketan';
-      } else {
-        detectedCity = a.village.trim();
-      }
+      detectedCity = a.village.trim();
     }
   }
 
@@ -569,7 +564,7 @@ export async function reverseGeocode(latitude, longitude) {
  * Searches places/villages/towns/streets across India using LocationIQ Autocomplete.
  * Supports coordinate bias to prioritize results close to user's location.
  *
- * @param {string} query Search text (e.g. "Sripur Bazar", "Bihta", "Indiranagar")
+ * @param {string} query Search text (e.g. area, landmark, or street name)
  * @param {{ lat: number, lng: number }} [userCoords] Optional coordinates to bias results
  * @returns {Promise<Array<{ place_id: string, display_name: string, display_place: string, display_address: string, lat: number, lng: number, address: object }>>}
  */
