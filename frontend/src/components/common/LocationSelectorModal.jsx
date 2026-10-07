@@ -327,7 +327,7 @@ export default function LocationSelectorModal({ isOpen, onClose }) {
                           type="text"
                           value={detectedData.street || ""}
                           onChange={(e) => setDetectedData({ ...detectedData, street: e.target.value })}
-                          placeholder="e.g. Sripur Bazar / Main Road / Village Name"
+                          placeholder="Enter street, area, or village name"
                           className="w-full mt-0.5 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold focus:ring-1 focus:ring-emerald-500 outline-none bg-white"
                         />
                       </div>

@@ -10,6 +10,9 @@ const {
   emitBookingStatusUpdated,
   emitBookingTaken,
   emitBookingCancelled,
+  emitInvoiceGenerated,
+  emitInventoryUpdated,
+  emitLowStockAlert,
 } = require('../socket/socketEmitter');
 
 exports.createBooking = async (req, res) => {
@@ -1375,6 +1378,11 @@ exports.completeService = async (req, res) => {
     for (const update of inventoryUpdates) {
       update.inventoryItem.stockQuantity -= update.quantity;
       await update.inventoryItem.save();
+      // Real-time: inform admin inventory dashboard
+      emitInventoryUpdated(update.inventoryItem);
+      if (update.inventoryItem.stockQuantity <= (update.inventoryItem.reorderThreshold || 10)) {
+        emitLowStockAlert(update.inventoryItem);
+      }
     }
 
     execution.status = 'Completed';
@@ -1390,6 +1398,14 @@ exports.completeService = async (req, res) => {
     // increasing job count in the vendor profile
     vendorProfile.jobsCompleted += 1;
     await vendorProfile.save();
+
+    // Real-time: Notify customer, vendor, and admin of service completion and invoice
+    const populatedBooking = await Booking.findById(booking._id)
+      .populate('customer', 'fullName email phoneNumber')
+      .populate('vendor', 'fullName email phoneNumber');
+
+    emitBookingStatusUpdated(populatedBooking || booking);
+    emitInvoiceGenerated(invoice);
 
     return res.status(200).json({
       success: true,

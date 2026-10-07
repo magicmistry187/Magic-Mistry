@@ -6,7 +6,6 @@ const logo2 = '/logo2.png';
 import { useAuth } from '../../context/AuthContext';
 
 import LoginRequiredModal from '../auth/LoginRequiredModal';
-import LocationSelectorModal from './LocationSelectorModal';
 import ApplianceIcon from './ApplianceIcon';
 import { useLivePricing } from '../../services/pricingService';
 import { formatCleanAddress } from '../../utils/addressParser';
@@ -22,7 +21,6 @@ const Navbar = () => {
   const [lastScrollY, setLastScrollY] = useState(0);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [isLocationPopupOpen, setIsLocationPopupOpen] = useState(false);
   const [showSearchLoginModal, setShowSearchLoginModal] = useState(false);
   const [selectedSearchAppliance, setSelectedSearchAppliance] = useState(null);
@@ -342,95 +340,82 @@ const Navbar = () => {
               {/* Right Items */}
               <div className="flex items-center space-x-4 min-[930px]:space-x-6 shrink-0">
 
-                {/* Location Display — clickable pill + popup */}
-                <div className="relative hidden sm:block" ref={locationPopupRef}>
-                  <button
-                    onClick={() => setIsLocationPopupOpen(prev => !prev)}
-                    className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-700 px-3 py-1.5 rounded-full border border-slate-200 shadow-xs transition-all duration-200 cursor-pointer select-none"
-                    title="Click to view your saved location"
-                  >
-                    <MapPin className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-                    <span className="hidden min-[930px]:inline max-w-[130px] truncate">
-                      {cleanDisplayLocation || 'Set Your Location'}
-                    </span>
-                    <ChevronDown className={`w-3 h-3 text-slate-400 hidden min-[930px]:inline transition-transform duration-200 ${isLocationPopupOpen ? 'rotate-180' : ''}`} />
-                  </button>
+                {/* Location Display — only shows when location is set/saved from Dashboard or Booking */}
+                {cleanDisplayLocation && (
+                  <div className="relative hidden sm:block" ref={locationPopupRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsLocationPopupOpen(prev => !prev)}
+                      className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-700 px-3 py-1.5 rounded-full border border-slate-200 shadow-xs transition-all duration-200 cursor-pointer select-none"
+                      title="Saved service location"
+                    >
+                      <MapPin className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                      <span className="hidden min-[930px]:inline max-w-[130px] truncate">
+                        {cleanDisplayLocation}
+                      </span>
+                      <ChevronDown className={`w-3 h-3 text-slate-400 hidden min-[930px]:inline transition-transform duration-200 ${isLocationPopupOpen ? 'rotate-180' : ''}`} />
+                    </button>
 
-                  {/* Location Popup */}
-                  <AnimatePresence>
-                    {isLocationPopupOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.92, y: -8 }}
-                        animate={{ opacity: 1, scale: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }}
-                        exit={{ opacity: 0, scale: 0.92, y: -8, transition: { duration: 0.15 } }}
-                        className="absolute left-0 top-[calc(100%+10px)] w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50"
-                        style={{ transformOrigin: 'top left' }}
-                      >
-                        {/* Header */}
-                        <div className="px-4 pt-4 pb-3 bg-gradient-to-br from-orange-50 to-amber-50 border-b border-orange-100">
-                          <div className="flex items-center justify-between mb-1">
-                            <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center">
-                                <MapPin className="w-4 h-4 text-orange-500" />
+                    {/* Location Popup — view details and manage via dashboard */}
+                    <AnimatePresence>
+                      {isLocationPopupOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.92, y: -8 }}
+                          animate={{ opacity: 1, scale: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }}
+                          exit={{ opacity: 0, scale: 0.92, y: -8, transition: { duration: 0.15 } }}
+                          className="absolute left-0 top-[calc(100%+10px)] w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50"
+                          style={{ transformOrigin: 'top left' }}
+                        >
+                          {/* Header */}
+                          <div className="px-4 pt-4 pb-3 bg-gradient-to-br from-orange-50 to-amber-50 border-b border-orange-100">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center">
+                                  <MapPin className="w-4 h-4 text-orange-500" />
+                                </div>
+                                <p className="text-xs font-bold text-orange-700 uppercase tracking-wide">
+                                  {(user?.role || '').toLowerCase() === 'vendor' || !!user?.vendorId
+                                    ? 'Service Location'
+                                    : 'Saved Service Address'}
+                                </p>
                               </div>
-                              <p className="text-xs font-bold text-orange-700 uppercase tracking-wide">
-                                {(user?.role || '').toLowerCase() === 'vendor' || !!user?.vendorId
-                                  ? 'Service Location'
-                                  : 'Service Address'}
-                              </p>
+                              <button
+                                type="button"
+                                onClick={() => setIsLocationPopupOpen(false)}
+                                className="text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-white/60 transition-colors cursor-pointer"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
                             </div>
-                            <button
-                              onClick={() => setIsLocationPopupOpen(false)}
-                              className="text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-white/60 transition-colors cursor-pointer"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
                           </div>
-                        </div>
 
-                        {/* Location Text */}
-                        <div className="px-4 py-3">
-                          {cleanDisplayLocation ? (
+                          {/* Location Text */}
+                          <div className="px-4 py-3">
                             <p className="text-sm font-semibold text-slate-800 leading-relaxed">
                               {cleanDisplayLocation}
                             </p>
-                          ) : (
-                            <p className="text-sm text-slate-400 italic">No location saved yet.</p>
-                          )}
-                        </div>
+                          </div>
 
-                        {/* Divider */}
-                        <div className="mx-4 h-px bg-slate-100" />
-
-                        {/* Change Location Button */}
-                        <div className="px-4 py-3 space-y-2">
-                          <button
-                            onClick={() => {
-                              setIsLocationPopupOpen(false);
-                              setIsLocationModalOpen(true);
-                            }}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm font-bold rounded-xl transition-colors cursor-pointer shadow-sm"
-                          >
-                            <MapPin className="w-3.5 h-3.5" />
-                            Select / Change Location
-                          </button>
-
+                          {/* Manage in Dashboard (if logged in) */}
                           {isLoggedIn && (
-                            <button
-                              onClick={handleGoToProfile}
-                              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
-                            >
-                              <ExternalLink className="w-3 h-3" />
-                              {(user?.role || '').toLowerCase() === 'vendor' || !!user?.vendorId
-                                ? 'Vendor Coverage Settings'
-                                : 'Manage Saved Addresses'}
-                            </button>
+                            <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50">
+                              <button
+                                type="button"
+                                onClick={handleGoToProfile}
+                                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-white hover:bg-orange-50 hover:text-orange-700 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-2xs"
+                              >
+                                <ExternalLink className="w-3 h-3 text-orange-500" />
+                                {(user?.role || '').toLowerCase() === 'vendor' || !!user?.vendorId
+                                  ? 'Manage in Vendor Dashboard'
+                                  : 'Manage Addresses in Dashboard'}
+                              </button>
+                            </div>
                           )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
 
 
                 {/* ── USER AVATAR + DROPDOWN or LOGIN BUTTON ── */}
@@ -683,37 +668,40 @@ const Navbar = () => {
                   <Link to="/about" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded cursor-pointer select-none outline-none">About Us</Link>
                   <Link to="/faq" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded cursor-pointer select-none outline-none">FAQ</Link>
 
-                  <div
-                    className="w-full p-3 bg-white border border-gray-200 rounded-xl mt-2 select-none shadow-2xs"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center space-x-2 overflow-hidden min-w-0">
-                        <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center shrink-0">
-                          <MapPin className="w-4 h-4 text-orange-500" />
+                  {/* Saved location display (only if location is set) */}
+                  {cleanDisplayLocation && (
+                    <div
+                      className="w-full p-3 bg-white border border-gray-200 rounded-xl mt-2 select-none shadow-2xs"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center space-x-2 overflow-hidden min-w-0">
+                          <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center shrink-0">
+                            <MapPin className="w-4 h-4 text-orange-500" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                              {(user?.role || '').toLowerCase() === 'vendor' || !!user?.vendorId
+                                ? 'Vendor Service Location'
+                                : 'Saved Service Address'}
+                            </p>
+                            <p className="text-xs font-bold text-slate-800 truncate">
+                              {cleanDisplayLocation}
+                            </p>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                            {(user?.role || '').toLowerCase() === 'vendor' || !!user?.vendorId
-                              ? 'Vendor Service Location'
-                              : 'Saved Service Address'}
-                          </p>
-                          <p className="text-xs font-bold text-slate-800 truncate">
-                            {cleanDisplayLocation || 'Set Your Location'}
-                          </p>
-                        </div>
+                        {isLoggedIn && (
+                          <button
+                            type="button"
+                            onClick={handleGoToProfile}
+                            className="text-xs font-bold text-orange-600 bg-orange-50 hover:bg-orange-100 px-2.5 py-1.5 rounded-lg transition-colors shrink-0 cursor-pointer flex items-center gap-1"
+                            title="Manage in Dashboard"
+                          >
+                            <span>Manage</span>
+                          </button>
+                        )}
                       </div>
-                      <button
-                        onClick={() => {
-                          setIsMobileMenuOpen(false);
-                          setIsLocationModalOpen(true);
-                        }}
-                        className="text-xs font-extrabold text-white bg-orange-500 hover:bg-orange-600 px-3 py-1.5 rounded-lg transition-colors shrink-0 cursor-pointer shadow-xs flex items-center gap-1"
-                        title="Change location"
-                      >
-                        <span>Change</span>
-                      </button>
                     </div>
-                  </div>
+                  )}
 
                   {isLoggedIn ? (
                     <div className="px-4 py-3 border-t border-gray-200 mt-2 pt-3 space-y-3">
@@ -796,11 +784,6 @@ const Navbar = () => {
         appliance={selectedSearchAppliance}
       />
 
-      {/* Location Selector Modal */}
-      <LocationSelectorModal
-        isOpen={isLocationModalOpen}
-        onClose={() => setIsLocationModalOpen(false)}
-      />
     </>
   );
 };

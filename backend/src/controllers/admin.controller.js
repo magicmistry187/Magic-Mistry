@@ -1,4 +1,5 @@
 const User = require("../models/user.model");
+const { emitAccountStatusUpdated } = require("../socket/socketEmitter");
 
 //Update User Account Status
 exports.updateUserStatus = async (req, res) => {
@@ -73,6 +74,14 @@ exports.updateUserStatus = async (req, res) => {
 
     //Save Changes
     await user.save();
+
+    // If blocked or suspended, immediately notify and log out the client session via WebSockets
+    if (status === "blocked" || status === "suspended") {
+      const reasonMessage = status === "blocked"
+        ? "Your account has been blocked by the administrator."
+        : `Your account has been suspended until ${suspendedUntil?.toLocaleDateString() || "further notice"}.`;
+      emitAccountStatusUpdated(user._id, status, reasonMessage);
+    }
 
     return res.status(200).json({
       success: true,

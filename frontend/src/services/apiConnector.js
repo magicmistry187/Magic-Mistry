@@ -91,6 +91,7 @@ export const apiConnector = (method, url, bodyData, headers = {}, params) => {
       typeof window !== 'undefined'
         ? localStorage.getItem('mm_token') ||
           localStorage.getItem('token') ||
+          localStorage.getItem('adminToken') ||
           localStorage.getItem('vendorToken')
         : null;
     if (savedToken && savedToken !== 'undefined' && savedToken !== 'null') {
