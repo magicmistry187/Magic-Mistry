@@ -9,9 +9,13 @@ const sendEmail = require("../utils/sendEmail");
 const jwt = require("jsonwebtoken");
 const axios = require("axios");
 
+const handleSuspensionExpiry = require("../utils/handleSuspensionExpiry");
+
 function generateToken(user) {
-  const isAdminEmail = user.email && user.email.toLowerCase().trim() === 'magicmistry187@gmail.com';
-  const role = isAdminEmail ? 'admin' : user.role;
+  const isAdminEmail =
+    user.email &&
+    user.email.toLowerCase().trim() === "magicmistry187@gmail.com";
+  const role = isAdminEmail ? "admin" : user.role;
   const payload = {
     id: user._id,
     email: user.email,
@@ -20,29 +24,9 @@ function generateToken(user) {
   };
 
   return jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: '7d',
+    expiresIn: "7d",
   });
 }
-
-
-
-
-// Helper function for checking suspension expiry
-const handleSuspensionExpiry = async (user) => {
-  if (!user) return user;
-
-  if (
-    user.status === "suspended" &&
-    user.suspendedUntil &&
-    new Date() >= new Date(user.suspendedUntil)
-  ) {
-    user.status = "active";
-    user.suspendedUntil = null;
-    await user.save();
-  }
-
-  return user;
-};
 
 // send otp
 //little bit modifying it for forgot password and signup
@@ -56,11 +40,11 @@ async function sendOtp(req, res) {
         message: "Email is required",
       });
     }
-    
-    if (!['signup', 'forgotPassword'].includes(purpose)) {
+
+    if (!["signup", "forgotPassword"].includes(purpose)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid OTP purpose.',
+        message: "Invalid OTP purpose.",
       });
     }
 
@@ -113,10 +97,10 @@ async function sendOtp(req, res) {
     // }
 
     const otp = otpGenerator.generate(6, {
-  upperCaseAlphabets: false,
-  lowerCaseAlphabets: false,
-  specialChars: false,
-});
+      upperCaseAlphabets: false,
+      lowerCaseAlphabets: false,
+      specialChars: false,
+    });
 
     await otpModel.create({
       email: email.toLowerCase().trim(),
@@ -264,6 +248,7 @@ async function login(req, res) {
       });
     }
 
+    //function to check if a user's suspension has expired
     await handleSuspensionExpiry(user);
 
     // Vendors must use vendor login
@@ -282,22 +267,6 @@ async function login(req, res) {
           "This account was created using Google. Please sign in with Google.",
       });
     }
-
-    // Check account status
-    // if (user.status === "blocked") {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message:
-    //       "Your account has been blocked. Please contact the administrator.",
-    //   });
-    // }
-
-    // if (user.status === "suspended") {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: "Your account has been suspended by the administrator.",
-    //   });
-    // }
 
     // Compare password
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
@@ -408,34 +377,22 @@ async function googleLogin(req, res) {
           fullName: name,
           email: trimmedEmail,
           googleId,
-          authProviders: ['google'],
+          authProviders: ["google"],
           // isEmailVerified: true,
           // role: "admin", // Default role is 'user'
         });
       }
     }
 
+    //function to check if a user's suspension has expired
+
     if (user) {
       await handleSuspensionExpiry(user);
     }
 
-    // Check if account is blocked
-    // if (user.status === 'blocked') {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: 'Your account has been blocked.',
-    //   });
-    // }
+   
 
-    // Check if account is suspended
-    // if (user.status === 'suspended') {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: 'Your account has been suspended.',
-    //   });
-    // }
-
-    if (user.role === 'vendor') {
+    if (user.role === "vendor") {
       return res.status(403).json({
         success: false,
         message: "Vendors cannot use Google login. Please use vendor login.",
@@ -500,7 +457,7 @@ async function changePassword(req, res) {
     if (!userDetails) {
       return res.status(404).json({
         success: false,
-        message: 'User not found.',
+        message: "User not found.",
       });
     }
 
@@ -521,7 +478,7 @@ async function changePassword(req, res) {
       return res.status(400).json({
         success: false,
         message:
-          'This account does not have a password. Please use Google login.',
+          "This account does not have a password. Please use Google login.",
       });
     }
 
