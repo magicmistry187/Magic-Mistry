@@ -2,8 +2,6 @@ const mongoose = require('mongoose');
 
 const vendorEarningSchema = new mongoose.Schema(
   {
-    
-
     booking: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Booking',
@@ -23,20 +21,11 @@ const vendorEarningSchema = new mongoose.Schema(
       required: true,
     },
 
-    workOrderId: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-
     customerInvoiceAmount: {
       type: Number,
       required: true,
       min: 0,
     },
-
- 
 
     serviceAmount: {
       type: Number,
@@ -46,7 +35,7 @@ const vendorEarningSchema = new mongoose.Schema(
 
     serviceSharePercentage: {
       type: Number,
-      required: true,
+      default: 50,
       min: 0,
       max: 100,
     },
@@ -57,21 +46,6 @@ const vendorEarningSchema = new mongoose.Schema(
       min: 0,
     },
 
-
-    componentAmount: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-
-    componentShareAmount: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-
-   
-
     travelDistanceKm: {
       type: Number,
       default: 0,
@@ -80,17 +54,15 @@ const vendorEarningSchema = new mongoose.Schema(
 
     travelRatePerKm: {
       type: Number,
-      default: 10,
+      // default: 10,
       min: 0,
     },
 
-    fuelPayout: {
+    travelCharge: {
       type: Number,
       default: 0,
       min: 0,
     },
-
-   
 
     netEarning: {
       type: Number,
@@ -100,11 +72,7 @@ const vendorEarningSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: [
-        'Available',
-        'Included In Payout',
-        'Paid',
-      ],
+      enum: ['Available', 'Included In Payout', 'Paid'],
       default: 'Available',
     },
 
@@ -115,10 +83,7 @@ const vendorEarningSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
-module.exports = mongoose.model(
-  'VendorEarning',
-  vendorEarningSchema
-);
+module.exports = mongoose.model('VendorEarning', vendorEarningSchema);
