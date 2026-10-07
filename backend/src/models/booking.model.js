@@ -83,9 +83,9 @@ const bookingSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ['Cash', 'UPI', 'Online Payment'],
-      default: 'Cash',
-      // type: String,
+      // enum: ['Cash', 'UPI', 'Online Payment'],
+      // default: 'Cash',
+      type: String,
       // required: true,
       // trim: true,
     },
