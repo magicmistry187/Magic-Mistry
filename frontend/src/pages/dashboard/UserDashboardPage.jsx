@@ -714,7 +714,10 @@ export default function UserDashboardPage() {
 
           {/* ── DESKTOP SIDEBAR NAVIGATION (Visible on screens lg+) ─────────────── */}
           <aside className="hidden lg:block lg:w-64 shrink-0">
-            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-6 sticky top-28">
+            <div
+              data-lenis-prevent
+              className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-6 sticky top-28 max-h-[calc(100vh-8rem)] overflow-y-auto overscroll-contain custom-scrollbar"
+            >
 
               {/* User Profile Summary */}
               <div className="flex items-center gap-3.5 pb-5 border-b border-slate-100">

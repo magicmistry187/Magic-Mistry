@@ -27,16 +27,20 @@ export default function UserTechnicianMapModal({ isOpen, onClose, technician, bo
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+      <div
+        data-lenis-prevent
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto overscroll-contain"
+      >
         <motion.div
+          data-lenis-prevent
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          className="bg-white w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col"
+          className="bg-white w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[92vh] my-auto"
         >
           {/* Header */}
-          <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+          <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
               <h3 className="font-bold text-lg">Live Technician Tracker</h3>
@@ -110,7 +114,10 @@ export default function UserTechnicianMapModal({ isOpen, onClose, technician, bo
           </div>
 
           {/* Technician Info Card */}
-          <div className="p-4 sm:p-6 bg-white space-y-4">
+          <div
+            data-lenis-prevent
+            className="p-4 sm:p-6 bg-white space-y-4 overflow-y-auto overscroll-contain custom-scrollbar flex-1"
+          >
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-100 gap-3">
               <div className="flex items-center gap-3.5 sm:gap-4">
                 <div className="relative">

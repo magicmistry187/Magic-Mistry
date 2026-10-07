@@ -16,12 +16,16 @@ export default function AdminApplicationModal({
   return (
     <AnimatePresence>
       {isOpen && selectedApplication && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
+        <div
+          data-lenis-prevent
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto overscroll-contain"
+        >
           <motion.div
+            data-lenis-prevent
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="bg-white rounded-3xl max-w-3xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-8"
+            className="bg-white rounded-3xl max-w-3xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto"
           >
             {/* Modal Header */}
             <div className="p-6 border-b border-slate-100 flex items-start justify-between bg-gradient-to-r from-[#02182e] to-[#09223e] text-white shrink-0">
@@ -51,7 +55,10 @@ export default function AdminApplicationModal({
             </div>
 
             {/* Modal Body - Scrollable Form Structure */}
-            <div className="p-6 space-y-6 overflow-y-auto bg-slate-50/50 flex-1">
+            <div
+              data-lenis-prevent
+              className="p-6 space-y-6 overflow-y-auto overscroll-contain custom-scrollbar bg-slate-50/50 flex-1"
+            >
 
               {/* Status Bar */}
               <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between flex-wrap gap-3">

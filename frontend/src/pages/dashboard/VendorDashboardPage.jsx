@@ -4914,8 +4914,11 @@ export default function VendorDashboardPage() {
 
         {/* ── PROOF LIGHTBOX PREVIEW MODAL ── */}
         {proofPreviewItem && (
-          <div className="fixed inset-0 z-[100001] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
-            <div className="bg-white rounded-3xl p-5 max-w-lg w-full shadow-2xl space-y-4">
+          <div
+            data-lenis-prevent
+            className="fixed inset-0 z-[100001] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto overscroll-contain"
+          >
+            <div className="bg-white rounded-3xl p-5 max-w-lg w-full shadow-2xl space-y-4 my-auto max-h-[92vh] overflow-y-auto custom-scrollbar">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
                   <h4 className="text-sm font-extrabold text-slate-900">{proofPreviewItem.title || 'Travel & Proof Document'}</h4>

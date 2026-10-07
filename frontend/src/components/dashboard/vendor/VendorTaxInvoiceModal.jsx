@@ -40,7 +40,10 @@ export default function VendorTaxInvoiceModal({
   return (
     <AnimatePresence>
       {showTaxInvoiceModal && generatedInvoiceData && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/75 backdrop-blur-xs overflow-y-auto tax-invoice-modal-overlay">
+        <div
+          data-lenis-prevent
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/75 backdrop-blur-xs overflow-y-auto overscroll-contain tax-invoice-modal-overlay"
+        >
           <motion.div
             id="invoice-vendor-print-card"
             initial={{ opacity: 0, scale: 0.95, y: 15 }}

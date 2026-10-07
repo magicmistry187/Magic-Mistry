@@ -177,7 +177,7 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
       <div
         ref={overlayRef}
         data-lenis-prevent
-        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs overscroll-contain"
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs overflow-y-auto overscroll-contain custom-scrollbar"
       >
         <motion.div
           data-lenis-prevent
@@ -185,7 +185,7 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.92, y: 15 }}
           transition={{ type: 'spring', stiffness: 320, damping: 26 }}
-          className="bg-white w-full max-w-lg max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col"
+          className="bg-white w-full max-w-lg max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col my-auto"
         >
           <div className="bg-slate-900 text-white px-6 py-4.5 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2.5">
@@ -209,7 +209,7 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
             ref={scrollContainerRef}
             data-lenis-prevent
             onSubmit={handleSubmit}
-            className="flex-1 min-h-0 p-6 space-y-4 text-xs sm:text-sm text-slate-700 overflow-y-auto overscroll-contain"
+            className="flex-1 min-h-0 p-6 space-y-4 text-xs sm:text-sm text-slate-700 overflow-y-auto overscroll-contain custom-scrollbar"
           >
             {/* Location Detection & Map Buttons */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">

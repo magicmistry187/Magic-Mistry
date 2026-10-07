@@ -21,15 +21,19 @@ export default function AdminRestockModal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
+        <div
+          data-lenis-prevent
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto overscroll-contain"
+        >
           <motion.div
+            data-lenis-prevent
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="bg-white rounded-3xl max-w-xl w-full border border-slate-200 shadow-2xl overflow-hidden my-8"
+            className="bg-white rounded-3xl max-w-xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[92vh] my-auto"
           >
             {/* Modal Header */}
-            <div className="p-6 border-b border-slate-100 flex items-start justify-between">
+            <div className="p-6 border-b border-slate-100 flex items-start justify-between shrink-0">
               <div>
                 <div className="flex items-center gap-2 text-[#02182e] font-black text-xl">
                   <Truck className="w-5 h-5 text-amber-600" />
@@ -48,7 +52,10 @@ export default function AdminRestockModal({
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 space-y-5">
+            <div
+              data-lenis-prevent
+              className="p-6 space-y-5 overflow-y-auto overscroll-contain custom-scrollbar flex-1"
+            >
 
               {/* Current Stock Banner */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 flex items-center justify-between">

@@ -26,11 +26,11 @@ function OutOfAreaModal({ city, state, onClose }) {
   return (
     <div
       data-lenis-prevent
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 overscroll-contain"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 overscroll-contain overflow-y-auto"
       style={{ backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)" }}
       onClick={onClose}
     >
-      <div data-lenis-prevent className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div data-lenis-prevent className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden my-auto" onClick={(e) => e.stopPropagation()}>
         <div className="bg-gradient-to-br from-[#0B1E40] to-[#1a3a70] px-6 pt-8 pb-6 text-center">
           <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-4">
             <MapPinOff className="w-8 h-8 text-white" />

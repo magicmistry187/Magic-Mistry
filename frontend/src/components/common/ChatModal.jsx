@@ -165,13 +165,17 @@ export default function ChatModal({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+      <div
+        data-lenis-prevent
+        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto overscroll-contain"
+      >
         <motion.div
+          data-lenis-prevent
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-          className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col h-[580px] max-h-[90vh]"
+          className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col h-[580px] max-h-[90vh] my-auto"
         >
           {/* Header */}
           <div className="bg-[#0b1e40] text-white px-5 py-4 flex items-center justify-between shadow-sm shrink-0">
@@ -198,14 +202,17 @@ export default function ChatModal({
 
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-300 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
+              className="p-1.5 text-slate-300 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Messages Feed */}
-          <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50/70">
+          <div
+            data-lenis-prevent
+            className="flex-1 p-4 overflow-y-auto overscroll-contain custom-scrollbar space-y-3 bg-slate-50/70"
+          >
             {messages.map((msg) => {
               if (msg.isSystem) {
                 return (

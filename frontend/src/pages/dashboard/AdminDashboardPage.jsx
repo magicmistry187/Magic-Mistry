@@ -2805,18 +2805,40 @@ export default function AdminDashboardPage() {
   const recentRestocksCount = inventoryList.filter(item => item.lastUpdated && (item.lastUpdated.toLowerCase().includes('today') || item.lastUpdated.toLowerCase().includes('just now'))).length;
   const totalInventoryValuation = inventoryList.reduce((acc, item) => acc + (Number(item.stockCount || 0) * Number(item.unitPrice || 0)), 0);
 
-  // Sidebar navigation menu items (Exact match to reference screenshots)
-  const sidebarNavItems = [
-    { id: 'overview',     label: 'Dashboard Overview', icon: LayoutDashboard },
-    { id: 'service-pricing', label: 'Services & Fuel Pricing', icon: IndianRupee },
-    { id: 'work-history', label: 'Work History',       icon: Clock },
-    { id: 'inventory',    label: 'Inventory Management',icon: Package },
-    { id: 'users',        label: 'User Management',    icon: Users },
-    { id: 'applications', label: 'Vendor Applications', icon: FileText, badge: pendingApplicationsCount > 0 ? pendingApplicationsCount.toString() : null },
-    { id: 'payment-requests', label: 'Payment Requests', icon: IndianRupee, badge: paymentRequests.filter(p => p.status === 'Pending').length > 0 ? paymentRequests.filter(p => p.status === 'Pending').length.toString() : null },
-    { id: 'id-creation', label: 'Vandor id creation',  icon: UserPlus, isOrange: true },
-    { id: 'analytics',    label: 'Financial Analytics',icon: TrendingUp },
+  // Sidebar navigation menu items grouped logically by functional domain
+  const sidebarNavGroups = [
+    {
+      group: 'Main',
+      items: [
+        { id: 'overview',        label: 'Dashboard Overview',   icon: LayoutDashboard },
+      ],
+    },
+    {
+      group: 'Operations',
+      items: [
+        { id: 'work-history',    label: 'Work History',         icon: Clock },
+        { id: 'inventory',       label: 'Inventory Management', icon: Package },
+        { id: 'service-pricing', label: 'Services & Fuel Pricing', icon: IndianRupee },
+      ],
+    },
+    {
+      group: 'People & Partners',
+      items: [
+        { id: 'users',           label: 'User Management',      icon: Users },
+        { id: 'applications',    label: 'Vendor Applications',  icon: FileText, badge: pendingApplicationsCount > 0 ? pendingApplicationsCount.toString() : null },
+        { id: 'id-creation',     label: 'Vendor ID Creation',   icon: UserPlus, isOrange: true },
+      ],
+    },
+    {
+      group: 'Finance & Payments',
+      items: [
+        { id: 'payment-requests', label: 'Payment Requests',    icon: IndianRupee, badge: paymentRequests.filter(p => p.status === 'Pending').length > 0 ? paymentRequests.filter(p => p.status === 'Pending').length.toString() : null },
+        { id: 'analytics',       label: 'Financial Analytics',  icon: TrendingUp },
+      ],
+    },
   ];
+
+  const sidebarNavItems = sidebarNavGroups.flatMap((group) => group.items);
 
   return (
     <div className="min-h-screen bg-[#f4f7fb] font-sans antialiased text-slate-800 flex flex-col justify-between">
@@ -2826,43 +2848,55 @@ export default function AdminDashboardPage() {
         <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 print:hidden">
           <div className="flex flex-col lg:flex-row gap-8">
 
-            {/* ── SIDEBAR NAVIGATION (Exact match to Reference Screenshots) ──────── */}
+            {/* ── SIDEBAR NAVIGATION (Logically Grouped & Formatted) ──────────────── */}
             <aside className="lg:w-64 shrink-0">
-              <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80 space-y-6">
+              <div
+                data-lenis-prevent
+                className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80 space-y-6 lg:sticky lg:top-24 max-h-[calc(100vh-7rem)] overflow-y-auto overscroll-contain custom-scrollbar"
+              >
 
-                {/* Sidebar Navigation Buttons */}
-                <nav className="space-y-1.5">
-                  {sidebarNavItems.map((item) => {
-                    const isActive = activeTab === item.id;
-                    const Icon = item.icon;
+                {/* Sidebar Navigation Groups */}
+                <nav className="space-y-4">
+                  {sidebarNavGroups.map((group) => (
+                    <div key={group.group} className="space-y-1.5">
+                      <div className="px-3.5 pt-1 text-[10px] font-black tracking-wider text-slate-400 uppercase select-none">
+                        {group.group}
+                      </div>
+                      <div className="space-y-1">
+                        {group.items.map((item) => {
+                          const isActive = activeTab === item.id;
+                          const Icon = item.icon;
 
-                    return (
-                      <motion.button
-                        key={item.id}
-                        onClick={() => setActiveTab(item.id)}
-                        whileHover={{ x: 3 }}
-                        whileTap={{ scale: 0.98 }}
-                        className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-xs sm:text-sm font-extrabold transition-all duration-200 cursor-pointer ${
-                          isActive
-                            ? 'bg-[#FF6B00] text-white shadow-lg shadow-orange-500/25'
-                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                          <span>{item.label}</span>
-                        </div>
+                          return (
+                            <motion.button
+                              key={item.id}
+                              onClick={() => setActiveTab(item.id)}
+                              whileHover={{ x: 3 }}
+                              whileTap={{ scale: 0.98 }}
+                              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm font-extrabold transition-all duration-200 cursor-pointer ${
+                                isActive
+                                  ? 'bg-[#FF6B00] text-white shadow-lg shadow-orange-500/25'
+                                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <Icon className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                                <span className="text-left leading-snug">{item.label}</span>
+                              </div>
 
-                        {item.badge && (
-                          <span className={`px-2 py-0.5 text-[11px] font-black rounded-full ${
-                            isActive ? 'bg-white text-[#FF6B00]' : 'bg-rose-500 text-white'
-                          }`}>
-                            {item.badge}
-                          </span>
-                        )}
-                      </motion.button>
-                    );
-                  })}
+                              {item.badge && (
+                                <span className={`ml-2 px-2 py-0.5 text-[11px] font-black rounded-full shrink-0 ${
+                                  isActive ? 'bg-white text-[#FF6B00]' : 'bg-rose-500 text-white'
+                                }`}>
+                                  {item.badge}
+                                </span>
+                              )}
+                            </motion.button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </nav>
 
                 {/* Divider */}
@@ -3350,7 +3384,7 @@ export default function AdminDashboardPage() {
 
                       {/* Inventory Data Table */}
                       <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs border-collapse">
+                        <table className="w-full text-left text-xs border-collapse min-w-[700px]">
                           <thead>
                             <tr className="bg-slate-50/80 text-slate-500 uppercase font-extrabold tracking-wider border-y border-slate-100">
                               <th className="py-3.5 px-6">ITEM ID</th>
@@ -3578,7 +3612,7 @@ export default function AdminDashboardPage() {
 
                     <div ref={appTableRef} className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
                       <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs border-collapse">
+                        <table className="w-full text-left text-xs border-collapse min-w-[700px]">
                           <thead>
                             <tr className="bg-slate-50 text-slate-500 uppercase font-extrabold tracking-wider border-b border-slate-100">
                               <th className="py-4 px-6">APP ID</th>
@@ -4428,7 +4462,7 @@ export default function AdminDashboardPage() {
                     {/* Users Table */}
                     <div ref={userTableRef} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
                       <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs border-collapse">
+                        <table className="w-full text-left text-xs border-collapse min-w-[700px]">
                           <thead>
                             <tr className="bg-slate-50 text-slate-500 uppercase font-extrabold border-b border-slate-100">
                               <th className="py-4 px-6">USER ID</th>

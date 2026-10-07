@@ -59,7 +59,10 @@ export default function UserInvoiceModal({ isOpen, onClose, booking }) {
         - On screen: fixed overlay with dark blur
         - On print: static display block at top of page, no background or padding
       */}
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto print:static print:block print:p-0 print:m-0 print:bg-white print:overflow-visible">
+      <div
+        data-lenis-prevent
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto overscroll-contain print:static print:block print:p-0 print:m-0 print:bg-white print:overflow-visible"
+      >
         
         {/* Print Styles: Hide non-invoice elements, clean page margins */}
         <style>{`

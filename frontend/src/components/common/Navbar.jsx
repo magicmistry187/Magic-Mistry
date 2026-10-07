@@ -662,7 +662,10 @@ const Navbar = () => {
                 transition={{ duration: 0.25, ease: 'easeInOut' }}
                 className="min-[930px]:hidden overflow-hidden bg-gray-50 border-t border-gray-100"
               >
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 space-y-3">
+                <div
+                  data-lenis-prevent
+                  className="max-w-7xl mx-auto px-4 sm:px-6 py-4 space-y-3 max-h-[calc(100vh-5rem)] overflow-y-auto overscroll-contain custom-scrollbar"
+                >
                   <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded cursor-pointer select-none outline-none">Find Service</Link>
                   <Link to="/become-a-vendor" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded cursor-pointer select-none outline-none">Become a Vendor</Link>
                   <Link to="/about" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded cursor-pointer select-none outline-none">About Us</Link>

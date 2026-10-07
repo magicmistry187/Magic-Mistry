@@ -137,16 +137,20 @@ export default function VendorRadiusModal({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs">
+      <div
+        data-lenis-prevent
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs overflow-y-auto overscroll-contain"
+      >
         <motion.div
+          data-lenis-prevent
           initial={{ opacity: 0, scale: 0.92, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.92, y: 15 }}
           transition={{ type: 'spring', stiffness: 320, damping: 26 }}
-          className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col"
+          className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[92vh] my-auto"
         >
           {/* Header */}
-          <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+          <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-400">
                 <Compass className="w-4 h-4 text-orange-400" />
@@ -171,7 +175,11 @@ export default function VendorRadiusModal({
           </div>
 
           {/* Body */}
-          <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-5 text-slate-700">
+          <form
+            data-lenis-prevent
+            onSubmit={handleSubmit}
+            className="p-5 sm:p-6 space-y-5 text-slate-700 overflow-y-auto overscroll-contain custom-scrollbar flex-1"
+          >
             {/* Service Address Reference Banner */}
             <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 flex items-start gap-2.5">
               <MapPin className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />

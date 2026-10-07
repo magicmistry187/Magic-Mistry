@@ -355,7 +355,10 @@ export default function InteractiveMapPicker({
 
           {/* Autocomplete Dropdown */}
           {suggestions.length > 0 && (
-            <div className="absolute left-2.5 right-2.5 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden divide-y divide-slate-100 max-h-52 overflow-y-auto z-30 text-slate-800">
+            <div
+              data-lenis-prevent
+              className="absolute left-2.5 right-2.5 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden divide-y divide-slate-100 max-h-52 overflow-y-auto overscroll-contain custom-scrollbar z-30 text-slate-800"
+            >
               {suggestions.map((item) => (
                 <button
                   key={item.place_id || item.display_name}
@@ -399,7 +402,7 @@ export default function InteractiveMapPicker({
       )}
 
       {/* ── Leaflet Map View Container ── */}
-      <div className="relative w-full" style={{ height }}>
+      <div data-lenis-prevent className="relative w-full" style={{ height }}>
         <div ref={mapContainerRef} className="w-full h-full z-10" style={{ touchAction: "pan-y" }} />
 
         {/* Floating Instruction Pill */}
