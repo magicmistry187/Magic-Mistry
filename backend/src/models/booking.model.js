@@ -87,12 +87,12 @@ const bookingSchema = new mongoose.Schema(
       default: "Pending",
     },
     paymentMethod: {
-      // type: String,
+      type: String,
       // enum: ['Cash', 'UPI', 'Online Payment'],
       // default: 'Cash',
       type: String,
-      required: true,
-      trim: true,
+      // required: true,
+      // trim: true,
     },
     serviceCharge: {
       type: Number,
