@@ -1238,15 +1238,7 @@ exports.completeService = async (req, res) => {
       amount: serviceCharge,
     });
 
-    if (travelCharge > 0) {
-      items.push({
-        type: 'Travel',
-        name: 'Travel Charge',
-        quantity: 1,
-        unitPrice: travelCharge,
-        amount: travelCharge,
-      });
-    }
+   
 
     const inventoryUpdates = [];
 
