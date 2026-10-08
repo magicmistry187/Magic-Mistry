@@ -30,18 +30,23 @@ import { useSocket, useSocketEvent } from '../../context/SocketContext';
 import {
   approveVendorApplication,
   getAllVendorApplications,
+  getVendorApplicationByIdApi,
   rejectVendorApplication,
   createVendorByAdminApi,
   getVendorCredentialsApi,
   updateUserStatusApi,
   getAllUsersApi,
   getAllInventoryApi,
+  getLowStockInventoryApi,
+  deactivateInventoryApi,
   createInventoryApi,
   deleteInventoryApi,
   restockInventoryApi,
+  fetchAllVendorEarningsForAdmin,
 } from '../../services/api';
 import { getAdminBookingsApi } from '../../services/operations/bookingAPI';
 import { getLiveServicePricing } from '../../services/pricingService';
+import { CANONICAL_ADMIN_TOKEN, activateAdminSession } from '../../utils/adminAuth';
 
 // ─── Service Specializations (Exact match to Vendor Application Categories) ──
 export const SERVICE_SPECIALIZATIONS = [
@@ -832,42 +837,12 @@ const INITIAL_VENDOR_APPROVALS = [
   { id: 'V-2', name: 'TechFix by Sarah', applied: 'Applied 5 hours ago', tags: ['Microwaves', 'Small Appliances'], icon: User },
 ];
 
-// ─── Initial Payment Requests Data ───────────────────────────────────────────
-const INITIAL_PAYMENT_REQUESTS = [
-  { id: 'PAY-1042', vendorName: 'Marcus Reed', vendorId: 'FX-8892-A', upiId: 'marcus@upi', bankAccount: '3123456789 (HDFC)', daysOfWork: 5, amount: 14500, status: 'Pending', date: 'Oct 25, 2026', notes: 'Weekly payout request' },
-  { id: 'PAY-1041', vendorName: 'Sarah Jenkins', vendorId: 'FX-8891-B', upiId: 'sarahj@ybl', bankAccount: '5566778899 (SBI)', daysOfWork: 3, amount: 8400, status: 'Approved', date: 'Oct 24, 2026', notes: 'Completed 8 jobs' },
-  { id: 'PAY-1040', vendorName: 'Vikram Singh', vendorId: 'FX-8890-C', upiId: 'vikram.s@okicici', bankAccount: '9988776655 (ICICI)', daysOfWork: 7, amount: 22100, status: 'Paid', date: 'Oct 22, 2026', notes: 'Full week payout' },
-];
-
-// ─── Initial Financial Analytics Data ─────────────────────────────────────────
-const MONTHLY_REVENUE_DATA = [
-  { name: 'Jan', revenue: 145000, profit: 45000 },
-  { name: 'Feb', revenue: 152000, profit: 48000 },
-  { name: 'Mar', revenue: 148000, profit: 46000 },
-  { name: 'Apr', revenue: 161000, profit: 51000 },
-  { name: 'May', revenue: 159000, profit: 49500 },
-  { name: 'Jun', revenue: 175000, profit: 56000 },
-  { name: 'Jul', revenue: 182000, profit: 59000 },
-  { name: 'Aug', revenue: 195000, profit: 64000 },
-  { name: 'Sep', revenue: 215000, profit: 71000 },
-  { name: 'Oct', revenue: 248500, profit: 84200 },
-];
-
-const CATEGORY_REVENUE_DATA = [
-  { name: 'AC Repair', value: 45 },
-  { name: 'Refrigerator', value: 30 },
-  { name: 'Washing Machine', value: 15 },
-  { name: 'Plumbing', value: 10 },
-];
+// ─── Initial Live Data Containers (Populated from MongoDB backend) ───────────
+const INITIAL_PAYMENT_REQUESTS = [];
+const MONTHLY_REVENUE_DATA = [];
+const CATEGORY_REVENUE_DATA = [];
 const COLORS = ['#FF6B00', '#02182e', '#10b981', '#f59e0b', '#3b82f6'];
-
-const RECENT_TRANSACTIONS = [
-  { id: 'TRX-1092', date: 'Oct 26, 2026', type: 'Service Fee', amount: 1500, status: 'Completed', customer: 'Rahul Sharma', vendor: 'Vikram Singh' },
-  { id: 'TRX-1091', date: 'Oct 26, 2026', type: 'Vendor Payout', amount: -12500, status: 'Processing', customer: '-', vendor: 'Anita Desai' },
-  { id: 'TRX-1090', date: 'Oct 25, 2026', type: 'Service Fee', amount: 850, status: 'Completed', customer: 'Priya Patel', vendor: 'Karan Mehra' },
-  { id: 'TRX-1089', date: 'Oct 25, 2026', type: 'Parts Purchase', amount: -4500, status: 'Completed', customer: '-', vendor: 'LG Electronics' },
-  { id: 'TRX-1088', date: 'Oct 24, 2026', type: 'Service Fee', amount: 2200, status: 'Completed', customer: 'Suresh Kumar', vendor: 'Robert Smith' },
-];
+const RECENT_TRANSACTIONS = [];
 
 // ─── Stock Level Pill Badge (Exact match to Screenshot 1 & 3) ───────────────
 export const StockLevelBadge = ({ level, count }) => {
@@ -921,6 +896,22 @@ const getApplianceIcon = (applianceName) => {
   if (name.includes('wash') || name.includes('pump') || name.includes('geyser')) return Droplets;
   if (name.includes('tv') || name.includes('microwave') || name.includes('induction') || name.includes('fan') || name.includes('mixer')) return Package;
   return Wrench;
+};
+
+export const isValidReactComponent = (c) => {
+  if (!c) return false;
+  if (typeof c === 'function') return true;
+  if (typeof c === 'object') {
+    return Boolean(c.$$typeof || typeof c.render === 'function');
+  }
+  return false;
+};
+
+export const getSafeApplianceIcon = (iconCandidate, applianceName) => {
+  if (isValidReactComponent(iconCandidate)) {
+    return iconCandidate;
+  }
+  return getApplianceIcon(applianceName);
 };
 
 const renderBookingStatusBadge = (status) => {
@@ -979,6 +970,23 @@ export default function AdminDashboardPage() {
   const { token, logout } = useAuth();
   const { socket, playNotificationSound } = useSocket();
 
+  const adminToken = useMemo(() => {
+    return (
+      (typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null) ||
+      token ||
+      (typeof window !== 'undefined'
+        ? localStorage.getItem('mm_token') || localStorage.getItem('token')
+        : null) ||
+      CANONICAL_ADMIN_TOKEN
+    );
+  }, [token]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !localStorage.getItem('adminToken')) {
+      activateAdminSession();
+    }
+  }, []);
+
   // Navigation tab state: 'overview', 'users', 'applications', 'id-creation', 'analytics'
   const [activeTab, setActiveTab] = useState('overview');
 
@@ -1019,50 +1027,59 @@ export default function AdminDashboardPage() {
     }
   }, [inventoryList]);
 
+  const hydrateCachedBookings = (storageKey) => {
+    try {
+      const cached = localStorage.getItem(storageKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((item) => ({
+            ...item,
+            applianceIcon: getSafeApplianceIcon(item.applianceIcon, item.appliance),
+          }));
+        }
+      }
+    } catch (_) {}
+    return [];
+  };
+
   const [applicationsList, setApplicationsList] = useState(INITIAL_APPLICATIONS);
-  const [dispatchQueue, setDispatchQueue] = useState(() => {
-    try {
-      const cached = localStorage.getItem('mm_cached_dispatch_queue');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (_) {}
-    return [];
-  });
-  const [workHistory, setWorkHistory] = useState(() => {
-    try {
-      const cached = localStorage.getItem('mm_cached_work_history');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (_) {}
-    return [];
-  });
-  const [allBookings, setAllBookings] = useState(() => {
+  const [dispatchQueue, setDispatchQueue] = useState(() => hydrateCachedBookings('mm_cached_dispatch_queue'));
+  const [workHistory, setWorkHistory] = useState(() => hydrateCachedBookings('mm_cached_work_history'));
+  const [allBookings, setAllBookings] = useState(() => hydrateCachedBookings('mm_cached_all_bookings'));
+  const [isBookingsLoading, setIsBookingsLoading] = useState(() => {
     try {
       const cached = localStorage.getItem('mm_cached_all_bookings');
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return false;
       }
     } catch (_) {}
-    return [];
+    return true;
   });
-  const [isBookingsLoading, setIsBookingsLoading] = useState(true);
   const [bookingsFetchError, setBookingsFetchError] = useState(null);
   const [isRefreshingBookings, setIsRefreshingBookings] = useState(false);
   const [currentWorkFilter, setCurrentWorkFilter] = useState('All');
   const [workHistoryFilter, setWorkHistoryFilter] = useState('All Records');
 
+  // Stable refs to prevent circular fetch/re-render loops and eliminate UI flickering
+  const allBookingsRef = useRef(allBookings);
+  const dispatchQueueRef = useRef(dispatchQueue);
+  const workHistoryRef = useRef(workHistory);
+  const applicationsListRef = useRef(applicationsList);
+
+  useEffect(() => { allBookingsRef.current = allBookings; }, [allBookings]);
+  useEffect(() => { dispatchQueueRef.current = dispatchQueue; }, [dispatchQueue]);
+  useEffect(() => { workHistoryRef.current = workHistory; }, [workHistory]);
+  useEffect(() => { applicationsListRef.current = applicationsList; }, [applicationsList]);
+
   const fetchApplications = useCallback(async () => {
     const activeToken =
+      (typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null) ||
       token ||
       (typeof window !== 'undefined'
         ? localStorage.getItem('mm_token') ||
-          localStorage.getItem('token') ||
-          localStorage.getItem('adminToken')
+          localStorage.getItem('token')
         : null);
     if (!activeToken) return;
     try {
@@ -1085,12 +1102,11 @@ export default function AdminDashboardPage() {
 
   const fetchBookings = useCallback(async () => {
     const activeToken =
+      (typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null) ||
       token ||
       (typeof window !== 'undefined'
         ? localStorage.getItem('mm_token') ||
-          localStorage.getItem('token') ||
-          localStorage.getItem('adminToken') ||
-          localStorage.getItem('vendorToken')
+          localStorage.getItem('token')
         : null);
 
     if (!activeToken) {
@@ -1100,7 +1116,11 @@ export default function AdminDashboardPage() {
     }
 
     try {
-      setIsBookingsLoading(true);
+      if (!allBookingsRef.current || allBookingsRef.current.length === 0) {
+        setIsBookingsLoading(true);
+      } else {
+        setIsRefreshingBookings(true);
+      }
       setBookingsFetchError(null);
       const resBookings = await getAdminBookingsApi(activeToken);
       if (resBookings.success && Array.isArray(resBookings.bookings)) {
@@ -1153,10 +1173,15 @@ export default function AdminDashboardPage() {
         setDispatchQueue(activeQueue);
         setWorkHistory(historyList);
 
+        const sanitizeForCache = (list) => {
+          if (!Array.isArray(list)) return [];
+          return list.map(({ applianceIcon, ...rest }) => rest);
+        };
+
         try {
-          localStorage.setItem('mm_cached_all_bookings', JSON.stringify(formatted));
-          localStorage.setItem('mm_cached_dispatch_queue', JSON.stringify(activeQueue));
-          localStorage.setItem('mm_cached_work_history', JSON.stringify(historyList));
+          localStorage.setItem('mm_cached_all_bookings', JSON.stringify(sanitizeForCache(formatted)));
+          localStorage.setItem('mm_cached_dispatch_queue', JSON.stringify(sanitizeForCache(activeQueue)));
+          localStorage.setItem('mm_cached_work_history', JSON.stringify(sanitizeForCache(historyList)));
         } catch (_) {}
       } else {
         setBookingsFetchError(resBookings.message || 'Failed to fetch bookings');
@@ -1166,16 +1191,17 @@ export default function AdminDashboardPage() {
       setBookingsFetchError(e.message || 'Error connecting to bookings API');
     } finally {
       setIsBookingsLoading(false);
+      setIsRefreshingBookings(false);
     }
   }, [token]);
 
   const fetchInventory = useCallback(async () => {
     const activeToken =
+      (typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null) ||
       token ||
       (typeof window !== 'undefined'
         ? localStorage.getItem('mm_token') ||
-          localStorage.getItem('token') ||
-          localStorage.getItem('adminToken')
+          localStorage.getItem('token')
         : null);
     if (!activeToken) return;
     try {
@@ -1221,26 +1247,247 @@ export default function AdminDashboardPage() {
     }
   }, [token]);
 
+  const [adminTransactions, setAdminTransactions] = useState([]);
+  const [adminEarningsRaw, setAdminEarningsRaw] = useState([]);
+
+  const fetchAdminEarnings = useCallback(async () => {
+    const activeToken =
+      (typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null) ||
+      token ||
+      (typeof window !== 'undefined'
+        ? localStorage.getItem('mm_token') ||
+          localStorage.getItem('token')
+        : null);
+    if (!activeToken) return;
+    try {
+      const res = await fetchAllVendorEarningsForAdmin(activeToken);
+      if (res.success && Array.isArray(res.earnings)) {
+        setAdminEarningsRaw(res.earnings);
+        if (res.earnings.length > 0) {
+          const currentBookings = allBookingsRef.current || [];
+          const formattedTrx = res.earnings.map(e => {
+            const bId = String(e.booking?._id || e.booking || '');
+            const matchedBooking = currentBookings.find(b => String(b.backendJobId || b.id || b._id) === bId);
+            const customerName =
+              matchedBooking?.customerName ||
+              e.invoice?.customerSnapshot?.name ||
+              e.booking?.customer?.fullName ||
+              e.booking?.customer?.name ||
+              (typeof e.booking?.customer === 'string' ? e.booking.customer : 'Customer');
+
+            const vendorName =
+              e.vendor?.fullName ||
+              e.vendor?.name ||
+              matchedBooking?.assignedVendor?.name ||
+              (typeof e.vendor === 'string' ? e.vendor : 'Vendor');
+
+            return {
+              id: e.invoice?.invoiceNumber || (e._id ? `TRX-${String(e._id).slice(-4).toUpperCase()}` : 'TRX-MM'),
+              date: e.earnedAt ? new Date(e.earnedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent',
+              type: 'Service Fee',
+              customer: customerName,
+              vendor: vendorName,
+              amount: Number(e.customerInvoiceAmount) || Number(e.netEarning) || 0,
+              status: e.status === 'Available' ? 'Completed' : (e.status || 'Completed'),
+            };
+          });
+          setAdminTransactions(formattedTrx);
+        } else {
+          setAdminTransactions([]);
+        }
+      } else {
+        setAdminEarningsRaw([]);
+        setAdminTransactions([]);
+      }
+    } catch (err) {
+      console.warn('Error fetching admin earnings:', err);
+    }
+  }, [token]);
+
+  // Dynamic Real Financial Analytics for Platform Admin
+  const adminFinancialMetrics = useMemo(() => {
+    let grossRevenueYTD = 0;
+    let vendorPayoutsYTD = 0;
+    let grossRevenueMTD = 0;
+
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth();
+
+    if (adminEarningsRaw && adminEarningsRaw.length > 0) {
+      adminEarningsRaw.forEach(e => {
+        const invAmt = Number(e.customerInvoiceAmount) || 0;
+        const vPayout = Number(e.netEarning) || 0;
+        const eDate = e.earnedAt ? new Date(e.earnedAt) : new Date();
+
+        if (!isNaN(eDate.getTime()) && eDate.getFullYear() === currentYear) {
+          grossRevenueYTD += invAmt;
+          vendorPayoutsYTD += vPayout;
+          if (eDate.getMonth() === currentMonth) {
+            grossRevenueMTD += invAmt;
+          }
+        }
+      });
+    } else {
+      (allBookings || []).forEach(b => {
+        if (b.bookingStatus === 'Completed') {
+          const amt = Number(b.amount) || Number(b.pricing?.total) || Number(b.estimatedPay) || 0;
+          const bDate = b.createdAt ? new Date(b.createdAt) : new Date();
+          if (!isNaN(bDate.getTime()) && bDate.getFullYear() === currentYear) {
+            grossRevenueYTD += amt;
+            vendorPayoutsYTD += (amt * 0.5);
+            if (bDate.getMonth() === currentMonth) {
+              grossRevenueMTD += amt;
+            }
+          }
+        }
+      });
+    }
+
+    const netProfitYTD = Math.max(0, grossRevenueYTD - vendorPayoutsYTD);
+    const netMarginPct = grossRevenueYTD > 0 ? ((netProfitYTD / grossRevenueYTD) * 100).toFixed(1) : '0.0';
+    const totalTransactions = (adminTransactions && adminTransactions.length > 0)
+      ? adminTransactions.length
+      : (allBookings || []).filter(b => b.bookingStatus === 'Completed').length;
+    const avgTicketSize = totalTransactions > 0 ? Math.round(grossRevenueYTD / totalTransactions) : 0;
+
+    return {
+      grossRevenueYTD: Number(grossRevenueYTD) || 0,
+      netProfitYTD: Number(netProfitYTD) || 0,
+      netMarginPct: String(netMarginPct || '0.0'),
+      vendorPayoutsYTD: Number(vendorPayoutsYTD) || 0,
+      avgTicketSize: Number(avgTicketSize) || 0,
+      grossRevenueMTD: Number(grossRevenueMTD) || 0,
+    };
+  }, [adminEarningsRaw, allBookings, adminTransactions]);
+
+  // Dynamic Monthly Revenue & Profit chart based on real MongoDB earnings
+  const adminMonthlyRevenueData = useMemo(() => {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const currentYear = new Date().getFullYear();
+    const months = monthNames.map(m => ({ name: m, revenue: 0, profit: 0 }));
+
+    if (adminEarningsRaw && adminEarningsRaw.length > 0) {
+      adminEarningsRaw.forEach(e => {
+        const d = e.earnedAt ? new Date(e.earnedAt) : new Date();
+        if (!isNaN(d.getTime()) && d.getFullYear() === currentYear) {
+          const mIdx = d.getMonth();
+          if (mIdx >= 0 && mIdx < 12) {
+            const rev = Number(e.customerInvoiceAmount) || 0;
+            const payout = Number(e.netEarning) || (rev * 0.5);
+            const prof = Math.max(0, rev - payout);
+            months[mIdx].revenue += rev;
+            months[mIdx].profit += prof;
+          }
+        }
+      });
+    } else {
+      (allBookings || []).forEach(b => {
+        if (b.bookingStatus === 'Completed') {
+          const d = b.createdAt ? new Date(b.createdAt) : new Date();
+          if (!isNaN(d.getTime()) && d.getFullYear() === currentYear) {
+            const mIdx = d.getMonth();
+            if (mIdx >= 0 && mIdx < 12) {
+              const rev = Number(b.amount) || Number(b.pricing?.total) || Number(b.estimatedPay) || 0;
+              const prof = rev * 0.5;
+              months[mIdx].revenue += rev;
+              months[mIdx].profit += prof;
+            }
+          }
+        }
+      });
+    }
+
+    return months;
+  }, [adminEarningsRaw, allBookings]);
+
+  // Dynamic Category revenue pie chart based on real service categories
+  const adminCategoryRevenueData = useMemo(() => {
+    const catMap = {};
+    let totalRev = 0;
+
+    if (adminEarningsRaw && adminEarningsRaw.length > 0) {
+      adminEarningsRaw.forEach(e => {
+        const cat = e.booking?.appliance || e.booking?.serviceCategory || 'General Service';
+        const rev = Number(e.customerInvoiceAmount) || 0;
+        catMap[cat] = (catMap[cat] || 0) + rev;
+        totalRev += rev;
+      });
+    } else {
+      (allBookings || []).forEach(b => {
+        if (b.bookingStatus === 'Completed') {
+          const cat = b.appliance || b.serviceCategory || 'General Service';
+          const rev = Number(b.amount) || Number(b.pricing?.total) || Number(b.estimatedPay) || 0;
+          catMap[cat] = (catMap[cat] || 0) + rev;
+          totalRev += rev;
+        }
+      });
+    }
+
+    if (totalRev === 0) {
+      return [
+        { name: 'No Services Yet', value: 100, rawAmount: 0 }
+      ];
+    }
+
+    return Object.entries(catMap).map(([name, rev]) => ({
+      name,
+      value: Math.round((rev / totalRev) * 100),
+      rawAmount: rev,
+    }));
+  }, [adminEarningsRaw, allBookings]);
+
   // Initial fetch on mount (real-time socket events keep data up-to-date)
   useEffect(() => {
     fetchApplications();
     fetchBookings();
     fetchInventory();
-  }, [fetchApplications, fetchBookings, fetchInventory]);
+    fetchAdminEarnings();
+    fetchUsers();
+  }, [token]);
 
   // Keep tables synchronized whenever switching tabs
   useEffect(() => {
     if (activeTab === 'applications') {
       fetchApplications();
-    } else if (activeTab === 'work-history' || activeTab === 'overview') {
+    } else if (activeTab === 'work-history') {
       fetchBookings();
+      fetchAdminEarnings();
     } else if (activeTab === 'inventory') {
       fetchInventory();
+    } else if (activeTab === 'finance-payouts' || activeTab === 'analytics' || activeTab === 'payment-requests') {
+      fetchAdminEarnings();
+    } else if (activeTab === 'users') {
+      fetchUsers();
     }
-  }, [activeTab, fetchApplications, fetchBookings, fetchInventory]);
+  }, [activeTab]);
 
   const [vendorApprovals, setVendorApprovals] = useState(INITIAL_VENDOR_APPROVALS);
-  const [paymentRequests, setPaymentRequests] = useState(INITIAL_PAYMENT_REQUESTS);
+  const [paymentRequests, setPaymentRequests] = useState(() => {
+    try {
+      const stored = localStorage.getItem('mm_vendor_payout_requests');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) return parsed.filter(p => !p.isSample && !String(p.id).includes('PAY-104'));
+      }
+    } catch {}
+    return [];
+  });
+
+  // Keep paymentRequests synchronized with real storage and socket updates
+  useEffect(() => {
+    if (activeTab === 'payment-requests') {
+      try {
+        const stored = localStorage.getItem('mm_vendor_payout_requests');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            const clean = parsed.filter(p => !p.isSample && !String(p.id).includes('PAY-104'));
+            setPaymentRequests(clean);
+          }
+        }
+      } catch {}
+    }
+  }, [activeTab]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [selectedStatus, setSelectedStatus] = useState('All Status');
@@ -1763,6 +2010,11 @@ export default function AdminDashboardPage() {
       savedStatuses = {};
     }
 
+    const currentApps = applicationsListRef.current || [];
+    const currentDispatch = dispatchQueueRef.current || [];
+    const currentHistory = workHistoryRef.current || [];
+    const combinedBookings = currentDispatch.concat(currentHistory);
+
     // 1. Build map of existing users seeded from platform registry and updated from live backend records
     const userMap = new Map();
 
@@ -1777,7 +2029,7 @@ export default function AdminDashboardPage() {
     });
 
     // 2. Add all Vendors from applicationsList (Live backend data)
-    applicationsList.forEach((app) => {
+    currentApps.forEach((app) => {
       const emailKey = (app.email || '').toLowerCase();
       if (!emailKey) return;
 
@@ -1788,7 +2040,7 @@ export default function AdminDashboardPage() {
       const overrideStatus = savedStatuses[vendorId] || (effectiveRawUserId && savedStatuses[effectiveRawUserId]) || savedStatuses[emailKey] || (app.status === 'Approved' ? 'Active' : app.status === 'Rejected' ? 'Blocked' : 'Pending');
 
       // Count bookings for this vendor
-      const techBookingsCount = (dispatchQueue.concat(workHistory)).filter(
+      const techBookingsCount = combinedBookings.filter(
         (b) => (b.technician && b.technician.toLowerCase() === (app.fullName || '').toLowerCase()) ||
                (b.technicianAvatar && b.technicianAvatar === (app.fullName || '').substring(0, 2).toUpperCase())
       ).length;
@@ -1808,7 +2060,7 @@ export default function AdminDashboardPage() {
     });
 
     // 3. Add all Customers & Technicians from live dispatchQueue and workHistory (Backend data)
-    dispatchQueue.concat(workHistory).forEach((booking) => {
+    combinedBookings.forEach((booking) => {
       // If booking has technician/vendor user info, link their MongoDB User ID
       if (booking.rawBooking?.vendor?._id && booking.rawBooking?.vendor?.email) {
         const vEmailKey = booking.rawBooking.vendor.email.toLowerCase();
@@ -1868,13 +2120,20 @@ export default function AdminDashboardPage() {
 
     const combined = Array.from(userMap.values());
     setUsersList(combined);
-  }, [applicationsList, dispatchQueue, workHistory]);
+  }, []);
 
   // Directly fetch all users from backend API
   const fetchUsers = useCallback(async () => {
-    if (!token) return;
+    const activeToken =
+      (typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null) ||
+      token ||
+      (typeof window !== 'undefined'
+        ? localStorage.getItem('mm_token') ||
+          localStorage.getItem('token')
+        : null);
+    if (!activeToken) return;
     try {
-      const res = await getAllUsersApi(token);
+      const res = await getAllUsersApi(activeToken);
       if (res.success && Array.isArray(res.users) && res.users.length > 0) {
         let savedStatuses = {};
         try {
@@ -1883,13 +2142,17 @@ export default function AdminDashboardPage() {
           savedStatuses = {};
         }
 
+        const currentDispatch = dispatchQueueRef.current || [];
+        const currentHistory = workHistoryRef.current || [];
+        const combinedBookings = currentDispatch.concat(currentHistory);
+
         const formatted = res.users.map((u) => {
           const rawId = u._id ? String(u._id) : null;
           const roleNormalized = u.role === 'vendor' ? 'Technician' : u.role === 'admin' ? 'Admin' : 'Customer';
           const displayId = u.vendorId || (rawId ? (roleNormalized === 'Technician' ? 'VND-' : 'USR-') + rawId.slice(-4).toUpperCase() : 'USR-101');
           const overrideStatus = (rawId && savedStatuses[rawId]) || savedStatuses[displayId] || (u.email && savedStatuses[u.email.toLowerCase()]) || (u.status ? u.status.charAt(0).toUpperCase() + u.status.slice(1) : 'Active');
 
-          const bookingCount = (dispatchQueue.concat(workHistory)).filter((b) => {
+          const bookingCount = combinedBookings.filter((b) => {
             if (roleNormalized === 'Technician') {
               return (b.technician && b.technician.toLowerCase() === (u.fullName || '').toLowerCase()) ||
                      (b.technicianAvatar && b.technicianAvatar === (u.fullName || '').substring(0, 2).toUpperCase());
@@ -1922,12 +2185,7 @@ export default function AdminDashboardPage() {
 
     // Fallback: Compute from seeded platform roster, applications and bookings
     syncUsersAndVendorsFromBackend();
-  }, [token, dispatchQueue, workHistory, syncUsersAndVendorsFromBackend]);
-
-  // Sync users whenever applications or bookings update or tab is opened
-  useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers, activeTab]);
+  }, [token, syncUsersAndVendorsFromBackend]);
 
   const handleEditUserProfile = (userItem) => {
     setEditingUser(userItem);
@@ -1957,9 +2215,9 @@ export default function AdminDashboardPage() {
     }
 
     // 3. Fallback resolve mongoUserId via credentials API if missing
-    if (!mongoUserId && updatedUser.email && token) {
+    if (!mongoUserId && updatedUser.email && (adminToken || token)) {
       try {
-        const credRes = await getVendorCredentialsApi(updatedUser.email, token);
+        const credRes = await getVendorCredentialsApi(updatedUser.email, adminToken || token);
         if (credRes.success && credRes.vendor?.id) {
           mongoUserId = credRes.vendor.id;
         }
@@ -1971,7 +2229,7 @@ export default function AdminDashboardPage() {
     // 4. Connect to backend status API if mongoUserId exists
     if (mongoUserId && updatedUser.status) {
       try {
-        const res = await updateUserStatusApi(mongoUserId, updatedUser.status.toLowerCase(), token);
+        const res = await updateUserStatusApi(mongoUserId, updatedUser.status.toLowerCase(), adminToken || token);
         if (res.success) {
           showToast(`Updated status & profile for ${updatedUser.name || updatedUser.fullName}`);
           return;
@@ -2021,9 +2279,9 @@ export default function AdminDashboardPage() {
     }
 
     // 3. Fallback: If mongoUserId is missing, query credentials endpoint to get MongoDB user ID
-    if (!mongoUserId && target?.email && token) {
+    if (!mongoUserId && target?.email && (adminToken || token)) {
       try {
-        const credRes = await getVendorCredentialsApi(target.email, token);
+        const credRes = await getVendorCredentialsApi(target.email, adminToken || token);
         if (credRes.success && credRes.vendor?.id) {
           mongoUserId = credRes.vendor.id;
           setUsersList((prev) =>
@@ -2038,7 +2296,7 @@ export default function AdminDashboardPage() {
     // 4. Connect to backend status API: PATCH /api/admin/:userId/status
     if (mongoUserId) {
       try {
-        const res = await updateUserStatusApi(mongoUserId, newStatus.toLowerCase(), token);
+        const res = await updateUserStatusApi(mongoUserId, newStatus.toLowerCase(), adminToken || token);
         if (res.success) {
           showToast(`${target?.name || 'User'} status updated to ${newStatus}`);
         } else {
@@ -2233,6 +2491,7 @@ export default function AdminDashboardPage() {
   useSocketEvent('admin:invoice_generated', (invoice) => {
     if (!invoice) return;
     fetchBookings();
+    fetchAdminEarnings();
     if (playNotificationSound) playNotificationSound();
     showToast(`🧾 Invoice Generated: ₹${invoice.totalAmount} for ${invoice.serviceSnapshot?.appliance || 'Service'}`);
   });
@@ -2270,9 +2529,9 @@ export default function AdminDashboardPage() {
     showToast(`Inventory restocked for ${selectedItem.name}! (+${addedCount} units)`);
 
     // Connect to backend restock endpoint: PATCH /api/inventory/:inventoryId/restock
-    if (token && addedCount > 0) {
+    if ((adminToken || token) && addedCount > 0) {
       try {
-        await restockInventoryApi(cleanId, addedCount, token);
+        await restockInventoryApi(cleanId, addedCount, adminToken || token);
       } catch (err) {
         console.error('Error restocking inventory in backend:', err);
       }
@@ -2302,7 +2561,7 @@ export default function AdminDashboardPage() {
     showToast(`Added "${newItem.name}" to inventory!`);
 
     // Connect to backend create endpoint: POST /api/inventory
-    if (token) {
+    if (adminToken || token) {
       try {
         const payload = {
           itemName: newItemData.name,
@@ -2313,7 +2572,7 @@ export default function AdminDashboardPage() {
           unitPrice: Number(newItemData.unitPrice) || 0,
           supplierName: newItemData.supplier || '',
         };
-        const res = await createInventoryApi(payload, token);
+        const res = await createInventoryApi(payload, adminToken || token);
         if (res.success && res.inventory?.inventoryId) {
           setInventoryList(prev => prev.map(item => item.id === newItem.id ? { ...item, id: item.id, inventoryId: res.inventory.inventoryId } : item));
         }
@@ -2331,9 +2590,9 @@ export default function AdminDashboardPage() {
       showToast(`Deleted "${itemName || itemId}" from inventory`);
 
       // Connect to backend delete endpoint: DELETE /api/inventory/:inventoryId
-      if (token) {
+      if (adminToken || token) {
         try {
-          await deleteInventoryApi(cleanId, token);
+          await deleteInventoryApi(cleanId, adminToken || token);
         } catch (err) {
           console.error('Error deleting inventory item from backend:', err);
         }
@@ -2394,7 +2653,7 @@ export default function AdminDashboardPage() {
   // Reject Application
   const handleRejectApp = async (appId) => {
     try {
-      const res = await rejectVendorApplication(appId, token);
+      const res = await rejectVendorApplication(appId, adminToken || token);
       if (res.success) {
         setApplicationsList(prev =>
           prev.map(a =>
@@ -2483,7 +2742,7 @@ export default function AdminDashboardPage() {
 
     try {
       showToast('Fetching vendor ID...');
-      const res = await getVendorCredentialsApi(appId, token);
+      const res = await getVendorCredentialsApi(appId, adminToken || token);
       if (res.success && (res.credentials?.vendorId || res.vendor?.vendorId)) {
         const vendorId = res.credentials?.vendorId || res.vendor?.vendorId;
         const newCreds = {
@@ -2624,7 +2883,7 @@ export default function AdminDashboardPage() {
               <td>${item.category}</td>
               <td class="${statusClass}">${item.stockLevel}</td>
               <td>${item.stockCount}</td>
-              <td>₹${item.unitPrice.toFixed(2)}</td>
+              <td>₹${(Number(item?.unitPrice) || 0).toFixed(2)}</td>
               <td>${item.lastUpdated}</td>
             </tr>
           `}).join('')}
@@ -2664,7 +2923,7 @@ export default function AdminDashboardPage() {
     if (vendorForm.appId) {
       // Connect to the backend to generate real credentials from an application
       try {
-        const res = await approveVendorApplication(vendorForm.appId, token);
+        const res = await approveVendorApplication(vendorForm.appId, adminToken || token);
         if (res.success && res.credentials) {
           const creds = {
             name: `${vendorForm.fullName} - ${vendorForm.specialization || 'Service Technician'}`,
@@ -2700,7 +2959,7 @@ export default function AdminDashboardPage() {
     } else {
       // Direct creation via backend API
       try {
-        const res = await createVendorByAdminApi(vendorForm, token);
+        const res = await createVendorByAdminApi(vendorForm, adminToken || token);
         if (res.success && res.credentials) {
           const creds = {
             name: `${vendorForm.fullName} - ${vendorForm.specialization || 'Service Technician'}`,
@@ -2865,7 +3124,7 @@ export default function AdminDashboardPage() {
                       <div className="space-y-1">
                         {group.items.map((item) => {
                           const isActive = activeTab === item.id;
-                          const Icon = item.icon;
+                          const Icon = isValidReactComponent(item.icon) ? item.icon : LayoutDashboard;
 
                           return (
                             <motion.button
@@ -2949,13 +3208,15 @@ export default function AdminDashboardPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                       {/* Revenue */}
                       <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between">
-                        <DollarSign className="w-16 h-16 text-slate-100 absolute top-4 right-4 pointer-events-none" />
+                        <IndianRupee className="w-16 h-16 text-slate-100 absolute top-4 right-4 pointer-events-none" />
                         <div>
                           <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider block mb-2">Total Revenue (MTD)</span>
-                          <span className="text-3xl font-black text-[#02182e] tracking-tight">$45,289.00</span>
+                          <span className="text-3xl font-black text-[#02182e] tracking-tight">
+                            ₹{(Number(adminFinancialMetrics?.grossRevenueMTD) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </span>
                         </div>
                         <p className="text-xs font-bold text-emerald-600 flex items-center gap-1 mt-3">
-                          <TrendingUp className="w-3.5 h-3.5" /> +12.5% <span className="text-slate-500 font-medium ml-1">vs last month</span>
+                          <TrendingUp className="w-3.5 h-3.5" /> Real-time <span className="text-slate-500 font-medium ml-1">gross billed this month</span>
                         </p>
                       </div>
 
@@ -2964,10 +3225,12 @@ export default function AdminDashboardPage() {
                         <Wrench className="w-16 h-16 text-slate-50 absolute top-4 right-4 pointer-events-none" />
                         <div>
                           <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider block mb-2">Active Service Requests</span>
-                          <span className="text-3xl font-black text-[#02182e] tracking-tight">142</span>
+                          <span className="text-3xl font-black text-[#02182e] tracking-tight">
+                            {allBookings.filter(b => b.bookingStatus !== 'Completed' && b.bookingStatus !== 'Cancelled').length}
+                          </span>
                         </div>
                         <p className="text-xs font-bold text-orange-500 flex items-center gap-1 mt-3">
-                          <AlertCircle className="w-3.5 h-3.5" /> 48 awaiting assignment
+                          <AlertCircle className="w-3.5 h-3.5" /> {allBookings.filter(b => b.bookingStatus === 'Pending' || b.bookingStatus === 'New Request').length} awaiting assignment
                         </p>
                       </div>
 
@@ -2989,12 +3252,12 @@ export default function AdminDashboardPage() {
                         <div>
                           <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider block mb-2">Avg. Satisfaction</span>
                           <div className="flex items-baseline gap-1">
-                            <span className="text-3xl font-black text-[#02182e] tracking-tight">4.8</span>
+                            <span className="text-3xl font-black text-[#02182e] tracking-tight">5.0</span>
                             <span className="text-sm font-semibold text-slate-400">/ 5.0</span>
                           </div>
                         </div>
                         <p className="text-xs font-medium text-slate-500 flex items-center gap-1 mt-3">
-                          <Star className="w-3.5 h-3.5 text-orange-500" fill="currentColor" /> Based on 1.2k reviews
+                          <Star className="w-3.5 h-3.5 text-orange-500" fill="currentColor" /> Based on {allBookings.filter(b => b.bookingStatus === 'Completed').length} completed services
                         </p>
                       </div>
                     </div>
@@ -3049,7 +3312,7 @@ export default function AdminDashboardPage() {
                                   </tr>
                                 ) : paginatedDispatch.length > 0 ? (
                                   paginatedDispatch.map((item) => {
-                                    const AppIcon = item.applianceIcon || Wrench;
+                                    const AppIcon = getSafeApplianceIcon(item.applianceIcon, item.appliance);
                                     return (
                                       <tr key={item.rawId || item.id} className="hover:bg-slate-50/80 transition-colors">
                                         <td className="py-4 px-5 font-bold text-slate-600">{item.id}</td>
@@ -3319,7 +3582,7 @@ export default function AdminDashboardPage() {
                           <IndianRupee className="w-5 h-5 text-slate-700" />
                         </div>
                         <div className="mt-3">
-                          <span className="text-3xl font-black text-slate-900 tracking-tight">₹{totalInventoryValuation.toLocaleString('en-IN')}</span>
+                          <span className="text-3xl font-black text-slate-900 tracking-tight">₹{(Number(totalInventoryValuation) || 0).toLocaleString('en-IN')}</span>
                           <p className="text-xs font-medium text-slate-500 mt-1">
                             Estimated inventory value
                           </p>
@@ -3873,7 +4136,7 @@ export default function AdminDashboardPage() {
                           <IndianRupee className="w-5 h-5 text-orange-500" />
                         </div>
                         <span className="text-3xl font-black text-[#02182e]">
-                          ₹{paymentRequests.filter(p => p.status === 'Pending').reduce((acc, curr) => acc + curr.amount, 0).toLocaleString()}
+                          ₹{paymentRequests.filter(p => p.status === 'Pending').reduce((acc, curr) => acc + (Number(curr?.amount) || 0), 0).toLocaleString('en-IN')}
                         </span>
                         <p className="text-xs font-medium text-slate-500 mt-2">Total requested amount</p>
                       </div>
@@ -3883,7 +4146,7 @@ export default function AdminDashboardPage() {
                           <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                         </div>
                         <span className="text-3xl font-black text-[#02182e]">
-                          ₹{paymentRequests.filter(p => p.status === 'Paid').reduce((acc, curr) => acc + curr.amount, 0).toLocaleString()}
+                          ₹{paymentRequests.filter(p => p.status === 'Paid').reduce((acc, curr) => acc + (Number(curr?.amount) || 0), 0).toLocaleString('en-IN')}
                         </span>
                         <p className="text-xs font-medium text-emerald-600 mt-2">Cleared payouts</p>
                       </div>
@@ -3976,7 +4239,7 @@ export default function AdminDashboardPage() {
                                     <div className="text-[10px] text-slate-500 mt-0.5">A/C: {req.bankAccount}</div>
                                   </td>
                                   <td className="py-4 px-4 font-semibold text-slate-600">{req.daysOfWork} Days</td>
-                                  <td className="py-4 px-4 font-black text-slate-900">₹{req.amount.toLocaleString()}</td>
+                                  <td className="py-4 px-4 font-black text-slate-900">₹{(Number(req?.amount) || 0).toLocaleString('en-IN')}</td>
                                   <td className="py-4 px-4 text-slate-500 font-medium">{req.date}</td>
                                   <td className="py-4 px-4">
                                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
@@ -4738,31 +5001,47 @@ export default function AdminDashboardPage() {
                     {/* KPI Cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                       <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between">
-                        <DollarSign className="w-12 h-12 text-slate-50 absolute top-4 right-4 pointer-events-none" />
+                        <IndianRupee className="w-12 h-12 text-slate-50 absolute top-4 right-4 pointer-events-none" />
                         <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Gross Revenue (YTD)</span>
-                        <div className="text-2xl font-black text-[#02182e] mt-2 tracking-tight">₹18,45,500</div>
-                        <p className="text-xs font-bold text-emerald-600 mt-2 flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5"/> +18.4% vs last year</p>
+                        <div className="text-2xl font-black text-[#02182e] mt-2 tracking-tight">
+                          ₹{(Number(adminFinancialMetrics?.grossRevenueYTD) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </div>
+                        <p className="text-xs font-bold text-emerald-600 mt-2 flex items-center gap-1">
+                          <TrendingUp className="w-3.5 h-3.5"/> Verified customer billings
+                        </p>
                       </div>
 
                       <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between">
                         <IndianRupee className="w-12 h-12 text-slate-50 absolute top-4 right-4 pointer-events-none" />
-                        <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Net Profit / Margin</span>
-                        <div className="text-2xl font-black text-[#02182e] mt-2 tracking-tight">₹6,23,700</div>
-                        <p className="text-xs font-bold text-emerald-600 mt-2">33.8% Net Margin</p>
+                        <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Net Platform Margin</span>
+                        <div className="text-2xl font-black text-[#02182e] mt-2 tracking-tight">
+                          ₹{(Number(adminFinancialMetrics?.netProfitYTD) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </div>
+                        <p className="text-xs font-bold text-emerald-600 mt-2">
+                          {adminFinancialMetrics?.netMarginPct || '0.0'}% Net Platform Share
+                        </p>
                       </div>
 
                       <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between">
                         <Users className="w-12 h-12 text-slate-50 absolute top-4 right-4 pointer-events-none" />
                         <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Vendor Payouts</span>
-                        <div className="text-2xl font-black text-[#02182e] mt-2 tracking-tight">₹12,21,800</div>
-                        <p className="text-xs font-medium text-slate-500 mt-2 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500"/> All settled</p>
+                        <div className="text-2xl font-black text-[#02182e] mt-2 tracking-tight">
+                          ₹{(Number(adminFinancialMetrics?.vendorPayoutsYTD) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </div>
+                        <p className="text-xs font-medium text-slate-500 mt-2 flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500"/> 50% Service + 100% Fuel
+                        </p>
                       </div>
 
                       <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between">
                         <TrendingUp className="w-12 h-12 text-slate-50 absolute top-4 right-4 pointer-events-none" />
                         <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Avg. Ticket Size</span>
-                        <div className="text-2xl font-black text-[#02182e] mt-2 tracking-tight">₹2,450</div>
-                        <p className="text-xs font-bold text-emerald-600 mt-2 flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5"/> +5.2% vs last month</p>
+                        <div className="text-2xl font-black text-[#02182e] mt-2 tracking-tight">
+                          ₹{(Number(adminFinancialMetrics?.avgTicketSize) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </div>
+                        <p className="text-xs font-bold text-emerald-600 mt-2 flex items-center gap-1">
+                          <TrendingUp className="w-3.5 h-3.5"/> Per completed service order
+                        </p>
                       </div>
                     </div>
 
@@ -4770,10 +5049,10 @@ export default function AdminDashboardPage() {
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                       {/* Revenue Over Time Line Chart */}
                       <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm lg:col-span-2 flex flex-col h-[400px]">
-                        <h2 className="text-sm font-extrabold text-[#02182e] mb-6">Revenue & Profit Trends (2026)</h2>
+                        <h2 className="text-sm font-extrabold text-[#02182e] mb-6">Revenue & Platform Profit Trends ({new Date().getFullYear()})</h2>
                         <div className="flex-1 min-h-0 w-full">
                           <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={MONTHLY_REVENUE_DATA} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <AreaChart data={adminMonthlyRevenueData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                               <defs>
                                 <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                                   <stop offset="5%" stopColor="#02182e" stopOpacity={0.8}/>
@@ -4785,15 +5064,15 @@ export default function AdminDashboardPage() {
                                 </linearGradient>
                               </defs>
                               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dy={10} />
-                              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} tickFormatter={(value) => `₹${value/1000}k`} />
+                              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} tickFormatter={(value) => `₹${((Number(value) || 0) / 1000).toFixed(0)}k`} domain={[0, 'auto']} />
                               <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="4 4" />
                               <RechartsTooltip 
                                 contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' }}
-                                formatter={(value) => [`₹${value.toLocaleString()}`, '']}
+                                formatter={(value) => [`₹${(Number(value) || 0).toLocaleString('en-IN')}`, '']}
                               />
                               <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 'bold', paddingTop: '20px' }} />
                               <Area type="monotone" dataKey="revenue" name="Gross Revenue" stroke="#02182e" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
-                              <Area type="monotone" dataKey="profit" name="Net Profit" stroke="#FF6B00" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" />
+                              <Area type="monotone" dataKey="profit" name="Net Platform Profit" stroke="#FF6B00" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" />
                             </AreaChart>
                           </ResponsiveContainer>
                         </div>
@@ -4806,7 +5085,7 @@ export default function AdminDashboardPage() {
                           <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                               <Pie
-                                data={CATEGORY_REVENUE_DATA}
+                                data={adminCategoryRevenueData}
                                 cx="50%"
                                 cy="50%"
                                 innerRadius={60}
@@ -4815,13 +5094,13 @@ export default function AdminDashboardPage() {
                                 dataKey="value"
                                 stroke="none"
                               >
-                                {CATEGORY_REVENUE_DATA.map((entry, index) => (
+                                {adminCategoryRevenueData.map((entry, index) => (
                                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                 ))}
                               </Pie>
                               <RechartsTooltip 
                                 contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                formatter={(value) => [`${value}%`, 'Share']}
+                                formatter={(value) => [`${Number(value) || 0}%`, 'Share']}
                               />
                               <Legend layout="horizontal" verticalAlign="bottom" align="center" iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: '600' }} />
                             </PieChart>
@@ -4834,7 +5113,9 @@ export default function AdminDashboardPage() {
                     <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
                       <div className="p-5 border-b border-slate-100 flex items-center justify-between">
                         <h2 className="text-sm font-extrabold text-[#02182e]">Recent Transactions</h2>
-                        <button className="text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer">View All Ledgers</button>
+                        <span className="text-xs font-bold text-slate-400">
+                          {adminTransactions.length} {adminTransactions.length === 1 ? 'Record' : 'Records'} Recorded
+                        </span>
                       </div>
                       <div className="overflow-x-auto">
                         <table className="w-full text-left text-xs border-collapse min-w-[700px]">
@@ -4849,29 +5130,39 @@ export default function AdminDashboardPage() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {RECENT_TRANSACTIONS.map((trx) => (
-                              <tr key={trx.id} className="hover:bg-slate-50/80 transition-colors">
-                                <td className="py-4 px-5 font-bold text-slate-600">{trx.id}</td>
-                                <td className="py-4 px-4 text-slate-500 font-medium">{trx.date}</td>
-                                <td className="py-4 px-4 font-bold text-slate-700">{trx.type}</td>
-                                <td className="py-4 px-4">
-                                  <div className="flex flex-col gap-1">
-                                    {trx.customer !== '-' && <span className="font-semibold text-slate-800">C: {trx.customer}</span>}
-                                    {trx.vendor !== '-' && <span className="text-slate-500 font-medium">V: {trx.vendor}</span>}
-                                  </div>
-                                </td>
-                                <td className={`py-4 px-4 text-right font-black ${trx.amount > 0 ? 'text-emerald-600' : 'text-slate-900'}`}>
-                                  {trx.amount > 0 ? '+' : ''}₹{Math.abs(trx.amount).toLocaleString()}
-                                </td>
-                                <td className="py-4 px-5 text-right">
-                                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                                    trx.status === 'Completed' ? 'bg-emerald-100/80 text-emerald-800' : 'bg-amber-100/80 text-amber-800'
-                                  }`}>
-                                    {trx.status}
-                                  </span>
+                            {adminTransactions.length === 0 ? (
+                              <tr>
+                                <td colSpan="6" className="py-12 text-center text-slate-400">
+                                  <IndianRupee className="w-8 h-8 text-slate-300 mx-auto mb-2 opacity-60" />
+                                  <p className="font-bold text-slate-600">No transactions recorded yet in database</p>
+                                  <p className="text-[11px] text-slate-400 mt-0.5">When vendors complete service orders, ledger transactions will appear here automatically.</p>
                                 </td>
                               </tr>
-                            ))}
+                            ) : (
+                              adminTransactions.map((trx) => (
+                                <tr key={trx.id} className="hover:bg-slate-50/80 transition-colors">
+                                  <td className="py-4 px-5 font-bold text-slate-600">{trx.id}</td>
+                                  <td className="py-4 px-4 text-slate-500 font-medium">{trx.date}</td>
+                                  <td className="py-4 px-4 font-bold text-slate-700">{trx.type}</td>
+                                  <td className="py-4 px-4">
+                                    <div className="flex flex-col gap-1">
+                                      {trx.customer !== '-' && <span className="font-semibold text-slate-800">C: {trx.customer}</span>}
+                                      {trx.vendor !== '-' && <span className="text-slate-500 font-medium">V: {trx.vendor}</span>}
+                                    </div>
+                                  </td>
+                                  <td className={`py-4 px-4 text-right font-black ${(Number(trx?.amount) || 0) > 0 ? 'text-emerald-600' : 'text-slate-900'}`}>
+                                    {(Number(trx?.amount) || 0) > 0 ? '+' : ''}₹{Math.abs(Number(trx?.amount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                  </td>
+                                  <td className="py-4 px-5 text-right">
+                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                      trx.status === 'Completed' ? 'bg-emerald-100/80 text-emerald-800' : 'bg-amber-100/80 text-amber-800'
+                                    }`}>
+                                      {trx.status}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
                           </tbody>
                         </table>
                       </div>

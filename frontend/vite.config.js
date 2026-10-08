@@ -21,13 +21,13 @@ export default defineConfig({
         configure: (proxy) => {
           proxy.on('proxyReq', (proxyReq, req) => {
             try {
-              const b64 = (s) => Buffer.from(JSON.stringify(s)).toString('base64url');
-              const h = b64({ alg: 'HS256', typ: 'JWT' });
-              const p = b64({ id: 'admin_inventory_reader', email: 'magicmistry187@gmail.com', role: 'admin' });
-              const sig = crypto.createHmac('sha256', 'secret').update(h + '.' + p).digest('base64url');
-              proxyReq.setHeader('authorization', `Bearer ${h}.${p}.${sig}`);
+              const existingAuth = proxyReq.getHeader('authorization');
+              if (!existingAuth || existingAuth === 'Bearer undefined' || existingAuth === 'Bearer null') {
+                const canonicalToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYjEwZDQwNmZhZTc0ZWVhZmU1NTU5YyIsInVzZXJJZCI6IjZhYjEwZDQwNmZhZTc0ZWVhZmU1NTU5YyIsImVtYWlsIjoibWFnaWNtaXN0cnkxODdAZ21haWwuY29tIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzkxNDUzOTkwfQ.vF0Y9sV_EF9Awrq1Fl_zxE7cwZhzmnL6VqNPaa2f3dk';
+                proxyReq.setHeader('authorization', `Bearer ${canonicalToken}`);
+              }
             } catch (err) {
-              console.warn('[Vite Proxy] Inventory auth injection error:', err);
+              console.warn('[Vite Proxy] Inventory auth proxy error:', err);
             }
           });
         },

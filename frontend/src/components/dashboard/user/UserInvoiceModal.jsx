@@ -11,20 +11,14 @@ import { X, Printer, FileText, Wrench, Shield, Navigation, RefreshCw } from 'luc
 import { getInvoiceForBooking, normalizeInvoiceForUI, fetchRealtimeInvoice } from '../../../services/invoiceService';
 
 export default function UserInvoiceModal({ isOpen, onClose, booking }) {
-  if (!isOpen || !booking) return null;
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const rawId = booking.id || booking._id || booking.rawBooking?._id || booking.rawBooking?.bookingId;
-  const initialInvoice = normalizeInvoiceForUI(booking.invoice || booking.rawBooking?.invoice || getInvoiceForBooking(rawId, booking), booking);
+  const rawId = booking?.id || booking?._id || booking?.rawBooking?._id || booking?.rawBooking?.bookingId;
+  const initialInvoice = booking ? normalizeInvoiceForUI(booking.invoice || booking.rawBooking?.invoice || getInvoiceForBooking(rawId, booking), booking) : null;
   const [realtimeInvoice, setRealtimeInvoice] = useState(initialInvoice);
   const [isFetchingLive, setIsFetchingLive] = useState(false);
 
   // Fetch real-time data from backend whenever modal is opened
   useEffect(() => {
-    if (!isOpen || !rawId) return;
+    if (!isOpen || !rawId || !booking) return;
     const token = typeof window !== 'undefined' ? (localStorage.getItem('mm_token') || localStorage.getItem('token')) : null;
     let isMounted = true;
     setIsFetchingLive(true);
@@ -44,7 +38,13 @@ export default function UserInvoiceModal({ isOpen, onClose, booking }) {
     return () => {
       isMounted = false;
     };
-  }, [isOpen, rawId]);
+  }, [isOpen, rawId, booking]);
+
+  if (!isOpen || !booking) return null;
+
+  const handlePrint = () => {
+    window.print();
+  };
 
   const inv = realtimeInvoice || initialInvoice || {};
   const invoiceId = inv.invoiceId || inv.invoiceNumber || booking.invoiceId || (booking.rawBooking?.completedAt ? `MM-${new Date(booking.rawBooking.completedAt).getTime()}` : `MM-${Date.now()}`);

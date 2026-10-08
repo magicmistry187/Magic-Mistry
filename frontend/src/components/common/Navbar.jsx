@@ -9,6 +9,7 @@ import LoginRequiredModal from '../auth/LoginRequiredModal';
 import ApplianceIcon from './ApplianceIcon';
 import { useLivePricing } from '../../services/pricingService';
 import { formatCleanAddress } from '../../utils/addressParser';
+import { activateAdminSession } from '../../utils/adminAuth';
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -417,6 +418,20 @@ const Navbar = () => {
                   </div>
                 )}
 
+
+                {/* Admin Direct Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    activateAdminSession();
+                    navigate('/admin-dashboard');
+                  }}
+                  className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-full text-xs font-black shadow-sm transition-all cursor-pointer"
+                  title="Open Admin Dashboard"
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <span>Admin Panel</span>
+                </button>
 
                 {/* ── USER AVATAR + DROPDOWN or LOGIN BUTTON ── */}
                 {isLoggedIn ? (

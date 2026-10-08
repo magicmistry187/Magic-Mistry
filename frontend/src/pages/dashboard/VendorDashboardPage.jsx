@@ -37,7 +37,7 @@ import { updateVendorProfileApi, getVendorProfileApi, updateVendorProfileImageAp
 import { useLivePricing, getLiveFuelRate, getLiveBasePriceForAppliance } from '../../services/pricingService';
 import { getAllInventoryApi } from '../../services/operations/inventoryAPI';
 import { getInvoiceForBooking, saveInvoiceForBooking, normalizeInvoiceForUI } from '../../services/invoiceService';
-import { recordTravelAllowanceToLedger } from '../../services/vendorEarningsService';
+import { recordTravelAllowanceToLedger, fetchVendorEarningsFromBackend } from '../../services/vendorEarningsService';
 
 
 // Predefined Indian Banks for Profile
@@ -419,9 +419,9 @@ export const calculateJobFinancials = (job) => {
 
   let distanceKm = Number(job?.travelDistanceKm) || Number(job?.invoiceData?.travelDistanceKm) || 0;
   const adminFuelRate = getLiveFuelRate();
-  let ratePerKm = Number(job?.travelRatePerKm) || Number(job?.invoiceData?.travelRatePerKm) || adminFuelRate;
+  let ratePerKm = Number(job?.travelRatePerKm) || Number(job?.invoiceData?.travelRatePerKm) || adminFuelRate || 10;
 
-  if (parts.length > 0) {
+  if (Array.isArray(parts) && parts.length > 0) {
     parts.forEach(part => {
       const q = parseFloat(part.qty !== undefined ? part.qty : part.quantity) || 1;
       const p = parseFloat(part.price !== undefined ? part.price : part.unitPrice) || 0;
@@ -463,16 +463,16 @@ export const calculateJobFinancials = (job) => {
   const totalBilled = serviceCharges + componentCharges;
 
   return {
-    serviceCharges,
-    servicePayout,
-    componentCharges,
-    componentPayout,
-    distanceKm,
-    ratePerKm,
-    travelCharges,
-    fuelPayout,
-    totalVendorPayout,
-    totalBilled,
+    serviceCharges: Number(serviceCharges) || 0,
+    servicePayout: Number(servicePayout) || 0,
+    componentCharges: Number(componentCharges) || 0,
+    componentPayout: 0,
+    distanceKm: Number(distanceKm) || 0,
+    ratePerKm: Number(ratePerKm) || 10,
+    travelCharges: Number(travelCharges) || 0,
+    fuelPayout: Number(fuelPayout) || 0,
+    totalVendorPayout: Number(totalVendorPayout) || 0,
+    totalBilled: Number(totalBilled) || 0,
     mapScreenshot: job?.mapScreenshot || job?.invoiceData?.mapScreenshot || null,
     travelVerified: Boolean(job?.travelVerified || job?.mapScreenshot || job?.invoiceData?.mapScreenshot)
   };
@@ -638,12 +638,93 @@ export default function VendorDashboardPage() {
     }));
   }, [services]);
 
+  const [backendEarnings, setBackendEarnings] = useState(null);
+
   // Detailed earnings and payout calculation according to exact user rules:
   // 1. Service charges: strictly 50% vendor payout
   // 2. Component charges: 0% vendor payout (strictly excluded)
   // 3. Fuel charges payout: automatically calculated for all travel KM across completed services
   const earningsBreakdown = useMemo(() => {
-    const completed = history.filter(h => h.status === 'Completed');
+    const completed = (history || []).filter(h => h && h.status === 'Completed');
+
+    const itemizedJobs = completed.map(job => {
+      const fin = calculateJobFinancials(job);
+      return {
+        ...job,
+        financials: fin
+      };
+    });
+
+    const bList = (backendEarnings && Array.isArray(backendEarnings.list)) ? backendEarnings.list : [];
+
+    // Construct real completed job rows directly from MongoDB backend earnings list
+    const backendCompletedJobs = bList.map(e => {
+      const bId = String(e.booking?._id || e.booking || '');
+      const matchedJob = (history || []).find(h => String(h.backendJobId || h._id || h.id) === bId) ||
+                         (jobs || []).find(j => String(j.backendJobId || j._id || j.id) === bId);
+
+      const sAmount = Number(e.serviceAmount) || 0;
+      const sPayout = Number(e.serviceShareAmount) || (sAmount * 0.5);
+      const tKm = Number(e.travelDistanceKm) || 0;
+      const tRate = Number(e.travelRatePerKm) || 10;
+      const tCharge = Number(e.travelCharge) || (tKm * tRate);
+      const net = Number(e.netEarning) || (sPayout + tCharge);
+      const invTotal = Number(e.customerInvoiceAmount) || sAmount;
+      const compCharges = Math.max(0, invTotal - sAmount);
+
+      const displayId = matchedJob?.displayId || 
+                        e.invoice?.invoiceNumber || 
+                        (bId ? `WO-${bId.slice(-6).toUpperCase()}` : `WO-${String(e._id).slice(-6).toUpperCase()}`);
+
+      const customerName = matchedJob?.customerName || 
+                           matchedJob?.customer?.fullName || 
+                           e.booking?.customer?.fullName || 
+                           e.invoice?.customerSnapshot?.name || 
+                           'Customer';
+
+      const location = matchedJob?.location || 
+                       matchedJob?.serviceAddress || 
+                       matchedJob?.address || 
+                       e.booking?.serviceAddress || 
+                       'Service Address';
+
+      const date = e.earnedAt 
+        ? new Date(e.earnedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+        : (matchedJob?.date || 'Recent');
+
+      return {
+        id: String(e._id || bId),
+        backendJobId: bId,
+        displayId,
+        date,
+        customerName,
+        location,
+        serviceAddress: location,
+        serviceCategory: matchedJob?.serviceCategory || e.booking?.serviceCategory || e.booking?.appliance || 'Service',
+        financials: {
+          serviceCharges: sAmount,
+          servicePayout: sPayout,
+          componentCharges: compCharges,
+          componentPayout: 0,
+          distanceKm: tKm,
+          ratePerKm: tRate,
+          travelCharges: tCharge,
+          fuelPayout: tCharge,
+          totalVendorPayout: net,
+          totalBilled: invTotal,
+          mapScreenshot: matchedJob?.mapScreenshot || matchedJob?.financials?.mapScreenshot || null,
+          travelVerified: Boolean(matchedJob?.travelVerified || tKm > 0),
+        }
+      };
+    });
+
+    // Also append any completed jobs from local history that are not yet recorded in backendEarnings.list
+    const unrecordedLocalJobs = itemizedJobs.filter(job => {
+      const jId = String(job.backendJobId || job._id || job.id);
+      return !bList.some(e => String(e.booking?._id || e.booking) === jId);
+    });
+
+    const combinedJobs = [...backendCompletedJobs, ...unrecordedLocalJobs];
 
     let totalServiceCharges = 0;
     let totalServicePayout = 0;
@@ -651,87 +732,106 @@ export default function VendorDashboardPage() {
     let totalDistanceKm = 0;
     let totalFuelPayout = 0;
     let totalGrossBilled = 0;
+    let totalAvailablePayout = 0;
 
-    const itemizedJobs = completed.map(job => {
-      const fin = calculateJobFinancials(job);
-      totalServiceCharges += fin.serviceCharges;
-      totalServicePayout += fin.servicePayout;
-      totalComponentCharges += fin.componentCharges;
-      totalDistanceKm += fin.distanceKm;
-      totalFuelPayout += fin.fuelPayout;
-      totalGrossBilled += (Number(job.amount) || fin.totalBilled);
-      return {
-        ...job,
-        financials: fin
-      };
+    combinedJobs.forEach(job => {
+      const fin = job.financials || calculateJobFinancials(job);
+      totalServiceCharges += (Number(fin.serviceCharges) || 0);
+      totalServicePayout += (Number(fin.servicePayout) || 0);
+      totalComponentCharges += (Number(fin.componentCharges) || 0);
+      totalDistanceKm += (Number(fin.distanceKm) || 0);
+      totalFuelPayout += (Number(fin.fuelPayout) || 0);
+      totalGrossBilled += (Number(job.amount) || Number(fin.totalBilled) || 0);
+      totalAvailablePayout += (Number(fin.totalVendorPayout) || 0);
     });
 
-    const totalAvailablePayout = totalServicePayout + totalFuelPayout;
-
     return {
-      completedJobs: itemizedJobs,
+      completedJobs: combinedJobs,
       totalServiceCharges,
       totalServicePayout,
       totalComponentCharges,
       totalDistanceKm,
       totalFuelPayout,
       totalGrossBilled,
-      totalAvailablePayout
+      totalAvailablePayout,
+      backendLedger: bList,
     };
-  }, [history]);
+  }, [history, jobs, backendEarnings]);
 
-  const [todayEarnings, setTodayEarnings] = useState(() => earningsBreakdown.totalAvailablePayout);
+  const [todayEarnings, setTodayEarnings] = useState(() => Number(earningsBreakdown?.totalAvailablePayout) || 0);
   const [rating, setRating] = useState(5.0);
-  const [totalJobsDone, setTotalJobsDone] = useState(() => history.filter(b => b.status === 'Completed').length);
+  const [totalJobsDone, setTotalJobsDone] = useState(() => (earningsBreakdown?.completedJobs || []).length);
 
   // Keep todayEarnings and totalJobsDone synchronized with real earnings breakdown
   useEffect(() => {
-    setTodayEarnings(earningsBreakdown.totalAvailablePayout);
-    setTotalJobsDone(earningsBreakdown.completedJobs.length);
+    setTodayEarnings(Number(earningsBreakdown?.totalAvailablePayout) || 0);
+    setTotalJobsDone((earningsBreakdown?.completedJobs || []).length);
   }, [earningsBreakdown]);
 
-  // Fetch Vendor Bookings from backend
+  // Fetch Vendor Bookings & Real Earnings from backend
   useEffect(() => {
-    const fetchBookings = async () => {
-      const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') || localStorage.getItem('vendorToken') : null);
-      if (authToken) {
-        try {
-          const res = await getVendorBookingsApi(authToken);
-          if (res.success && Array.isArray(res.bookings)) {
-            const formatted = res.bookings.map(formatVendorBooking);
+    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') || localStorage.getItem('vendorToken') : null);
+    if (!authToken) return;
 
-            const activeList = formatted.filter(b => b.status !== 'Completed' && b.status !== 'Cancelled' && b.status !== 'Closed');
-            const historyList = formatted.filter(b => b.status === 'Completed' || b.status === 'Cancelled' || b.status === 'Closed');
-
-            setJobs(prevJobs => {
-              return activeList.map(serverJob => {
-                const existing = (prevJobs || []).find(pj => pj.id === serverJob.id || pj._id === serverJob._id);
-                if (existing) {
-                  const resolvedStatus = (existing.status === 'In Progress' && (serverJob.status === 'Accepted' || serverJob.status === 'New Request'))
-                    ? 'In Progress'
-                    : serverJob.status;
-                  return {
-                    ...serverJob,
-                    status: resolvedStatus,
-                    bookingStatus: resolvedStatus === 'In Progress' ? 'In Progress' : serverJob.bookingStatus,
-                    travelDistanceKm: serverJob.travelDistanceKm || existing.travelDistanceKm || 0,
-                    travelRatePerKm: serverJob.travelRatePerKm || existing.travelRatePerKm || 10,
-                    travelCharges: serverJob.travelCharges || existing.travelCharges || 0,
-                    mapScreenshot: serverJob.mapScreenshot || existing.mapScreenshot || null,
-                    travelVerified: Boolean(serverJob.travelVerified || existing.travelVerified),
-                    addToInvoice: false,
-                    checklist: (Array.isArray(existing.checklist) && existing.checklist.some(c => c.completed)) ? existing.checklist : serverJob.checklist,
-                    parts: (Array.isArray(existing.parts) && existing.parts.length > 0) ? existing.parts : serverJob.parts,
-                  };
-                }
-                return serverJob;
-              });
-            });
-            setHistory(historyList);
-          }
-        } catch (err) {
-          console.error('[Vendor Dashboard] Error fetching bookings:', err);
+    // 1. Immediately fetch real MongoDB vendor earnings ledger
+    fetchVendorEarningsFromBackend(authToken)
+      .then(earnRes => {
+        if (earnRes?.success && earnRes?.earnings) {
+          setBackendEarnings(earnRes.earnings);
         }
+      })
+      .catch(earnErr => {
+        console.log('[Vendor Dashboard] Initial backend earnings fetch notice:', earnErr?.message);
+      });
+
+    // 2. Fetch vendor bookings
+    const fetchBookings = async () => {
+      try {
+        const res = await getVendorBookingsApi(authToken);
+        if (res.success && Array.isArray(res.bookings)) {
+          const formatted = res.bookings.map(formatVendorBooking);
+
+          const activeList = formatted.filter(b => b.status !== 'Completed' && b.status !== 'Cancelled' && b.status !== 'Closed');
+          const historyList = formatted.filter(b => b.status === 'Completed' || b.status === 'Cancelled' || b.status === 'Closed');
+
+          setJobs(prevJobs => {
+            return activeList.map(serverJob => {
+              const existing = (prevJobs || []).find(pj => pj.id === serverJob.id || pj._id === serverJob._id);
+              if (existing) {
+                const resolvedStatus = (existing.status === 'In Progress' && (serverJob.status === 'Accepted' || serverJob.status === 'New Request'))
+                  ? 'In Progress'
+                  : serverJob.status;
+                return {
+                  ...serverJob,
+                  status: resolvedStatus,
+                  bookingStatus: resolvedStatus === 'In Progress' ? 'In Progress' : serverJob.bookingStatus,
+                  travelDistanceKm: serverJob.travelDistanceKm || existing.travelDistanceKm || 0,
+                  travelRatePerKm: serverJob.travelRatePerKm || existing.travelRatePerKm || 10,
+                  travelCharges: serverJob.travelCharges || existing.travelCharges || 0,
+                  mapScreenshot: serverJob.mapScreenshot || existing.mapScreenshot || null,
+                  travelVerified: Boolean(serverJob.travelVerified || existing.travelVerified),
+                  addToInvoice: false,
+                  checklist: (Array.isArray(existing.checklist) && existing.checklist.some(c => c.completed)) ? existing.checklist : serverJob.checklist,
+                  parts: (Array.isArray(existing.parts) && existing.parts.length > 0) ? existing.parts : serverJob.parts,
+                };
+              }
+              return serverJob;
+            });
+          });
+          setHistory(historyList);
+
+          // Re-synchronize vendor earnings with freshly loaded history list
+          try {
+            const earnRes = await fetchVendorEarningsFromBackend(authToken, historyList);
+            if (earnRes?.success && earnRes?.earnings) {
+              setBackendEarnings(earnRes.earnings);
+            }
+          } catch (earnErr) {
+            console.log('[Vendor Dashboard] Backend earnings sync notice:', earnErr.message);
+          }
+        }
+      } catch (err) {
+        console.error('[Vendor Dashboard] Error fetching bookings:', err);
       }
     };
     fetchBookings();
@@ -754,16 +854,19 @@ export default function VendorDashboardPage() {
     const currentDayIdx = (now.getDay() + 6) % 7; // 0=Mon, 6=Sun
     if (days[currentDayIdx]) days[currentDayIdx].active = true;
 
-    history.forEach(item => {
-      if (item.status === 'Completed' && item.rawDate) {
-        const itemDate = new Date(item.rawDate);
-        const dayIdx = (itemDate.getDay() + 6) % 7;
-        if (dayIdx >= 0 && dayIdx < 7) {
-          const fin = calculateJobFinancials(item);
-          days[dayIdx].amount += fin.totalVendorPayout;
+    if (earningsBreakdown?.completedJobs && Array.isArray(earningsBreakdown.completedJobs)) {
+      earningsBreakdown.completedJobs.forEach(item => {
+        const raw = item.rawDate || item.earnedAt || item.date || now;
+        const itemDate = new Date(raw);
+        if (!isNaN(itemDate.getTime())) {
+          const dayIdx = (itemDate.getDay() + 6) % 7;
+          if (dayIdx >= 0 && dayIdx < 7) {
+            const fin = item.financials || calculateJobFinancials(item);
+            days[dayIdx].amount += (Number(fin.totalVendorPayout) || 0);
+          }
         }
-      }
-    });
+      });
+    }
 
     const maxAmount = Math.max(...days.map(d => d.amount), 500);
     days.forEach(d => {
@@ -772,18 +875,16 @@ export default function VendorDashboardPage() {
     });
 
     return days;
-  }, [history]);
+  }, [earningsBreakdown]);
 
   // Compute lifetime gross customer billing from real completed history
   const lifetimeGrossBilled = useMemo(() => {
-    return history
-      .filter(h => h.status === 'Completed')
-      .reduce((sum, h) => sum + (Number(h.amount) || Number(h.estimatedPay) || 0), 0);
-  }, [history]);
+    return Number(earningsBreakdown?.totalGrossBilled) || 0;
+  }, [earningsBreakdown]);
 
   // Compute lifetime vendor payout from real completed history
   const lifetimeEarnings = useMemo(() => {
-    return earningsBreakdown.totalAvailablePayout;
+    return Number(earningsBreakdown?.totalAvailablePayout) || 0;
   }, [earningsBreakdown]);
 
   const [filterCategory, setFilterCategory] = useState('All');
@@ -1444,6 +1545,17 @@ export default function VendorDashboardPage() {
         const exists = prev.some((h) => String(h.id) === bId);
         return exists ? prev.map((h) => String(h.id) === bId ? formatted : h) : [formatted, ...prev];
       });
+
+      if (updatedBooking.bookingStatus === 'Completed') {
+        const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') || localStorage.getItem('vendorToken') : null);
+        if (authToken) {
+          fetchVendorEarningsFromBackend(authToken).then((earnRes) => {
+            if (earnRes?.success && earnRes?.earnings) {
+              setBackendEarnings(earnRes.earnings);
+            }
+          }).catch(() => {});
+        }
+      }
     } else {
       setJobs((prev) => {
         const exists = prev.some((j) => String(j.id) === bId);
@@ -1501,6 +1613,25 @@ export default function VendorDashboardPage() {
   const handleConfirmPayout = () => {
     setPayoutRequested(true);
     setShowPayoutModal(false);
+    try {
+      const newReq = {
+        id: `PAY-${Date.now().toString().slice(-4)}`,
+        vendorName: vendorProfile?.name || user?.fullName || 'Vendor',
+        vendorId: vendorProfile?.vendorId || `V-${String(user?._id || user?.id || '').slice(-4).toUpperCase()}`,
+        upiId: vendorProfile?.upiId || 'Direct UPI',
+        bankAccount: vendorProfile?.bankAccount ? `${vendorProfile.bankAccount} (${vendorProfile.bankName || 'Bank'})` : 'Bank Transfer',
+        daysOfWork: payoutDays || earningsBreakdown.completedJobs.length || 1,
+        amount: todayEarnings,
+        status: 'Pending',
+        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        notes: payoutNotes || 'Regular vendor payout request',
+      };
+      const existing = JSON.parse(localStorage.getItem('mm_vendor_payout_requests') || '[]');
+      const updated = [newReq, ...existing.filter(p => p.id !== newReq.id)];
+      localStorage.setItem('mm_vendor_payout_requests', JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Error saving payout request:', e);
+    }
     showToast('Payout request submitted successfully! Processing time: 1-2 business days.', 'success');
   };
 
@@ -1514,7 +1645,7 @@ export default function VendorDashboardPage() {
       return updated;
     });
     setShowFuelClaimModal(false);
-    showToast(`Fuel allowance claim ${claimData.id} submitted for ₹${claimData.claimedAmount.toFixed(2)}!`, 'success');
+    showToast(`Fuel allowance claim ${claimData.id} submitted for ₹${(Number(claimData?.claimedAmount) || 0).toFixed(2)}!`, 'success');
   };
 
   const handleDeleteFuelClaim = (claimId) => {
@@ -2287,7 +2418,7 @@ export default function VendorDashboardPage() {
         travelCharges: jobFinancials.fuelPayout,
         fuelPayout: jobFinancials.fuelPayout,
         totalVendorPayout: jobFinancials.totalVendorPayout,
-        review: `Service completed. ${paymentLabel} of ₹${(finalInvoiceDataObj.total || grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })} received. Vendor Share (50% Service: ₹${jobFinancials.servicePayout.toFixed(2)} + Fuel: ₹${jobFinancials.fuelPayout.toFixed(2)}): ₹${vendorPayoutAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} added to wallet. Components (₹${jobFinancials.componentCharges.toFixed(2)}) excluded.`,
+        review: `Service completed. ${paymentLabel} of ₹${(Number(finalInvoiceDataObj.total || grandTotal) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} received. Vendor Share (50% Service: ₹${(Number(jobFinancials?.servicePayout) || 0).toFixed(2)} + Fuel: ₹${(Number(jobFinancials?.fuelPayout) || 0).toFixed(2)}): ₹${(Number(vendorPayoutAmount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} added to wallet. Components (₹${(Number(jobFinancials?.componentCharges) || 0).toFixed(2)}) excluded.`,
         mapScreenshot: selectedJob.mapScreenshot || null,
         travelVerified: Boolean(selectedJob.travelVerified || selectedJob.mapScreenshot),
         invoiceData: finalInvoiceDataObj
@@ -2311,10 +2442,23 @@ export default function VendorDashboardPage() {
         }, authToken);
       }
 
+      // Real-time backend earnings sync from MongoDB so wallet updates immediately
+      if (authToken) {
+        fetchVendorEarningsFromBackend(authToken, [completedHistoryItem, ...history])
+          .then((refreshedEarn) => {
+            if (refreshedEarn?.success && refreshedEarn?.earnings) {
+              setBackendEarnings(refreshedEarn.earnings);
+            }
+          })
+          .catch((earnErr) => {
+            console.warn('[Vendor Dashboard] Error re-fetching backend earnings after completion:', earnErr);
+          });
+      }
+
       setModalReturnTab('active');
       setGeneratedInvoiceData(finalInvoiceDataObj);
       setShowTaxInvoiceModal(true);
-      showToast(`Service Completed! Invoice ${finalInvoiceDataObj.invoiceId} generated. ₹${vendorPayoutAmount.toFixed(2)} added to your payout balance.`, 'success');
+      showToast(`Service Completed! Invoice ${finalInvoiceDataObj.invoiceId} generated. ₹${(Number(vendorPayoutAmount) || 0).toFixed(2)} added to your payout balance.`, 'success');
     } catch (err) {
       console.error('[Vendor Dashboard] Error completing service:', err);
       showToast(err.message || 'Error completing service.', 'error');
@@ -2617,7 +2761,7 @@ export default function VendorDashboardPage() {
                     </span>
                   </div>
                   <div className="flex items-baseline gap-0.5 mt-0.5 sm:mt-1">
-                    <span className="text-sm sm:text-3xl font-extrabold text-slate-900 tracking-tight truncate">₹{(todayEarnings/1000).toFixed(1)}k</span>
+                    <span className="text-sm sm:text-3xl font-extrabold text-slate-900 tracking-tight truncate">₹{((Number(todayEarnings) || 0) / 1000).toFixed(1)}k</span>
                   </div>
                   <p className="hidden sm:block text-[11px] text-slate-500 font-medium mt-2">Active service payout count</p>
                 </motion.div>
@@ -2890,7 +3034,7 @@ export default function VendorDashboardPage() {
 
                     <div className="relative pt-6 pb-2">
                       <div className="absolute left-[54%] top-0 -translate-x-1/2 bg-[#061e38] text-white text-[11px] font-extrabold px-2.5 py-1 rounded-lg shadow-md">
-                        ₹{(todayEarnings / 1000).toFixed(1)}k
+                        ₹{((Number(todayEarnings) || 0) / 1000).toFixed(1)}k
                       </div>
 
                       <div className="h-36 flex items-end justify-between gap-2 px-2 border-b border-slate-100 pb-2">
@@ -2912,7 +3056,7 @@ export default function VendorDashboardPage() {
 
                     <div className="flex items-center justify-between pt-4">
                       <span className="text-xs font-bold text-slate-500 uppercase">Total Estimation</span>
-                      <span className="text-xl font-extrabold text-[#061e38]">₹{todayEarnings.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      <span className="text-xl font-extrabold text-[#061e38]">₹{(Number(todayEarnings) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                     </div>
                   </div>
 
@@ -3547,9 +3691,9 @@ export default function VendorDashboardPage() {
 
                               <td className="p-3 text-right">
                                 {isTravel ? (
-                                  <span className="font-bold text-slate-800 text-xs">₹{parseFloat(part.price).toFixed(2)}/km</span>
+                                  <span className="font-bold text-slate-800 text-xs">₹{(parseFloat(part.price) || 0).toFixed(2)}/km</span>
                                 ) : isService || isLocked ? (
-                                  <span className="font-bold text-slate-800 text-xs">₹{parseFloat(part.price).toFixed(2)}</span>
+                                  <span className="font-bold text-slate-800 text-xs">₹{(parseFloat(part.price) || 0).toFixed(2)}</span>
                                 ) : (
                                   <input
                                     type="number"
@@ -3562,7 +3706,7 @@ export default function VendorDashboardPage() {
                               </td>
 
                               <td className="p-3 text-right font-extrabold text-slate-900 text-sm">
-                                ₹{lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                ₹{(Number(lineTotal) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                               </td>
 
                               <td className="p-3 text-center">
@@ -3769,7 +3913,7 @@ export default function VendorDashboardPage() {
                   <div className="space-y-3 text-xs">
                     <div className="flex items-center justify-between text-slate-300">
                       <span>Subtotal</span>
-                      <span className="font-bold text-white">₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      <span className="font-bold text-white">₹{(Number(subtotal) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                     </div>
 
                     <div className="flex items-center justify-between text-slate-300 gap-2">
@@ -3787,14 +3931,14 @@ export default function VendorDashboardPage() {
 
                     <div className="flex items-center justify-between text-slate-300">
                       <span>Tax (GST 5%)</span>
-                      <span className="font-bold text-white">₹{taxAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      <span className="font-bold text-white">₹{(Number(taxAmount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                     </div>
 
                     <div className="pt-4 border-t border-slate-700 flex items-baseline justify-between">
                       <div>
                         <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider block">TOTAL AMOUNT</span>
                         <span className="text-3xl font-extrabold text-white tracking-tight">
-                          ₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          ₹{(Number(grandTotal) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </span>
                       </div>
                     </div>
@@ -3850,7 +3994,7 @@ export default function VendorDashboardPage() {
                             Admin Fuel Allowance ({selectedJob.travelDistanceKm || 0} km @ ₹{selectedJob.travelRatePerKm || 10}/km):
                           </span>
                           <strong className="text-xs font-black text-emerald-800">
-                            +₹{((selectedJob.travelDistanceKm || 0) * (selectedJob.travelRatePerKm || 10)).toFixed(2)}
+                            +₹{(((Number(selectedJob.travelDistanceKm) || 0) * (Number(selectedJob.travelRatePerKm) || 10))).toFixed(2)}
                           </strong>
                         </div>
                         <p className="text-[10px] text-emerald-700 font-normal">
@@ -3953,20 +4097,20 @@ export default function VendorDashboardPage() {
                         {/* Financial Payout Transparency Chips */}
                         <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
                           <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-1 rounded-lg font-extrabold">
-                            Vendor Payout: ₹{itemFin.totalVendorPayout.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            Vendor Payout: ₹{(Number(itemFin?.totalVendorPayout) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </span>
                           <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded-lg font-semibold text-[11px]">
-                            50% Service: ₹{itemFin.servicePayout.toFixed(2)}
+                            50% Service: ₹{(Number(itemFin?.servicePayout) || 0).toFixed(2)}
                           </span>
-                          {itemFin.fuelPayout > 0 && (
+                          {(Number(itemFin?.fuelPayout) || 0) > 0 && (
                             <span className="bg-orange-50 text-orange-700 border border-orange-200 px-2 py-1 rounded-lg font-semibold text-[11px] flex items-center gap-1">
                               <Fuel className="w-3 h-3 text-orange-600" />
-                              Fuel: ₹{itemFin.fuelPayout.toFixed(2)} ({itemFin.distanceKm} KM)
+                              Fuel: ₹{(Number(itemFin?.fuelPayout) || 0).toFixed(2)} ({Number(itemFin?.distanceKm) || 0} KM)
                             </span>
                           )}
-                          {itemFin.componentCharges > 0 && (
+                          {(Number(itemFin?.componentCharges) || 0) > 0 && (
                             <span className="bg-slate-50 text-slate-400 px-2 py-1 rounded-lg font-medium text-[11px] line-through">
-                              Components: ₹{itemFin.componentCharges.toFixed(2)} (0% Excluded)
+                              Components: ₹{(Number(itemFin?.componentCharges) || 0).toFixed(2)} (0% Excluded)
                             </span>
                           )}
                         </div>
@@ -3978,7 +4122,7 @@ export default function VendorDashboardPage() {
                         <div>
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Customer Invoiced</span>
                           <span className="text-base sm:text-lg font-extrabold text-slate-900">
-                            ₹{typeof item.amount === 'number' ? item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : item.amount}
+                            ₹{(Number(item.amount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </span>
                           <div className="text-amber-500 text-xs font-bold mt-0.5">{'★'.repeat(item.rating || 5)}</div>
                         </div>
@@ -4067,10 +4211,10 @@ export default function VendorDashboardPage() {
               <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
                 <p className="text-xs font-bold text-slate-400 uppercase">Gross Customer Invoiced</p>
                 <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">
-                  ₹{earningsBreakdown.totalGrossBilled.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  ₹{(Number(earningsBreakdown?.totalGrossBilled) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </p>
                 <p className="text-[11px] text-slate-500 font-medium mt-1">
-                  Across {earningsBreakdown.completedJobs.length} completed services
+                  Across {(earningsBreakdown?.completedJobs || []).length} completed services
                 </p>
               </div>
 
@@ -4083,10 +4227,10 @@ export default function VendorDashboardPage() {
                 )}
                 <p className="text-xs font-bold text-slate-400 uppercase">Net Available Payout</p>
                 <p className={`text-2xl sm:text-3xl font-extrabold mt-1 ${payoutRequested ? 'text-emerald-600' : 'text-emerald-600'}`}>
-                  ₹{todayEarnings.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  ₹{(Number(todayEarnings) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </p>
                 <p className="text-[11px] text-emerald-700 font-bold mt-1">
-                  ₹{earningsBreakdown.totalServicePayout.toFixed(2)} (50% Service) + ₹{earningsBreakdown.totalFuelPayout.toFixed(2)} (Fuel)
+                  ₹{(Number(earningsBreakdown?.totalServicePayout) || 0).toFixed(2)} (50% Service) + ₹{(Number(earningsBreakdown?.totalFuelPayout) || 0).toFixed(2)} (Fuel)
                 </p>
               </div>
 
@@ -4095,11 +4239,11 @@ export default function VendorDashboardPage() {
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-bold text-slate-400 uppercase">Automated Fuel Payout</p>
                   <span className="text-[10px] font-extrabold bg-orange-100 text-orange-800 px-2 py-0.5 rounded-full">
-                    {earningsBreakdown.totalDistanceKm.toFixed(1)} KM
+                    {(Number(earningsBreakdown?.totalDistanceKm) || 0).toFixed(1)} KM
                   </span>
                 </div>
                 <p className="text-2xl sm:text-3xl font-extrabold text-orange-600 mt-1">
-                  ₹{earningsBreakdown.totalFuelPayout.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  ₹{(Number(earningsBreakdown?.totalFuelPayout) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </p>
                 <p className="text-[11px] text-slate-500 font-medium mt-1">
                   Auto-aggregated from all completed service routes
@@ -4115,7 +4259,7 @@ export default function VendorDashboardPage() {
                   </span>
                 </div>
                 <p className="text-2xl sm:text-3xl font-extrabold text-slate-400 mt-1 line-through">
-                  ₹{earningsBreakdown.totalComponentCharges.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  ₹{(Number(earningsBreakdown?.totalComponentCharges) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </p>
                 <p className="text-[11px] text-slate-400 font-medium mt-1">
                   Spare parts &amp; materials cost (Excluded)
@@ -4136,7 +4280,7 @@ export default function VendorDashboardPage() {
                   </div>
                 </div>
                 <div className="bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-xs font-black px-3 py-1 rounded-xl">
-                  Total Wallet: ₹{todayEarnings.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  Total Wallet: ₹{(Number(todayEarnings) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </div>
               </div>
 
@@ -4153,9 +4297,9 @@ export default function VendorDashboardPage() {
                     </p>
                   </div>
                   <div className="mt-4 pt-3 border-t border-white/10 flex items-baseline justify-between">
-                    <span className="text-slate-400 text-[10px]">Billed: ₹{earningsBreakdown.totalServiceCharges.toFixed(2)}</span>
+                    <span className="text-slate-400 text-[10px]">Billed: ₹{(Number(earningsBreakdown?.totalServiceCharges) || 0).toFixed(2)}</span>
                     <span className="text-base font-black text-emerald-400">
-                      Payout: ₹{earningsBreakdown.totalServicePayout.toFixed(2)}
+                      Payout: ₹{(Number(earningsBreakdown?.totalServicePayout) || 0).toFixed(2)}
                     </span>
                   </div>
                 </div>
@@ -4172,7 +4316,7 @@ export default function VendorDashboardPage() {
                     </p>
                   </div>
                   <div className="mt-4 pt-3 border-t border-white/10 flex items-baseline justify-between">
-                    <span className="text-slate-400 text-[10px]">Billed: ₹{earningsBreakdown.totalComponentCharges.toFixed(2)}</span>
+                    <span className="text-slate-400 text-[10px]">Billed: ₹{(Number(earningsBreakdown?.totalComponentCharges) || 0).toFixed(2)}</span>
                     <span className="text-base font-bold text-slate-400 line-through">
                       Excluded (₹0.00)
                     </span>
@@ -4187,13 +4331,13 @@ export default function VendorDashboardPage() {
                       <span className="font-extrabold uppercase text-[11px] tracking-wider">3. Automated Fuel Payout</span>
                     </div>
                     <p className="text-slate-300 text-[11px] leading-relaxed">
-                      All travel distance (<strong>{earningsBreakdown.totalDistanceKm.toFixed(1)} KM</strong> across all completed services) is automatically aggregated and reimbursed.
+                      All travel distance (<strong>{(Number(earningsBreakdown?.totalDistanceKm) || 0).toFixed(1)} KM</strong> across all completed services) is automatically aggregated and reimbursed.
                     </p>
                   </div>
                   <div className="mt-4 pt-3 border-t border-white/10 flex items-baseline justify-between">
-                    <span className="text-slate-400 text-[10px]">{earningsBreakdown.totalDistanceKm.toFixed(1)} Total KM</span>
+                    <span className="text-slate-400 text-[10px]">{(Number(earningsBreakdown?.totalDistanceKm) || 0).toFixed(1)} Total KM</span>
                     <span className="text-base font-black text-orange-400">
-                      +₹{earningsBreakdown.totalFuelPayout.toFixed(2)}
+                      +₹{(Number(earningsBreakdown?.totalFuelPayout) || 0).toFixed(2)}
                     </span>
                   </div>
                 </div>
@@ -4219,7 +4363,7 @@ export default function VendorDashboardPage() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-extrabold text-slate-900">₹{todayEarnings.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+                      <p className="text-sm font-extrabold text-slate-900">₹{(Number(todayEarnings) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
                       <p className="text-xs text-amber-600 font-bold">Pending Approval</p>
                     </div>
                   </div>
@@ -4252,17 +4396,17 @@ export default function VendorDashboardPage() {
 
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-black text-slate-700 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
-                    Total: {earningsBreakdown.totalDistanceKm.toFixed(1)} KM
+                    Total: {(Number(earningsBreakdown?.totalDistanceKm) || 0).toFixed(1)} KM
                   </span>
                   <span className="text-xs font-black text-orange-700 bg-orange-50 px-3 py-1.5 rounded-xl border border-orange-200">
-                    Fuel Payout: ₹{earningsBreakdown.totalFuelPayout.toFixed(2)}
+                    Fuel Payout: ₹{(Number(earningsBreakdown?.totalFuelPayout) || 0).toFixed(2)}
                   </span>
                 </div>
               </div>
 
               {/* Automated Distance Jobs Table */}
               <div className="space-y-3 pt-1">
-                {earningsBreakdown.completedJobs.length === 0 ? (
+                {(earningsBreakdown?.completedJobs || []).length === 0 ? (
                   <div className="text-center py-8 bg-slate-50 rounded-xl border border-dashed border-slate-200">
                     <Navigation className="w-8 h-8 text-slate-400 mx-auto mb-2 opacity-60" />
                     <p className="text-sm font-bold text-slate-700">No completed service trips yet</p>
@@ -4286,7 +4430,7 @@ export default function VendorDashboardPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-medium">
-                        {earningsBreakdown.completedJobs.map((job) => {
+                        {(earningsBreakdown?.completedJobs || []).map((job) => {
                           const fin = job.financials || calculateJobFinancials(job);
                           return (
                             <tr key={job.id} className="hover:bg-slate-50/70 transition-colors">
@@ -4303,7 +4447,7 @@ export default function VendorDashboardPage() {
                               <td className="p-3">
                                 <div className="flex items-center gap-1.5">
                                   <span className="font-black text-blue-900 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">
-                                    {fin.distanceKm > 0 ? `${fin.distanceKm} KM` : 'Direct'}
+                                    {(Number(fin?.distanceKm) || 0) > 0 ? `${fin.distanceKm} KM` : 'Direct'}
                                   </span>
                                   {fin.mapScreenshot && (
                                     <button
@@ -4322,14 +4466,14 @@ export default function VendorDashboardPage() {
                                 </div>
                               </td>
                               <td className="p-3">
-                                <span className="font-extrabold text-slate-900 block">₹{fin.servicePayout.toFixed(2)}</span>
-                                <span className="text-[10px] text-slate-400">from ₹{fin.serviceCharges.toFixed(2)}</span>
+                                <span className="font-extrabold text-slate-900 block">₹{(Number(fin?.servicePayout) || 0).toFixed(2)}</span>
+                                <span className="text-[10px] text-slate-400">from ₹{(Number(fin?.serviceCharges) || 0).toFixed(2)}</span>
                               </td>
                               <td className="p-3">
-                                {fin.componentCharges > 0 ? (
+                                {(Number(fin?.componentCharges) || 0) > 0 ? (
                                   <div>
                                     <span className="font-bold text-slate-400 line-through text-[11px] block">
-                                      ₹{fin.componentCharges.toFixed(2)}
+                                      ₹{(Number(fin?.componentCharges) || 0).toFixed(2)}
                                     </span>
                                     <span className="text-[9px] font-extrabold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded">
                                       Excluded
@@ -4341,13 +4485,13 @@ export default function VendorDashboardPage() {
                               </td>
                               <td className="p-3">
                                 <span className="font-black text-orange-600 block">
-                                  +₹{fin.fuelPayout.toFixed(2)}
+                                  +₹{(Number(fin?.fuelPayout) || 0).toFixed(2)}
                                 </span>
-                                <span className="text-[10px] text-slate-400">@{fin.ratePerKm || 10}/km</span>
+                                <span className="text-[10px] text-slate-400">@{fin?.ratePerKm || 10}/km</span>
                               </td>
                               <td className="p-3 text-right">
                                 <span className="font-black text-emerald-600 text-sm">
-                                  ₹{fin.totalVendorPayout.toFixed(2)}
+                                  ₹{(Number(fin?.totalVendorPayout) || 0).toFixed(2)}
                                 </span>
                               </td>
                               <td className="p-3 text-center">
@@ -4446,7 +4590,7 @@ export default function VendorDashboardPage() {
                                 <span className="text-[11px] text-slate-400">{claim.vehicleType} (@ ₹{claim.ratePerKm}/km)</span>
                               </td>
                               <td className="p-3 text-right font-black text-slate-900 text-sm">
-                                ₹{Number(claim.claimedAmount).toFixed(2)}
+                                ₹{(Number(claim?.claimedAmount) || 0).toFixed(2)}
                               </td>
                               <td className="p-3 text-center">
                                 {claim.receiptImage ? (
@@ -4455,7 +4599,7 @@ export default function VendorDashboardPage() {
                                     onClick={() => setProofPreviewItem({
                                       imageUrl: claim.receiptImage,
                                       title: `Fuel Claim Proof: ${claim.id}`,
-                                      subtitle: `${claim.distanceKm} KM (${claim.vehicleType}) - ₹${Number(claim.claimedAmount).toFixed(2)}`
+                                      subtitle: `${claim.distanceKm} KM (${claim.vehicleType}) - ₹${(Number(claim?.claimedAmount) || 0).toFixed(2)}`
                                     })}
                                     className="inline-flex items-center gap-1 text-[11px] font-extrabold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer"
                                   >

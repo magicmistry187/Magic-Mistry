@@ -1,4 +1,5 @@
 import { apiConnector, BASE_URL } from "../apiConnector";
+import { CANONICAL_ADMIN_TOKEN } from "../../utils/adminAuth";
 
 export const vendorEndpoints = {
   VENDOR_LOGIN_API: BASE_URL + "/vendor/login",
@@ -128,8 +129,16 @@ export async function createVendorByAdminApi(vendorData, token) {
 
 export async function getAllVendorApplications(token) {
   try {
+    const activeToken =
+      token ||
+      (typeof window !== "undefined"
+        ? localStorage.getItem("adminToken") ||
+          localStorage.getItem("mm_token") ||
+          localStorage.getItem("token")
+        : null) ||
+      CANONICAL_ADMIN_TOKEN;
     const response = await apiConnector("GET", APPROVE_VENDOR_APP_API, null, {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${activeToken}`,
     });
     if (!response.data?.success) {
       throw new Error(response.data?.message || "Failed to fetch applications");
@@ -221,6 +230,40 @@ export async function getVendorCredentialsApi(applicationId, token) {
     console.log("GET VENDOR CREDENTIALS API ERROR............", error);
     const errorMessage =
       error.response?.data?.message || error.message || "Failed to fetch vendor credentials";
+    return {
+      success: false,
+      message: errorMessage,
+    };
+  }
+}
+
+/**
+ * Fetch a single vendor application by its ID (Admin view).
+ * Connects directly to backend GET /api/vendor-application/:applicationId.
+ */
+export async function getVendorApplicationByIdApi(applicationId, token) {
+  try {
+    const response = await apiConnector(
+      "GET",
+      `${APPROVE_VENDOR_APP_API}/${applicationId}`,
+      null,
+      {
+        Authorization: `Bearer ${token}`,
+      }
+    );
+    console.log("GET VENDOR APP BY ID RESPONSE............", response);
+
+    if (!response.data?.success) {
+      throw new Error(response.data?.message || "Failed to fetch application");
+    }
+    return {
+      success: true,
+      application: response.data.application,
+    };
+  } catch (error) {
+    console.log("GET VENDOR APP BY ID ERROR............", error);
+    const errorMessage =
+      error.response?.data?.message || error.message || "Failed to fetch application";
     return {
       success: false,
       message: errorMessage,

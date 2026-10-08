@@ -5,11 +5,13 @@ import { X, User, ShieldCheck, MapPin, Phone, Calendar, Clock, Wrench, AlertCirc
 export default function AdminDispatchModal({ isOpen, onClose, dispatchItem }) {
   if (!isOpen || !dispatchItem) return null;
 
-  const ApplianceIcon =
-    typeof dispatchItem.applianceIcon === 'function' ||
-    (typeof dispatchItem.applianceIcon === 'object' && dispatchItem.applianceIcon !== null)
-      ? dispatchItem.applianceIcon
-      : Wrench;
+  const isValidReactComponent = (c) =>
+    typeof c === 'function' ||
+    (c && typeof c === 'object' && Boolean(c.$$typeof || typeof c.render === 'function'));
+
+  const ApplianceIcon = isValidReactComponent(dispatchItem.applianceIcon)
+    ? dispatchItem.applianceIcon
+    : Wrench;
 
   const getStatusBadge = (status) => {
     const s = String(status || '').trim();
