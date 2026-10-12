@@ -9,6 +9,7 @@ import LoginRequiredModal from '../auth/LoginRequiredModal';
 import ApplianceIcon from './ApplianceIcon';
 import { useLivePricing } from '../../services/pricingService';
 import { formatCleanAddress } from '../../utils/addressParser';
+import { activateAdminSession } from '../../utils/adminAuth';
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -418,6 +419,20 @@ const Navbar = () => {
                 )}
 
 
+                {/* Admin Direct Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    activateAdminSession();
+                    navigate('/admin-dashboard');
+                  }}
+                  className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-full text-xs font-black shadow-sm transition-all cursor-pointer"
+                  title="Open Admin Dashboard"
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <span>Admin Panel</span>
+                </button>
+
                 {/* ── USER AVATAR + DROPDOWN or LOGIN BUTTON ── */}
                 {isLoggedIn ? (
                   <div className="relative hidden sm:block" ref={dropdownRef}>
@@ -662,7 +677,10 @@ const Navbar = () => {
                 transition={{ duration: 0.25, ease: 'easeInOut' }}
                 className="min-[930px]:hidden overflow-hidden bg-gray-50 border-t border-gray-100"
               >
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 space-y-3">
+                <div
+                  data-lenis-prevent
+                  className="max-w-7xl mx-auto px-4 sm:px-6 py-4 space-y-3 max-h-[calc(100vh-5rem)] overflow-y-auto overscroll-contain custom-scrollbar"
+                >
                   <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded cursor-pointer select-none outline-none">Find Service</Link>
                   <Link to="/become-a-vendor" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded cursor-pointer select-none outline-none">Become a Vendor</Link>
                   <Link to="/about" onClick={() => setIsMobileMenuOpen(false)} className="block px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded cursor-pointer select-none outline-none">About Us</Link>

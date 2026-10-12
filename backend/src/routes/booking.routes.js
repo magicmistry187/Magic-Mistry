@@ -22,9 +22,9 @@ const {
 
 router.post('/', auth, isCustomer,checkUserRestricted, upload.single('image'), createBooking);
 
-router.get('/my-bookings', auth, isCustomer, getMyBookings);
+router.get('/my-bookings', auth, isCustomer,checkUserRestricted, getMyBookings);
 
-router.get('/admin/bookings', auth, isAdmin, getBookingsToAdmin);
+router.get('/admin/bookings', auth, isAdmin,checkUserRestricted ,getBookingsToAdmin);
 
 // router.get('/vendor/bookings', auth, isVendor, getBookingsToVendor);
 
@@ -36,7 +36,7 @@ router.patch('/:bookingId/status', auth, isVendor,checkUserRestricted, updateBoo
 
 router.patch('/:bookingId/cancel', auth, isCustomer, checkUserRestricted, cancelBooking);
 
-router.get('/:bookingId', auth, getBookingDetails);
+router.get('/:bookingId', auth, checkUserRestricted, getBookingDetails);
 
 router.post(
   '/:bookingId/route-verification',

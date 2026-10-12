@@ -221,14 +221,14 @@ export default function LocationSelectorModal({ isOpen, onClose }) {
         <div
           ref={overlayRef}
           data-lenis-prevent
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overscroll-contain"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto overscroll-contain custom-scrollbar"
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.92, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.92, y: 20 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[92vh]"
+            className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col my-auto max-h-[92vh]"
           >
             {/* Header */}
             <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
@@ -280,7 +280,7 @@ export default function LocationSelectorModal({ isOpen, onClose }) {
             <div
               ref={scrollContainerRef}
               data-lenis-prevent
-              className="flex-1 min-h-0 p-5 space-y-4 overflow-y-auto overscroll-contain"
+              className="flex-1 min-h-0 p-5 space-y-4 overflow-y-auto overscroll-contain custom-scrollbar"
             >
 
               {/* ── TAB 1: INTERACTIVE MAP VIEW ── */}

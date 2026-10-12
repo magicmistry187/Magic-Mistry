@@ -129,13 +129,16 @@ export default function OTPVerificationModal({ phoneNumber, email, onClose, form
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-100/60 backdrop-blur-sm">
+    <div
+      data-lenis-prevent
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto overscroll-contain custom-scrollbar"
+    >
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         transition={{ type: "spring", bounce: 0.3, duration: 0.6 }}
-        className="relative w-full max-w-md bg-white shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] rounded-3xl p-8"
+        className="relative w-full max-w-md bg-white shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] rounded-3xl p-8 my-auto max-h-[92vh] overflow-y-auto custom-scrollbar"
       >
         {/* Close Button */}
         <button

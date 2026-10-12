@@ -28,15 +28,19 @@ export default function UserRatingModal({ isOpen, onClose, booking, onSubmitRati
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+      <div
+        data-lenis-prevent
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto overscroll-contain"
+      >
         <motion.div
+          data-lenis-prevent
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-gray-100"
+          className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[92vh] my-auto"
         >
-          <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+          <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
             <h3 className="font-bold text-base flex items-center gap-2">
               <Star className="w-5 h-5 text-amber-400 fill-amber-400" /> Rate Technician &amp; Service
             </h3>
@@ -45,7 +49,11 @@ export default function UserRatingModal({ isOpen, onClose, booking, onSubmitRati
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-5 text-center">
+          <form
+            data-lenis-prevent
+            onSubmit={handleSubmit}
+            className="p-6 space-y-5 text-center overflow-y-auto overscroll-contain custom-scrollbar flex-1"
+          >
             <div>
               <p className="text-sm font-bold text-gray-800">{booking.service}</p>
               <p className="text-xs text-gray-400 mt-0.5">Technician: {booking.technician || 'Ramesh Kumar'}</p>

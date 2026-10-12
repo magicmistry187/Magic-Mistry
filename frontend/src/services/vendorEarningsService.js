@@ -13,13 +13,18 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { apiConnector, BASE_URL } from './apiConnector';
+import { CANONICAL_ADMIN_TOKEN } from '../utils/adminAuth';
 
 export const vendorEarningsEndpoints = {
-  GET_EARNINGS_API: `${BASE_URL}/vendor/earnings`,
-  GET_FUEL_ALLOWANCES_API: `${BASE_URL}/vendor/earnings/fuel-allowances`,
-  SUBMIT_FUEL_CLAIM_API: `${BASE_URL}/vendor/earnings/fuel-claim`,
-  REQUEST_PAYOUT_API: `${BASE_URL}/vendor/earnings/request-payout`,
-  SYNC_ALLOWANCE_API: `${BASE_URL}/vendor/earnings/sync-allowance`,
+  GET_EARNINGS_API: `${BASE_URL}/vendor-earnings/vendor`,
+  GET_SINGLE_EARNING_API: `${BASE_URL}/vendor-earnings/vendor`, // + /:id
+  GET_ADMIN_EARNINGS_API: `${BASE_URL}/vendor-earnings/admin`,
+  GET_ADMIN_VENDOR_EARNINGS_API: `${BASE_URL}/vendor-earnings/admin/vendor`, // + /:vendorId
+  // Backend doesn't host standalone allowance sync/claim/payout routes yet; fallback locally
+  GET_FUEL_ALLOWANCES_API: null,
+  SUBMIT_FUEL_CLAIM_API: null,
+  REQUEST_PAYOUT_API: null,
+  SYNC_ALLOWANCE_API: null,
 };
 
 const STORAGE_KEYS = {
@@ -144,16 +149,18 @@ export function calculateVendorEarningsBreakdown(completedJobs = [], manualClaim
   const totalAvailablePayout = totalServicePayout + combinedFuelPayout;
 
   return {
+    list: Array.isArray(completedJobs) ? completedJobs : [],
     completedJobs: itemizedJobs,
-    totalServiceCharges,
-    totalServicePayout,
-    totalComponentCharges,
-    totalDistanceKm,
-    totalFuelPayout: combinedFuelPayout,
-    automatedFuelPayout: totalFuelPayout,
-    manualClaimsPayout,
-    totalGrossBilled,
-    totalAvailablePayout,
+    totalServiceCharges: Number(totalServiceCharges) || 0,
+    totalServicePayout: Number(totalServicePayout) || 0,
+    totalComponentCharges: Number(totalComponentCharges) || 0,
+    totalDistanceKm: Number(totalDistanceKm) || 0,
+    totalFuelPayout: Number(combinedFuelPayout) || 0,
+    automatedFuelPayout: Number(totalFuelPayout) || 0,
+    manualClaimsPayout: Number(manualClaimsPayout) || 0,
+    totalGrossBilled: Number(totalGrossBilled) || 0,
+    totalAvailablePayout: Number(totalAvailablePayout) || 0,
+    count: (completedJobs || []).length,
   };
 }
 
@@ -222,7 +229,7 @@ export function getRecordedTravelAllowances() {
 
 /**
  * Fetch vendor earnings summary from backend (with local fallback).
- * Ready to consume backend GET /vendor/earnings when backend route is added.
+ * Connects directly to backend GET /api/vendor-earnings/vendor.
  */
 export async function fetchVendorEarningsFromBackend(token, fallbackCompletedJobs = []) {
   if (token) {
@@ -234,15 +241,54 @@ export async function fetchVendorEarningsFromBackend(token, fallbackCompletedJob
         { Authorization: `Bearer ${token}` }
       );
       if (response.data?.success && response.data?.earnings) {
-        setStoredJson(STORAGE_KEYS.EARNINGS_CACHE, response.data.earnings);
+        const raw = response.data.earnings;
+        let calculated = raw;
+        if (Array.isArray(raw)) {
+          let totalServiceCharges = 0;
+          let totalServicePayout = 0;
+          let totalFuelPayout = 0;
+          let totalGrossBilled = 0;
+          let totalDistanceKm = 0;
+          let totalAvailablePayout = 0;
+          let totalComponentCharges = 0;
+          raw.forEach(e => {
+            const sAmount = Number(e.serviceAmount) || 0;
+            const sPayout = Number(e.serviceShareAmount) || (sAmount * 0.5);
+            const tKm = Number(e.travelDistanceKm) || 0;
+            const tCharge = Number(e.travelCharge) || 0;
+            const invTotal = Number(e.customerInvoiceAmount) || 0;
+            const compCharge = Math.max(0, invTotal - sAmount);
+            const net = Number(e.netEarning) || (sPayout + tCharge);
+
+            totalServiceCharges += sAmount;
+            totalServicePayout += sPayout;
+            totalFuelPayout += tCharge;
+            totalGrossBilled += invTotal;
+            totalDistanceKm += tKm;
+            totalComponentCharges += compCharge;
+            totalAvailablePayout += net;
+          });
+          calculated = {
+            list: raw,
+            totalServiceCharges,
+            totalServicePayout,
+            totalFuelPayout,
+            totalAvailablePayout,
+            totalGrossBilled,
+            totalDistanceKm,
+            totalComponentCharges,
+            count: raw.length,
+          };
+        }
+        setStoredJson(STORAGE_KEYS.EARNINGS_CACHE, calculated);
         return {
           success: true,
-          earnings: response.data.earnings,
+          earnings: calculated,
           fromBackend: true,
         };
       }
     } catch (err) {
-      console.log('[VendorEarningsService] Backend GET /vendor/earnings notice (fallback to dynamic calculation):', err.message);
+      console.log('[VendorEarningsService] Backend GET /vendor-earnings/vendor notice (fallback to dynamic calculation):', err.message);
     }
   }
 
@@ -274,8 +320,8 @@ export async function submitVendorFuelClaim(claimData, token) {
   const updated = [newClaim, ...claims];
   setStoredJson(STORAGE_KEYS.FUEL_CLAIMS, updated);
 
-  // Attempt backend submission
-  if (token) {
+  // Attempt backend submission if endpoint is configured
+  if (token && vendorEarningsEndpoints.SUBMIT_FUEL_CLAIM_API) {
     try {
       const response = await apiConnector(
         'POST',
@@ -310,8 +356,8 @@ export async function requestVendorPayoutApi(payoutPayload, token) {
   const requests = getStoredJson(STORAGE_KEYS.PAYOUT_REQUESTS, []);
   setStoredJson(STORAGE_KEYS.PAYOUT_REQUESTS, [requestRecord, ...requests]);
 
-  // Attempt backend submission
-  if (token) {
+  // Attempt backend submission if endpoint is configured
+  if (token && vendorEarningsEndpoints.REQUEST_PAYOUT_API) {
     try {
       const response = await apiConnector(
         'POST',
@@ -328,4 +374,73 @@ export async function requestVendorPayoutApi(payoutPayload, token) {
   }
 
   return { success: true, data: requestRecord, fromBackend: false };
+}
+
+/**
+ * Fetch all vendor earnings records across the platform for the admin dashboard.
+ * Connects directly to backend GET /api/vendor-earnings/admin.
+ */
+export async function fetchAllVendorEarningsForAdmin(token) {
+  const activeToken =
+    token ||
+    (typeof window !== 'undefined'
+      ? localStorage.getItem('adminToken') ||
+        localStorage.getItem('mm_token') ||
+        localStorage.getItem('token')
+      : null) ||
+    CANONICAL_ADMIN_TOKEN;
+
+  try {
+    const response = await apiConnector(
+      'GET',
+      vendorEarningsEndpoints.GET_ADMIN_EARNINGS_API,
+      null,
+      { Authorization: `Bearer ${activeToken}` }
+    );
+    if (response.data?.success && Array.isArray(response.data?.earnings)) {
+      return {
+        success: true,
+        earnings: response.data.earnings,
+        count: response.data.count || response.data.earnings.length,
+      };
+    }
+  } catch (err) {
+    console.warn('[VendorEarningsService] Error fetching admin vendor earnings:', err.message);
+  }
+  return { success: false, earnings: [], count: 0 };
+}
+
+/**
+ * Fetch all earnings records for a specific vendor (Admin view).
+ * Connects directly to backend GET /api/vendor-earnings/admin/vendor/:vendorId.
+ */
+export async function fetchVendorEarningsByVendorIdForAdmin(vendorId, token) {
+  const activeToken =
+    token ||
+    (typeof window !== 'undefined'
+      ? localStorage.getItem('adminToken') ||
+        localStorage.getItem('mm_token') ||
+        localStorage.getItem('token')
+      : null) ||
+    CANONICAL_ADMIN_TOKEN;
+
+  if (!vendorId) return { success: false, earnings: [], count: 0 };
+  try {
+    const response = await apiConnector(
+      'GET',
+      `${vendorEarningsEndpoints.GET_ADMIN_VENDOR_EARNINGS_API}/${vendorId}`,
+      null,
+      { Authorization: `Bearer ${activeToken}` }
+    );
+    if (response.data?.success && Array.isArray(response.data?.earnings)) {
+      return {
+        success: true,
+        earnings: response.data.earnings,
+        count: response.data.count || response.data.earnings.length,
+      };
+    }
+  } catch (err) {
+    console.warn('[VendorEarningsService] Error fetching vendor earnings by vendor ID:', err.message);
+  }
+  return { success: false, earnings: [], count: 0 };
 }

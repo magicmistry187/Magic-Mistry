@@ -11,12 +11,16 @@ export default function AdminViewCredsModal({
   return (
     <AnimatePresence>
       {isOpen && viewingCreds && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
+        <div
+          data-lenis-prevent
+          className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto overscroll-contain"
+        >
           <motion.div
+            data-lenis-prevent
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="bg-white rounded-3xl max-w-md w-full border border-slate-200 shadow-2xl p-6 sm:p-8 space-y-5 my-8"
+            className="bg-white rounded-3xl max-w-md w-full border border-slate-200 shadow-2xl p-6 sm:p-8 space-y-5 my-auto max-h-[92vh] overflow-y-auto overscroll-contain custom-scrollbar"
           >
             {/* Header */}
             <div className="flex items-center justify-between">

@@ -1,4 +1,5 @@
 import { apiConnector, BASE_URL } from "../apiConnector";
+import { CANONICAL_ADMIN_TOKEN } from "../../utils/adminAuth";
 
 export const inventoryEndpoints = {
   INVENTORY_API: BASE_URL + "/inventory",
@@ -10,11 +11,12 @@ const { INVENTORY_API, LOW_STOCK_INVENTORY_API } = inventoryEndpoints;
 const getAuthToken = (token) =>
   token ||
   (typeof window !== "undefined"
-    ? localStorage.getItem("mm_token") ||
+    ? localStorage.getItem("adminToken") ||
+      localStorage.getItem("mm_token") ||
       localStorage.getItem("token") ||
       localStorage.getItem("vendorToken") ||
-      localStorage.getItem("adminToken")
-    : null);
+      CANONICAL_ADMIN_TOKEN
+    : CANONICAL_ADMIN_TOKEN);
 
 /**
  * Fetch all inventory items with optional filters

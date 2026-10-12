@@ -21,14 +21,18 @@ export default function VendorPayoutModal({
   return (
     <AnimatePresence>
       {showPayoutModal && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/75 backdrop-blur-xs">
+        <div
+          data-lenis-prevent
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/75 backdrop-blur-xs overflow-y-auto overscroll-contain"
+        >
           <motion.div
+            data-lenis-prevent
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-slate-200"
+            className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[92vh] my-auto"
           >
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
               <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
                 <IndianRupee className="w-5 h-5 text-emerald-600" />
                 Request Vendor Payout
@@ -41,7 +45,10 @@ export default function VendorPayoutModal({
               </button>
             </div>
 
-            <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+            <div
+              data-lenis-prevent
+              className="p-6 space-y-4 overflow-y-auto overscroll-contain custom-scrollbar flex-1"
+            >
               <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-4 flex items-start gap-3">
                 <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                 <div className="text-xs text-emerald-900 space-y-0.5">

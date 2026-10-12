@@ -8,6 +8,8 @@ const {
   deleteImageFromImageKit,
 } = require('../config/imagekit');
 
+const handleSuspensionExpiry = require('../utils/handleSuspensionExpiry');
+
 // VENDOR login
 exports.vendorLogin = async (req, res) => {
   try {
@@ -39,20 +41,10 @@ exports.vendorLogin = async (req, res) => {
       });
     }
 
-    // 3. Check account status
-    if (vendor.status === 'blocked') {
-      return res.status(403).json({
-        success: false,
-        message: 'Your vendor account has been blocked by the administrator.',
-      });
-    }
+   //function to check if a user's suspension has expired
+   await handleSuspensionExpiry(vendor);
 
-    if (vendor.status === 'suspended') {
-      return res.status(403).json({
-        success: false,
-        message: 'Your vendor account has been suspended by the administrator.',
-      });
-    }
+
 
     // 4. Check approval
     if (!vendor.isApproved) {

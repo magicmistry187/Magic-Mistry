@@ -149,14 +149,21 @@ export default function CreateAccountModal({ isOpen = true, onClose }) {
 
   return (
     <AnimatePresence>
-      <div className=" ">
+      <div
+        data-lenis-prevent
+        className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-slate-900/60 backdrop-blur-sm custom-scrollbar"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose?.();
+        }}
+      >
         <div className="flex min-h-full items-center justify-center p-4 sm:p-6 md:p-8">
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 sm:p-8 md:p-10 border border-slate-100"
+            className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 sm:p-8 md:p-10 border border-slate-100 my-auto"
+            onClick={(e) => e.stopPropagation()}
           >
             {/* Close Button */}
             <button

@@ -1,9 +1,9 @@
 const User = require("../models/user.model");
+const Booking = require("../models/booking.model");
 
 exports.checkUserRestricted = async (req, res, next) => {
   try {
     const userId = req.user?.id;
-
 
     if (!userId) {
       return res.status(401).json({
@@ -44,7 +44,7 @@ exports.checkUserRestricted = async (req, res, next) => {
     if (user.status === "suspended") {
       //Active suspension
 
-      if (user.suspendedUntil && user.suspendedUntil >= new Date()) {
+      if (user.suspendedUntil && user.suspendedUntil > new Date()) {
         return res.status(403).json({
           success: false,
           message:
@@ -56,6 +56,22 @@ exports.checkUserRestricted = async (req, res, next) => {
       if (user.suspendedUntil && user.suspendedUntil <= new Date()) {
         user.status = "active";
         user.suspendedUntil = null;
+
+        //Restoore all booking which are temporarily closed due to suspension
+
+        await Booking.updateMany(
+          {
+            customer: user._id,
+            bookingStatus: "Cancelled",
+            cancelDueToSuspension: true,
+          },
+          {
+            $set: {
+              bookingStatus: "Pending",
+              cancelDueToSuspension: false,
+            },
+          },
+        );
       }
 
       await user.save();
@@ -65,7 +81,7 @@ exports.checkUserRestricted = async (req, res, next) => {
 
     next();
   } catch (err) {
-    console.log("Check Blocked User Error: ", err);
+    console.log("Check Restricted User Error: ", err);
 
     return res.status(500).json({
       success: false,

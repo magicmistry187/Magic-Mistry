@@ -4,12 +4,31 @@ import { updateUserLocationApi, getUserProfileApi, updateUserProfileApi, logoutA
 import { getVendorProfileApi } from '../services/operations/vendorAPI';
 import { parseAddressString, formatCleanAddress } from '../utils/addressParser';
 
+function decodeJwtPayload(jwtToken) {
+  if (!jwtToken || typeof jwtToken !== 'string') return null;
+  try {
+    const parts = jwtToken.split('.');
+    if (parts.length < 2) return null;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
+}
+
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => {
     try {
-      return localStorage.getItem('mm_token') || null;
+      return localStorage.getItem('mm_token') || localStorage.getItem('adminToken') || localStorage.getItem('token') || null;
     } catch {
       return null;
     }
@@ -17,13 +36,28 @@ export function AuthProvider({ children }) {
 
   const [user, setUser] = useState(() => {
     try {
-      const stored = localStorage.getItem('mm_user');
-      if (!stored) return null;
-      const parsed = JSON.parse(stored);
-      if (parsed?.email && parsed.email.toLowerCase().trim() === 'magicmistry187@gmail.com') {
-        parsed.role = 'admin';
+      const stored = localStorage.getItem('mm_user') || localStorage.getItem('user');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.email && parsed.email.toLowerCase().trim() === 'magicmistry187@gmail.com') {
+          parsed.role = 'admin';
+        }
+        return parsed;
       }
-      return parsed;
+      // Check adminToken or other token
+      const anyToken = localStorage.getItem('adminToken') || localStorage.getItem('mm_token') || localStorage.getItem('token');
+      if (anyToken) {
+        const decoded = decodeJwtPayload(anyToken);
+        if (decoded?.email?.toLowerCase().trim() === 'magicmistry187@gmail.com' || decoded?.role === 'admin') {
+          return {
+            email: 'magicmistry187@gmail.com',
+            role: 'admin',
+            fullName: 'Magic Mistry Admin',
+            id: decoded?.id,
+          };
+        }
+      }
+      return null;
     } catch {
       return null;
     }
@@ -31,7 +65,7 @@ export function AuthProvider({ children }) {
 
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     try {
-      return !!localStorage.getItem('mm_token');
+      return !!(localStorage.getItem('mm_token') || localStorage.getItem('adminToken') || localStorage.getItem('token'));
     } catch {
       return false;
     }
@@ -54,32 +88,51 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const storedToken    = localStorage.getItem('mm_token');
-        const storedUser     = localStorage.getItem('mm_user');
+        const storedToken    = localStorage.getItem('mm_token') || localStorage.getItem('adminToken') || localStorage.getItem('token');
+        const storedUser     = localStorage.getItem('mm_user') || localStorage.getItem('user');
         const storedLocation = localStorage.getItem('mm_location');
-        if (storedToken && storedUser) {
+        if (storedToken) {
           setToken(storedToken);
-          const parsedUser = JSON.parse(storedUser);
-          if (parsedUser?.email && parsedUser.email.toLowerCase().trim() === 'magicmistry187@gmail.com') {
-            parsedUser.role = 'admin';
+          let parsedUser = null;
+          if (storedUser) {
+            try {
+              parsedUser = JSON.parse(storedUser);
+            } catch {}
           }
-          setUser(parsedUser);
+          if (!parsedUser) {
+            const decoded = decodeJwtPayload(storedToken);
+            if (decoded?.email?.toLowerCase().trim() === 'magicmistry187@gmail.com' || decoded?.role === 'admin') {
+              parsedUser = {
+                email: 'magicmistry187@gmail.com',
+                role: 'admin',
+                fullName: 'Magic Mistry Admin',
+                id: decoded?.id,
+              };
+            }
+          }
+          if (parsedUser) {
+            if (parsedUser?.email && parsedUser.email.toLowerCase().trim() === 'magicmistry187@gmail.com') {
+              parsedUser.role = 'admin';
+            }
+            setUser(parsedUser);
+          }
           setIsLoggedIn(true);
 
-          // Initial fallback while syncing from backend
-          const initialUserLoc = formatCleanAddress(parsedUser.location);
+          // Initial fallback while syncing from backend (safely access parsedUser)
+          const initialUserLoc = parsedUser?.location ? formatCleanAddress(parsedUser.location) : '';
           const initialStoredLoc = formatCleanAddress(storedLocation);
           const initialResolvedLoc = initialUserLoc || initialStoredLoc || 'Set Your Location';
           setLocation(initialResolvedLoc);
 
           // Rehydrate fresh profile data from backend (AUTHORITATIVE SOURCE)
-          const isAdminUser = parsedUser.role === 'admin' || (parsedUser.email && parsedUser.email.toLowerCase().trim() === 'magicmistry187@gmail.com');
-          if (isAdminUser) {
+          const isAdminUser = parsedUser?.role === 'admin' || (parsedUser?.email && parsedUser.email.toLowerCase().trim() === 'magicmistry187@gmail.com');
+          if (isAdminUser && parsedUser) {
             parsedUser.role = 'admin';
             setUser(parsedUser);
             localStorage.setItem('mm_user', JSON.stringify(parsedUser));
+            localStorage.setItem('adminToken', storedToken);
             // Admin role is preserved
-          } else {
+          } else if (parsedUser) {
             try {
               let profileRes;
               let profileData;
@@ -244,6 +297,11 @@ export function AuthProvider({ children }) {
 
     localStorage.setItem('mm_token', authToken);
     localStorage.setItem('mm_user', JSON.stringify(updatedUser));
+    if (role === 'admin') {
+      localStorage.setItem('adminToken', authToken);
+      localStorage.setItem('token', authToken);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+    }
 
     // Fetch authoritative saved addresses upon login
     fetchAddresses(authToken);

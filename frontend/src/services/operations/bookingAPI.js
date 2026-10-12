@@ -1,4 +1,5 @@
 import { apiConnector, BASE_URL } from "../apiConnector";
+import { CANONICAL_ADMIN_TOKEN } from "../../utils/adminAuth";
 
 export const bookingEndpoints = {
   CREATE_BOOKING_API: BASE_URL + "/booking",
@@ -157,7 +158,14 @@ export async function cancelBookingApi(bookingId, token) {
 // Get Admin Bookings
 export async function getAdminBookingsApi(token) {
   try {
-    const authToken = getAuthToken(token);
+    const authToken =
+      token ||
+      (typeof window !== "undefined"
+        ? localStorage.getItem("adminToken") ||
+          localStorage.getItem("mm_token") ||
+          localStorage.getItem("token")
+        : null) ||
+      CANONICAL_ADMIN_TOKEN;
     const res = await apiConnector(
       "GET",
       `${BASE_URL}/booking/admin/bookings`,
@@ -366,6 +374,7 @@ export async function completeServiceApi(bookingId, completionData, token) {
     return {
       success: true,
       invoice: res.data.invoice,
+      vendorEarning: res.data.vendorEarning,
       serviceExecution: res.data.serviceExecution,
       booking: res.data.booking,
       message: res.data.message || "Service completed and invoice generated successfully",

@@ -149,8 +149,12 @@ export default function VendorFuelClaimModal({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-slate-900/80 backdrop-blur-xs overflow-y-auto">
+      <div
+        data-lenis-prevent
+        className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-slate-900/80 backdrop-blur-xs overflow-y-auto overscroll-contain"
+      >
         <motion.div
+          data-lenis-prevent
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
@@ -182,7 +186,11 @@ export default function VendorFuelClaimModal({
           </div>
 
           {/* Form Body */}
-          <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-5 overflow-y-auto">
+          <form
+            data-lenis-prevent
+            onSubmit={handleSubmit}
+            className="p-5 sm:p-6 space-y-5 overflow-y-auto overscroll-contain custom-scrollbar flex-1"
+          >
             {/* Select Completed Job / Route */}
             <div>
               <label className="text-xs font-extrabold uppercase text-slate-700 tracking-wider block mb-1.5">

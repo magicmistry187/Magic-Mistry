@@ -284,3 +284,37 @@ export async function logoutApi() {
     };
   }
 }
+
+/**
+ * Change password for authenticated user.
+ * Connects directly to backend POST /api/auth/changePassword.
+ *
+ * @param {Object} credentials - { oldPassword, newPassword, confirmPassword }
+ * @param {string} token - Optional auth JWT token
+ */
+export async function changePasswordApi({ oldPassword, newPassword, confirmPassword }, token) {
+  try {
+    const authToken = token || (typeof window !== 'undefined' ? (localStorage.getItem('mm_token') || localStorage.getItem('token') || localStorage.getItem('vendorToken')) : null);
+    const res = await apiConnector(
+      "POST",
+      BASE_URL + "/auth/changePassword",
+      { oldPassword, newPassword, confirmPassword },
+      authToken ? { Authorization: `Bearer ${authToken}` } : {}
+    );
+    console.log("CHANGE PASSWORD RESPONSE .......", res.data);
+    if (!res.data?.success) {
+      throw new Error(res.data?.message || "Failed to change password");
+    }
+
+    return {
+      success: true,
+      message: res.data.message || "Password changed successfully",
+    };
+  } catch (err) {
+    console.error("CHANGE PASSWORD ERROR .......", err);
+    return {
+      success: false,
+      message: err.response?.data?.message || err.message || "Failed to change password",
+    };
+  }
+}

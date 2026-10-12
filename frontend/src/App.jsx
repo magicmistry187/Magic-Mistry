@@ -72,6 +72,7 @@ export default function App() {
           <Route path="/admin-dashboard" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboardPage /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboardPage /></ProtectedRoute>} />
           <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboardPage /></ProtectedRoute>} />
+          <Route path="/dashboard/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboardPage /></ProtectedRoute>} />
 
           {/* User Dashboard & Sub-routes (Restricted to Customer role) */}
           <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['customer']}><UserDashboardPage /></ProtectedRoute>} />

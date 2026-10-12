@@ -166,6 +166,7 @@ const Footer = () => {
                 { name: "FAQ / Help Center", path: "/faq" },
                 { name: "Become a Vendor", path: "/become-a-vendor" },
                 { name: "Vendor Login", path: "/login", state: { isVendorLogin: true } },
+                { name: "Admin Portal", path: "/admin-dashboard" },
               ].map((link) => (
                 <li key={link.name}>
                   <Link

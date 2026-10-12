@@ -666,8 +666,9 @@ Generated from Magic Mistry Admin Dashboard
       <AnimatePresence>
         {activePhoto && (
           <div
+            data-lenis-prevent
             onClick={() => setActivePhoto(null)}
-            className="fixed inset-0 z-[10000] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 cursor-pointer"
+            className="fixed inset-0 z-[10000] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 cursor-pointer overflow-y-auto overscroll-contain"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
