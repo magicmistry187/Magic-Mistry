@@ -1,116 +1,144 @@
 
-
 const Payout = require('../models/payout.model');
 const VendorEarning = require('../models/vendorEarning.model');
 
-// Vendor creates a payout request using their available earnings.
-const createPayoutRequest = async (req, res) => {
+
+exports.createPayoutRequest = async (req, res) => {
   const session = await mongoose.startSession();
 
   try {
     const vendorId = req.user.id;
-    const { earnings, payoutMethod } = req.body;
 
-    // Validate the selected earnings.
+    console.log('Vendor ID:', vendorId);
+
+    const { earnings, amount, daysOfWork, settlementNotes = '' } = req.body;
+
+    // Validate earning IDs.
     if (!Array.isArray(earnings) || earnings.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Please select at least one earning.',
+        message: 'Please provide at least one earning ID.',
       });
     }
 
-    // Validate the payout method.
-    if (!['UPI', 'Bank Transfer'].includes(payoutMethod)) {
+    const earningIds = [...new Set(earnings.map(String))];
+
+    if (
+      earningIds.length !== earnings.length ||
+      earningIds.some((id) => !mongoose.isValidObjectId(id))
+    ) {
       return res.status(400).json({
         success: false,
-        message: 'Payout method must be UPI or Bank Transfer.',
+        message: 'Earning IDs are invalid or duplicated.',
       });
     }
 
-    // Prevent duplicate earning IDs in the request.
-    const uniqueEarnings = [...new Set(earnings)];
+    // Validate payout amount.
+    const payoutAmount = Number(amount);
 
-    if (uniqueEarnings.length !== earnings.length) {
+    if (!Number.isFinite(payoutAmount) || payoutAmount <= 0) {
       return res.status(400).json({
         success: false,
-        message: 'Duplicate earnings are not allowed.',
+        message: 'Please provide a valid payout amount.',
       });
     }
 
-    // Validate MongoDB IDs.
-    const invalidIds = uniqueEarnings.some(
-      (id) => !mongoose.isValidObjectId(id)
-    );
+    // Validate working days.
+    const workDays = Number(daysOfWork);
 
-    if (invalidIds) {
+    if (!Number.isInteger(workDays) || workDays < 1) {
       return res.status(400).json({
         success: false,
-        message: 'One or more earning IDs are invalid.',
+        message: 'Days of work must be a positive whole number.',
+      });
+    }
+
+    // Validate optional settlement notes.
+    if (typeof settlementNotes !== 'string' || settlementNotes.length > 500) {
+      return res.status(400).json({
+        success: false,
+        message: 'Settlement notes must not exceed 500 characters.',
       });
     }
 
     let createdPayout;
 
-    // Keep payout creation and earning updates consistent.
+    // Create payout and update earnings in one transaction.
     await session.withTransaction(async () => {
-      // Only select this vendor's earnings that are still available.
-      const selectedEarnings = await VendorEarning.find({
-        _id: { $in: uniqueEarnings },
+      // Find earnings belonging to the logged-in vendor.
+      const earningRecords = await VendorEarning.find({
+        _id: { $in: earningIds },
         vendor: vendorId,
         status: 'Available',
       }).session(session);
 
-      // Reject if an earning is missing, unavailable, or belongs to another vendor.
-      if (selectedEarnings.length !== uniqueEarnings.length) {
+      // Ensure every earning belongs to this vendor
+      // and is available for payout.
+      if (earningRecords.length !== earningIds.length) {
         const error = new Error(
-          'Some earnings are unavailable or do not belong to you.'
+          'Some earning records were not found, do not belong to you, or are not Available.',
         );
+
         error.statusCode = 400;
         throw error;
       }
 
-      // Calculate amounts on the backend.
-      const serviceEarningAmount = selectedEarnings.reduce(
-        (total, earning) => total + earning.serviceShareAmount,
-        0
+      // Calculate service earnings.
+      const serviceEarningAmount = Number(
+        earningRecords
+          .reduce(
+            (total, earning) => total + Number(earning.serviceShareAmount || 0),
+            0,
+          )
+          .toFixed(2),
       );
 
-      const travelEarningAmount = selectedEarnings.reduce(
-        (total, earning) => total + earning.travelCharge,
-        0
+      // Calculate travel earnings.
+      const travelEarningAmount = Number(
+        earningRecords
+          .reduce(
+            (total, earning) => total + Number(earning.travelCharge || 0),
+            0,
+          )
+          .toFixed(2),
       );
 
-      const amount = serviceEarningAmount + travelEarningAmount;
+      // Calculate the total payout amount.
+      const calculatedAmount = Number(
+        (serviceEarningAmount + travelEarningAmount).toFixed(2),
+      );
 
-      if (amount <= 0) {
+      // Verify the amount submitted by the frontend.
+      if (Math.abs(payoutAmount - calculatedAmount) > 0.01) {
         const error = new Error(
-          'The total payout amount must be greater than zero.'
+          `Amount mismatch. Expected amount: ${calculatedAmount}`,
         );
+
         error.statusCode = 400;
         throw error;
       }
 
-      // Create the payout request for the admin to review.
+      // Create the payout request for the admin dashboard.
       const [payout] = await Payout.create(
         [
           {
             vendor: vendorId,
-            earnings: selectedEarnings.map((earning) => earning._id),
+            earnings: earningRecords.map((earning) => earning._id),
             serviceEarningAmount,
             travelEarningAmount,
-            amount,
-            payoutMethod,
+            daysOfWork: workDays,
+            amount: calculatedAmount,
+            settlementNotes: settlementNotes.trim(),
             status: 'Requested',
-            requestedAt: new Date(),
           },
         ],
-        { session }
+        { session },
       );
 
-      // Reserve the selected earnings so they cannot be requested twice.
+      // Mark the selected earnings as included in this payout.
       const updateResult = await VendorEarning.updateMany(
         {
-          _id: { $in: uniqueEarnings },
+          _id: { $in: earningIds },
           vendor: vendorId,
           status: 'Available',
         },
@@ -120,13 +148,17 @@ const createPayoutRequest = async (req, res) => {
             payout: payout._id,
           },
         },
-        { session }
+        { session },
       );
 
-      if (updateResult.modifiedCount !== uniqueEarnings.length) {
-        throw new Error(
-          'Could not reserve all selected earnings. Please try again.'
+      // Ensure every selected earning was updated.
+      if (updateResult.modifiedCount !== earningIds.length) {
+        const error = new Error(
+          'Failed to update all selected earning records.',
         );
+
+        error.statusCode = 409;
+        throw error;
       }
 
       createdPayout = payout;
@@ -134,7 +166,7 @@ const createPayoutRequest = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Payout request submitted successfully.',
+      message: 'Payout request created successfully.',
       data: createdPayout,
     });
   } catch (error) {
@@ -142,17 +174,11 @@ const createPayoutRequest = async (req, res) => {
 
     return res.status(error.statusCode || 500).json({
       success: false,
-      message:
-        error.statusCode === 400
-          ? error.message
-          : 'Failed to create payout request.',
+      message: error.statusCode
+        ? error.message
+        : 'Failed to create payout request.',
     });
   } finally {
     await session.endSession();
   }
 };
-
-module.exports = {
-  createPayoutRequest,
-};
-
