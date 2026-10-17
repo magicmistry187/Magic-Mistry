@@ -230,3 +230,69 @@ exports.updateUserStatus = async (req, res) => {
     });
   }
 };
+
+
+// Admin gets users with pagination.
+exports.getAllUsers = async (req, res) => {
+  try {
+    // Only admins can access this endpoint.
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Admin only.',
+      });
+    }
+
+    // Read pagination values from query parameters.
+    const page = Math.max(
+      parseInt(req.query.page, 10) || 1,
+      1
+    );
+
+    const requestedLimit = Math.max(
+      parseInt(req.query.limit, 10) || 10,
+      1
+    );
+
+    // Prevent excessively large requests.
+    const limit = Math.min(requestedLimit, 100);
+
+    // Calculate how many records to skip.
+    const skip = (page - 1) * limit;
+
+    // Fetch the requested page and total count together.
+    const [users, totalUsers] = await Promise.all([
+      User.find()
+        .select('-password -__v')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+
+      User.countDocuments(),
+    ]);
+
+    const totalPages = Math.ceil(totalUsers / limit);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Users retrieved successfully.',
+      pagination: {
+        currentPage: page,
+        pageSize: limit,
+        totalUsers,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+      data: users,
+    });
+  } catch (error) {
+    console.error('Get users error:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve users.',
+    });
+  }
+};

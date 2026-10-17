@@ -109,7 +109,7 @@ exports.createFuelClaim = async (req, res) => {
       });
     }
 
-    .
+    
     const bookingVendorId =
       bookingData.vendor?._id || bookingData.vendor;
 
@@ -130,7 +130,7 @@ exports.createFuelClaim = async (req, res) => {
       odometer: { url: '', fileId: '' },
     };
 
-   Upload only the files the vendor provided.
+  
     for (const [proofType, file] of Object.entries(proofFiles)) {
       if (!file) continue;
 
