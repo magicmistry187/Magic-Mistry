@@ -899,7 +899,6 @@ export default function VendorDashboardPage() {
     return Number(earningsBreakdown?.totalAvailablePayout) || 0;
   }, [earningsBreakdown]);
 
-  const [filterCategory, setFilterCategory] = useState('All');
   const [jobStatusFilter, setJobStatusFilter] = useState('all'); // 'all' | 'pending' | 'accepted' | 'rejected'
   const [isGroupedView, setIsGroupedView] = useState(false);
 
@@ -969,14 +968,9 @@ export default function VendorDashboardPage() {
     };
   }, [jobs]);
 
-  // Filtered jobs based on selected category and status (All / Pending / Accept / Reject)
+  // Filtered jobs based on status (All / Pending / Accept / Reject)
   const filteredJobs = useMemo(() => {
     return (jobs || []).filter(job => {
-      const catMatch = filterCategory === 'All' || 
-        String(job.appliance || '').toLowerCase().includes(filterCategory.toLowerCase()) ||
-        String(job.serviceCategory || '').toLowerCase().includes(filterCategory.toLowerCase());
-      if (!catMatch) return false;
-
       if (jobStatusFilter === 'pending') {
         return job.status === 'New Request' || job.status === 'Pending';
       }
@@ -988,7 +982,7 @@ export default function VendorDashboardPage() {
       }
       return true;
     });
-  }, [jobs, filterCategory, jobStatusFilter]);
+  }, [jobs, jobStatusFilter]);
 
   // Grouped jobs by category for the grouped view mode
   const groupedJobs = useMemo(() => {
@@ -3319,70 +3313,8 @@ export default function VendorDashboardPage() {
                       </span>
                     </div>
                     <p className="text-xs text-slate-500 font-medium mt-0.5">
-                      Real-time customer work orders organized by appliance category
+                      Real-time customer work orders and service requests
                     </p>
-                  </div>
-                </div>
-
-                {/* HORIZONTAL CATEGORY PILLS BAR */}
-                <div className="mb-4">
-                  <div
-                    className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden"
-                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setFilterCategory('All')}
-                      className={`shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 border ${
-                        filterCategory === 'All'
-                          ? 'bg-[#061e38] text-white border-[#061e38] shadow-sm'
-                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      <span>All Categories</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
-                        filterCategory === 'All' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
-                      }`}>
-                        {categoryStats.totalJobs}
-                      </span>
-                      {categoryStats.totalPending > 0 && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500 text-white font-black animate-pulse">
-                          {categoryStats.totalPending} New
-                        </span>
-                      )}
-                    </button>
-
-                    {categoryStats.categories.map((cat) => {
-                      const isSelected = filterCategory.toLowerCase() === cat.name.toLowerCase();
-                      const hasJobs = cat.total > 0;
-                      return (
-                        <button
-                          key={cat.name}
-                          type="button"
-                          onClick={() => setFilterCategory(isSelected ? 'All' : cat.name)}
-                          className={`shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 border ${
-                            isSelected
-                              ? 'bg-[#061e38] text-white border-[#061e38] shadow-sm'
-                              : hasJobs
-                              ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 shadow-xs'
-                              : 'bg-white/60 text-slate-400 border-slate-200/60 hover:bg-slate-50'
-                          }`}
-                        >
-                          <span className="text-base">{cat.icon}</span>
-                          <span>{cat.name}</span>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
-                            isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-                          }`}>
-                            {cat.total}
-                          </span>
-                          {cat.pending > 0 && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black animate-pulse shadow-xs">
-                              {cat.pending} New
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
                   </div>
                 </div>
 
@@ -3463,22 +3395,6 @@ export default function VendorDashboardPage() {
                       </span>
                     </button>
                   </div>
-
-                  {filterCategory !== 'All' && (
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
-                      <span>Category:</span>
-                      <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-extrabold">
-                        {filterCategory}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setFilterCategory('All')}
-                        className="text-slate-400 hover:text-slate-700 text-[11px] font-bold underline cursor-pointer ml-1"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  )}
                 </div>
 
                 {/* JOB LIST */}
@@ -3487,15 +3403,15 @@ export default function VendorDashboardPage() {
                     <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                       <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-2 opacity-60" />
                       <h3 className="text-base font-bold text-slate-800">
-                        {filterCategory !== 'All' || jobStatusFilter !== 'all' ? 'No work orders matching filters' : 'All work orders clear!'}
+                        {jobStatusFilter !== 'all' ? 'No work orders matching status' : 'All work orders clear!'}
                       </h3>
                       <p className="text-xs text-slate-500 mt-1">
-                        {filterCategory !== 'All' || jobStatusFilter !== 'all' ? 'Try selecting a different category or clearing status filter.' : 'Stay online to receive incoming customer service calls.'}
+                        {jobStatusFilter !== 'all' ? 'Try selecting a different status filter.' : 'Stay online to receive incoming customer service calls.'}
                       </p>
-                      {(filterCategory !== 'All' || jobStatusFilter !== 'all') && (
+                      {jobStatusFilter !== 'all' && (
                         <button
                           type="button"
-                          onClick={() => { setFilterCategory('All'); setJobStatusFilter('all'); }}
+                          onClick={() => setJobStatusFilter('all')}
                           className="mt-3 px-4 py-1.5 bg-[#061e38] text-white text-xs font-bold rounded-xl cursor-pointer hover:bg-slate-800 transition-colors"
                         >
                           Show All Services
