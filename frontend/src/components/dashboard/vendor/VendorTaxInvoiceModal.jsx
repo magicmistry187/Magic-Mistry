@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Printer, X, Wrench, Shield, Navigation, MapPin, Eye } from 'lucide-react';
+import { FileText, Printer, X, Wrench, Shield, Navigation, MapPin, Eye, Save, Check, Download } from 'lucide-react';
+import { saveInvoiceForBooking } from '../../../services/invoiceService';
 
 const safeText = (val, fallback = '') => {
   if (val === null || val === undefined) return fallback;
@@ -33,9 +34,26 @@ export default function VendorTaxInvoiceModal({
   showTaxInvoiceModal,
   generatedInvoiceData,
   handleSameTabPrintOrSavePDF,
-  handleCloseInvoiceModal
+  handleCloseInvoiceModal,
+  onSaveInvoice,
 }) {
   const [showProofPreview, setShowProofPreview] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+
+  const handleSave = () => {
+    if (!generatedInvoiceData) return;
+    if (onSaveInvoice) {
+      onSaveInvoice(generatedInvoiceData);
+    } else {
+      const targetId = generatedInvoiceData.backendJobId || generatedInvoiceData.bookingId || generatedInvoiceData.invoiceId || generatedInvoiceData.id;
+      saveInvoiceForBooking(targetId, generatedInvoiceData);
+      if (generatedInvoiceData.invoiceId) {
+        saveInvoiceForBooking(generatedInvoiceData.invoiceId, generatedInvoiceData);
+      }
+    }
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 3000);
+  };
 
   return (
     <AnimatePresence>
@@ -59,15 +77,41 @@ export default function VendorTaxInvoiceModal({
               </div>
 
               <div className="flex items-center gap-2">
+                {/* SAVE INVOICE BUTTON */}
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className={`px-3.5 py-2 text-white text-xs font-extrabold rounded-xl flex items-center gap-1.5 shadow-md transition-all cursor-pointer ${
+                    isSaved
+                      ? 'bg-emerald-700 shadow-emerald-700/30 ring-2 ring-emerald-300'
+                      : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20 active:scale-95'
+                  }`}
+                  title="Save invoice to records"
+                >
+                  {isSaved ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-200" />
+                      <span>Saved!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>Save Invoice</span>
+                    </>
+                  )}
+                </button>
+
                 {/* SAME TAB PRINT / SAVE AS PDF BUTTON */}
                 <button
+                  type="button"
                   onClick={handleSameTabPrintOrSavePDF}
-                  className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs font-extrabold rounded-xl flex items-center gap-1.5 shadow-md shadow-orange-500/20 transition-all cursor-pointer"
+                  className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs font-extrabold rounded-xl flex items-center gap-1.5 shadow-md shadow-orange-500/20 transition-all cursor-pointer active:scale-95"
                 >
-                  <Printer className="w-4 h-4" /> Download PDF / Print Invoice
+                  <Printer className="w-4 h-4" /> Download PDF / Print
                 </button>
 
                 <button
+                  type="button"
                   onClick={handleCloseInvoiceModal}
                   className="p-1.5 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer ml-1"
                   title="Close Modal"
@@ -257,11 +301,34 @@ export default function VendorTaxInvoiceModal({
                 </p>
               </div>
 
-              {/* Modal Footer Return Button (Hidden during print) */}
-              <div className="pt-4 border-t border-slate-100 flex justify-end no-print">
+              {/* Modal Footer Return & Action Buttons (Hidden during print) */}
+              <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 no-print">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    className={`px-4 py-2.5 text-white text-xs font-extrabold rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer ${
+                      isSaved ? 'bg-emerald-700 ring-2 ring-emerald-300' : 'bg-emerald-600 hover:bg-emerald-700 active:scale-95'
+                    }`}
+                  >
+                    {isSaved ? <Check className="w-3.5 h-3.5 text-emerald-200" /> : <Save className="w-3.5 h-3.5" />}
+                    <span>{isSaved ? '✓ Invoice Saved' : 'Save Invoice'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSameTabPrintOrSavePDF}
+                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Print / Save as PDF</span>
+                  </button>
+                </div>
+
                 <button
+                  type="button"
                   onClick={handleCloseInvoiceModal}
-                  className="px-6 py-2.5 bg-[#061e38] hover:bg-[#0a2f57] text-white text-xs font-extrabold rounded-xl transition-all shadow-md cursor-pointer"
+                  className="px-6 py-2.5 bg-[#061e38] hover:bg-[#0a2f57] text-white text-xs font-extrabold rounded-xl transition-all shadow-md cursor-pointer active:scale-95"
                 >
                   ✓ Done &amp; Return to Dashboard Queue
                 </button>

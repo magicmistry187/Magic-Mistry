@@ -7,14 +7,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Printer, FileText, Wrench, Shield, Navigation, RefreshCw } from 'lucide-react';
-import { getInvoiceForBooking, normalizeInvoiceForUI, fetchRealtimeInvoice } from '../../../services/invoiceService';
+import { X, Printer, FileText, Wrench, Shield, Navigation, RefreshCw, Save, Check } from 'lucide-react';
+import { getInvoiceForBooking, normalizeInvoiceForUI, fetchRealtimeInvoice, saveInvoiceForBooking } from '../../../services/invoiceService';
 
 export default function UserInvoiceModal({ isOpen, onClose, booking }) {
   const rawId = booking?.id || booking?._id || booking?.rawBooking?._id || booking?.rawBooking?.bookingId;
   const initialInvoice = booking ? normalizeInvoiceForUI(booking.invoice || booking.rawBooking?.invoice || getInvoiceForBooking(rawId, booking), booking) : null;
   const [realtimeInvoice, setRealtimeInvoice] = useState(initialInvoice);
   const [isFetchingLive, setIsFetchingLive] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
 
   // Fetch real-time data from backend whenever modal is opened
   useEffect(() => {
@@ -47,6 +48,17 @@ export default function UserInvoiceModal({ isOpen, onClose, booking }) {
   };
 
   const inv = realtimeInvoice || initialInvoice || {};
+
+  const handleSaveInvoice = () => {
+    if (inv) {
+      const targetId = rawId || inv.invoiceId || inv.invoiceNumber;
+      saveInvoiceForBooking(targetId, inv);
+      if (inv.invoiceId) saveInvoiceForBooking(inv.invoiceId, inv);
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 3000);
+    }
+  };
+
   const invoiceId = inv.invoiceId || inv.invoiceNumber || booking.invoiceId || (booking.rawBooking?.completedAt ? `MM-${new Date(booking.rawBooking.completedAt).getTime()}` : `MM-${Date.now()}`);
   const invoiceDate = inv.date || booking.date || new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   const rawPrice = inv.total ?? booking.realPrice ?? booking.rawBooking?.serviceCharge ?? booking.rawBooking?.serviceCategoryCharge ?? booking.price ?? 299;
@@ -124,8 +136,22 @@ export default function UserInvoiceModal({ isOpen, onClose, booking }) {
             </div>
             <div className="flex items-center gap-2">
               <button
+                type="button"
+                onClick={handleSaveInvoice}
+                className={`px-3 py-1.5 text-white text-xs font-extrabold rounded-xl flex items-center gap-1.5 shadow-md transition-all cursor-pointer ${
+                  isSaved
+                    ? 'bg-emerald-700 shadow-emerald-700/30 ring-2 ring-emerald-300'
+                    : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20 active:scale-95'
+                }`}
+                title="Save invoice to records"
+              >
+                {isSaved ? <Check className="w-3.5 h-3.5 text-emerald-200" /> : <Save className="w-3.5 h-3.5" />}
+                <span>{isSaved ? 'Saved!' : 'Save Invoice'}</span>
+              </button>
+
+              <button
                 onClick={handlePrint}
-                className="px-3.5 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-extrabold rounded-xl flex items-center gap-1.5 shadow-md shadow-orange-500/20 transition-all cursor-pointer"
+                className="px-3.5 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-extrabold rounded-xl flex items-center gap-1.5 shadow-md shadow-orange-500/20 transition-all cursor-pointer active:scale-95"
               >
                 <Printer className="w-4 h-4" /> Print / Save as PDF
               </button>

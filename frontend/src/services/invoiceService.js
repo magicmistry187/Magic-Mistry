@@ -42,24 +42,68 @@ export function getStorageMap() {
 }
 
 /**
- * Persist an invoice into local storage keyed by booking ID and invoice number.
- * Typically called when a vendor completes a job and backend returns the new Invoice document.
+ * Persist an invoice into local storage keyed by booking ID, invoice number, and invoice ID.
+ * Typically called when a vendor generates/saves a draft or completes a job and backend returns the new Invoice document.
  */
 export function saveInvoiceForBooking(bookingId, invoice) {
-  if (!bookingId || !invoice || typeof window === 'undefined') return;
+  if (!invoice || typeof window === 'undefined') return;
   try {
     const map = getStorageMap();
-    const cleanBookingId = String(bookingId).trim();
-    map[cleanBookingId] = invoice;
+    if (bookingId) {
+      const cleanBookingId = String(bookingId).trim();
+      map[cleanBookingId] = invoice;
+    }
     if (invoice.invoiceNumber) {
       map[String(invoice.invoiceNumber).trim()] = invoice;
+    }
+    if (invoice.invoiceId) {
+      map[String(invoice.invoiceId).trim()] = invoice;
     }
     if (invoice._id) {
       map[String(invoice._id).trim()] = invoice;
     }
+    if (invoice.bookingId) {
+      map[String(invoice.bookingId).trim()] = invoice;
+    }
+    if (invoice.id) {
+      map[String(invoice.id).trim()] = invoice;
+    }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
   } catch (e) {
     console.warn('[InvoiceService] Failed to save invoice to localStorage:', e);
+  }
+}
+
+/**
+ * Convenience wrapper to save an invoice directly.
+ */
+export function saveInvoice(invoice) {
+  if (!invoice) return null;
+  const primaryId = invoice.bookingId || invoice.booking || invoice.id || invoice._id || invoice.invoiceId || invoice.invoiceNumber;
+  saveInvoiceForBooking(primaryId, invoice);
+  return invoice;
+}
+
+/**
+ * Retrieve all unique saved invoices from local storage.
+ */
+export function getAllSavedInvoices() {
+  if (typeof window === 'undefined') return [];
+  try {
+    const map = getStorageMap();
+    const seen = new Set();
+    const result = [];
+    Object.values(map).forEach((inv) => {
+      if (!inv) return;
+      const key = inv.invoiceId || inv.invoiceNumber || inv._id || inv.bookingId || inv.id;
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        result.push(inv);
+      }
+    });
+    return result;
+  } catch (e) {
+    return [];
   }
 }
 
@@ -388,7 +432,16 @@ export function getInvoiceForBooking(bookingIdOrNumber, fallbackBooking = null) 
 
   // Also check values in storage map if key matches booking or invoiceNumber
   const byVal = Object.values(map).find(
-    (inv) => inv && (inv.invoiceNumber === key || inv.bookingId === key || inv.booking === key)
+    (inv) =>
+      inv &&
+      (inv.invoiceNumber === key ||
+        inv.invoiceId === key ||
+        inv.bookingId === key ||
+        inv.booking === key ||
+        inv._id === key ||
+        inv.id === key ||
+        inv.displayId === key ||
+        (inv.rawBooking && (inv.rawBooking._id === key || inv.rawBooking.id === key || inv.rawBooking.bookingId === key)))
   );
   if (byVal) return byVal;
 

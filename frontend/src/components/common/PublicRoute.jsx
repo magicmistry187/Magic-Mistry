@@ -7,7 +7,7 @@ import PageLoader from './PageLoader';
  * PublicRoute (Guest Guard)
  * Restricts access to unauthenticated visitors only.
  * If already logged in, seamlessly redirects to the user's role-specific dashboard.
- * EXCEPTION: If the user explicitly requested Admin or Vendor login (location.state?.isAdminLogin or isVendorLogin),
+ * EXCEPTION: If the user explicitly requested Vendor login (location.state?.isVendorLogin),
  * allow them to access the login page to switch accounts!
  */
 const PublicRoute = ({ children }) => {
@@ -18,8 +18,8 @@ const PublicRoute = ({ children }) => {
     return <PageLoader label="Checking session..." />;
   }
 
-  // Allow switching accounts if directed to login for a specific role (e.g. Admin or Vendor login)
-  if (location.state?.isAdminLogin || location.state?.isVendorLogin) {
+  // Allow switching accounts if directed to login for a specific role (e.g. Vendor login)
+  if (location.state?.isVendorLogin) {
     return children;
   }
 

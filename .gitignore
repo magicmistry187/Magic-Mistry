@@ -23,3 +23,9 @@ qodo/
 qudo/
 adapters/
 .adapters/
+
+# Non-production agent files, rule docs, and tooling scripts
+scripts/
+GSD-STYLE.md
+PROJECT_RULES.md
+model_capabilities.yaml

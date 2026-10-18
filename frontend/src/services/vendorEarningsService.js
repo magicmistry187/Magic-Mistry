@@ -20,12 +20,30 @@ export const vendorEarningsEndpoints = {
   GET_SINGLE_EARNING_API: `${BASE_URL}/vendor-earnings/vendor`, // + /:id
   GET_ADMIN_EARNINGS_API: `${BASE_URL}/vendor-earnings/admin`,
   GET_ADMIN_VENDOR_EARNINGS_API: `${BASE_URL}/vendor-earnings/admin/vendor`, // + /:vendorId
-  // Backend doesn't host standalone allowance sync/claim/payout routes yet; fallback locally
-  GET_FUEL_ALLOWANCES_API: null,
-  SUBMIT_FUEL_CLAIM_API: null,
-  REQUEST_PAYOUT_API: null,
+  GET_FUEL_ALLOWANCES_API: `${BASE_URL}/fuel-claims`,
+  SUBMIT_FUEL_CLAIM_API: `${BASE_URL}/fuel-claims`,
+  REQUEST_PAYOUT_API: `${BASE_URL}/payout/request`,
   SYNC_ALLOWANCE_API: null,
 };
+
+function dataURLtoFile(dataurl, filename = 'receipt.png') {
+  if (!dataurl || typeof dataurl !== 'string' || !dataurl.includes(',')) return null;
+  try {
+    const arr = dataurl.split(',');
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
+  } catch (err) {
+    console.warn('[VendorEarningsService] Error converting dataURL to File:', err);
+    return null;
+  }
+}
 
 const STORAGE_KEYS = {
   TRAVEL_ALLOWANCES: 'mm_vendor_travel_allowances',
@@ -240,46 +258,63 @@ export async function fetchVendorEarningsFromBackend(token, fallbackCompletedJob
         null,
         { Authorization: `Bearer ${token}` }
       );
-      if (response.data?.success && response.data?.earnings) {
+      if (response.data?.success && Array.isArray(response.data?.earnings)) {
         const raw = response.data.earnings;
-        let calculated = raw;
-        if (Array.isArray(raw)) {
-          let totalServiceCharges = 0;
-          let totalServicePayout = 0;
-          let totalFuelPayout = 0;
-          let totalGrossBilled = 0;
-          let totalDistanceKm = 0;
-          let totalAvailablePayout = 0;
-          let totalComponentCharges = 0;
-          raw.forEach(e => {
-            const sAmount = Number(e.serviceAmount) || 0;
-            const sPayout = Number(e.serviceShareAmount) || (sAmount * 0.5);
-            const tKm = Number(e.travelDistanceKm) || 0;
-            const tCharge = Number(e.travelCharge) || 0;
-            const invTotal = Number(e.customerInvoiceAmount) || 0;
-            const compCharge = Math.max(0, invTotal - sAmount);
-            const net = Number(e.netEarning) || (sPayout + tCharge);
+        let totalServiceCharges = 0;
+        let totalServicePayout = 0;
+        let totalFuelPayout = 0;
+        let totalGrossBilled = 0;
+        let totalDistanceKm = 0;
+        let totalAvailablePayout = 0;
+        let totalIncludedPayout = 0;
+        let totalPaidPayout = 0;
+        let totalComponentCharges = 0;
+        let totalLifetimePayout = 0;
 
-            totalServiceCharges += sAmount;
-            totalServicePayout += sPayout;
-            totalFuelPayout += tCharge;
-            totalGrossBilled += invTotal;
-            totalDistanceKm += tKm;
-            totalComponentCharges += compCharge;
+        raw.forEach(e => {
+          const sAmount = Number(e.serviceAmount) || 0;
+          const sPayout = Number(e.serviceShareAmount) || (sAmount * 0.5);
+          const tKm = Number(e.travelDistanceKm) || 0;
+          const tCharge = Number(e.travelCharge) || 0;
+          const invTotal = Number(e.customerInvoiceAmount) || sAmount;
+          const compCharge = Math.max(0, invTotal - sAmount);
+          const net = Number(e.netEarning) || (sPayout + tCharge);
+
+          totalServiceCharges += sAmount;
+          totalServicePayout += sPayout;
+          totalFuelPayout += tCharge;
+          totalGrossBilled += invTotal;
+          totalDistanceKm += tKm;
+          totalComponentCharges += compCharge;
+          totalLifetimePayout += net;
+
+          const st = String(e.status || 'Available').trim();
+          if (st === 'Available') {
             totalAvailablePayout += net;
-          });
-          calculated = {
-            list: raw,
-            totalServiceCharges,
-            totalServicePayout,
-            totalFuelPayout,
-            totalAvailablePayout,
-            totalGrossBilled,
-            totalDistanceKm,
-            totalComponentCharges,
-            count: raw.length,
-          };
-        }
+          } else if (st === 'Included In Payout') {
+            totalIncludedPayout += net;
+          } else if (st === 'Paid') {
+            totalPaidPayout += net;
+          } else {
+            totalAvailablePayout += net;
+          }
+        });
+
+        const calculated = {
+          list: raw,
+          totalServiceCharges,
+          totalServicePayout,
+          totalFuelPayout,
+          totalAvailablePayout,
+          totalIncludedPayout,
+          totalPaidPayout,
+          totalLifetimePayout,
+          totalGrossBilled,
+          totalDistanceKm,
+          totalComponentCharges,
+          count: raw.length,
+        };
+
         setStoredJson(STORAGE_KEYS.EARNINGS_CACHE, calculated);
         return {
           success: true,
@@ -305,7 +340,7 @@ export async function fetchVendorEarningsFromBackend(token, fallbackCompletedJob
 
 /**
  * Submit a manual fuel allowance claim.
- * Ready to consume backend POST /vendor/earnings/fuel-claim when backend route is added.
+ * Connects directly to backend POST /api/fuel-claims with multipart/form-data.
  */
 export async function submitVendorFuelClaim(claimData, token) {
   const newClaim = {
@@ -315,25 +350,63 @@ export async function submitVendorFuelClaim(claimData, token) {
     createdAt: new Date().toISOString(),
   };
 
-  // Persist locally
+  // Persist locally for immediate optimistic UI & offline fallback
   const claims = getStoredJson(STORAGE_KEYS.FUEL_CLAIMS, []);
   const updated = [newClaim, ...claims];
   setStoredJson(STORAGE_KEYS.FUEL_CLAIMS, updated);
 
-  // Attempt backend submission if endpoint is configured
+  // Attempt backend submission if endpoint and token are present
   if (token && vendorEarningsEndpoints.SUBMIT_FUEL_CLAIM_API) {
     try {
-      const response = await apiConnector(
-        'POST',
-        vendorEarningsEndpoints.SUBMIT_FUEL_CLAIM_API,
-        newClaim,
-        { Authorization: `Bearer ${token}` }
-      );
-      if (response.data?.success) {
-        return { success: true, claim: response.data.claim || newClaim, fromBackend: true };
+      const rawBooking = claimData.booking || claimData.bookingId || claimData.jobId;
+      const isObjectId = typeof rawBooking === 'string' && /^[0-9a-fA-F]{24}$/.test(rawBooking.trim());
+
+      if (isObjectId) {
+        const formData = new FormData();
+        formData.append('booking', rawBooking.trim());
+        formData.append('claimAmount', String(Number(claimData.claimedAmount || claimData.claimAmount || 0).toFixed(2)));
+        formData.append('distanceKm', String(Number(claimData.distanceKm || 0)));
+
+        let vehicleType = 'Company';
+        const rawV = String(claimData.vehicleType || '').toLowerCase();
+        if (rawV.includes('2w') || rawV.includes('2-wheeler') || rawV.includes('scooter') || rawV.includes('motorcycle')) {
+          vehicleType = '2-Wheeler';
+        } else if (rawV.includes('3w') || rawV.includes('3-wheeler') || rawV.includes('auto')) {
+          vehicleType = '3-Wheeler';
+        } else if (rawV.includes('4w') || rawV.includes('4-wheeler') || rawV.includes('car')) {
+          vehicleType = '4-Wheeler';
+        }
+        formData.append('vehicleType', vehicleType);
+
+        const reason = String(claimData.notes || claimData.reason || 'Travel reimbursement for completed service trip').trim();
+        formData.append('reason', reason);
+
+        // Append proof file
+        if (claimData.receiptFile instanceof File || claimData.receiptFile instanceof Blob) {
+          formData.append('petrolReceipt', claimData.receiptFile, claimData.receiptFile.name || 'fuel_receipt.png');
+        } else if (claimData.receiptImage && typeof claimData.receiptImage === 'string' && claimData.receiptImage.startsWith('data:')) {
+          const fileObj = dataURLtoFile(claimData.receiptImage, 'petrol_receipt.png');
+          if (fileObj) {
+            formData.append('petrolReceipt', fileObj);
+          }
+        }
+
+        const response = await apiConnector(
+          'POST',
+          vendorEarningsEndpoints.SUBMIT_FUEL_CLAIM_API,
+          formData,
+          { Authorization: `Bearer ${token}` }
+        );
+
+        if (response.data?.success) {
+          return { success: true, claim: response.data.fuelClaim || response.data.claim || newClaim, fromBackend: true };
+        }
+      } else {
+        console.log('[VendorEarningsService] Booking ID is not a MongoDB ObjectId, saved fuel claim locally.');
       }
     } catch (err) {
-      console.log('[VendorEarningsService] Backend fuel claim notice (saved to local pending queue):', err.message);
+      console.warn('[VendorEarningsService] Backend fuel claim notice (saved to local pending queue):', err.response?.data?.message || err.message);
+      return { success: true, claim: newClaim, fromBackend: false, error: err.response?.data?.message || err.message };
     }
   }
 
@@ -342,7 +415,7 @@ export async function submitVendorFuelClaim(claimData, token) {
 
 /**
  * Submit a payout request.
- * Ready to consume backend POST /vendor/earnings/request-payout when backend route is added.
+ * Connects directly to backend POST /api/payout/request with transaction safety.
  */
 export async function requestVendorPayoutApi(payoutPayload, token) {
   const requestRecord = {
@@ -352,24 +425,54 @@ export async function requestVendorPayoutApi(payoutPayload, token) {
     requestedAt: new Date().toISOString(),
   };
 
-  // Persist locally
+  // Persist locally for immediate optimistic feedback
   const requests = getStoredJson(STORAGE_KEYS.PAYOUT_REQUESTS, []);
   setStoredJson(STORAGE_KEYS.PAYOUT_REQUESTS, [requestRecord, ...requests]);
 
-  // Attempt backend submission if endpoint is configured
+  // Attempt backend submission if endpoint and token are present
   if (token && vendorEarningsEndpoints.REQUEST_PAYOUT_API) {
     try {
-      const response = await apiConnector(
-        'POST',
-        vendorEarningsEndpoints.REQUEST_PAYOUT_API,
-        requestRecord,
-        { Authorization: `Bearer ${token}` }
-      );
-      if (response.data?.success) {
-        return { success: true, data: response.data, fromBackend: true };
+      const rawEarnings = payoutPayload.earnings;
+      const earningIds = Array.isArray(rawEarnings)
+        ? rawEarnings
+            .map(e => (typeof e === 'object' && e ? (e._id || e.id) : e))
+            .filter(id => id && /^[0-9a-fA-F]{24}$/.test(String(id)))
+        : [];
+
+      if (earningIds.length > 0) {
+        const backendPayload = {
+          earnings: earningIds,
+          amount: Number(Number(payoutPayload.amount).toFixed(2)),
+          daysOfWork: Math.max(1, Math.round(Number(payoutPayload.daysOfWork) || 1)),
+          settlementNotes: String(payoutPayload.settlementNotes || payoutPayload.notes || '').slice(0, 500),
+        };
+
+        const response = await apiConnector(
+          'POST',
+          vendorEarningsEndpoints.REQUEST_PAYOUT_API,
+          backendPayload,
+          { Authorization: `Bearer ${token}` }
+        );
+
+        if (response.data?.success) {
+          return {
+            success: true,
+            data: response.data.payout || requestRecord,
+            payout: response.data.payout,
+            fromBackend: true,
+          };
+        }
+      } else {
+        console.log('[VendorEarningsService] No valid MongoDB earning IDs provided for payout request, saved to local ledger.');
       }
     } catch (err) {
-      console.log('[VendorEarningsService] Backend payout request notice (saved locally):', err.message);
+      console.warn('[VendorEarningsService] Backend payout request notice (saved locally):', err.response?.data?.message || err.message);
+      return {
+        success: true,
+        data: requestRecord,
+        fromBackend: false,
+        error: err.response?.data?.message || err.message,
+      };
     }
   }
 

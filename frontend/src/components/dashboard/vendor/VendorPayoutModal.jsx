@@ -162,7 +162,12 @@ export default function VendorPayoutModal({
               </button>
               <button 
                 onClick={handleConfirmPayout} 
-                className="px-5 py-2.5 rounded-xl text-sm font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-md active:scale-95 cursor-pointer flex items-center gap-1.5"
+                disabled={finalPayout <= 0}
+                className={`px-5 py-2.5 rounded-xl text-sm font-extrabold text-white transition-colors shadow-md active:scale-95 flex items-center gap-1.5 ${
+                  finalPayout <= 0
+                    ? 'bg-slate-300 cursor-not-allowed text-slate-500 shadow-none'
+                    : 'bg-emerald-600 hover:bg-emerald-700 cursor-pointer'
+                }`}
               >
                 <CheckCircle2 className="w-4 h-4" /> Confirm &amp; Submit Request
               </button>

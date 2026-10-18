@@ -10,7 +10,7 @@ import {
   Sliders, Shield, MessageSquare, ExternalLink, AlertTriangle,
   Play, Square, Camera, Trash2, Send, Eye, Lock,
   PlusCircle, CheckSquare, Square as SquareOutline, QrCode, Smartphone,
-  Printer, X, Download, Fuel, Compass
+  Printer, X, Download, Fuel, Compass, Layers, List, Grid, Save
 } from 'lucide-react';
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
@@ -36,8 +36,18 @@ import { saveVendorAddressApi, getAddressesApi, updateAddressApi, createAddressA
 import { updateVendorProfileApi, getVendorProfileApi, updateVendorProfileImageApi } from '../../services/operations/vendorAPI';
 import { useLivePricing, getLiveFuelRate, getLiveBasePriceForAppliance } from '../../services/pricingService';
 import { getAllInventoryApi } from '../../services/operations/inventoryAPI';
-import { getInvoiceForBooking, saveInvoiceForBooking, normalizeInvoiceForUI } from '../../services/invoiceService';
-import { recordTravelAllowanceToLedger, fetchVendorEarningsFromBackend } from '../../services/vendorEarningsService';
+import {
+  recordTravelAllowanceToLedger,
+  fetchVendorEarningsFromBackend,
+  requestVendorPayoutApi,
+  submitVendorFuelClaim,
+} from '../../services/vendorEarningsService';
+import {
+  saveInvoiceForBooking,
+  getInvoiceForBooking,
+  normalizeInvoiceForUI,
+  saveInvoice,
+} from '../../services/invoiceService';
 
 
 // Predefined Indian Banks for Profile
@@ -694,6 +704,8 @@ export default function VendorDashboardPage() {
 
       return {
         id: String(e._id || bId),
+        earningId: String(e._id || ''),
+        earningStatus: e.status || 'Available',
         backendJobId: bId,
         displayId,
         date,
@@ -888,6 +900,119 @@ export default function VendorDashboardPage() {
   }, [earningsBreakdown]);
 
   const [filterCategory, setFilterCategory] = useState('All');
+  const [jobStatusFilter, setJobStatusFilter] = useState('all'); // 'all' | 'pending' | 'accepted' | 'rejected'
+  const [isGroupedView, setIsGroupedView] = useState(false);
+
+  // Dynamic category calculations: aggregates counts, pending requests, accepted jobs, and rejected jobs per category
+  const categoryStats = useMemo(() => {
+    const categoryMap = {};
+
+    (jobs || []).forEach(job => {
+      const cat = job.appliance || job.serviceCategory || 'Other';
+      if (!categoryMap[cat]) {
+        categoryMap[cat] = {
+          name: cat,
+          icon: job.applianceIcon || getApplianceIcon(cat),
+          total: 0,
+          pending: 0,
+          accepted: 0,
+          rejected: 0,
+          inProgress: 0,
+        };
+      }
+      categoryMap[cat].total += 1;
+      if (job.status === 'New Request' || job.status === 'Pending') {
+        categoryMap[cat].pending += 1;
+      } else if (job.status === 'Accepted') {
+        categoryMap[cat].accepted += 1;
+      } else if (job.status === 'In Progress') {
+        categoryMap[cat].inProgress += 1;
+      } else if (job.status === 'Rejected' || job.status === 'Declined' || job.status === 'Cancelled') {
+        categoryMap[cat].rejected += 1;
+      }
+    });
+
+    ALL_APPLIANCES.forEach(app => {
+      if (!categoryMap[app]) {
+        categoryMap[app] = {
+          name: app,
+          icon: getApplianceIcon(app),
+          total: 0,
+          pending: 0,
+          accepted: 0,
+          rejected: 0,
+          inProgress: 0,
+        };
+      }
+    });
+
+    const categoriesList = Object.values(categoryMap).sort((a, b) => {
+      if (b.pending !== a.pending) return b.pending - a.pending;
+      if (b.total !== a.total) return b.total - a.total;
+      return a.name.localeCompare(b.name);
+    });
+
+    const totalPending = (jobs || []).filter(j => j.status === 'New Request' || j.status === 'Pending').length;
+    const totalAccepted = (jobs || []).filter(j => j.status === 'Accepted' || j.status === 'In Progress').length;
+    const totalRejected = (jobs || []).filter(j => j.status === 'Rejected' || j.status === 'Declined' || j.status === 'Cancelled').length;
+    const totalAll = (jobs || []).length;
+
+    return {
+      categories: categoriesList,
+      activeCategories: categoriesList.filter(c => c.total > 0),
+      totalJobs: totalAll,
+      totalPending,
+      totalAccepted,
+      totalRejected,
+      totalNew: totalPending,
+      totalActive: totalAccepted,
+    };
+  }, [jobs]);
+
+  // Filtered jobs based on selected category and status (All / Pending / Accept / Reject)
+  const filteredJobs = useMemo(() => {
+    return (jobs || []).filter(job => {
+      const catMatch = filterCategory === 'All' || 
+        String(job.appliance || '').toLowerCase().includes(filterCategory.toLowerCase()) ||
+        String(job.serviceCategory || '').toLowerCase().includes(filterCategory.toLowerCase());
+      if (!catMatch) return false;
+
+      if (jobStatusFilter === 'pending') {
+        return job.status === 'New Request' || job.status === 'Pending';
+      }
+      if (jobStatusFilter === 'accepted' || jobStatusFilter === 'accept') {
+        return job.status === 'Accepted' || job.status === 'In Progress';
+      }
+      if (jobStatusFilter === 'rejected' || jobStatusFilter === 'reject') {
+        return job.status === 'Rejected' || job.status === 'Declined' || job.status === 'Cancelled';
+      }
+      return true;
+    });
+  }, [jobs, filterCategory, jobStatusFilter]);
+
+  // Grouped jobs by category for the grouped view mode
+  const groupedJobs = useMemo(() => {
+    const groups = {};
+    filteredJobs.forEach(job => {
+      const cat = job.appliance || job.serviceCategory || 'Other';
+      if (!groups[cat]) {
+        groups[cat] = {
+          name: cat,
+          icon: job.applianceIcon || getApplianceIcon(cat),
+          jobs: [],
+          newCount: 0,
+          acceptedCount: 0,
+        };
+      }
+      groups[cat].jobs.push(job);
+      if (job.status === 'New Request' || job.status === 'Pending') {
+        groups[cat].newCount += 1;
+      } else {
+        groups[cat].acceptedCount += 1;
+      }
+    });
+    return Object.values(groups).sort((a, b) => b.newCount - a.newCount || b.jobs.length - a.jobs.length);
+  }, [filteredJobs]);
   
   // Active Work Order execution state
   const [selectedJob, setSelectedJob] = useState(() => {
@@ -963,6 +1088,8 @@ export default function VendorDashboardPage() {
   const [showTaxInvoiceModal, setShowTaxInvoiceModal] = useState(false);
   const [generatedInvoiceData, setGeneratedInvoiceData] = useState(null);
   const [modalReturnTab, setModalReturnTab] = useState('active');
+  const [isSavingInvoiceDraft, setIsSavingInvoiceDraft] = useState(false);
+  const [invoiceSavedTimestamp, setInvoiceSavedTimestamp] = useState(null);
 
   // Toast / Notifications
   const [toastMessage, setToastMessage] = useState(null);
@@ -1610,33 +1737,63 @@ export default function VendorDashboardPage() {
     setShowPayoutModal(true);
   };
 
-  const handleConfirmPayout = () => {
+  const handleConfirmPayout = async () => {
     setPayoutRequested(true);
     setShowPayoutModal(false);
+
+    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') || localStorage.getItem('vendorToken') : null);
+
+    // Identify available earnings from backendLedger / backendCompletedJobs
+    const rawList = (backendEarnings && Array.isArray(backendEarnings.list)) ? backendEarnings.list : [];
+    const availableBackendEarnings = rawList.filter(e => e && e._id && String(e.status || 'Available') === 'Available');
+    const availableEarningIds = availableBackendEarnings.map(e => String(e._id));
+
+    // Calculate exact available amount according to backend calculation
+    const payoutAmount = availableBackendEarnings.length > 0
+      ? Number(availableBackendEarnings.reduce((acc, e) => {
+          const s = Number(e.serviceShareAmount) || ((Number(e.serviceAmount) || 0) * 0.5);
+          const t = Number(e.travelCharge) || 0;
+          return acc + s + t;
+        }, 0).toFixed(2))
+      : Number(Number(todayEarnings || 0).toFixed(2));
+
+    const workDays = Math.max(1, Math.round(Number(payoutDays) || (earningsBreakdown?.completedJobs || []).length || 1));
+
+    const payoutPayload = {
+      earnings: availableEarningIds,
+      amount: payoutAmount,
+      daysOfWork: workDays,
+      settlementNotes: payoutNotes || 'Regular vendor payout request',
+      vendorName: vendorProfile?.name || user?.fullName || 'Vendor',
+      vendorId: vendorProfile?.vendorId || `V-${String(user?._id || user?.id || '').slice(-4).toUpperCase()}`,
+      upiId: vendorProfile?.upiId || 'Direct UPI',
+      bankAccount: vendorProfile?.bankAccount ? `${vendorProfile.bankAccount} (${vendorProfile.bankName || 'Bank'})` : 'Bank Transfer',
+    };
+
     try {
-      const newReq = {
-        id: `PAY-${Date.now().toString().slice(-4)}`,
-        vendorName: vendorProfile?.name || user?.fullName || 'Vendor',
-        vendorId: vendorProfile?.vendorId || `V-${String(user?._id || user?.id || '').slice(-4).toUpperCase()}`,
-        upiId: vendorProfile?.upiId || 'Direct UPI',
-        bankAccount: vendorProfile?.bankAccount ? `${vendorProfile.bankAccount} (${vendorProfile.bankName || 'Bank'})` : 'Bank Transfer',
-        daysOfWork: payoutDays || earningsBreakdown.completedJobs.length || 1,
-        amount: todayEarnings,
-        status: 'Pending',
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        notes: payoutNotes || 'Regular vendor payout request',
-      };
-      const existing = JSON.parse(localStorage.getItem('mm_vendor_payout_requests') || '[]');
-      const updated = [newReq, ...existing.filter(p => p.id !== newReq.id)];
-      localStorage.setItem('mm_vendor_payout_requests', JSON.stringify(updated));
+      const res = await requestVendorPayoutApi(payoutPayload, authToken);
+      if (res?.fromBackend) {
+        showToast('Payout request submitted to Admin successfully via backend!', 'success');
+        if (authToken) {
+          fetchVendorEarningsFromBackend(authToken).then(earnRes => {
+            if (earnRes?.success && earnRes?.earnings) {
+              setBackendEarnings(earnRes.earnings);
+            }
+          });
+        }
+      } else {
+        showToast('Payout request submitted successfully! Processing time: 1-2 business days.', 'success');
+      }
     } catch (e) {
       console.warn('Error saving payout request:', e);
+      showToast('Payout request submitted locally.', 'info');
     }
-    showToast('Payout request submitted successfully! Processing time: 1-2 business days.', 'success');
   };
 
   // Fuel Claim Handlers (Earnings & Payouts page)
-  const handleSubmitFuelClaim = (claimData) => {
+  const handleSubmitFuelClaim = async (claimData) => {
+    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') || localStorage.getItem('vendorToken') : null);
+
     setFuelClaims(prev => {
       const updated = [claimData, ...prev];
       try {
@@ -1645,7 +1802,18 @@ export default function VendorDashboardPage() {
       return updated;
     });
     setShowFuelClaimModal(false);
-    showToast(`Fuel allowance claim ${claimData.id} submitted for ₹${(Number(claimData?.claimedAmount) || 0).toFixed(2)}!`, 'success');
+
+    try {
+      const res = await submitVendorFuelClaim(claimData, authToken);
+      if (res?.fromBackend) {
+        showToast(`Fuel allowance claim ${claimData.id} submitted to backend successfully!`, 'success');
+      } else {
+        showToast(`Fuel allowance claim ${claimData.id} submitted for ₹${(Number(claimData?.claimedAmount) || 0).toFixed(2)}!`, 'success');
+      }
+    } catch (err) {
+      console.warn('Error submitting fuel claim:', err);
+      showToast(`Fuel allowance claim ${claimData.id} saved locally.`, 'info');
+    }
   };
 
   const handleDeleteFuelClaim = (claimId) => {
@@ -1893,8 +2061,21 @@ export default function VendorDashboardPage() {
   };
 
   const handleRejectJob = (jobId) => {
-    setJobs(prevJobs => prevJobs.filter(j => j.id !== jobId));
-    showToast(`Work Order ${jobId} declined.`, 'info');
+    const targetJob = jobs.find(j => String(j.id) === String(jobId) || String(j._id || '') === String(jobId));
+    setJobs(prevJobs => prevJobs.map(j =>
+      (String(j.id) === String(jobId) || String(j._id || '') === String(jobId))
+        ? { ...j, status: 'Rejected' }
+        : j
+    ));
+    showToast(`Work Order ${targetJob?.displayId || jobId} marked as Rejected.`, 'info');
+  };
+
+  const handleAcceptAllInCategory = async (categoryJobs) => {
+    const pending = (categoryJobs || []).filter(j => j.status === 'New Request' || j.status === 'Pending');
+    if (pending.length === 0) return;
+    for (const job of pending) {
+      await handleAcceptJob(job.id);
+    }
   };
 
   // Toggle checklist item with jobs state sync
@@ -1950,6 +2131,24 @@ export default function VendorDashboardPage() {
 
     // Customer invoice parts MUST NOT contain travel allowance (Admin reimburses vendor on Earnings page)
     let partsToSet = (selectedJob.parts || []).filter(p => !isTravelItem(p));
+
+    // Restore any previously saved invoice draft
+    const rawId = selectedJob.backendJobId || selectedJob.id || selectedJob._id;
+    const storedInvoice = selectedJob.invoiceData || getInvoiceForBooking(rawId, selectedJob);
+    if (storedInvoice && (storedInvoice.status === 'DRAFT / SAVED' || selectedJob.draftSavedAt || storedInvoice.savedAt)) {
+      if (Array.isArray(storedInvoice.parts) && storedInvoice.parts.length > 0) {
+        partsToSet = storedInvoice.parts.filter(p => !isTravelItem(p));
+      }
+      if (storedInvoice.discount !== undefined) {
+        setInvoiceDiscount(storedInvoice.discount);
+      }
+      if (storedInvoice.notes) {
+        setCustomerNotes(storedInvoice.notes);
+      }
+      if (storedInvoice.savedAt) {
+        setInvoiceSavedTimestamp(new Date(storedInvoice.savedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }));
+      }
+    }
 
     // Ensure all service parts have locked: true and components have isComponent: true
     partsToSet = partsToSet.map(p => {
@@ -2119,6 +2318,83 @@ export default function VendorDashboardPage() {
   const taxableAmount = Math.max(0, subtotal - numDiscount);
   const taxAmount = taxableAmount * 0.05; // 5% GST
   const grandTotal = taxableAmount + taxAmount;
+
+  // Save current invoice draft (persists parts, discount, notes, paymentMethod, and totals)
+  const handleSaveInvoiceDraft = async () => {
+    if (!selectedJob) {
+      showToast('No active job selected to save invoice.', 'warning');
+      return;
+    }
+    setIsSavingInvoiceDraft(true);
+    try {
+      const paymentLabel = paymentMethod === 'upi' ? `Direct UPI Transfer (${vendorProfile.upiId})` : paymentMethod === 'cash' ? 'Direct Cash Transfer' : 'Online Gateway';
+      const draftInvoiceData = {
+        invoiceId: selectedJob.backendJobId ? `MM-INV-2026-${selectedJob.backendJobId.slice(-6).toUpperCase()}` : `MM-INV-2026-${String(selectedJob.id).replace('WO-', '')}`,
+        date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+        customerName: selectedJob.customerName,
+        customerPhone: selectedJob.customerPhone,
+        address: selectedJob.serviceAddress,
+        serviceTitle: selectedJob.serviceTitle,
+        technician: vendorProfile.name,
+        parts: invoiceParts,
+        subtotal: subtotal,
+        discount: numDiscount,
+        tax: taxAmount,
+        total: grandTotal,
+        paymentMethod: paymentLabel,
+        notes: customerNotes,
+        status: 'DRAFT / SAVED',
+        travelDistanceKm: selectedJob.travelDistanceKm || 0,
+        travelRatePerKm: selectedJob.travelRatePerKm || 10,
+        travelCharges: selectedJob.travelCharges || 0,
+        mapScreenshot: selectedJob.mapScreenshot || null,
+        savedAt: new Date().toISOString(),
+      };
+
+      // 1. Update selectedJob state with invoice parts, discount, notes & invoiceData
+      const updatedJob = {
+        ...selectedJob,
+        parts: invoiceParts,
+        invoiceDiscount: numDiscount,
+        notes: customerNotes,
+        paymentMethod,
+        invoiceData: draftInvoiceData,
+        draftSavedAt: new Date().toISOString()
+      };
+      setSelectedJob(updatedJob);
+      setJobs(prevJobs => prevJobs.map(j => j.id === selectedJob.id ? updatedJob : j));
+
+      // 2. Persist to local storage for both backendJobId, job.id, and invoiceId
+      const backendJobId = selectedJob.backendJobId || selectedJob._id;
+      if (backendJobId) {
+        saveInvoiceForBooking(backendJobId, draftInvoiceData);
+      }
+      saveInvoiceForBooking(selectedJob.id, draftInvoiceData);
+      if (draftInvoiceData.invoiceId) {
+        saveInvoiceForBooking(draftInvoiceData.invoiceId, draftInvoiceData);
+      }
+
+      // 3. Optional backend service charge / notes sync if booking exists in MongoDB
+      const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('mm_token') || localStorage.getItem('token') || localStorage.getItem('vendorToken') : null);
+      if (authToken && backendJobId) {
+        try {
+          await updateBookingStatusApi(backendJobId, {
+            serviceCharge: grandTotal,
+            customerNote: customerNotes || 'Invoice draft saved by vendor.'
+          }, authToken);
+        } catch (_) {}
+      }
+
+      const timeStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+      setInvoiceSavedTimestamp(timeStr);
+      showToast(`Invoice ${draftInvoiceData.invoiceId} saved successfully! (₹${grandTotal.toFixed(2)})`, 'success');
+    } catch (err) {
+      console.error('[Vendor Dashboard] Error saving invoice draft:', err);
+      showToast('Failed to save invoice draft.', 'error');
+    } finally {
+      setIsSavingInvoiceDraft(false);
+    }
+  };
 
   // Open Preview Modal
   const handleOpenPreviewModal = () => {
@@ -2361,6 +2637,8 @@ export default function VendorDashboardPage() {
 
           // Save invoice to local persistence so it's always accessible
           saveInvoiceForBooking(backendJobId, inv);
+          saveInvoiceForBooking(selectedJob.id, inv);
+          if (finalInvoiceDataObj.invoiceId) saveInvoiceForBooking(finalInvoiceDataObj.invoiceId, inv);
 
           // Synchronize booking serviceCharge in MongoDB so customer and vendor UI always fetch the exact invoiced price
           try {
@@ -2391,8 +2669,15 @@ export default function VendorDashboardPage() {
             authToken
           );
           saveInvoiceForBooking(backendJobId, finalInvoiceDataObj);
+          saveInvoiceForBooking(selectedJob.id, finalInvoiceDataObj);
+          if (finalInvoiceDataObj.invoiceId) saveInvoiceForBooking(finalInvoiceDataObj.invoiceId, finalInvoiceDataObj);
         }
       }
+
+      // Always guarantee local persistence across all identifiers
+      saveInvoiceForBooking(selectedJob.id, finalInvoiceDataObj);
+      if (backendJobId) saveInvoiceForBooking(backendJobId, finalInvoiceDataObj);
+      if (finalInvoiceDataObj.invoiceId) saveInvoiceForBooking(finalInvoiceDataObj.invoiceId, finalInvoiceDataObj);
 
       // Move job to History state with complete itemized financials
       const completedHistoryItem = {
@@ -2522,6 +2807,202 @@ export default function VendorDashboardPage() {
     setTimeout(() => {
       document.title = originalTitle;
     }, 1000);
+  };
+
+  // Render an individual job card with full category metadata and Accept / Reject actions
+  const renderJobCard = (job) => {
+    const isNew = job.status === 'New Request' || job.status === 'Pending';
+    const isInProgress = job.status === 'In Progress';
+    const isAccepted = job.status === 'Accepted';
+    const isRejected = job.status === 'Rejected' || job.status === 'Declined' || job.status === 'Cancelled';
+
+    return (
+      <motion.div
+        key={job.id}
+        layout
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`rounded-2xl border p-4 sm:p-5 transition-all duration-200 relative overflow-hidden ${
+          isNew
+            ? 'border-l-4 border-l-orange-500 border-slate-200 bg-white hover:shadow-md'
+            : isInProgress
+            ? 'border-l-4 border-l-[#061e38] border-blue-200 bg-blue-50/20 shadow-xs'
+            : isAccepted
+            ? 'border-l-4 border-l-emerald-500 border-emerald-200 bg-emerald-50/20 shadow-xs'
+            : isRejected
+            ? 'border-l-4 border-l-rose-500 border-rose-200 bg-rose-50/10'
+            : 'border-slate-200 bg-white'
+        }`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+          
+          <div className="flex items-start gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-2xl shrink-0 shadow-inner">
+              {job.applianceIcon || getApplianceIcon(job.appliance || job.serviceCategory)}
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                  {job.displayId || job.id}
+                </span>
+
+                {/* Category Pill */}
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200/60 flex items-center gap-1">
+                  <span>{job.applianceIcon || getApplianceIcon(job.appliance || job.serviceCategory)}</span>
+                  <span>{job.appliance || job.serviceCategory || 'Service'}</span>
+                </span>
+
+                <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
+                  isNew ? 'bg-orange-100 text-orange-700 border border-orange-200 animate-pulse' : 
+                  isAccepted ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
+                  isRejected ? 'bg-rose-100 text-rose-700 border border-rose-200' :
+                  'bg-[#061e38] text-white'
+                }`}>
+                  {isNew ? '⚡ Pending Action' : isRejected ? 'Rejected' : job.status}
+                </span>
+
+                <span className="text-xs text-slate-500 flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                  {job.appointmentDate || '—'}
+                </span>
+                <span className="text-xs text-slate-500 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-slate-400" />
+                  {job.timeSlot || 'Anytime'}
+                </span>
+              </div>
+
+              <h3 className="text-lg font-extrabold text-slate-900">{job.serviceTitle}</h3>
+              <p className="text-xs sm:text-sm text-slate-600 font-medium">
+                <strong className="text-slate-800">Issue:</strong> {job.issue || 'Service required'}
+              </p>
+
+              <div className="flex flex-wrap items-center gap-3 pt-2 text-xs font-semibold text-slate-700">
+                <span className="flex items-center gap-1">
+                  <User className="w-3.5 h-3.5 text-blue-500" />
+                  {job.customerName || 'Customer'}
+                </span>
+                {job.customerPhone && job.customerPhone !== '—' && (
+                  <a
+                    href={`tel:${job.customerPhone}`}
+                    className="flex items-center gap-1 text-emerald-600 hover:text-emerald-700 underline font-bold"
+                  >
+                    <Phone className="w-3.5 h-3.5" />
+                    {job.customerPhone}
+                  </a>
+                )}
+                <span className="flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-orange-500" />
+                  {job.location || job.serviceAddress || 'Customer Address'}
+                </span>
+                <span className="text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md font-bold">
+                  🚘 {job.distance || 'Near you'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-100 sm:items-end shrink-0 w-full sm:w-auto">
+            <div className="flex sm:flex-col items-center sm:items-end justify-between">
+              <div>
+                <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Est. Payout</span>
+                <span className="text-lg font-black text-slate-900">₹{(job.estimatedPay ?? 0).toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              {isNew ? (
+                <>
+                  <button
+                    onClick={() => handleAcceptJob(job.id)}
+                    disabled={acceptingJobId === job.id}
+                    className={`flex-1 sm:flex-none px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-black rounded-xl shadow-md cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-1.5 ${acceptingJobId === job.id ? 'opacity-70 cursor-not-allowed' : ''}`}
+                  >
+                    {acceptingJobId === job.id ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Accepting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Accept</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => handleRejectJob(job.id)}
+                    className="flex-1 sm:flex-none px-4 py-2.5 bg-white border border-rose-200 hover:bg-rose-50 text-rose-700 text-xs font-extrabold rounded-xl cursor-pointer transition-colors"
+                  >
+                    Reject
+                  </button>
+                </>
+              ) : isAccepted ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleTrackJobNavigation(job)}
+                    className="flex-1 sm:flex-none px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold rounded-xl flex items-center justify-center gap-1.5 transition-colors border border-slate-200 cursor-pointer"
+                    title="Open live navigation in Google Maps"
+                  >
+                    <Navigation className="w-3.5 h-3.5 text-blue-500" />
+                    Track
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedJobForChat(job);
+                      setIsChatOpen(true);
+                    }}
+                    className="flex-1 sm:flex-none px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold rounded-xl flex items-center justify-center gap-1.5 transition-colors border border-blue-200 cursor-pointer"
+                    title="Chat with Customer"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
+                    Chat
+                  </button>
+                  <button
+                    onClick={() => handleStartService(job)}
+                    className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold rounded-xl shadow-md flex items-center justify-center gap-1.5 cursor-pointer transition-transform active:scale-95"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-white" />
+                    Start Service
+                  </button>
+                </>
+              ) : isRejected ? (
+                <>
+                  <button
+                    onClick={() => handleAcceptJob(job.id)}
+                    disabled={acceptingJobId === job.id}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5 transition-transform active:scale-95"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Accept</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setJobs(prev => prev.filter(j => String(j.id) !== String(job.id) && String(j._id || '') !== String(job.id)));
+                      showToast('Service order dismissed.', 'info');
+                    }}
+                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-extrabold rounded-xl cursor-pointer"
+                  >
+                    Dismiss
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => openServiceExecution(job)}
+                  className="w-full sm:w-auto px-5 py-2.5 bg-[#061e38] hover:bg-[#0a2f57] text-white text-xs font-extrabold rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-95"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Resume Execution &rarr;
+                </button>
+              )}
+            </div>
+          </div>
+
+        </div>
+      </motion.div>
+    );
   };
 
   const pendingJobsCount = jobs.filter(j => j.status === 'New Request').length;
@@ -2824,200 +3305,205 @@ export default function VendorDashboardPage() {
             {/* MAIN CONTENT ROW (LEFT: ACTIVE QUEUE, RIGHT: WEEKLY EARNINGS CHART) */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
 
-              {/* LEFT COLUMN: ACTIVE JOB QUEUE */}
+              {/* LEFT COLUMN: ACTIVE JOB QUEUE - CATEGORY-WISE DISPLAY */}
               <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-6">
                 
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 border-b border-slate-100 pb-4">
+                {/* QUEUE HEADER */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 border-b border-slate-100 pb-4">
                   <div>
-                    <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Active Job Queue</h2>
-                    <p className="text-xs text-slate-500 font-medium">Real-time customer work orders assigned to your area</p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={filterCategory}
-                      onChange={(e) => setFilterCategory(e.target.value)}
-                      className="text-xs font-semibold bg-slate-100 border border-slate-200 text-slate-700 rounded-xl px-3 py-1.5 focus:outline-none"
-                    >
-                      <option value="All">All Categories</option>
-                      {ALL_APPLIANCES.map((app) => (
-                        <option key={app} value={app}>
-                          {app}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Active Job Queue</h2>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                        Live
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                      Real-time customer work orders organized by appliance category
+                    </p>
                   </div>
                 </div>
 
-                {/* Job Cards */}
+                {/* HORIZONTAL CATEGORY PILLS BAR */}
+                <div className="mb-4">
+                  <div
+                    className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden"
+                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setFilterCategory('All')}
+                      className={`shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 border ${
+                        filterCategory === 'All'
+                          ? 'bg-[#061e38] text-white border-[#061e38] shadow-sm'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>All Categories</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+                        filterCategory === 'All' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+                      }`}>
+                        {categoryStats.totalJobs}
+                      </span>
+                      {categoryStats.totalPending > 0 && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500 text-white font-black animate-pulse">
+                          {categoryStats.totalPending} New
+                        </span>
+                      )}
+                    </button>
+
+                    {categoryStats.categories.map((cat) => {
+                      const isSelected = filterCategory.toLowerCase() === cat.name.toLowerCase();
+                      const hasJobs = cat.total > 0;
+                      return (
+                        <button
+                          key={cat.name}
+                          type="button"
+                          onClick={() => setFilterCategory(isSelected ? 'All' : cat.name)}
+                          className={`shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                            isSelected
+                              ? 'bg-[#061e38] text-white border-[#061e38] shadow-sm'
+                              : hasJobs
+                              ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 shadow-xs'
+                              : 'bg-white/60 text-slate-400 border-slate-200/60 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="text-base">{cat.icon}</span>
+                          <span>{cat.name}</span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                            isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {cat.total}
+                          </span>
+                          {cat.pending > 0 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black animate-pulse shadow-xs">
+                              {cat.pending} New
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* STATUS FILTER ROW: All Services / Pending / Accept / Reject */}
+                <div className="flex flex-wrap items-center justify-between gap-2.5 mb-5 p-2.5 bg-slate-50 rounded-xl border border-slate-200/80">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider pl-1 mr-1">Status:</span>
+                    
+                    {/* All Services */}
+                    <button
+                      type="button"
+                      onClick={() => setJobStatusFilter('all')}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                        jobStatusFilter === 'all'
+                          ? 'bg-[#061e38] text-white shadow-sm'
+                          : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span>All Services</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                        jobStatusFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+                      }`}>
+                        {categoryStats.totalJobs}
+                      </span>
+                    </button>
+
+                    {/* Pending */}
+                    <button
+                      type="button"
+                      onClick={() => setJobStatusFilter('pending')}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                        jobStatusFilter === 'pending'
+                          ? 'bg-amber-500 text-white shadow-sm'
+                          : 'bg-white text-amber-800 border border-amber-200 hover:bg-amber-50'
+                      }`}
+                    >
+                      <span>Pending</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                        jobStatusFilter === 'pending' ? 'bg-white/30 text-white' : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {categoryStats.totalPending}
+                      </span>
+                    </button>
+
+                    {/* Accept */}
+                    <button
+                      type="button"
+                      onClick={() => setJobStatusFilter('accepted')}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                        jobStatusFilter === 'accepted'
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'bg-white text-emerald-800 border border-emerald-200 hover:bg-emerald-50'
+                      }`}
+                    >
+                      <span>Accept</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                        jobStatusFilter === 'accepted' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                      }`}>
+                        {categoryStats.totalAccepted}
+                      </span>
+                    </button>
+
+                    {/* Reject */}
+                    <button
+                      type="button"
+                      onClick={() => setJobStatusFilter('rejected')}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                        jobStatusFilter === 'rejected'
+                          ? 'bg-rose-600 text-white shadow-sm'
+                          : 'bg-white text-rose-800 border border-rose-200 hover:bg-rose-50'
+                      }`}
+                    >
+                      <span>Reject</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                        jobStatusFilter === 'rejected' ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-800'
+                      }`}>
+                        {categoryStats.totalRejected}
+                      </span>
+                    </button>
+                  </div>
+
+                  {filterCategory !== 'All' && (
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                      <span>Category:</span>
+                      <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-extrabold">
+                        {filterCategory}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setFilterCategory('All')}
+                        className="text-slate-400 hover:text-slate-700 text-[11px] font-bold underline cursor-pointer ml-1"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* JOB LIST */}
                 <div className="space-y-4">
-                  {jobs.filter(j => filterCategory === 'All' || (j.appliance && String(j.appliance).includes(filterCategory))).length === 0 ? (
+                  {filteredJobs.length === 0 ? (
                     <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                       <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-2 opacity-60" />
-                      <h3 className="text-base font-bold text-slate-800">All work orders clear!</h3>
-                      <p className="text-xs text-slate-500 mt-1">Stay online to receive incoming customer service calls.</p>
+                      <h3 className="text-base font-bold text-slate-800">
+                        {filterCategory !== 'All' || jobStatusFilter !== 'all' ? 'No work orders matching filters' : 'All work orders clear!'}
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {filterCategory !== 'All' || jobStatusFilter !== 'all' ? 'Try selecting a different category or clearing status filter.' : 'Stay online to receive incoming customer service calls.'}
+                      </p>
+                      {(filterCategory !== 'All' || jobStatusFilter !== 'all') && (
+                        <button
+                          type="button"
+                          onClick={() => { setFilterCategory('All'); setJobStatusFilter('all'); }}
+                          className="mt-3 px-4 py-1.5 bg-[#061e38] text-white text-xs font-bold rounded-xl cursor-pointer hover:bg-slate-800 transition-colors"
+                        >
+                          Show All Services
+                        </button>
+                      )}
                     </div>
                   ) : (
-                    jobs
-                      .filter(j => filterCategory === 'All' || (j.appliance && String(j.appliance).includes(filterCategory)))
-                      .map((job) => {
-                        const isNew = job.status === 'New Request';
-                        const isInProgress = job.status === 'In Progress';
-
-                        return (
-                          <motion.div
-                            key={job.id}
-                            layout
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className={`rounded-2xl border p-4 sm:p-5 transition-all duration-200 relative overflow-hidden ${
-                              isNew
-                                ? 'border-l-4 border-l-orange-500 border-slate-200 bg-white hover:shadow-md'
-                                : isInProgress
-                                ? 'border-l-4 border-l-[#061e38] border-blue-200 bg-blue-50/20 shadow-xs'
-                                : job.status === 'Accepted'
-                                ? 'border-l-4 border-l-emerald-500 border-emerald-200 bg-emerald-50/20 shadow-xs'
-                                : 'border-slate-200 bg-white'
-                            }`}
-                          >
-                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                              
-                              <div className="flex items-start gap-3.5">
-                                <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-2xl shrink-0">
-                                  {job.applianceIcon}
-                                </div>
-
-                                <div className="space-y-1">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                                      {job.displayId || job.id}
-                                    </span>
-                                    <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full ${
-                                      isNew ? 'bg-orange-100 text-orange-700' : 
-                                      job.status === 'Accepted' ? 'bg-emerald-100 text-emerald-700' :
-                                      'bg-[#061e38] text-white'
-                                    }`}>
-                                      {job.status}
-                                    </span>
-                                    <span className="text-xs text-slate-500 flex items-center gap-1">
-                                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                                      {job.appointmentDate || '—'}
-                                    </span>
-                                    <span className="text-xs text-slate-500 flex items-center gap-1">
-                                      <Clock className="w-3.5 h-3.5 text-slate-400" />
-                                      {job.timeSlot}
-                                    </span>
-                                  </div>
-
-                                  <h3 className="text-lg font-extrabold text-slate-900">{job.serviceTitle}</h3>
-                                  <p className="text-xs sm:text-sm text-slate-600 font-medium">
-                                    <strong>Issue:</strong> {job.issue}
-                                  </p>
-
-                                  <div className="flex flex-wrap items-center gap-3 pt-2 text-xs font-semibold text-slate-700">
-                                    <span className="flex items-center gap-1">
-                                      <User className="w-3.5 h-3.5 text-blue-500" />
-                                      {job.customerName}
-                                    </span>
-                                    {job.customerPhone && job.customerPhone !== '—' && (
-                                      <a
-                                        href={`tel:${job.customerPhone}`}
-                                        className="flex items-center gap-1 text-emerald-600 hover:text-emerald-700 underline"
-                                      >
-                                        <Phone className="w-3.5 h-3.5" />
-                                        {job.customerPhone}
-                                      </a>
-                                    )}
-                                    <span className="flex items-center gap-1">
-                                      <MapPin className="w-3.5 h-3.5 text-orange-500" />
-                                      {job.location}
-                                    </span>
-                                    <span className="text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                                      🚘 {job.distance}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="flex flex-col gap-3 pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-100 sm:items-end shrink-0 w-full sm:w-auto">
-                                <div className="flex sm:flex-col items-center sm:items-end justify-between">
-                                  <div>
-                                    <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Est. Payout</span>
-                                    <span className="text-lg font-extrabold text-slate-900">₹{(job.estimatedPay ?? 0).toLocaleString('en-IN')}</span>
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-2 w-full sm:w-auto">
-                                  {isNew ? (
-                                    <>
-                                      <button
-                                        onClick={() => handleAcceptJob(job.id)}
-                                        disabled={acceptingJobId === job.id}
-                                        className={`flex-1 sm:flex-none px-5 py-2 bg-orange-600 hover:bg-orange-700 text-white text-xs font-extrabold rounded-xl shadow-sm cursor-pointer transition-all ${acceptingJobId === job.id ? 'opacity-70 cursor-not-allowed' : ''}`}
-                                      >
-                                        {acceptingJobId === job.id ? (
-                                          <span className="flex items-center gap-1.5">
-                                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                            Accepting...
-                                          </span>
-                                        ) : (
-                                          'Accept'
-                                        )}
-                                      </button>
-                                      <button
-                                        onClick={() => handleRejectJob(job.id)}
-                                        className="flex-1 sm:flex-none px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-extrabold rounded-xl cursor-pointer"
-                                      >
-                                        Reject
-                                      </button>
-                                    </>
-                                  ) : job.status === 'Accepted' ? (
-                                    <>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleTrackJobNavigation(job)}
-                                        className="flex-1 sm:flex-none px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold rounded-xl flex items-center justify-center gap-1.5 transition-colors border border-slate-200 cursor-pointer"
-                                        title="Open live navigation in Google Maps"
-                                      >
-                                        <Navigation className="w-3.5 h-3.5 text-blue-500" />
-                                        Track
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setSelectedJobForChat(job);
-                                          setIsChatOpen(true);
-                                        }}
-                                        className="flex-1 sm:flex-none px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold rounded-xl flex items-center justify-center gap-1.5 transition-colors border border-blue-200 cursor-pointer"
-                                        title="Chat with Customer"
-                                      >
-                                        <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
-                                        Chat
-                                      </button>
-                                      <button
-                                        onClick={() => handleStartService(job)}
-                                        className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold rounded-xl shadow-md flex items-center justify-center gap-1.5 cursor-pointer transition-transform active:scale-95"
-                                      >
-                                        <Play className="w-3.5 h-3.5 fill-white" />
-                                        Start Service
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <button
-                                      onClick={() => openServiceExecution(job)}
-                                      className="w-full sm:w-auto px-5 py-2.5 bg-[#061e38] hover:bg-[#0a2f57] text-white text-xs font-extrabold rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-95"
-                                    >
-                                      <RefreshCw className="w-3.5 h-3.5" />
-                                      Resume Execution &rarr;
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-
-                            </div>
-                          </motion.div>
-                        );
-                      })
+                    filteredJobs.map(job => renderJobCard(job))
                   )}
                 </div>
 
@@ -3467,21 +3953,38 @@ export default function VendorDashboardPage() {
                 <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
                   Generate Invoice
                 </h1>
-                <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
-                  Creating official invoice for Work Order #{selectedJob.id}
+                <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5 flex flex-wrap items-center gap-2">
+                  <span>Creating official invoice for Work Order #{selectedJob.id}</span>
+                  {invoiceSavedTimestamp && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                      <Check className="w-3 h-3 text-emerald-600" /> Saved at {invoiceSavedTimestamp}
+                    </span>
+                  )}
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <button
+                  type="button"
                   onClick={() => setActiveTab('service')}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
                 >
                   ← Back to Checklist
                 </button>
                 <button
+                  type="button"
+                  onClick={handleSaveInvoiceDraft}
+                  disabled={isSavingInvoiceDraft}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer active:scale-95"
+                  title="Save invoice line items, parts, and notes"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{isSavingInvoiceDraft ? 'Saving Invoice...' : 'Save Invoice'}</span>
+                </button>
+                <button
+                  type="button"
                   onClick={handleOpenPreviewModal}
-                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-extrabold rounded-xl flex items-center gap-1.5 shadow-sm cursor-pointer transition-all"
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-extrabold rounded-xl flex items-center gap-1.5 shadow-sm cursor-pointer transition-all active:scale-95"
                 >
                   <Eye className="w-3.5 h-3.5 text-orange-400" />
                   Preview Tax Invoice Modal
@@ -3944,25 +4447,37 @@ export default function VendorDashboardPage() {
                     </div>
                   </div>
 
-                  <button
-                    onClick={handleGenerateAndSendInvoice}
-                    disabled={isCompletingService}
-                    className={`w-full py-3.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-extrabold rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 ${
-                      isCompletingService ? 'opacity-70 cursor-not-allowed' : ''
-                    }`}
-                  >
-                    {isCompletingService ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                        <span>Generating Invoice &amp; Completing...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4 fill-white" />
-                        <span>➤ Generate &amp; Complete Service</span>
-                      </>
-                    )}
-                  </button>
+                  <div className="space-y-2.5">
+                    <button
+                      onClick={handleGenerateAndSendInvoice}
+                      disabled={isCompletingService}
+                      className={`w-full py-3.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-sm font-extrabold rounded-2xl shadow-lg shadow-orange-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 ${
+                        isCompletingService ? 'opacity-70 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      {isCompletingService ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                          <span>Saving &amp; Completing Service...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4 fill-white" />
+                          <span>➤ Save Invoice &amp; Complete Service</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleSaveInvoiceDraft}
+                      disabled={isSavingInvoiceDraft || isCompletingService}
+                      className="w-full py-2.5 bg-slate-800/90 hover:bg-slate-700 text-emerald-400 border border-slate-700 hover:border-emerald-500/40 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                    >
+                      <Save className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>{isSavingInvoiceDraft ? 'Saving Draft...' : 'Save Invoice as Draft'}</span>
+                    </button>
+                  </div>
 
                   <p className="text-[10px] text-center text-slate-400">
                     Payment Mode: <strong>{paymentMethod === 'upi' ? 'Direct UPI Transfer' : paymentMethod === 'cash' ? 'Direct Cash' : 'Online Gateway (In Progress)'}</strong>
@@ -4056,6 +4571,34 @@ export default function VendorDashboardPage() {
           </motion.div>
         )}
 
+        {/* ── INVOICE EMPTY FALLBACK STATE ── */}
+        {activeTab === 'invoice' && !selectedJob && (
+          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-8 sm:p-12 text-center max-w-xl mx-auto my-12 space-y-4 no-print-bg">
+            <div className="w-16 h-16 rounded-3xl bg-orange-50 text-orange-600 flex items-center justify-center mx-auto text-2xl font-bold">
+              <FileText className="w-8 h-8" />
+            </div>
+            <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900">No Service Order Selected</h2>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium max-w-md mx-auto">
+              Please select an active service order from your queue to customize and save its invoice, or browse past completed customer invoices in your History tab.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab('active')}
+                className="px-5 py-2.5 bg-[#061e38] hover:bg-[#0a2f57] text-white text-xs font-extrabold rounded-xl shadow-md transition-all cursor-pointer inline-flex items-center gap-2 active:scale-95"
+              >
+                &larr; View Active Jobs
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('history')}
+                className="px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-extrabold rounded-xl shadow-md transition-all cursor-pointer inline-flex items-center gap-2 active:scale-95"
+              >
+                View Past Invoices &rarr;
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── TAB 2: HISTORY ── */}
         {activeTab === 'history' && (
@@ -4495,10 +5038,22 @@ export default function VendorDashboardPage() {
                                 </span>
                               </td>
                               <td className="p-3 text-center">
-                                <span className="inline-flex items-center gap-1 text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full">
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-700" />
-                                  Auto-Added
-                                </span>
+                                {job.earningStatus === 'Paid' ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-700" />
+                                    Paid
+                                  </span>
+                                ) : job.earningStatus === 'Included In Payout' ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded-full">
+                                    <Clock className="w-3 h-3 text-amber-700" />
+                                    In Payout
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-300 px-2 py-0.5 rounded-full">
+                                    <CheckCircle2 className="w-3 h-3 text-blue-700" />
+                                    Available
+                                  </span>
+                                )}
                               </td>
                             </tr>
                           );
@@ -5104,6 +5659,13 @@ export default function VendorDashboardPage() {
           generatedInvoiceData={generatedInvoiceData}
           handleSameTabPrintOrSavePDF={handleSameTabPrintOrSavePDF}
           handleCloseInvoiceModal={handleCloseInvoiceModal}
+          onSaveInvoice={(inv) => {
+            const targetId = inv.backendJobId || inv.bookingId || inv.invoiceId || inv.id;
+            saveInvoiceForBooking(targetId, inv);
+            if (inv.invoiceId) saveInvoiceForBooking(inv.invoiceId, inv);
+            if (inv.id) saveInvoiceForBooking(inv.id, inv);
+            showToast(`Invoice #${inv.invoiceId || inv.invoiceNumber} saved to local records!`, 'success');
+          }}
         />
 
         {/* ── VENDOR SERVICE ADDRESS MODAL (Exact match to screenshot) ── */}

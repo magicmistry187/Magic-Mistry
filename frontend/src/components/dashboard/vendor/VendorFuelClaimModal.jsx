@@ -44,6 +44,7 @@ export default function VendorFuelClaimModal({
   const [ratePerKm, setRatePerKm] = useState(fuelRate);
   const [distanceKm, setDistanceKm] = useState(5.0);
   const [fuelReceiptImage, setFuelReceiptImage] = useState(null);
+  const [receiptFile, setReceiptFile] = useState(null);
   const [receiptFileName, setReceiptFileName] = useState('');
   const [notes, setNotes] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -96,6 +97,7 @@ export default function VendorFuelClaimModal({
         setErrorMsg('Please upload a valid image file (PNG, JPG, or WEBP).');
         return;
       }
+      setReceiptFile(file);
       setReceiptFileName(file.name);
       setErrorMsg('');
       const reader = new FileReader();
@@ -108,6 +110,7 @@ export default function VendorFuelClaimModal({
 
   const handleUseSampleReceipt = () => {
     setFuelReceiptImage(SAMPLE_FUEL_BILL_SVG);
+    setReceiptFile(null);
     setReceiptFileName('sample_petrol_bill.png');
     setErrorMsg('');
   };
@@ -119,17 +122,19 @@ export default function VendorFuelClaimModal({
       setErrorMsg('Please enter a valid distance in kilometers.');
       return;
     }
-    if (!fuelReceiptImage) {
+    if (!fuelReceiptImage && !receiptFile) {
       setErrorMsg('Please attach a fuel receipt or navigation map proof for the travel claim.');
       return;
     }
 
     const selectedJobObj = completedJobs.find(j => j.id === selectedJobId);
+    const bookingObjectId = selectedJobObj?.backendJobId || selectedJobObj?._id || (selectedJobId !== 'custom' ? selectedJobId : null);
 
     const claimData = {
       id: `FUEL-${Date.now().toString().slice(-4)}`,
       date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-      jobId: selectedJobId !== 'custom' ? selectedJobId : 'Multi-Trip',
+      jobId: bookingObjectId || (selectedJobId !== 'custom' ? selectedJobId : 'Multi-Trip'),
+      booking: bookingObjectId,
       jobDisplay: selectedJobObj ? (selectedJobObj.displayId || selectedJobObj.id) : 'General Travel',
       customerName: selectedJobObj?.customerName || 'Multiple Customer Visits',
       distanceKm: kmNum,
@@ -137,6 +142,7 @@ export default function VendorFuelClaimModal({
       ratePerKm: Number(ratePerKm),
       claimedAmount: calculatedAmount,
       receiptImage: fuelReceiptImage,
+      receiptFile: receiptFile,
       notes: notes.trim() || 'Travel allowance claim for completed customer service order.',
       status: 'Pending Approval',
       settlementAccount: vendorProfile?.upiId ? `UPI: ${vendorProfile.upiId}` : (vendorProfile?.bankAccount ? `Bank A/C ${vendorProfile.bankAccount}` : 'Registered Bank Account')
