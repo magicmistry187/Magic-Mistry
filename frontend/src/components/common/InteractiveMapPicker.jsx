@@ -289,7 +289,7 @@ export default function InteractiveMapPicker({
     if ((!lat || !lng) && (item.pincode || item.address?.pincode)) {
       const pin = item.pincode || item.address?.pincode;
       try {
-        const locationIqKey = import.meta?.env?.VITE_LOCATIONIQ_API_KEY || 'pk.43b9346c8e8046d3fdc74a70f9d0c1b1';
+        const locationIqKey = import.meta?.env?.VITE_LOCATIONIQ_API_KEY || '';
         const pRes = await fetch(
           `https://us1.locationiq.com/v1/search?key=${locationIqKey}&postalcode=${pin}&countrycodes=in&format=json&limit=1`
         );

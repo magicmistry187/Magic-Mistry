@@ -17,38 +17,41 @@ export const CANONICAL_ADMIN_USER = {
   isEmailVerified: true,
 };
 
-// Authoritative JWT signed with server secret ('secret') for MongoDB ObjectId 6ab10d406fae74eeafe5559c
-export const CANONICAL_ADMIN_TOKEN =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYjEwZDQwNmZhZTc0ZWVhZmU1NTU5YyIsInVzZXJJZCI6IjZhYjEwZDQwNmZhZTc0ZWVhZmU1NTU5YyIsImVtYWlsIjoibWFnaWNtaXN0cnkxODdAZ21haWwuY29tIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzkxNDUzOTkwfQ.vF0Y9sV_EF9Awrq1Fl_zxE7cwZhzmnL6VqNPaa2f3dk';
+// Dynamic admin token fallback (retrieved from active session or empty string)
+export const CANONICAL_ADMIN_TOKEN = '';
 
 /**
- * Returns current admin token with graceful fallback to canonical token
+ * Returns current admin token from localStorage
  */
 export function getAdminToken() {
-  if (typeof window === 'undefined') return CANONICAL_ADMIN_TOKEN;
+  if (typeof window === 'undefined') return '';
   try {
     return (
       localStorage.getItem('adminToken') ||
       localStorage.getItem('mm_token') ||
       localStorage.getItem('token') ||
-      CANONICAL_ADMIN_TOKEN
+      ''
     );
   } catch {
-    return CANONICAL_ADMIN_TOKEN;
+    return '';
   }
 }
 
 /**
- * Synchronously activates the full admin session in localStorage
+ * Synchronously activates the admin session in localStorage
  */
-export function activateAdminSession() {
+export function activateAdminSession(token, user) {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem('adminToken', CANONICAL_ADMIN_TOKEN);
-    localStorage.setItem('mm_token', CANONICAL_ADMIN_TOKEN);
-    localStorage.setItem('token', CANONICAL_ADMIN_TOKEN);
-    localStorage.setItem('mm_user', JSON.stringify(CANONICAL_ADMIN_USER));
-    localStorage.setItem('user', JSON.stringify(CANONICAL_ADMIN_USER));
+    const adminToken = token || localStorage.getItem('adminToken') || localStorage.getItem('token') || '';
+    const adminUser = user || CANONICAL_ADMIN_USER;
+    if (adminToken) {
+      localStorage.setItem('adminToken', adminToken);
+      localStorage.setItem('mm_token', adminToken);
+      localStorage.setItem('token', adminToken);
+    }
+    localStorage.setItem('mm_user', JSON.stringify(adminUser));
+    localStorage.setItem('user', JSON.stringify(adminUser));
   } catch (err) {
     console.warn('Error activating admin session:', err);
   }

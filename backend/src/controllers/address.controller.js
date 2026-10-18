@@ -659,7 +659,7 @@ exports.reverseGeocode = async (req, res) => {
     }
 
     let parsedResult = null;
-    const locationIqKey = process.env.LOCATIONIQ_API_KEY || 'pk.43b9346c8e8046d3fdc74a70f9d0c1b1';
+    const locationIqKey = process.env.LOCATIONIQ_API_KEY || '';
 
     // ── 1. Primary: LocationIQ (High-Accuracy Indian Villages, Streets & PINs) ─
     if (locationIqKey) {
@@ -834,7 +834,7 @@ exports.autocomplete = async (req, res) => {
     }));
 
     // 2. LocationIQ Autocomplete (with coordinate viewbox bias if user coords provided)
-    const locationIqKey = process.env.LOCATIONIQ_API_KEY || 'pk.43b9346c8e8046d3fdc74a70f9d0c1b1';
+    const locationIqKey = process.env.LOCATIONIQ_API_KEY || '';
     let liqSuggestions = [];
 
     if (locationIqKey) {

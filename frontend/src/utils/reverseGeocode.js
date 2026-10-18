@@ -394,7 +394,7 @@ export async function reverseGeocode(latitude, longitude) {
   // ── TIER 2: Direct Client LocationIQ (High-Precision Indian Villages & PINs) 
   // ═══════════════════════════════════════════════════════════════════════════
   let parsedResult = null;
-  const locationIqKey = import.meta?.env?.VITE_LOCATIONIQ_API_KEY || 'pk.43b9346c8e8046d3fdc74a70f9d0c1b1';
+  const locationIqKey = import.meta?.env?.VITE_LOCATIONIQ_API_KEY || '';
 
   if (locationIqKey) {
     try {
@@ -594,7 +594,7 @@ export async function searchLocations(query, userCoords = null) {
   }
 
   // 2. Direct LocationIQ Autocomplete fallback (with viewbox bias)
-  const locationIqKey = import.meta?.env?.VITE_LOCATIONIQ_API_KEY || 'pk.43b9346c8e8046d3fdc74a70f9d0c1b1';
+  const locationIqKey = import.meta?.env?.VITE_LOCATIONIQ_API_KEY || '';
   if (locationIqKey) {
     try {
       let url = `https://api.locationiq.com/v1/autocomplete?key=${locationIqKey}&q=${encodeURIComponent(q)}&countrycodes=in&limit=6&format=json`;
