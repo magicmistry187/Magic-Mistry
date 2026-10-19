@@ -1,6 +1,6 @@
 import React, { useRef, useState, useMemo, useEffect } from 'react';
 import { useBooking } from './BookingContext';
-import { UploadCloud, X, CheckCircle2 } from 'lucide-react';
+import { UploadCloud, X, CheckCircle2, ChevronRight } from 'lucide-react';
 
 export default function ApplianceImageUploader() {
   const { bookingState, updateBooking, scrollToNextStep } = useBooking();
@@ -10,7 +10,7 @@ export default function ApplianceImageUploader() {
   const handleFileChange = (file) => {
     if (!file || !file.type.startsWith('image/')) return;
     updateBooking('imageFile', file);
-    if (scrollToNextStep) scrollToNextStep('step-payment-method');
+    if (scrollToNextStep) scrollToNextStep('step-payment-method', { offset: -90, delay: 200 });
   };
 
   const removeFile = () => {
@@ -32,19 +32,35 @@ export default function ApplianceImageUploader() {
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
-      <h2 className="text-xl font-extrabold text-[#0B1E40] flex items-center gap-3">
-        <span className="bg-blue-600 text-white rounded-full w-8 h-8 inline-flex items-center justify-center text-sm font-bold shadow-md shadow-blue-200">
-          5
-        </span>
-        Upload Image of Appliance
-        <span className="ml-auto text-[11px] font-semibold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-extrabold text-[#0B1E40] flex items-center gap-3">
+          <span className="bg-blue-600 text-white rounded-full w-8 h-8 inline-flex items-center justify-center text-sm font-bold shadow-md shadow-blue-200">
+            5
+          </span>
+          Upload Image of Appliance
+        </h2>
+
+        {/* Highlighted Optional Badge */}
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-gradient-to-r from-amber-100 to-orange-100 text-amber-900 border border-amber-300 shadow-xs">
+          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
           Optional
         </span>
-      </h2>
+      </div>
 
-      <p className="text-xs text-slate-500">
-        Help our verified technician understand the exact condition or fault area by attaching a photo of your appliance (Optional).
-      </p>
+      {/* Highlighted Optional Info Banner */}
+      <div className="bg-gradient-to-r from-amber-50 to-orange-50/60 border border-amber-200/80 rounded-2xl p-3.5 flex items-start gap-3">
+        <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 mt-0.5 text-base font-bold shadow-xs">
+          📸
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-extrabold text-amber-900">
+            Photo upload is completely optional!
+          </p>
+          <p className="text-xs text-amber-800/90 mt-0.5 leading-relaxed font-medium">
+            Don't have a photo handy? Feel free to skip! Our technician will inspect the appliance in person on arrival.
+          </p>
+        </div>
+      </div>
 
       {/* Upload Zone */}
       {!bookingState.imageFile ? (
@@ -125,6 +141,23 @@ export default function ApplianceImageUploader() {
           />
         </div>
       )}
+
+      {/* Single Skip & Continue Button */}
+      <div className="flex justify-end pt-3 border-t border-slate-100">
+        <button
+          type="button"
+          onClick={() => {
+            if (scrollToNextStep) scrollToNextStep('step-payment-method', { offset: -90, delay: 50 });
+          }}
+          className={`w-full sm:w-auto px-8 py-3 rounded-xl font-bold transition-all duration-300 shadow-md flex items-center justify-center gap-2 text-sm text-white cursor-pointer ${
+            bookingState.imageFile
+              ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/25 hover:shadow-lg hover:-translate-y-0.5'
+              : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/25 hover:shadow-lg hover:-translate-y-0.5'
+          }`}
+        >
+          {bookingState.imageFile ? 'Continue' : 'Skip & Continue'} <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   );
 }

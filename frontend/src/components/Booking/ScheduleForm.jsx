@@ -51,7 +51,13 @@ export default function ScheduleForm() {
       String(day).padStart(2, '0'),
     ].join('-');
     updateBooking('date', iso);
+
+    // Auto-scroll smoothly and fast to the Preferred Time Slots
+    if (scrollToNextStep) {
+      scrollToNextStep('step-time-slots', { offset: -100, delay: 120 });
+    }
   };
+
 
   const selectedIso = bookingState.date || '';
 
@@ -202,7 +208,7 @@ export default function ScheduleForm() {
             transition={{ duration: 0.4, ease: "easeOut" }}
             className="overflow-hidden relative z-10"
           >
-            <div className="pt-2">
+            <div id="step-time-slots" className="pt-2 scroll-mt-24">
         <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">
           <Clock className="w-4 h-4 text-indigo-500" /> Preferred Time Slot
         </label>
@@ -212,7 +218,7 @@ export default function ScheduleForm() {
               key={slot}
               onClick={() => {
                 updateBooking('timeSlot', slot);
-                if (scrollToNextStep) scrollToNextStep('step-address-form');
+                if (scrollToNextStep) scrollToNextStep('step-address-form', { offset: -90, delay: 180 });
               }}
               className={`py-4 px-4 text-sm rounded-2xl border-2 transition-all duration-300 transform hover:-translate-y-0.5 ${
                 bookingState.timeSlot === slot

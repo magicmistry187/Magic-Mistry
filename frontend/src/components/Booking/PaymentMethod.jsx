@@ -56,7 +56,7 @@ export default function PaymentMethod() {
               onClick={() => {
                 if (method.enabled) {
                   updateBooking('paymentMethod', method.id);
-                  if (scrollToNextStep) scrollToNextStep('step-booking-summary');
+                  if (scrollToNextStep) scrollToNextStep('step-booking-summary', { offset: -90, delay: 180 });
                 }
               }}
               className={`w-full text-left flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${

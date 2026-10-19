@@ -51,7 +51,7 @@ const isWestBengalAddress = (addr) => {
 };
 
 export default function BookingSummary() {
-  const { bookingState } = useBooking();
+  const { bookingState, scrollToNextStep } = useBooking();
   const { user, isLoggedIn, token } = useAuth();
   const navigate = useNavigate();
   const [errors, setErrors] = useState([]);
@@ -69,14 +69,19 @@ export default function BookingSummary() {
 
     const errs = [];
 
-    if (!bookingState.serviceId && !bookingState.serviceName)
+    if (!bookingState.serviceId && !bookingState.serviceName) {
       errs.push('Please select an appliance.');
-    if (!bookingState.date)
+      if (scrollToNextStep) scrollToNextStep('step-appliance-selector', { offset: -90, delay: 50 });
+    } else if (!bookingState.date) {
       errs.push('Please pick a booking date.');
-    if (!bookingState.timeSlot)
+      if (scrollToNextStep) scrollToNextStep('step-schedule-form', { offset: -90, delay: 50 });
+    } else if (!bookingState.timeSlot) {
       errs.push('Please choose a time slot.');
-    if (!bookingState.address.trim())
+      if (scrollToNextStep) scrollToNextStep('step-time-slots', { offset: -100, delay: 50 });
+    } else if (!bookingState.address.trim()) {
       errs.push('Please enter your service address.');
+      if (scrollToNextStep) scrollToNextStep('step-address-form', { offset: -90, delay: 50 });
+    }
     /*
     // Commented out: West Bengal boundary restriction
     else if (!isWestBengalAddress(bookingState.address)) {
@@ -86,7 +91,6 @@ export default function BookingSummary() {
 
     if (errs.length) {
       setErrors(errs);
-      document.getElementById('summary-errors')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
 

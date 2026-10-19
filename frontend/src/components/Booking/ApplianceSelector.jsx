@@ -31,6 +31,11 @@ export default function ApplianceSelector() {
       const firstSub = catData.subServices[0];
       updateBooking('selectedSubServices', [firstSub]);
     }
+
+    // Auto-scroll smoothly and immediately on SINGLE click to the appliance packages options
+    if (scrollToNextStep) {
+      scrollToNextStep('step-subservices-section', { offset: -90, delay: 30 });
+    }
   };
 
   const handleSelectSubService = (sub) => {
@@ -40,9 +45,14 @@ export default function ApplianceSelector() {
       newServices = bookingState.selectedSubServices.filter(s => s.label !== sub.label);
     } else {
       newServices = [...bookingState.selectedSubServices, sub];
+      // Auto-scroll to the next step once a package is selected
+      if (scrollToNextStep) {
+        scrollToNextStep('step-problem-selector', { offset: -90, delay: 300 });
+      }
     }
     updateBooking('selectedSubServices', newServices);
   };
+
 
   return (
     <div className="bg-white p-7 md:p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 space-y-8 relative overflow-hidden">
@@ -76,7 +86,7 @@ export default function ApplianceSelector() {
               key={cat.id}
               type="button"
               onClick={() => handleSelectCategory(cat)}
-              className={`p-3.5 sm:p-4 rounded-2xl flex flex-col items-center justify-between transition-all duration-300 gap-3 text-center relative group overflow-hidden ${
+              className={`touch-manipulation select-none active:scale-95 p-3.5 sm:p-4 rounded-2xl flex flex-col items-center justify-between transition-all duration-300 gap-3 text-center relative group overflow-hidden ${
                 isSelected
                   ? 'bg-gradient-to-b from-indigo-50/90 to-blue-50/50 text-indigo-950 shadow-lg shadow-indigo-500/10 border-2 border-indigo-600 ring-2 ring-indigo-500/20 transform -translate-y-1'
                   : 'bg-white border border-slate-200/80 hover:border-indigo-200 hover:shadow-xl hover:shadow-slate-200/50 cursor-pointer transform hover:-translate-y-1'
@@ -113,18 +123,20 @@ export default function ApplianceSelector() {
         })}
       </div>
 
-      <AnimatePresence mode="wait">
-        {currentCatData ? (
-          <motion.div 
-            key="subservices"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
-            className="overflow-hidden"
-          >
-            <div className="bg-slate-50/50 p-6 md:p-8 rounded-3xl border border-slate-200 space-y-6 relative">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200/80 gap-3">
+      {/* Packages Section Container - permanently mounted for instant single-click scroll */}
+      <div id="step-subservices-section" className="scroll-mt-24">
+        <AnimatePresence>
+          {currentCatData ? (
+            <motion.div 
+              key={currentCatData?.id || "subservices"}
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              className="overflow-hidden"
+            >
+              <div className="bg-slate-50/50 p-6 md:p-8 rounded-3xl border border-slate-200 space-y-6 relative">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200/80 gap-3">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 bg-white p-2 rounded-2xl shadow-sm border border-slate-200/80 flex items-center justify-center shrink-0">
                 <ApplianceIcon id={currentCatData?.id} name={currentCatData?.name} className="w-10 h-10 object-contain" />
@@ -214,7 +226,8 @@ export default function ApplianceSelector() {
             </div>
           </motion.div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

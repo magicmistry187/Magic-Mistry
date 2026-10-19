@@ -3,7 +3,7 @@ import { useBooking } from "../../components/Booking/BookingContext";
 import {
   LocateFixed, Loader2, MapPin, AlertCircle, CheckCircle2,
   MapPinOff, Clock3, Home, Briefcase, Tag, Edit3, BookmarkCheck,
-  Map,
+  Map, ChevronRight,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAddressesApi } from "../../services/operations/addressAPI";
@@ -69,7 +69,7 @@ const TYPE_OPTIONS = [
 ];
 
 export default function AddressForm() {
-  const { bookingState, updateBooking } = useBooking();
+  const { bookingState, updateBooking, scrollToNextStep } = useBooking();
   const { token, isLoggedIn, updateLocation } = useAuth();
 
   const [mode, setMode] = useState(MODE.CHOOSE);
@@ -97,7 +97,10 @@ export default function AddressForm() {
 
   const handleUseSavedAddress = async () => {
     setMode(MODE.SAVED);
-    if (savedAddress) return;
+    if (savedAddress) {
+      if (scrollToNextStep) scrollToNextStep('step-image-uploader', { offset: -90, delay: 100 });
+      return;
+    }
     setLoadingSaved(true);
     setSavedError("");
     try {
@@ -114,6 +117,9 @@ export default function AddressForm() {
         } else if (def.longitude && def.latitude) {
           updateBooking("longitude", Number(def.longitude));
           updateBooking("latitude", Number(def.latitude));
+        }
+        if (scrollToNextStep) {
+          scrollToNextStep('step-image-uploader', { offset: -90, delay: 250 });
         }
       } else {
         setSavedError("No saved address found. Please enter one below.");
@@ -309,6 +315,20 @@ export default function AddressForm() {
                 </div>
               </div>
             ) : null}
+
+            {savedAddress && (
+              <div className="mb-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (scrollToNextStep) scrollToNextStep('step-image-uploader', { offset: -90, delay: 50 });
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md shadow-indigo-500/20 transition-all cursor-pointer"
+                >
+                  Continue to Appliance Photo <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
             <button
               type="button"
@@ -515,6 +535,24 @@ export default function AddressForm() {
               <p className="text-xs text-red-600 flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" /> {manualError}
               </p>
+            )}
+
+            {bookingState.address && (
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!city || !pincode) {
+                      setManualError("Please fill required fields (City, Pincode)");
+                      return;
+                    }
+                    if (scrollToNextStep) scrollToNextStep('step-image-uploader', { offset: -90, delay: 50 });
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md shadow-indigo-500/20 transition-all cursor-pointer mb-2"
+                >
+                  Continue to Appliance Photo <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             )}
 
             <div className="pt-2 border-t border-gray-100">

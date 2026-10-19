@@ -33,17 +33,90 @@ function buildLiveApplianceSubServices() {
   return result;
 }
 
-export const scrollToNextStep = (targetId) => {
-  if (typeof window === 'undefined') return;
-  setTimeout(() => {
-    const element = document.getElementById(targetId);
-    if (element) {
-      const yOffset = -90;
-      const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
-      window.scrollTo({ top: y, behavior: 'smooth' });
+/**
+ * Fast and silky-smooth scroll function for the booking flow.
+ * Supports both Lenis smooth scrolling (global __lenis) and browser smooth scroll fallback.
+ *
+ * @param {string|HTMLElement} targetId - DOM element or ID (with or without #)
+ * @param {Object} [options]
+ * @param {number} [options.offset=-90] - Offset from top in pixels (compensates for fixed navbar)
+ * @param {number} [options.delay=80] - Debounce/mount delay in ms before initiating scroll
+ * @param {number} [options.duration=0.65] - Scroll duration in seconds for Lenis
+ * @param {boolean} [options.highlight=false] - Optional focus highlight ring
+ */
+export const scrollToNextStep = (targetId, options = {}) => {
+  if (typeof window === 'undefined' || !targetId) return;
+
+  const {
+    offset = -90,
+    delay = 30,
+    duration = 0.65,
+    highlight = false,
+  } = options;
+
+  const getTargetElement = () => {
+    if (typeof targetId === 'string') {
+      const cleanId = targetId.startsWith('#') ? targetId.slice(1) : targetId;
+      return document.getElementById(cleanId) || document.querySelector(targetId.startsWith('#') ? targetId : `#${cleanId}`);
+    } else if (targetId && targetId.nodeType === Node.ELEMENT_NODE) {
+      return targetId;
     }
-  }, 150);
+    return null;
+  };
+
+  const executeScroll = (element) => {
+    if (!element) return;
+
+    // 1. Lenis smooth scroll: hardware-accelerated, instantaneous response, zero jitter
+    if (window.__lenis && typeof window.__lenis.scrollTo === 'function') {
+      window.__lenis.scrollTo(element, {
+        offset,
+        duration,
+        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+        lock: false,
+        force: true,
+      });
+    } else {
+      // 2. Fallback to native smooth scroll with calculated coordinate
+      const elementRect = element.getBoundingClientRect();
+      const currentScrollY = window.pageYOffset || document.documentElement.scrollTop;
+      const targetY = elementRect.top + currentScrollY + offset;
+
+      window.scrollTo({
+        top: Math.max(0, targetY),
+        behavior: 'smooth',
+      });
+    }
+
+    // Optional subtle accent ring to guide user's attention
+    if (highlight) {
+      element.classList.add('ring-2', 'ring-indigo-400', 'ring-offset-2', 'transition-all', 'duration-500');
+      setTimeout(() => {
+        element.classList.remove('ring-2', 'ring-indigo-400', 'ring-offset-2');
+      }, 1200);
+    }
+  };
+
+  setTimeout(() => {
+    const el = getTargetElement();
+    if (el) {
+      executeScroll(el);
+    } else {
+      // Polling fallback: if element is mounting via React render/AnimatePresence, find it on the very first frame it exists
+      const startTime = performance.now();
+      const poll = (now) => {
+        const found = getTargetElement();
+        if (found) {
+          executeScroll(found);
+        } else if (now - startTime < 600) {
+          requestAnimationFrame(poll);
+        }
+      };
+      requestAnimationFrame(poll);
+    }
+  }, delay);
 };
+
 
 const DEFAULT_BASE_PRICE = 299;
 
