@@ -1,304 +1,196 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { 
   ShieldCheck, 
   Clock, 
-  ThumbsUp, 
-  Wrench, 
-  Award, 
   CheckCircle2, 
+  XCircle, 
   Star, 
-  Users, 
-  Shield, 
+  Wrench, 
   ArrowRight,
-  Zap,
   Lock,
-  Sparkles
+  BadgeCheck,
+  AlertCircle
 } from 'lucide-react';
 
 export default function WhyTrustUs() {
   const navigate = useNavigate();
 
-  const trustFeatures = [
+  const comparisonRows = [
+    {
+      feature: 'Pricing Transparency',
+      magic: 'Fixed upfront rate card. Part costs confirmed before installation.',
+      local: 'Arbitrary prices quoted on the spot. Frequent surprise charges.',
+    },
+    {
+      feature: 'Payment Terms',
+      magic: '100% Pay After Service via Cash or UPI once tested.',
+      local: 'Advance deposit or visiting charge demanded upfront.',
+    },
+    {
+      feature: 'Service Warranty',
+      magic: '30-Day Free Rework Guarantee if the same issue reoccurs.',
+      local: 'Zero warranty. Mechanic rarely answers after leaving.',
+    },
+    {
+      feature: 'Spare Parts Quality',
+      magic: '100% Brand-Certified OEM parts with manufacturer warranty.',
+      local: 'Often unbranded, duplicate or refurbished components.',
+    },
+    {
+      feature: 'Technician Verification',
+      magic: 'Police-verified, background-checked, and skilled in PCB circuits.',
+      local: 'Unvetted strangers entering your private home.',
+    },
+  ];
+
+  const pillarCards = [
     {
       id: 1,
       icon: ShieldCheck,
-      title: '30-Day Service Warranty',
-      desc: 'Complete peace of mind. If any issue reoccurs within 30 days, we re-inspect and fix it completely free.',
-      gradient: 'from-blue-500 to-indigo-600',
-      shadowColor: 'shadow-blue-500/30',
-      badge: 'Guaranteed'
+      title: '30-Day Free Rework Warranty',
+      description: 'If the repaired issue reoccurs within 30 days, we re-inspect and fix it with zero service charges.',
+      tag: 'Guaranteed'
     },
     {
       id: 2,
       icon: Clock,
-      title: 'Express Doorstep Visit',
-      desc: 'Fastest doorstep arrival across West Bengal. Schedule same-day express service within 60 minutes.',
-      gradient: 'from-orange-500 to-amber-600',
-      shadowColor: 'shadow-orange-500/30',
-      badge: '60-Min Visit'
+      title: 'Same-Day 60-Min Arrival',
+      description: 'Express technician dispatch across Kolkata, Howrah, Hooghly, and major West Bengal districts.',
+      tag: 'Express'
     },
     {
       id: 3,
-      icon: ThumbsUp,
-      title: 'Transparent Upfront Pricing',
-      desc: 'No hidden visiting fees or surprise bills. Clear fixed package prices confirmed before work begins.',
-      gradient: 'from-emerald-500 to-teal-600',
-      shadowColor: 'shadow-emerald-500/30',
-      badge: 'No Hidden Fees'
+      icon: Lock,
+      title: 'Zero Advance Deposit',
+      description: 'You test the repaired appliance in front of the technician before paying a single rupee.',
+      tag: 'Risk-Free'
     },
     {
       id: 4,
       icon: Wrench,
       title: '100% Genuine Spare Parts',
-      desc: 'We only use authentic, factory-certified replacement components with manufacturer warranty tags.',
-      gradient: 'from-purple-500 to-violet-600',
-      shadowColor: 'shadow-purple-500/30',
-      badge: 'OEM Quality'
-    },
-    {
-      id: 5,
-      icon: Award,
-      title: 'NABL & ISO Certified Mechanics',
-      desc: 'Every technician is police-verified, background-checked, and expert in PCB circuit board diagnosis.',
-      gradient: 'from-pink-500 to-rose-600',
-      shadowColor: 'shadow-pink-500/30',
-      badge: 'Police Verified'
-    },
-    {
-      id: 6,
-      icon: Lock,
-      title: 'Zero Deposit — Pay After Service',
-      desc: 'Never pay in advance! Inspect and test your fully repaired appliance before paying via Cash or UPI.',
-      gradient: 'from-cyan-500 to-blue-600',
-      shadowColor: 'shadow-cyan-500/30',
-      badge: 'Pay Later'
+      description: 'We install factory-certified replacement parts. You decide before any part is replaced.',
+      tag: 'Authentic'
     }
   ];
-
-  const stats = [
-    { label: 'Happy Customers', value: '50,000+', icon: Users, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-    { label: 'Avg User Rating', value: '4.9 ★', icon: Star, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-    { label: 'Verified Mechanics', value: '100%', icon: ShieldCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-    { label: 'Free Warranty', value: '30 Days', icon: Award, color: 'text-purple-400', bg: 'bg-purple-500/10' }
-  ];
-
-  // Smooth Stagger Animations
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.12,
-        delayChildren: 0.1
-      }
-    }
-  };
-
-  const cardVariants = {
-    hidden: { opacity: 0, y: 16, scale: 0.98 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      scale: 1,
-      transition: {
-        duration: 0.45,
-        ease: [0.215, 0.61, 0.355, 1]
-      }
-    }
-  };
 
   return (
-    <section className="max-w-6xl mx-auto px-4 py-8 sm:py-12">
-      {/* Outer Card Container */}
-      <motion.div 
-        initial={{ opacity: 0, y: 16 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: '120px 0px 50px 0px' }}
-        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        className="relative bg-[#06152B] rounded-3xl p-6 sm:p-12 text-white shadow-2xl overflow-hidden border border-slate-800/90"
-      >
-        
-        {/* Animated Background Ambient Orbs (GPU Layer Promoted) */}
-        <motion.div 
-          animate={{ 
-            scale: [1, 1.2, 1],
-            opacity: [0.15, 0.25, 0.15],
-            x: [0, 20, 0],
-            y: [0, -20, 0]
-          }}
-          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute -top-24 -right-24 w-96 h-96 bg-blue-600 rounded-full blur-3xl pointer-events-none gpu-layer" 
-        />
-        <motion.div 
-          animate={{ 
-            scale: [1, 1.25, 1],
-            opacity: [0.1, 0.2, 0.1],
-            x: [0, -20, 0],
-            y: [0, 20, 0]
-          }}
-          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute -bottom-24 -left-24 w-96 h-96 bg-emerald-500 rounded-full blur-3xl pointer-events-none gpu-layer" 
-        />
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+      
+      {/* Header */}
+      <div className="text-center max-w-2xl mx-auto mb-12">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-bold uppercase tracking-wider mb-3">
+          The Magic Mistry Standard
+        </span>
+        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-[#0B1E40] tracking-tight">
+          Why Homeowners Trust Us Over Local Mechanics
+        </h2>
+        <p className="text-slate-600 text-sm sm:text-base mt-2 leading-relaxed">
+          We founded Magic Mistry to eliminate unfair repair quotes, duplicate spare parts, and unaccountable service calls.
+        </p>
+      </div>
 
-        {/* Header Section */}
-        <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-14 relative z-10">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true, margin: '100px 0px 50px 0px' }}
-            transition={{ duration: 0.4, type: 'spring', stiffness: 200 }}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs font-extrabold uppercase tracking-wider mb-4 shadow-xs"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
-            <span>Unmatched Trust &amp; Quality Guarantee</span>
-          </motion.div>
-
-          <motion.h2 
-            initial={{ opacity: 0, y: 12 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '100px 0px 50px 0px' }}
-            transition={{ duration: 0.45, delay: 0.05 }}
-            className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight"
-          >
-            Why Customers Trust{' '}
-            <span className="bg-gradient-to-r from-blue-400 via-cyan-300 to-emerald-400 bg-clip-text text-transparent">
-              Magic Mistry
-            </span>
-          </motion.h2>
-
-          <motion.p 
-            initial={{ opacity: 0, y: 12 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '100px 0px 50px 0px' }}
-            transition={{ duration: 0.45, delay: 0.1 }}
-            className="mt-3 text-slate-300 text-sm sm:text-base leading-relaxed"
-          >
-            West Bengal's premier certified electronics repair platform engineered for honesty, speed, and complete customer satisfaction.
-          </motion.p>
-        </div>
-
-        {/* Animated Live Counter Stats */}
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: '120px 0px 50px 0px' }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12 relative z-10"
-        >
-          {stats.map((stat, idx) => {
-            const StatIcon = stat.icon;
-            return (
-              <motion.div
-                key={idx} 
-                variants={cardVariants}
-                whileHover={{ scale: 1.04, y: -4 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                className="bg-white/5 backdrop-blur-md border border-white/10 p-4 sm:p-5 rounded-2xl flex flex-col items-center justify-center text-center group cursor-pointer hover:bg-white/10 hover:border-blue-400/40 transition-colors shadow-lg"
-              >
-                <div className={`p-3 rounded-xl ${stat.bg} ${stat.color} mb-2.5 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300`}>
-                  <StatIcon className="w-5 h-5 sm:w-6 sm:h-6" />
-                </div>
-                <span className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                  {stat.value}
-                </span>
-                <span className="text-xs text-slate-300 font-semibold mt-0.5">
-                  {stat.label}
-                </span>
-              </motion.div>
-            );
-          })}
-        </motion.div>
-
-        {/* 6 Smooth Animated Feature Cards */}
-        <motion.div 
-          variants={containerVariants}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: '150px 0px 50px 0px' }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10"
-        >
-          {trustFeatures.map((feat) => {
-            const IconComp = feat.icon;
-            return (
-              <motion.div
-                key={feat.id}
-                variants={cardVariants}
-                whileHover={{ 
-                  y: -8, 
-                  scale: 1.02,
-                  transition: { type: 'spring', stiffness: 350, damping: 22 } 
-                }}
-                className="group relative bg-slate-900/80 backdrop-blur-md rounded-2xl p-6 border border-slate-700/80 hover:border-blue-400/60 shadow-xl hover:shadow-blue-500/15 transition-all duration-300 flex flex-col justify-between overflow-hidden cursor-pointer"
-              >
-                {/* Top Subtle Shimmer Highlight */}
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out pointer-events-none" />
-
-                <div>
-                  {/* Icon & Badge Header */}
-                  <div className="flex items-center justify-between mb-4">
-                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${feat.gradient} text-white flex items-center justify-center shadow-lg ${feat.shadowColor} group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300`}>
-                      <IconComp className="w-6 h-6 stroke-[2.2]" />
-                    </div>
-
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-300 bg-blue-500/15 border border-blue-500/30 px-3 py-1 rounded-full group-hover:bg-blue-500 group-hover:text-white transition-colors duration-300">
-                      {feat.badge}
-                    </span>
+      {/* Modern High-Contrast Comparison Table */}
+      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden mb-12">
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full text-left border-collapse min-w-[620px]">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50/70">
+                <th className="py-4 px-6 text-xs font-extrabold text-slate-500 uppercase tracking-wider w-1/3">
+                  Service Feature
+                </th>
+                <th className="py-4 px-6 text-xs font-extrabold text-blue-700 uppercase tracking-wider bg-blue-50/60 w-1/3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                    Magic Mistry Verified
                   </div>
+                </th>
+                <th className="py-4 px-6 text-xs font-extrabold text-slate-400 uppercase tracking-wider w-1/3">
+                  Unorganized Local Mechanics
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-sm">
+              {comparisonRows.map((row, idx) => (
+                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="py-4 px-6 font-bold text-slate-800">
+                    {row.feature}
+                  </td>
+                  <td className="py-4 px-6 bg-blue-50/30 font-medium text-slate-800">
+                    <div className="flex items-start gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span className="leading-relaxed text-xs sm:text-sm">{row.magic}</span>
+                    </div>
+                  </td>
+                  <td className="py-4 px-6 text-slate-500 font-medium">
+                    <div className="flex items-start gap-2.5">
+                      <XCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                      <span className="leading-relaxed text-xs sm:text-sm">{row.local}</span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-                  {/* Title & Description */}
-                  <h3 className="text-base sm:text-lg font-extrabold text-white mb-2 group-hover:text-blue-300 transition-colors duration-200">
-                    {feat.title}
-                  </h3>
-                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                    {feat.desc}
-                  </p>
-                </div>
-
-                {/* Bottom Verification Status */}
-                <div className="mt-6 pt-3 border-t border-slate-800/90 flex items-center justify-between text-xs font-bold text-emerald-400">
-                  <span className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Verified Protection</span>
+      {/* 4 Core Pillars Bento Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
+        {pillarCards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <div 
+              key={card.id}
+              className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow"
+            >
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center shrink-0">
+                    <Icon className="w-5 h-5 stroke-[2.2]" />
+                  </div>
+                  <span className="text-[10px] font-extrabold text-blue-700 bg-blue-100/70 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                    {card.tag}
                   </span>
-                  <ArrowRight className="w-4 h-4 text-slate-500 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-300 text-blue-400" />
                 </div>
-              </motion.div>
-            );
-          })}
-        </motion.div>
+                <h3 className="text-base font-extrabold text-[#0B1E40] mb-2 leading-snug">
+                  {card.title}
+                </h3>
+                <p className="text-xs text-slate-500 leading-relaxed font-normal">
+                  {card.description}
+                </p>
+              </div>
 
-        {/* Bottom CTA Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 25 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="mt-12 pt-8 border-t border-slate-800/90 flex flex-col sm:flex-row items-center justify-between gap-6 relative z-10"
-        >
-          <div className="text-center sm:text-left">
-            <h4 className="text-lg font-extrabold text-white flex items-center justify-center sm:justify-start gap-2">
-              <Zap className="w-5 h-5 text-amber-400 fill-amber-400/20 animate-bounce" />
-              Need Fast Appliance Repair in West Bengal?
-            </h4>
-            <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-              Serving Kolkata, Howrah, Hooghly, Durgapur, Siliguri, Asansol &amp; surrounding districts.
-            </p>
-          </div>
+              <div className="mt-5 pt-3 border-t border-slate-100 flex items-center gap-1.5 text-xs font-bold text-emerald-700">
+                <BadgeCheck className="w-4 h-4 text-emerald-600" />
+                <span>Verified Standard</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.96 }}
-            onClick={() => navigate('/booking')}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold text-sm px-8 py-4 rounded-full shadow-xl shadow-orange-500/25 hover:shadow-orange-500/40 transition-all duration-300 cursor-pointer shrink-0"
-          >
-            <span>Book Certified Technician Now</span>
-            <ArrowRight className="w-4.5 h-4.5" />
-          </motion.button>
-        </motion.div>
+      {/* Grounded Key Stats Row */}
+      <div className="bg-[#0B1E40] text-white rounded-2xl p-6 sm:p-8 grid grid-cols-2 lg:grid-cols-4 gap-6 text-center">
+        <div>
+          <p className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">4.9 ★</p>
+          <p className="text-xs text-slate-300 font-semibold mt-1">Average Customer Rating</p>
+        </div>
+        <div>
+          <p className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">30 Days</p>
+          <p className="text-xs text-slate-300 font-semibold mt-1">Rework Warranty Period</p>
+        </div>
+        <div>
+          <p className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">100%</p>
+          <p className="text-xs text-slate-300 font-semibold mt-1">Background Checked</p>
+        </div>
+        <div>
+          <p className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">₹0</p>
+          <p className="text-xs text-slate-300 font-semibold mt-1">Advance Booking Charge</p>
+        </div>
+      </div>
 
-      </motion.div>
     </section>
   );
 }
