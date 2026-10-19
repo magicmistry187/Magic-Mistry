@@ -1904,7 +1904,18 @@ export default function AdminDashboardPage() {
   const [restockNotes, setRestockNotes] = useState('');
 
   // User & Partner Management State
-  const [usersList, setUsersList] = useState(INITIAL_USERS);
+  const [usersList, setUsersList] = useState(() => {
+    try {
+      const cached = localStorage.getItem('mm_cached_admin_users');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return INITIAL_USERS;
+  });
+  const [isUsersLoading, setIsUsersLoading] = useState(false);
+  const [isRefreshingUsers, setIsRefreshingUsers] = useState(false);
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState('All');
   const [userStatusFilter, setUserStatusFilter] = useState('All');
@@ -2132,9 +2143,19 @@ export default function AdminDashboardPage() {
           localStorage.getItem('token')
         : null);
     if (!activeToken) return;
+
     try {
-      const res = await getAllUsersApi(activeToken);
-      if (res.success && Array.isArray(res.users) && res.users.length > 0) {
+      setIsRefreshingUsers(true);
+      const res = await getAllUsersApi(activeToken, { limit: 100, fetchAll: true });
+      if (res.success && Array.isArray(res.users)) {
+        if (res.users.length === 0) {
+          setUsersList([]);
+          try {
+            localStorage.setItem('mm_cached_admin_users', JSON.stringify([]));
+          } catch (_) {}
+          return;
+        }
+
         let savedStatuses = {};
         try {
           savedStatuses = JSON.parse(localStorage.getItem('mm_user_statuses') || '{}');
@@ -2150,7 +2171,10 @@ export default function AdminDashboardPage() {
           const rawId = u._id ? String(u._id) : null;
           const roleNormalized = u.role === 'vendor' ? 'Technician' : u.role === 'admin' ? 'Admin' : 'Customer';
           const displayId = u.vendorId || (rawId ? (roleNormalized === 'Technician' ? 'VND-' : 'USR-') + rawId.slice(-4).toUpperCase() : 'USR-101');
-          const overrideStatus = (rawId && savedStatuses[rawId]) || savedStatuses[displayId] || (u.email && savedStatuses[u.email.toLowerCase()]) || (u.status ? u.status.charAt(0).toUpperCase() + u.status.slice(1) : 'Active');
+          
+          // Database status is the primary source of truth; fallback to locally saved status override
+          const backendStatus = u.status ? u.status.charAt(0).toUpperCase() + u.status.slice(1) : null;
+          const overrideStatus = backendStatus || (rawId && savedStatuses[rawId]) || savedStatuses[displayId] || (u.email && savedStatuses[u.email.toLowerCase()]) || 'Active';
 
           const bookingCount = combinedBookings.filter((b) => {
             if (roleNormalized === 'Technician') {
@@ -2177,13 +2201,19 @@ export default function AdminDashboardPage() {
         });
 
         setUsersList(formatted);
+        try {
+          localStorage.setItem('mm_cached_admin_users', JSON.stringify(formatted));
+        } catch (_) {}
         return;
       }
     } catch (err) {
       console.warn('Backend users fetch error:', err);
+    } finally {
+      setIsRefreshingUsers(false);
+      setIsUsersLoading(false);
     }
 
-    // Fallback: Compute from seeded platform roster, applications and bookings
+    // Fallback: Compute from seeded platform roster, applications and bookings only on network failure
     syncUsersAndVendorsFromBackend();
   }, [token, syncUsersAndVendorsFromBackend]);
 
@@ -2232,6 +2262,7 @@ export default function AdminDashboardPage() {
         const res = await updateUserStatusApi(mongoUserId, updatedUser.status.toLowerCase(), adminToken || token);
         if (res.success) {
           showToast(`Updated status & profile for ${updatedUser.name || updatedUser.fullName}`);
+          fetchUsers();
           return;
         } else {
           showToast(res.message || 'Status update failed on server', 'error');
@@ -2299,6 +2330,7 @@ export default function AdminDashboardPage() {
         const res = await updateUserStatusApi(mongoUserId, newStatus.toLowerCase(), adminToken || token);
         if (res.success) {
           showToast(`${target?.name || 'User'} status updated to ${newStatus}`);
+          fetchUsers();
         } else {
           showToast(res.message || 'Server error updating status', 'error');
         }
@@ -4639,9 +4671,21 @@ export default function AdminDashboardPage() {
                     transition={{ duration: 0.3 }}
                     className="space-y-6"
                   >
-                    <div>
-                      <h1 className="text-3xl font-extrabold text-slate-900">User & Partner Management</h1>
-                      <p className="text-slate-500 text-sm mt-1">Manage active customers, technician partners, status (Active, Blocked, Suspended), and profile access.</p>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <h1 className="text-3xl font-extrabold text-slate-900">User & Partner Management</h1>
+                        <p className="text-slate-500 text-sm mt-1">Manage active customers, technician partners, status (Active, Blocked, Suspended), and profile access.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={fetchUsers}
+                        disabled={isRefreshingUsers}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 shadow-sm transition-all cursor-pointer self-start sm:self-auto disabled:opacity-60"
+                        title="Refresh live user roster from database"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isRefreshingUsers ? 'animate-spin text-orange-500' : ''}`} />
+                        <span>{isRefreshingUsers ? 'Syncing...' : 'Refresh Users'}</span>
+                      </button>
                     </div>
 
                     {/* KPI Quick Counter Cards */}
@@ -4737,7 +4781,17 @@ export default function AdminDashboardPage() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {filteredUsers.length === 0 ? (
+                            {isRefreshingUsers && usersList.length === 0 ? (
+                              <tr>
+                                <td colSpan="6" className="py-16 text-center text-slate-400">
+                                  <div className="flex flex-col items-center justify-center gap-2">
+                                    <RefreshCw className="w-8 h-8 text-orange-500 animate-spin mb-1" />
+                                    <p className="font-extrabold text-sm text-slate-700">Connecting to database...</p>
+                                    <p className="text-xs text-slate-400">Retrieving user roster and partner accounts.</p>
+                                  </div>
+                                </td>
+                              </tr>
+                            ) : filteredUsers.length === 0 ? (
                               <tr>
                                 <td colSpan="6" className="py-16 text-center text-slate-400">
                                   <div className="flex flex-col items-center justify-center gap-2">
