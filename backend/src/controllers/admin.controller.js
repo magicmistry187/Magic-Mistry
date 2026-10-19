@@ -1,7 +1,10 @@
-const User = require("../models/user.model");
-const Booking = require("../models/booking.model");
-const sendEmail = require("../utils/sendEmail");
-const { emitAccountStatusUpdated } = require("../socket/socketEmitter");
+const User = require('../models/user.model');
+const Booking = require('../models/booking.model');
+const sendEmail = require('../utils/sendEmail');
+const { emitAccountStatusUpdated } = require('../socket/socketEmitter');
+const Payout = require('../models/payout.model');
+const FuelClaim = require('../models/fuelClaim.model');
+const VendorProfile = require('../models/vendorProfile.model');
 
 //Update User Account Status
 exports.updateUserStatus = async (req, res) => {
@@ -10,14 +13,14 @@ exports.updateUserStatus = async (req, res) => {
     const { userId } = req.params;
 
     //Validate the status
-    const allowedStatus = ["active", "blocked", "suspended"];
+    const allowedStatus = ['active', 'blocked', 'suspended'];
 
     // console.log("Duraton Days : ", durationDays);
 
     if (!allowedStatus.includes(status.toLowerCase())) {
       return res.status(400).json({
         success: false,
-        message: "Invalid Status",
+        message: 'Invalid Status',
       });
     }
 
@@ -27,15 +30,15 @@ exports.updateUserStatus = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User Not Found",
+        message: 'User Not Found',
       });
     }
 
     //Prevent admins status change
-    if (user.role === "admin") {
+    if (user.role === 'admin') {
       return res.status(403).json({
         success: false,
-        message: "Admin acount status cant be changed",
+        message: 'Admin acount status cant be changed',
       });
     }
 
@@ -43,7 +46,7 @@ exports.updateUserStatus = async (req, res) => {
 
     //Handle each status
 
-    if (newStatus === "suspended") {
+    if (newStatus === 'suspended') {
       if (
         durationDays === undefined ||
         !Number.isInteger(durationDays) ||
@@ -51,7 +54,7 @@ exports.updateUserStatus = async (req, res) => {
       ) {
         return res.status(400).json({
           success: false,
-          message: "Valid suspension duration is required",
+          message: 'Valid suspension duration is required',
         });
       }
 
@@ -61,13 +64,13 @@ exports.updateUserStatus = async (req, res) => {
 
       // console.log("SUSPENSION DATE : ", suspendedUntil);
 
-      user.status = "suspended";
+      user.status = 'suspended';
       user.suspendedUntil = suspendedUntil;
 
-      if (user.role === "customer") {
+      if (user.role === 'customer') {
         const allBookingOfCustomer = await Booking.find({
           customer: user._id,
-          bookingStatus: { $in: ["Pending", "Accepted", "On the Way"] },
+          bookingStatus: { $in: ['Pending', 'Accepted', 'On the Way'] },
         });
 
         //Cancel all active bookings by comparing suspend date of the customer
@@ -76,39 +79,39 @@ exports.updateUserStatus = async (req, res) => {
           //Bookingg Service Date Before Suspension
 
           if (booking.serviceDate <= suspendedUntil) {
-            booking.bookingStatus = "Cancelled";
+            booking.bookingStatus = 'Cancelled';
             booking.cancelDueToSuspension = false;
             await booking.save();
           } else {
             //Booking happens after suspension
             //Temporarily cancel it
 
-            booking.bookingStatus = "Cancelled";
+            booking.bookingStatus = 'Cancelled';
             booking.cancelDueToSuspension = true;
             await booking.save();
           }
         }
       }
-    } else if (newStatus === "active") {
-      user.status = "active";
+    } else if (newStatus === 'active') {
+      user.status = 'active';
       user.suspendedUntil = null;
-    } else if (newStatus === "blocked") {
-      user.status = "blocked";
+    } else if (newStatus === 'blocked') {
+      user.status = 'blocked';
       user.suspendedUntil = null;
 
-      if (user.role === "customer") {
+      if (user.role === 'customer') {
         //Cancel all active bookings of the customer
 
         await Booking.updateMany(
           {
             customer: user._id,
             bookingStatus: {
-              $in: ["Pending", "Accepted", "On the Way"],
+              $in: ['Pending', 'Accepted', 'On the Way'],
             },
           },
           {
             $set: {
-              bookingStatus: "Cancelled",
+              bookingStatus: 'Cancelled',
               cancelDueToSuspension: false,
             },
           },
@@ -117,8 +120,8 @@ exports.updateUserStatus = async (req, res) => {
     }
 
     if (
-      user.role === "vendor" &&
-      (newStatus === "suspended" || newStatus === "blocked")
+      user.role === 'vendor' &&
+      (newStatus === 'suspended' || newStatus === 'blocked')
     ) {
       //Find the accepted Booking of vendor and update it
 
@@ -139,21 +142,21 @@ exports.updateUserStatus = async (req, res) => {
       const booking = await Booking.findOneAndUpdate(
         {
           vendor: user._id,
-          bookingStatus: "Accepted",
+          bookingStatus: 'Accepted',
         },
         {
           $set: {
             vendor: null,
-            bookingStatus: "Pending",
+            bookingStatus: 'Pending',
             isReassignmentRequired: true,
           },
         },
         {
           new: true,
         },
-      ).populate("customer", "email fullName phoneNumber");
+      ).populate('customer', 'email fullName phoneNumber');
 
-      console.log("Email of customer : ", booking.customer.email);
+      console.log('Email of customer : ', booking.customer.email);
 
       if (booking) {
         try {
@@ -188,12 +191,12 @@ exports.updateUserStatus = async (req, res) => {
 
           await sendEmail(
             booking.customer.email,
-            "Update regarding your Magic Mistry service booking",
+            'Update regarding your Magic Mistry service booking',
             emailBody,
           );
         } catch (emailErr) {
           console.warn(
-            " Email notification failed while updating customer about service:",
+            ' Email notification failed while updating customer about service:',
             emailErr.message,
           );
         }
@@ -203,10 +206,11 @@ exports.updateUserStatus = async (req, res) => {
     await user.save();
 
     // If blocked or suspended, immediately notify and log out the client session via WebSockets
-    if (status === "blocked" || status === "suspended") {
-      const reasonMessage = status === "blocked"
-        ? "Your account has been blocked by the administrator."
-        : `Your account has been suspended until ${suspendedUntil?.toLocaleDateString() || "further notice"}.`;
+    if (status === 'blocked' || status === 'suspended') {
+      const reasonMessage =
+        status === 'blocked'
+          ? 'Your account has been blocked by the administrator.'
+          : `Your account has been suspended until ${suspendedUntil?.toLocaleDateString() || 'further notice'}.`;
       emitAccountStatusUpdated(user._id, status, reasonMessage);
     }
 
@@ -223,19 +227,16 @@ exports.updateUserStatus = async (req, res) => {
       },
     });
   } catch (err) {
-    console.log("Error while Updating user account status:  ", err);
+    console.log('Error while Updating user account status:  ', err);
     return res.status(500).json({
       success: false,
-      message: "Failed to update user account",
+      message: 'Failed to update user account',
     });
   }
 };
 
-
-// Admin gets users with pagination.
 exports.getAllUsers = async (req, res) => {
   try {
-    // Only admins can access this endpoint.
     if (req.user?.role !== 'admin') {
       return res.status(403).json({
         success: false,
@@ -244,23 +245,14 @@ exports.getAllUsers = async (req, res) => {
     }
 
     // Read pagination values from query parameters.
-    const page = Math.max(
-      parseInt(req.query.page, 10) || 1,
-      1
-    );
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
 
-    const requestedLimit = Math.max(
-      parseInt(req.query.limit, 10) || 10,
-      1
-    );
+    const requestedLimit = Math.max(parseInt(req.query.limit, 10) || 10, 1);
 
-    // Prevent excessively large requests.
     const limit = Math.min(requestedLimit, 100);
 
-    // Calculate how many records to skip.
     const skip = (page - 1) * limit;
 
-    // Fetch the requested page and total count together.
     const [users, totalUsers] = await Promise.all([
       User.find()
         .select('-password -__v')
@@ -293,6 +285,137 @@ exports.getAllUsers = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to retrieve users.',
+    });
+  }
+};
+
+exports.getAllPaymentRequests = async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+
+    const limit = Math.min(
+      Math.max(parseInt(req.query.limit, 10) || 10, 1),
+      100,
+    );
+
+    const skip = (page - 1) * limit;
+    const fetchCount = skip + limit;
+
+    const [payoutRequests, fuelClaims, totalPayouts, totalFuelClaims] =
+      await Promise.all([
+        Payout.find()
+          .select('_id vendor amount daysOfWork status createdAt requestedAt')
+          .populate('vendor', 'fullName email phoneNumber vendorId')
+          .sort({ createdAt: -1, _id: -1 })
+          .limit(fetchCount)
+          .lean(),
+
+        FuelClaim.find()
+          .select(
+            '_id vendor booking claimAmount vehicleType distanceKm reason proofs status adminNote createdAt reviewedAt',
+          )
+          .populate('vendor', 'fullName email phoneNumber vendorId')
+          .populate(
+            'booking',
+            'appliance serviceCategory serviceDate bookingStatus',
+          )
+          .sort({ createdAt: -1, _id: -1 })
+          .limit(fetchCount)
+          .lean(),
+
+        Payout.countDocuments(),
+        FuelClaim.countDocuments(),
+      ]);
+
+    // Combine both request types.
+    const allRequests = [
+      ...payoutRequests.map((request) => ({
+        ...request,
+        requestType: 'payout',
+        status: request.status === 'Requested' ? 'Pending' : request.status,
+      })),
+
+      ...fuelClaims.map(({ claimAmount, ...request }) => ({
+        ...request,
+        amount: claimAmount,
+        requestType: 'fuelClaim',
+      })),
+    ];
+
+    // Sort both types together, newest first.
+    allRequests.sort((a, b) => {
+      const dateDifference =
+        new Date(b.createdAt || 0).getTime() -
+        new Date(a.createdAt || 0).getTime();
+
+      if (dateDifference !== 0) {
+        return dateDifference;
+      }
+
+      return String(b._id).localeCompare(String(a._id));
+    });
+
+    const pageRequests = allRequests.slice(skip, skip + limit);
+
+    const vendorIds = [
+      ...new Set(
+        pageRequests
+          .map((request) => request.vendor?._id?.toString())
+          .filter(Boolean),
+      ),
+    ];
+
+    const vendorProfiles = await VendorProfile.find({
+      user: { $in: vendorIds },
+    })
+      .select('user vendorId vendorUpiId bankDetails')
+      .lean();
+
+    const profileMap = new Map(
+      vendorProfiles.map((profile) => [profile.user.toString(), profile]),
+    );
+
+    const requests = pageRequests.map((request) => {
+      if (!request.vendor) {
+        return request;
+      }
+
+      const user = request.vendor;
+      const profile = profileMap.get(user._id.toString());
+
+      return {
+        ...request,
+        vendor: {
+          ...user,
+          vendorId: profile?.vendorId || user.vendorId || null,
+          vendorUpiId: profile?.vendorUpiId || null,
+          bankDetails: profile?.bankDetails || null,
+        },
+      };
+    });
+
+    const totalRequests = totalPayouts + totalFuelClaims;
+    const totalPages = Math.ceil(totalRequests / limit);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Payment requests retrieved successfully.',
+      pagination: {
+        currentPage: page,
+        limit,
+        totalRequests,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+      data: requests,
+    });
+  } catch (error) {
+    console.error('Get payment requests error:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve payment requests.',
     });
   }
 };
