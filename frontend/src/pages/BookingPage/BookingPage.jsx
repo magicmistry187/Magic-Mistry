@@ -81,8 +81,7 @@ export default function BookingPage() {
             {/* Right Column: Step 7 & Sticky Summary */}
             <div
               id="step-booking-summary"
-              data-lenis-prevent
-              className="lg:col-span-1 lg:sticky lg:top-24 max-h-[calc(100vh-7rem)] overflow-y-auto overscroll-contain custom-scrollbar"
+              className="lg:col-span-1 lg:sticky lg:top-24"
             >
               <BookingSummary />
             </div>

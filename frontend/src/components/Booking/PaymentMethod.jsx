@@ -30,7 +30,7 @@ const methods = [
 ];
 
 export default function PaymentMethod() {
-  const { bookingState, updateBooking, scrollToNextStep } = useBooking();
+  const { bookingState, updateBooking } = useBooking();
   const selected = bookingState.paymentMethod || 'Cash';
   const isSelectedMethod = (id) =>
     String(selected).toLowerCase() === String(id).toLowerCase();
@@ -56,7 +56,6 @@ export default function PaymentMethod() {
               onClick={() => {
                 if (method.enabled) {
                   updateBooking('paymentMethod', method.id);
-                  if (scrollToNextStep) scrollToNextStep('step-booking-summary', { offset: -90, delay: 180 });
                 }
               }}
               className={`w-full text-left flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${

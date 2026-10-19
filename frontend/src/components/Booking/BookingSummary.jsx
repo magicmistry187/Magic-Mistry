@@ -197,7 +197,7 @@ export default function BookingSummary() {
   };
 
   return (
-    <div className="bg-gradient-to-b from-[#0B1E40] to-slate-900 text-white p-7 md:p-8 rounded-3xl shadow-[0_20px_50px_rgba(11,_30,_64,_0.3)] sticky top-6 border border-slate-700/50 relative overflow-hidden">
+    <div className="bg-gradient-to-b from-[#0B1E40] to-slate-900 text-white p-7 md:p-8 rounded-3xl shadow-[0_20px_50px_rgba(11,_30,_64,_0.3)] border border-slate-700/50 relative overflow-hidden">
       {/* Glow effect */}
       <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500 rounded-full mix-blend-screen filter blur-[80px] opacity-10 pointer-events-none"></div>
 
