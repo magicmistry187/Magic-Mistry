@@ -5,6 +5,8 @@ const { emitAccountStatusUpdated } = require('../socket/socketEmitter');
 const Payout = require('../models/payout.model');
 const FuelClaim = require('../models/fuelClaim.model');
 const VendorProfile = require('../models/vendorProfile.model');
+const VendorEarning = require('../models/vendorEarning.model');
+const mongoose = require('mongoose');
 
 //Update User Account Status
 exports.updateUserStatus = async (req, res) => {
@@ -416,6 +418,170 @@ exports.getAllPaymentRequests = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to retrieve payment requests.',
+    });
+  }
+};
+
+exports.updatePayoutStatus = async (req, res) => {
+  const session = await mongoose.startSession();
+
+  try {
+    const { payoutId } = req.params;
+    const { status, adminNote, transactionId } = req.body;
+
+    const allowedStatuses = ['Processing', 'Paid', 'Rejected'];
+
+    if (!mongoose.Types.ObjectId.isValid(payoutId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid payout ID',
+      });
+    }
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Status must be Processing, Paid, or Rejected',
+      });
+    }
+
+    let payout;
+
+    await session.withTransaction(async () => {
+      payout = await Payout.findById(payoutId).session(session);
+
+      if (!payout) {
+        throw new Error('Payout request not found');
+      }
+
+      if (!['Requested', 'Processing'].includes(payout.status)) {
+        throw new Error(`Cannot update a payout with status ${payout.status}`);
+      }
+
+      if (status === 'Processing' && payout.status !== 'Requested') {
+        throw new Error('Only requested payouts can be processed');
+      }
+
+      if (status === 'Paid') {
+        await VendorEarning.updateMany(
+          {
+            _id: { $in: payout.earnings },
+            status: 'Included In Payout',
+          },
+          {
+            $set: { status: 'Paid' },
+          },
+          { session },
+        );
+      }
+
+      if (status === 'Rejected') {
+        await VendorEarning.updateMany(
+          {
+            _id: { $in: payout.earnings },
+            status: 'Included In Payout',
+          },
+          {
+            $set: { status: 'Available' },
+          },
+          { session },
+        );
+      }
+
+      payout.status = status;
+
+      if (adminNote !== undefined) {
+        payout.adminNote = adminNote;
+      }
+
+      if (transactionId !== undefined && status === 'Paid') {
+        payout.transactionId = transactionId;
+      }
+
+      if (
+        status === 'Processing' ||
+        status === 'Paid' ||
+        status === 'Rejected'
+      ) {
+        payout.processedAt = new Date();
+      }
+
+      await payout.save({ session });
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Payout request ${status.toLowerCase()} successfully`,
+      data: payout,
+    });
+  } catch (error) {
+    console.error('Update payout status error:', error);
+
+    return res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to update payout status',
+    });
+  } finally {
+    await session.endSession();
+  }
+};
+
+exports.updateFuelClaimStatus = async (req, res) => {
+  try {
+    const { claimId } = req.params;
+    const { status, adminNote } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(claimId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid fuel claim ID',
+      });
+    }
+
+    if (!['Approved', 'Rejected'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Status must be Approved or Rejected',
+      });
+    }
+
+    const claim = await FuelClaim.findOneAndUpdate(
+      {
+        _id: claimId,
+        status: 'Pending',
+      },
+      {
+        $set: {
+          status,
+          adminNote: adminNote || '',
+          reviewedBy: req.user.id,
+          reviewedAt: new Date(),
+        },
+      },
+      {
+        new: true,
+        runValidators: true,
+      },
+    );
+
+    if (!claim) {
+      return res.status(404).json({
+        success: false,
+        message: 'Fuel claim not found or already reviewed',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Fuel claim ${status.toLowerCase()} successfully`,
+      data: claim,
+    });
+  } catch (error) {
+    console.error('Update fuel claim status error:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update fuel claim status',
     });
   }
 };
