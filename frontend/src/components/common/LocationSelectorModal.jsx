@@ -309,6 +309,7 @@ export default function LocationSelectorModal({ isOpen, onClose }) {
 
                   <InteractiveMapPicker
                     initialCoords={detectedCoords}
+                    initialAddress={detectedData}
                     onLocationSelect={handleMapLocationSelect}
                     height="280px"
                     showSearch={true}

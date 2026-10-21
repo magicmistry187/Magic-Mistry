@@ -295,6 +295,11 @@ export default function UserAddressModal({ isOpen, onClose, onSave, initialData 
                 </div>
                 <InteractiveMapPicker
                   initialCoords={geoCoords}
+                  initialAddress={
+                    street || city || pincode
+                      ? { flat, street, city, state, landmark, pincode }
+                      : null
+                  }
                   onLocationSelect={handleMapSelect}
                   height="260px"
                   showSearch={true}

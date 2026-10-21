@@ -73,7 +73,9 @@ const createPinIcon = () =>
  */
 export default function InteractiveMapPicker({
   initialCoords = null,
+  initialAddress = null,
   onLocationSelect,
+  onSelectLocation,
   height = "300px",
   showSearch = true,
   compact = false,
@@ -89,7 +91,7 @@ export default function InteractiveMapPicker({
   const defaultLng = initialCoords?.lng && !isNaN(initialCoords.lng) ? Number(initialCoords.lng) : 88.3639;
 
   const [coords, setCoords] = useState({ lat: defaultLat, lng: defaultLng });
-  const [addressData, setAddressData] = useState(null);
+  const [addressData, setAddressData] = useState(initialAddress || null);
   const [isResolving, setIsResolving] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [accuracyInfo, setAccuracyInfo] = useState(null);
@@ -100,6 +102,17 @@ export default function InteractiveMapPicker({
   const [isSearching, setIsSearching] = useState(false);
   const searchTimerRef = useRef(null);
 
+  const notifyLocation = useCallback(
+    (payload) => {
+      if (onLocationSelect) {
+        onLocationSelect(payload);
+      } else if (onSelectLocation) {
+        onSelectLocation(payload);
+      }
+    },
+    [onLocationSelect, onSelectLocation]
+  );
+
   // Perform reverse geocode for a coordinate pair
   const handleReverseGeocode = useCallback(
     async (lat, lng, accuracy = null) => {
@@ -107,20 +120,18 @@ export default function InteractiveMapPicker({
       try {
         const result = await reverseGeocode(lat, lng);
         setAddressData(result);
-        if (onLocationSelect) {
-          onLocationSelect({
-            coords: { lat, lng },
-            address: result,
-            accuracy,
-          });
-        }
+        notifyLocation({
+          coords: { lat, lng },
+          address: result,
+          accuracy,
+        });
       } catch (err) {
         console.warn("[InteractiveMapPicker] Reverse geocode error:", err);
       } finally {
         setIsResolving(false);
       }
     },
-    [onLocationSelect]
+    [notifyLocation]
   );
 
   // Debounced reverse geocode on pin move
@@ -194,9 +205,13 @@ export default function InteractiveMapPicker({
     mapInstanceRef.current = map;
     markerRef.current = marker;
 
-    // Run initial reverse geocode if initialCoords given
+    // Run initial reverse geocode if initialCoords given and not already provided via initialAddress
     if (initialCoords?.lat && initialCoords?.lng) {
-      handleReverseGeocode(defaultLat, defaultLng);
+      if (initialAddress) {
+        setAddressData(initialAddress);
+      } else {
+        handleReverseGeocode(defaultLat, defaultLng);
+      }
     }
 
     // Leaflet needs invalidateSize after container renders

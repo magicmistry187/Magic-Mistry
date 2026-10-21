@@ -415,6 +415,128 @@ function parseIndianAddress(data, nearbyList = []) {
   };
 }
 
+// ── Geolocation & Reverse Geocoding Cache (Prevents Redundant Rapid API Calls) ─
+const geoCache = new Map();
+const CACHE_TTL_MS = 60 * 1000; // 60 seconds
+
+/**
+ * Calculates distance in meters between two GPS coordinates using Haversine formula
+ */
+function haversineDistanceMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000; // meters
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/**
+ * Checks if a string is a specialized single-purpose institutional facility
+ * (e.g. Hospital, Court, Air Force Station, Cantonment, Jail) that should NOT
+ * be used as a general residential or commercial street address.
+ */
+export function isInstitutionalFacility(name) {
+  if (!name || typeof name !== 'string') return false;
+  return /\b(hospital|dispensary|medical college|health centre|cantonment|air force|military|jail|court|sanatorium)\b/i.test(name);
+}
+
+/**
+ * Registry of institutional / single-facility Indian PIN codes where OpenStreetMap
+ * incorrectly mapped broad 50-100 sq km regional boundary polygons to a single hospital
+ * or military compound. When user coordinates are outside the facility, corrects to the
+ * authoritative local civilian delivery PIN code and post office locality.
+ */
+const INSTITUTIONAL_POSTCODES = {
+  '713340': {
+    name: 'Kalla Central Hospital',
+    facilityLat: 23.700938,
+    facilityLng: 86.996688,
+    maxRadiusMeters: 600,
+    resolveAlternate: (lat, lng, rawStr) => {
+      // If coordinates are in Jamuria / Sripur / Barabani / Kankhaya / Pariharpur / Nischinta sector
+      if (lng >= 87.005 || /jamuria|sripur|kankhaya|pariharpur|nischinta|barabani|baraboni/i.test(rawStr)) {
+        return {
+          pincode: '713373',
+          street: 'Sripur Bazar',
+          city: /jamuria/i.test(rawStr) ? 'Jamuria' : 'Barabani',
+          state: 'West Bengal',
+        };
+      }
+      // If north in Baraboni proper / Domahani
+      if (lat >= 23.72) {
+        return {
+          pincode: '713334',
+          street: 'Domahani Bazar',
+          city: 'Barabani',
+          state: 'West Bengal',
+        };
+      }
+      // If south towards Asansol city
+      return {
+        pincode: '713304',
+        street: 'Upper Chelidanga',
+        city: 'Asansol',
+        state: 'West Bengal',
+      };
+    },
+  },
+  '122005': { name: 'Air Force Station Gurgaon', facilityLat: 28.435, facilityLng: 77.038, maxRadiusMeters: 800, fallbackPin: '122001' },
+  '211017': { name: 'Allahabad High Court', facilityLat: 25.452, facilityLng: 81.828, maxRadiusMeters: 600, fallbackPin: '211001' },
+  '243002': { name: 'Air Force Station Bareilly', facilityLat: 28.423, facilityLng: 79.452, maxRadiusMeters: 1000, fallbackPin: '243001' },
+  '422501': { name: 'Devlali Air Force', facilityLat: 19.932, facilityLng: 73.834, maxRadiusMeters: 1200, fallbackPin: '422401' },
+  '462024': { name: 'H.E. Hospital Bhopal', facilityLat: 23.256, facilityLng: 77.468, maxRadiusMeters: 600, fallbackPin: '462022' },
+  '500066': { name: 'High Court Hyderabad', facilityLat: 17.368, facilityLng: 78.472, maxRadiusMeters: 500, fallbackPin: '500002' },
+  '600104': { name: 'High Court Building Chennai', facilityLat: 13.087, facilityLng: 80.287, maxRadiusMeters: 600, fallbackPin: '600001' },
+  '625023': { name: 'Madras High Court Madurai Bench', facilityLat: 9.948, facilityLng: 78.188, maxRadiusMeters: 600, fallbackPin: '625020' },
+  '670017': { name: 'Kannur District Hospital', facilityLat: 11.871, facilityLng: 75.368, maxRadiusMeters: 500, fallbackPin: '670001' },
+};
+
+/**
+ * Sanitizes an address object if an institutional postcode was assigned by mistake
+ */
+function sanitizeInstitutionalPincode(addr, lat, lng) {
+  if (!addr || !addr.pincode) return addr;
+  const pin = String(addr.pincode).trim();
+  const inst = INSTITUTIONAL_POSTCODES[pin];
+  if (!inst) return addr;
+
+  const dist = haversineDistanceMeters(lat, lng, inst.facilityLat, inst.facilityLng);
+  if (dist > inst.maxRadiusMeters) {
+    const rawStr =
+      JSON.stringify(addr.rawAddress || {}) +
+      ' ' +
+      (addr.fullAddress || '') +
+      ' ' +
+      (addr.street || '') +
+      ' ' +
+      (addr.city || '');
+    const alt = inst.resolveAlternate ? inst.resolveAlternate(lat, lng, rawStr) : null;
+    if (alt) {
+      console.log(`[ReverseGeocode] Corrected false institutional PIN ${pin} -> ${alt.pincode} (${alt.street}, ${alt.city})`);
+      return {
+        ...addr,
+        pincode: alt.pincode,
+        street: (!addr.street || isInstitutionalFacility(addr.street) || addr.street === 'Local Area') ? alt.street : addr.street,
+        city: (!addr.city || addr.city === 'Local Area') ? alt.city : addr.city,
+        state: addr.state || alt.state || '',
+      };
+    } else if (inst.fallbackPin) {
+      return {
+        ...addr,
+        pincode: inst.fallbackPin,
+        street: isInstitutionalFacility(addr.street) ? (addr.city || 'Local Area') : addr.street,
+      };
+    }
+  }
+  return addr;
+}
+
 /**
  * Reverse-geocodes latitude and longitude into structured Indian address fields:
  * - Street / Small Area (Mohalla / Colony / Road / Village)
@@ -424,9 +546,9 @@ function parseIndianAddress(data, nearbyList = []) {
  * - Flat / Door (Optional)
  *
  * Tier 1: Direct Client LocationIQ (Highest accuracy for India villages, colonies, exact PINs)
- * Tier 2: Direct Client Nominatim (Reliable OpenStreetMap fallback)
- * Tier 3: Backend Proxy Endpoint (Fallback)
- * Tier 4: India Post Safeguarded Verification
+ * Tier 2: Backend Proxy Endpoint (Backed by offline 19,097 India Post dataset)
+ * Tier 3: Direct Client Nominatim (Reliable OpenStreetMap fallback)
+ * Tier 4: India Post Safeguarded Verification & Institutional Sanitization
  *
  * @param {number} latitude
  * @param {number} longitude
@@ -440,6 +562,13 @@ export async function reverseGeocode(latitude, longitude) {
     throw new Error('Invalid coordinates provided for reverse geocoding.');
   }
 
+  // 1. Check in-memory coordinate cache (quantized to 4 decimals, ~11m)
+  const cacheKey = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+  const cached = geoCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.data;
+  }
+
   let parsedResult = null;
   const locationIqKey =
     import.meta?.env?.VITE_LOCATIONIQ_API_KEY ||
@@ -449,16 +578,12 @@ export async function reverseGeocode(latitude, longitude) {
   // ═══════════════════════════════════════════════════════════════════════════
   // ── PHASE 1: Tri-Engine Parallel Resolver (Backend + LocationIQ + Nominatim)
   // ═══════════════════════════════════════════════════════════════════════════
-  // Concurrently queries:
-  // 1. Backend Reverse Geocode Endpoint (backed by offline 19,097 India Post dataset)
-  // 2. Direct Client LocationIQ (high-accuracy survey boundaries & PINs)
-  // 3. Direct Client OSM Nominatim (micro-localities: suburbs, colonies, sectors)
   const promises = [];
 
   // Engine 1: Backend Reverse Geocode with India Post Locality Enrichment
   const backendPromise = (async () => {
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timeoutId = controller ? setTimeout(() => controller.abort(), 4500) : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 5000) : null;
     try {
       const backendUrl = `${BASE_URL}/address/reverse-geocode?lat=${lat}&lng=${lng}`;
       const res = await fetch(backendUrl, {
@@ -502,10 +627,10 @@ export async function reverseGeocode(latitude, longitude) {
         const data = await res.json();
         if (data && (data.address || data.display_name)) {
           let nearbyList = [];
-          if (!data.address?.road) {
+          if (!data.address?.road && !data.address?.street) {
             try {
               const nearRes = await fetch(
-                `https://us1.locationiq.com/v1/nearby?key=${locationIqKey}&lat=${lat}&lon=${lng}&radius=400&format=json`
+                `https://us1.locationiq.com/v1/nearby?key=${locationIqKey}&lat=${lat}&lon=${lng}&radius=350&format=json`
               );
               if (nearRes.ok) {
                 const nearData = await nearRes.json();
@@ -555,46 +680,19 @@ export async function reverseGeocode(latitude, longitude) {
   promises.push(nomPromise);
 
   const [bSettled, liqSettled, nomSettled] = await Promise.allSettled(promises);
-  const bData = bSettled.status === 'fulfilled' ? bSettled.value : null;
-  const parsedLiq = liqSettled.status === 'fulfilled' ? liqSettled.value : null;
-  const parsedNom = nomSettled.status === 'fulfilled' ? nomSettled.value : null;
+  let bData = bSettled.status === 'fulfilled' ? bSettled.value : null;
+  let parsedLiq = liqSettled.status === 'fulfilled' ? liqSettled.value : null;
+  let parsedNom = nomSettled.status === 'fulfilled' ? nomSettled.value : null;
 
-  // Detect whether Nominatim or LocationIQ resolved a true micro-locality (suburb, neighbourhood, colony, village, sector)
-  const nomHasMicroLocality = Boolean(
-    parsedNom?.rawAddress?.suburb ||
-    parsedNom?.rawAddress?.neighbourhood ||
-    parsedNom?.rawAddress?.colony ||
-    parsedNom?.rawAddress?.sector ||
-    parsedNom?.rawAddress?.village
-  );
-
-  const liqHasMicroLocality = Boolean(
-    parsedLiq?.rawAddress?.suburb ||
-    parsedLiq?.rawAddress?.neighbourhood ||
-    parsedLiq?.rawAddress?.colony ||
-    parsedLiq?.rawAddress?.sector ||
-    parsedLiq?.rawAddress?.village
-  );
+  // Sanitize institutional postcodes on all raw engine outputs before selection
+  if (bData) bData = sanitizeInstitutionalPincode(bData, lat, lng);
+  if (parsedLiq) parsedLiq = sanitizeInstitutionalPincode(parsedLiq, lat, lng);
+  if (parsedNom) parsedNom = sanitizeInstitutionalPincode(parsedNom, lat, lng);
 
   let primary = null;
 
-  // Case A: Nominatim has a true micro-locality (e.g. Shantiniketan, Navghar-Manikpur)
-  if (
-    nomHasMicroLocality &&
-    (!liqHasMicroLocality || (parsedNom?.specificityScore || 0) >= (parsedLiq?.specificityScore || 0))
-  ) {
-    primary = { ...parsedNom };
-    if (parsedLiq) {
-      if (!primary.landmark && parsedLiq.landmark) primary.landmark = parsedLiq.landmark;
-      if (!primary.flat && parsedLiq.flat) primary.flat = parsedLiq.flat;
-      const secRoad = parsedLiq.rawAddress?.road || parsedLiq.rawAddress?.street;
-      if (secRoad && !primary.street.toLowerCase().includes(secRoad.toLowerCase())) {
-        primary.street = `${secRoad}, ${primary.street}`;
-      }
-    }
-  }
-  // Case B: Backend reverse-geocode has verified Indian Postal PIN and enriched area name (e.g. Sripur Bazar, Jamuria 713373)
-  else if (bData && bData.city && bData.pincode) {
+  // Priority 1: Backend reverse-geocode with India Post official data
+  if (bData && bData.city && bData.pincode && bData.street && !isInstitutionalFacility(bData.street)) {
     primary = { ...bData };
     const secondary = parsedLiq || parsedNom;
     if (secondary) {
@@ -606,39 +704,55 @@ export async function reverseGeocode(latitude, longitude) {
       }
     }
   }
-  // Case C: LocationIQ with valid city and pincode
-  else if (parsedLiq && parsedLiq.city && parsedLiq.pincode) {
+  // Priority 2: LocationIQ with valid non-institutional city and pincode
+  else if (parsedLiq && parsedLiq.city && parsedLiq.pincode && !isInstitutionalFacility(parsedLiq.street)) {
     primary = { ...parsedLiq };
-    if (parsedNom) {
-      if (!primary.landmark && parsedNom.landmark) primary.landmark = parsedNom.landmark;
-      if (!primary.flat && parsedNom.flat) primary.flat = parsedNom.flat;
-      const secRoad = parsedNom.rawAddress?.road || parsedNom.rawAddress?.street;
+    const secondary = parsedNom || bData;
+    if (secondary) {
+      if (!primary.landmark && secondary.landmark) primary.landmark = secondary.landmark;
+      if (!primary.flat && secondary.flat) primary.flat = secondary.flat;
+      const secRoad = secondary.rawAddress?.road || secondary.rawAddress?.street;
       if (secRoad && !primary.street.toLowerCase().includes(secRoad.toLowerCase())) {
         primary.street = `${secRoad}, ${primary.street}`;
       }
     }
   }
-  // Case D: Nominatim fallback
-  else if (parsedNom) {
+  // Priority 3: Nominatim fallback
+  else if (parsedNom && parsedNom.city && parsedNom.pincode) {
     primary = { ...parsedNom };
+    if (parsedLiq) {
+      if (!primary.landmark && parsedLiq.landmark) primary.landmark = parsedLiq.landmark;
+      if (!primary.flat && parsedLiq.flat) primary.flat = parsedLiq.flat;
+      const secRoad = parsedLiq.rawAddress?.road || parsedLiq.rawAddress?.street;
+      if (secRoad && !primary.street.toLowerCase().includes(secRoad.toLowerCase())) {
+        primary.street = `${secRoad}, ${primary.street}`;
+      }
+    }
   } else if (bData) {
     primary = { ...bData };
+  } else if (parsedLiq) {
+    primary = { ...parsedLiq };
+  } else if (parsedNom) {
+    primary = { ...parsedNom };
   }
 
+  // Ensure institutional sanitization on final selected primary
+  primary = sanitizeInstitutionalPincode(primary, lat, lng);
+
   // ═══════════════════════════════════════════════════════════════════════════
-  // ── PHASE 2: Sub-Office Locality Refinement (Eliminates City Overwrites) ──
+  // ── PHASE 2: Sub-Office Locality Refinement (Eliminates City/Hospital Overwrites)
   // ═══════════════════════════════════════════════════════════════════════════
-  // If street is generic or identical to the city (e.g. street="Jamuria", city="Jamuria"),
-  // look up official India Post delivery sub-offices to resolve the exact micro-area (e.g. "Sripur Bazar")
   if (primary && primary.pincode && /^[1-9]\d{5}$/.test(primary.pincode)) {
     const isGenericStreet =
       !primary.street ||
       primary.street === 'Local Area' ||
-      primary.street.toLowerCase() === (primary.city || '').toLowerCase();
+      primary.street.toLowerCase() === (primary.city || '').toLowerCase() ||
+      isInstitutionalFacility(primary.street);
 
     if (isGenericStreet) {
       if (Array.isArray(primary.availableLocalities) && primary.availableLocalities.length > 0) {
-        primary.street = primary.availableLocalities[0];
+        const nonInst = primary.availableLocalities.find((l) => !isInstitutionalFacility(l));
+        if (nonInst) primary.street = nonInst;
       } else {
         try {
           const pinRes = await fetch(`https://api.postalpincode.in/pincode/${primary.pincode}`);
@@ -646,13 +760,27 @@ export async function reverseGeocode(latitude, longitude) {
             const pinData = await pinRes.json();
             if (Array.isArray(pinData) && pinData[0]?.Status === 'Success' && Array.isArray(pinData[0]?.PostOffice)) {
               const offices = pinData[0].PostOffice;
-              let bestOffice = offices[0]?.Name || '';
+              let bestOffice = '';
+
+              // Prefer offices with Bazar/Bazaar/Colliery/Chowk/Market/Nagar/Main that are NOT institutional
               for (const off of offices) {
+                if (isInstitutionalFacility(off.Name)) continue;
                 if (/bazar|bazaar|colliery|chowk|market|nagar|main/i.test(off.Name)) {
                   bestOffice = off.Name;
                   break;
                 }
               }
+
+              // Fallback to first non-institutional office
+              if (!bestOffice) {
+                for (const off of offices) {
+                  if (!isInstitutionalFacility(off.Name)) {
+                    bestOffice = off.Name;
+                    break;
+                  }
+                }
+              }
+
               if (bestOffice) {
                 primary.street = cleanPostalParentheses(bestOffice);
               }
@@ -674,6 +802,7 @@ export async function reverseGeocode(latitude, longitude) {
         const pinMatch = (zData.address?.postcode || zData.display_name || '').match(/\b[1-9]\d{5}\b/);
         if (pinMatch) {
           primary.pincode = pinMatch[0];
+          primary = sanitizeInstitutionalPincode(primary, lat, lng);
         }
       }
     } catch (_) {}
@@ -686,7 +815,7 @@ export async function reverseGeocode(latitude, longitude) {
         const localityTarget = cleanPostalParentheses(
           primary.rawAddress?.suburb || primary.rawAddress?.village || primary.street || primary.city || ''
         );
-        if (localityTarget && localityTarget !== 'Local Area') {
+        if (localityTarget && localityTarget !== 'Local Area' && !isInstitutionalFacility(localityTarget)) {
           const pinRes = await fetch(`https://api.postalpincode.in/postoffice/${encodeURIComponent(localityTarget)}`);
           if (pinRes.ok) {
             const pinData = await pinRes.json();
@@ -700,6 +829,7 @@ export async function reverseGeocode(latitude, longitude) {
               if (matched && matched.Pincode) {
                 primary.pincode = matched.Pincode;
                 primary.state = primary.state || matched.State || '';
+                primary = sanitizeInstitutionalPincode(primary, lat, lng);
               }
             }
           }
@@ -720,8 +850,16 @@ export async function reverseGeocode(latitude, longitude) {
     }
   }
 
-  parsedResult = primary;
-  return finalizeAddress(parsedResult);
+  parsedResult = finalizeAddress(primary);
+  if (parsedResult) {
+    geoCache.set(cacheKey, { timestamp: Date.now(), data: parsedResult });
+    if (geoCache.size > 150) {
+      const oldestKey = geoCache.keys().next().value;
+      geoCache.delete(oldestKey);
+    }
+  }
+
+  return parsedResult;
 }
 
 // Helper to format clean final address object
@@ -741,6 +879,9 @@ function finalizeAddress(addr) {
   }
   if (final.street) {
     final.street = final.street.replace(/\s*\(.*?\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+    if (isInstitutionalFacility(final.street)) {
+      final.street = final.city || 'Local Area';
+    }
   }
   if (final.flat && (final.flat.includes(',') || final.flat.length > 25)) {
     final.flat = '';

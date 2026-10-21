@@ -573,8 +573,13 @@ export default function AddressForm() {
                     ? { lat: bookingState.latitude, lng: bookingState.longitude }
                     : null
                 }
-                onSelectLocation={handleMapPinSelected}
-                className="w-full h-80 sm:h-96 rounded-2xl overflow-hidden"
+                initialAddress={
+                  street || city || pincode
+                    ? { flat, street, city, state, landmark, pincode }
+                    : null
+                }
+                onLocationSelect={handleMapPinSelected}
+                height="360px"
               />
             </div>
           </div>

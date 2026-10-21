@@ -294,6 +294,11 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
                 </div>
                 <InteractiveMapPicker
                   initialCoords={geoCoords}
+                  initialAddress={
+                    street || city || pincode
+                      ? { flat, street, city, state, landmark, pincode }
+                      : null
+                  }
                   onLocationSelect={handleMapSelect}
                   height="260px"
                   showSearch={true}
