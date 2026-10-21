@@ -446,96 +446,6 @@ export function isInstitutionalFacility(name) {
   return /\b(hospital|dispensary|medical college|health centre|cantonment|air force|military|jail|court|sanatorium)\b/i.test(name);
 }
 
-/**
- * Registry of institutional / single-facility Indian PIN codes where OpenStreetMap
- * incorrectly mapped broad 50-100 sq km regional boundary polygons to a single hospital
- * or military compound. When user coordinates are outside the facility, corrects to the
- * authoritative local civilian delivery PIN code and post office locality.
- */
-const INSTITUTIONAL_POSTCODES = {
-  '713340': {
-    name: 'Kalla Central Hospital',
-    facilityLat: 23.700938,
-    facilityLng: 86.996688,
-    maxRadiusMeters: 600,
-    resolveAlternate: (lat, lng, rawStr) => {
-      // If coordinates are in Jamuria / Sripur / Barabani / Kankhaya / Pariharpur / Nischinta sector
-      if (lng >= 87.005 || /jamuria|sripur|kankhaya|pariharpur|nischinta|barabani|baraboni/i.test(rawStr)) {
-        return {
-          pincode: '713373',
-          street: 'Sripur Bazar',
-          city: /jamuria/i.test(rawStr) ? 'Jamuria' : 'Barabani',
-          state: 'West Bengal',
-        };
-      }
-      // If north in Baraboni proper / Domahani
-      if (lat >= 23.72) {
-        return {
-          pincode: '713334',
-          street: 'Domahani Bazar',
-          city: 'Barabani',
-          state: 'West Bengal',
-        };
-      }
-      // If south towards Asansol city
-      return {
-        pincode: '713304',
-        street: 'Upper Chelidanga',
-        city: 'Asansol',
-        state: 'West Bengal',
-      };
-    },
-  },
-  '122005': { name: 'Air Force Station Gurgaon', facilityLat: 28.435, facilityLng: 77.038, maxRadiusMeters: 800, fallbackPin: '122001' },
-  '211017': { name: 'Allahabad High Court', facilityLat: 25.452, facilityLng: 81.828, maxRadiusMeters: 600, fallbackPin: '211001' },
-  '243002': { name: 'Air Force Station Bareilly', facilityLat: 28.423, facilityLng: 79.452, maxRadiusMeters: 1000, fallbackPin: '243001' },
-  '422501': { name: 'Devlali Air Force', facilityLat: 19.932, facilityLng: 73.834, maxRadiusMeters: 1200, fallbackPin: '422401' },
-  '462024': { name: 'H.E. Hospital Bhopal', facilityLat: 23.256, facilityLng: 77.468, maxRadiusMeters: 600, fallbackPin: '462022' },
-  '500066': { name: 'High Court Hyderabad', facilityLat: 17.368, facilityLng: 78.472, maxRadiusMeters: 500, fallbackPin: '500002' },
-  '600104': { name: 'High Court Building Chennai', facilityLat: 13.087, facilityLng: 80.287, maxRadiusMeters: 600, fallbackPin: '600001' },
-  '625023': { name: 'Madras High Court Madurai Bench', facilityLat: 9.948, facilityLng: 78.188, maxRadiusMeters: 600, fallbackPin: '625020' },
-  '670017': { name: 'Kannur District Hospital', facilityLat: 11.871, facilityLng: 75.368, maxRadiusMeters: 500, fallbackPin: '670001' },
-};
-
-/**
- * Sanitizes an address object if an institutional postcode was assigned by mistake
- */
-function sanitizeInstitutionalPincode(addr, lat, lng) {
-  if (!addr || !addr.pincode) return addr;
-  const pin = String(addr.pincode).trim();
-  const inst = INSTITUTIONAL_POSTCODES[pin];
-  if (!inst) return addr;
-
-  const dist = haversineDistanceMeters(lat, lng, inst.facilityLat, inst.facilityLng);
-  if (dist > inst.maxRadiusMeters) {
-    const rawStr =
-      JSON.stringify(addr.rawAddress || {}) +
-      ' ' +
-      (addr.fullAddress || '') +
-      ' ' +
-      (addr.street || '') +
-      ' ' +
-      (addr.city || '');
-    const alt = inst.resolveAlternate ? inst.resolveAlternate(lat, lng, rawStr) : null;
-    if (alt) {
-      console.log(`[ReverseGeocode] Corrected false institutional PIN ${pin} -> ${alt.pincode} (${alt.street}, ${alt.city})`);
-      return {
-        ...addr,
-        pincode: alt.pincode,
-        street: (!addr.street || isInstitutionalFacility(addr.street) || addr.street === 'Local Area') ? alt.street : addr.street,
-        city: (!addr.city || addr.city === 'Local Area') ? alt.city : addr.city,
-        state: addr.state || alt.state || '',
-      };
-    } else if (inst.fallbackPin) {
-      return {
-        ...addr,
-        pincode: inst.fallbackPin,
-        street: isInstitutionalFacility(addr.street) ? (addr.city || 'Local Area') : addr.street,
-      };
-    }
-  }
-  return addr;
-}
 
 /**
  * Reverse-geocodes latitude and longitude into structured Indian address fields:
@@ -683,12 +593,6 @@ export async function reverseGeocode(latitude, longitude) {
   let bData = bSettled.status === 'fulfilled' ? bSettled.value : null;
   let parsedLiq = liqSettled.status === 'fulfilled' ? liqSettled.value : null;
   let parsedNom = nomSettled.status === 'fulfilled' ? nomSettled.value : null;
-
-  // Sanitize institutional postcodes on all raw engine outputs before selection
-  if (bData) bData = sanitizeInstitutionalPincode(bData, lat, lng);
-  if (parsedLiq) parsedLiq = sanitizeInstitutionalPincode(parsedLiq, lat, lng);
-  if (parsedNom) parsedNom = sanitizeInstitutionalPincode(parsedNom, lat, lng);
-
   let primary = null;
 
   // Priority 1: Backend reverse-geocode with India Post official data
@@ -720,6 +624,10 @@ export async function reverseGeocode(latitude, longitude) {
   // Priority 3: Nominatim fallback
   else if (parsedNom && parsedNom.city && parsedNom.pincode) {
     primary = { ...parsedNom };
+    // Prefer LocationIQ pincode if available over Nominatim's coarse polygon
+    if (parsedLiq && parsedLiq.pincode) {
+      primary.pincode = parsedLiq.pincode;
+    }
     if (parsedLiq) {
       if (!primary.landmark && parsedLiq.landmark) primary.landmark = parsedLiq.landmark;
       if (!primary.flat && parsedLiq.flat) primary.flat = parsedLiq.flat;
@@ -735,9 +643,6 @@ export async function reverseGeocode(latitude, longitude) {
   } else if (parsedNom) {
     primary = { ...parsedNom };
   }
-
-  // Ensure institutional sanitization on final selected primary
-  primary = sanitizeInstitutionalPincode(primary, lat, lng);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ── PHASE 2: Sub-Office Locality Refinement (Eliminates City/Hospital Overwrites)
@@ -802,7 +707,6 @@ export async function reverseGeocode(latitude, longitude) {
         const pinMatch = (zData.address?.postcode || zData.display_name || '').match(/\b[1-9]\d{5}\b/);
         if (pinMatch) {
           primary.pincode = pinMatch[0];
-          primary = sanitizeInstitutionalPincode(primary, lat, lng);
         }
       }
     } catch (_) {}
@@ -829,7 +733,6 @@ export async function reverseGeocode(latitude, longitude) {
               if (matched && matched.Pincode) {
                 primary.pincode = matched.Pincode;
                 primary.state = primary.state || matched.State || '';
-                primary = sanitizeInstitutionalPincode(primary, lat, lng);
               }
             }
           }
