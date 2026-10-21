@@ -1,429 +1,263 @@
-import { useBooking } from '../../components/Booking/BookingContext';
-import { useAuth } from '../../context/AuthContext';
-import { createBookingApi } from '../../services/api';
-import { useNavigate } from 'react-router-dom';
-import { Info, AlertCircle } from 'lucide-react';
-import { useState } from 'react';
+import React from 'react';
+import { useBooking } from './BookingContext';
+import {
+  ShieldCheck,
+  CheckCircle2,
+  Calendar,
+  Clock,
+  MapPin,
+  Sparkles,
+  AlertCircle,
+  ChevronRight,
+  ReceiptText
+} from 'lucide-react';
 import LoginRequiredModal from '../auth/LoginRequiredModal';
 import ApplianceIcon from '../common/ApplianceIcon';
-import { parseAddressString } from '../../utils/addressParser';
-
-/* West Bengal keywords — same list as AddressForm */
-const WB_KEYWORDS = [
-  'west bengal',
-  'wb',
-  'kolkata',
-  'calcutta',
-  'howrah',
-  'hooghly',
-  'durgapur',
-  'asansol',
-  'siliguri',
-  'bardhaman',
-  'burdwan',
-  'malda',
-  'kharagpur',
-  'haldia',
-  'raiganj',
-  'jalpaiguri',
-  'cooch behar',
-  'bankura',
-  'purulia',
-  'midnapore',
-  'medinipur',
-  'barasat',
-  'krishnanagar',
-  'nabadwip',
-  'santiniketan',
-  'bolpur',
-  'barrackpore',
-  'north 24 parganas',
-  'south 24 parganas',
-  'murshidabad',
-  'nadia',
-  'birbhum',
-  'berhampore',
-];
-
-const isWestBengalAddress = (addr) => {
-  const lower = addr.toLowerCase();
-  return WB_KEYWORDS.some((kw) => lower.includes(kw));
-};
 
 export default function BookingSummary() {
-  const { bookingState, scrollToNextStep } = useBooking();
-  const { user, isLoggedIn, token } = useAuth();
-  const navigate = useNavigate();
-  const [errors, setErrors] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [showLoginModal, setShowLoginModal] = useState(false);
+  const {
+    bookingState,
+    currentStep,
+    nextStep,
+    isStep1Valid,
+    isStep2Valid,
+    isStep3Valid,
+    isStep4Valid,
+    goToStep,
+    submitBooking,
+    loading,
+    errors,
+    showLoginModal,
+    setShowLoginModal
+  } = useBooking();
 
   const { basePrice, total } = bookingState.priceInfo;
 
-  const handleBookingSubmit = async () => {
-    // Auth check — show modal if not logged in
-    if (!isLoggedIn || !token) {
-      setShowLoginModal(true);
-      return;
-    }
-
-    const errs = [];
-
-    if (!bookingState.serviceId && !bookingState.serviceName) {
-      errs.push('Please select an appliance.');
-      if (scrollToNextStep) scrollToNextStep('step-appliance-selector', { offset: -90, delay: 50 });
-    } else if (!bookingState.date) {
-      errs.push('Please pick a booking date.');
-      if (scrollToNextStep) scrollToNextStep('step-schedule-form', { offset: -90, delay: 50 });
-    } else if (!bookingState.timeSlot) {
-      errs.push('Please choose a time slot.');
-      if (scrollToNextStep) scrollToNextStep('step-time-slots', { offset: -100, delay: 50 });
-    } else if (!bookingState.address.trim()) {
-      errs.push('Please enter your service address.');
-      if (scrollToNextStep) scrollToNextStep('step-address-form', { offset: -90, delay: 50 });
-    }
-    /*
-    // Commented out: West Bengal boundary restriction
-    else if (!isWestBengalAddress(bookingState.address)) {
-      errs.push('We only serve West Bengal. Please enter a valid West Bengal address.');
-    }
-    */
-
-    if (errs.length) {
-      setErrors(errs);
-      return;
-    }
-
-    try {
-      setErrors([]);
-      setLoading(true);
-
-      const serviceTitle = bookingState.selectedSubServices.length > 0
-        ? `${bookingState.serviceName} (${bookingState.selectedSubServices.map(s => s.label).join(', ')})`
-        : bookingState.serviceName || 'Appliance Repair';
-
-      const serviceChargeVal = Number(basePrice) > 0 ? Number(basePrice) : (Number(total) > 0 ? Number(total) : 199);
-      const rawMethod = String(bookingState.paymentMethod || 'Cash').toLowerCase();
-      // Backend expects 'Cash' or 'UPI'
-      const backendPaymentMethod = rawMethod === 'upi' ? 'UPI' : 'Cash';
-
-      const standardizedPaymentDetails = {
-        category: backendPaymentMethod,
-        metadata: {
-          timestamp: new Date().toISOString(),
-          source: 'customer_checkout',
-        },
-      };
-
-      const formData = new FormData();
-      formData.append('appliance', bookingState.serviceName || 'Appliance Repair');
-      formData.append('serviceCategory', serviceTitle);
-      formData.append('serviceCategoryCharge', serviceChargeVal);
-      formData.append('paymentMethod', backendPaymentMethod);
-      formData.append('paymentDetails', JSON.stringify(standardizedPaymentDetails));
-      formData.append('paymentDetails[category]', backendPaymentMethod);
-
-      formData.append('issue', bookingState.problemDescription || (bookingState.selectedSubServices.length > 0 ? bookingState.selectedSubServices.map(s => s.label).join(', ') : 'General Repair & Maintenance'));
-      const parsedAddr = parseAddressString(bookingState.address);
-      const addressLine1 = parsedAddr.flat || parsedAddr.street || bookingState.address.trim();
-      const street = parsedAddr.flat ? parsedAddr.street : '';
-
-      formData.append('address', bookingState.address.trim());
-      formData.append('address[addressLine1]', addressLine1);
-      if (street) {
-        formData.append('address[street]', street);
-      }
-      formData.append('address[city]', parsedAddr.city || '');
-      formData.append('address[state]', parsedAddr.state || '');
-      formData.append('address[pincode]', parsedAddr.pincode || '');
-      if (parsedAddr.landmark) {
-        formData.append('address[landmark]', parsedAddr.landmark);
-      }
-      formData.append('address[country]', 'India');
-      formData.append('serviceDate', bookingState.date);
-      formData.append('timeSlot', bookingState.timeSlot);
-
-      const savedLat = localStorage.getItem('mm_lat');
-      const savedLng = localStorage.getItem('mm_lng');
-      const lat = bookingState.latitude ?? user?.latitude ?? savedLat ?? null;
-      const lng = bookingState.longitude ?? user?.longitude ?? savedLng ?? null;
-
-      // Only send valid numeric coordinates
-      if (lat !== null && lat !== undefined && lat !== 'null' && !isNaN(Number(lat))) {
-        formData.append('latitude', Number(lat));
-      }
-      if (lng !== null && lng !== undefined && lng !== 'null' && !isNaN(Number(lng))) {
-        formData.append('longitude', Number(lng));
-      }
-
-      if (lat && lng) {
-        console.log(`[Magic Mistry Booking] 📍 Sending booking request with coordinates - Latitude: ${lat}, Longitude: ${lng}`);
-      } else {
-        console.log(`[Magic Mistry Booking] 📍 Booking request address: ${bookingState.address}`);
-      }
-
-      if (bookingState.imageFile) {
-        formData.append('image', bookingState.imageFile);
-      }
-
-      const res = await createBookingApi(formData, token);
-
-      if (res.success && res.booking) {
-        const fullDisplayAddress = bookingState.address.trim();
-        const hasValidReturnedAddress =
-          res.booking?.address &&
-          ((typeof res.booking.address === 'string' && res.booking.address.trim()) ||
-           (typeof res.booking.address === 'object' && Object.values(res.booking.address).some(v => typeof v === 'string' && v.trim())));
-
-        navigate('/booking/confirmation', {
-          state: {
-            booking: {
-              ...res.booking,
-              address: hasValidReturnedAddress ? res.booking.address : fullDisplayAddress,
-              serviceDate: res.booking?.serviceDate || bookingState.date,
-              timeSlot: res.booking?.timeSlot || bookingState.timeSlot,
-            },
-          },
-        });
-      } else {
-        setErrors([res.message || 'Failed to place booking. Please try again.']);
-        document.getElementById('summary-errors')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    } catch (error) {
-      setErrors([error.message || 'Booking failed. Please try again.']);
-    } finally {
-      setLoading(false);
+  const handleStepAction = () => {
+    if (currentStep === 1) {
+      if (isStep1Valid) nextStep();
+    } else if (currentStep === 2) {
+      if (isStep2Valid) nextStep();
+    } else if (currentStep === 3) {
+      if (isStep3Valid) nextStep();
+    } else if (currentStep === 4) {
+      submitBooking();
     }
   };
 
-  return (
-    <div className="bg-gradient-to-b from-[#0B1E40] to-slate-900 text-white p-7 md:p-8 rounded-3xl shadow-[0_20px_50px_rgba(11,_30,_64,_0.3)] border border-slate-700/50 relative overflow-hidden">
-      {/* Glow effect */}
-      <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500 rounded-full mix-blend-screen filter blur-[80px] opacity-10 pointer-events-none"></div>
+  const isCurrentStepActionDisabled = () => {
+    if (currentStep === 1) return !isStep1Valid;
+    if (currentStep === 2) return !isStep2Valid;
+    if (currentStep === 3) return !isStep3Valid;
+    if (currentStep === 4) return loading || !isStep4Valid;
+    return false;
+  };
 
-      <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-700/60 relative z-10">
-        <h2 className="text-xl font-extrabold tracking-tight">Booking Summary</h2>
-        <span className="text-[10px] font-black uppercase tracking-widest bg-gradient-to-r from-orange-500/20 to-amber-500/20 text-orange-400 px-3 py-1.5 rounded-full border border-orange-500/30">
-          Checkout
-        </span>
+  const formattedDate = bookingState.date
+    ? new Date(bookingState.date + 'T00:00:00').toLocaleDateString('en-IN', {
+        weekday: 'short', day: 'numeric', month: 'short'
+      })
+    : null;
+
+  return (
+    <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_10px_30px_rgba(15,23,42,0.06)] overflow-hidden">
+      {/* Ticket Header */}
+      <div className="p-5 sm:p-6 bg-gradient-to-br from-[#0B1E40] to-slate-900 text-white relative overflow-hidden">
+        <div className="relative z-10 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <ReceiptText className="w-5 h-5 text-indigo-400 shrink-0" />
+            <div className="min-w-0">
+              <h3 className="font-extrabold text-base tracking-tight leading-tight">Service Ticket</h3>
+              <p className="text-[11px] text-slate-300 font-medium truncate">Magic Mistry Direct Booking</p>
+            </div>
+          </div>
+          <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 shrink-0">
+            Pay On Arrival
+          </span>
+        </div>
       </div>
 
-      {/* Service & Schedule */}
-      <div className="space-y-3.5 mb-5 text-sm border-b border-slate-600 pb-5">
-
-        {/* Appliance */}
-        <div className="flex justify-between items-center gap-2">
-          <span className="text-slate-400 shrink-0">Appliance</span>
-          <div className="flex items-center gap-2.5 max-w-[65%] justify-end">
-            {(bookingState.serviceId || bookingState.serviceName) && (
-              <div className="w-8 h-8 rounded-xl bg-white/10 p-1 shrink-0 flex items-center justify-center border border-white/10 shadow-xs">
-                <ApplianceIcon id={bookingState.serviceId} name={bookingState.serviceName} className="w-6 h-6 object-contain" />
+      <div className="p-5 sm:p-6 space-y-5">
+        {/* Selected Appliance Preview */}
+        <div className="pb-4 border-b border-slate-100 flex items-start gap-3">
+          <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0 p-1">
+            <ApplianceIcon
+              id={bookingState.serviceId}
+              name={bookingState.serviceName}
+              className="w-8 h-8 object-contain"
+            />
+          </div>
+          <div className="flex-1 min-w-0">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Appliance</span>
+            <h4 className="font-extrabold text-[#0B1E40] text-sm truncate">
+              {bookingState.serviceName || <span className="text-slate-400 italic font-normal">Not selected yet</span>}
+            </h4>
+            {bookingState.selectedSubServices.length > 0 && (
+              <div className="text-[11px] text-indigo-700 font-semibold mt-0.5 truncate">
+                {bookingState.selectedSubServices.map(s => s.label).join(', ')}
               </div>
             )}
-            <span className="font-bold text-right text-orange-300 truncate">
-              {bookingState.serviceName || <span className="text-red-400 italic font-normal">Not selected</span>}
-            </span>
+          </div>
+          {bookingState.serviceId && (
+            <button
+              type="button"
+              onClick={() => goToStep(1)}
+              className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer shrink-0 ml-1"
+            >
+              Edit
+            </button>
+          )}
+        </div>
+
+        {/* Schedule & Address Snippets */}
+        <div className="space-y-3 text-xs">
+          {/* Schedule */}
+          <div className="flex items-start justify-between gap-2.5">
+            <div className="flex items-center gap-2 text-slate-500 font-medium shrink-0">
+              <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span>Schedule:</span>
+            </div>
+            <div className="text-right min-w-0 flex-1 truncate">
+              {formattedDate && bookingState.timeSlot ? (
+                <span className="font-bold text-slate-800 truncate block">
+                  {formattedDate} • {bookingState.timeSlot}
+                </span>
+              ) : (
+                <span className="text-slate-400 italic">Select in Step 2</span>
+              )}
+            </div>
+          </div>
+
+          {/* Location */}
+          <div className="flex items-start justify-between gap-2.5">
+            <div className="flex items-center gap-2 text-slate-500 font-medium shrink-0">
+              <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span>Location:</span>
+            </div>
+            <div className="text-right min-w-0 flex-1 truncate">
+              {bookingState.address?.trim() ? (
+                <span className="font-bold text-slate-800 truncate block" title={bookingState.address}>
+                  {bookingState.address}
+                </span>
+              ) : (
+                <span className="text-slate-400 italic">Enter in Step 3</span>
+              )}
+            </div>
+          </div>
+
+          {/* Payment Mode */}
+          <div className="flex items-start justify-between gap-2.5">
+            <div className="flex items-center gap-2 text-slate-500 font-medium shrink-0">
+              <ShieldCheck className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span>Payment:</span>
+            </div>
+            <div className="text-right">
+              <span className="font-bold text-emerald-700">
+                {bookingState.paymentMethod === 'UPI' ? 'UPI on Completion' : 'Cash on Completion'}
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Sub-service packages */}
-        {bookingState.selectedSubServices.length > 0 && (
-          <div className="flex justify-between items-start gap-2">
-            <span className="text-slate-400 shrink-0">Packages</span>
-            <div className="text-right max-w-[60%] flex flex-col items-end gap-1">
-              {bookingState.selectedSubServices.map((sub, idx) => (
-                <span key={idx} className="font-semibold text-xs text-emerald-300">
-                  {sub.label}
-                </span>
-              ))}
+        {/* Price Breakdown */}
+        <div className="pt-4 border-t border-slate-100 space-y-2 text-xs">
+          <div className="flex items-center justify-between text-slate-600 font-medium">
+            <span>Service Package Subtotal</span>
+            <span className="font-bold text-slate-900">₹{Number(basePrice).toFixed(0)}</span>
+          </div>
+
+          <div className="flex items-center justify-between text-slate-600 font-medium">
+            <span>Inspection &amp; Visit Fee</span>
+            <span className="text-emerald-700 font-bold">Included</span>
+          </div>
+
+          <div className="flex items-center justify-between text-slate-600 font-medium">
+            <span>Platform Fee &amp; Taxes</span>
+            <span className="text-emerald-700 font-bold">₹0 (Waived)</span>
+          </div>
+
+          <div className="pt-3 border-t border-slate-200/80 flex items-baseline justify-between">
+            <div>
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Total Due</span>
+              <span className="text-[10px] text-slate-400 font-medium">Pay after complete satisfaction</span>
             </div>
+            <div className="text-right">
+              <span className="text-2xl font-black text-[#0B1E40]">
+                ₹{Number(total).toFixed(0)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Errors Alert */}
+        {errors && errors.length > 0 && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl space-y-1 text-xs text-red-700 font-semibold">
+            {errors.map((e, idx) => (
+              <div key={idx} className="flex items-start gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
+                <span>{e}</span>
+              </div>
+            ))}
           </div>
         )}
 
-        {/* Date */}
-        <div className="flex justify-between items-start gap-2">
-          <span className="text-slate-400 shrink-0">Date</span>
-          <span className="font-medium text-right">
-            {bookingState.date
-              ? new Date(bookingState.date + 'T00:00:00').toLocaleDateString('en-IN', {
-                  day: 'numeric', month: 'short', year: 'numeric',
-                })
-              : <span className="text-red-400 italic font-normal">Not selected</span>}
-          </span>
+        {/* Primary Step-Aware Action Button */}
+        <div>
+          <button
+            type="button"
+            onClick={handleStepAction}
+            disabled={isCurrentStepActionDisabled()}
+            className={`w-full h-12 px-4 rounded-xl font-extrabold text-sm flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer shadow-sm ${
+              isCurrentStepActionDisabled()
+                ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                : currentStep === 4
+                ? 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-orange-500/20 hover:shadow-md hover:-translate-y-0.5'
+                : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200 hover:shadow-md hover:-translate-y-0.5'
+            }`}
+          >
+            {loading ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Processing Booking...
+              </>
+            ) : currentStep === 1 ? (
+              <>
+                Continue to Schedule <ChevronRight className="w-4 h-4" />
+              </>
+            ) : currentStep === 2 ? (
+              <>
+                Continue to Address <ChevronRight className="w-4 h-4" />
+              </>
+            ) : currentStep === 3 ? (
+              <>
+                Continue to Payment <ChevronRight className="w-4 h-4" />
+              </>
+            ) : (
+              <>
+                Confirm Booking (₹{Number(total).toFixed(0)}) <Sparkles className="w-4 h-4" />
+              </>
+            )}
+          </button>
         </div>
 
-        {/* Time slot */}
-        <div className="flex justify-between items-start gap-2">
-          <span className="text-slate-400 shrink-0">Time</span>
-          <span className="font-medium text-right text-xs">
-            {bookingState.timeSlot || <span className="text-red-400 italic font-normal">Not selected</span>}
-          </span>
-        </div>
-
-        {/* Address */}
-        <div className="flex justify-between items-start gap-2">
-          <span className="text-slate-400 shrink-0">Address</span>
-          <span className="font-medium text-right text-xs max-w-[60%] leading-relaxed">
-            {bookingState.address?.trim()
-              ? bookingState.address
-              : <span className="text-red-400 italic font-normal">Not entered</span>}
-          </span>
-        </div>
-
-        {/* Payment */}
-        <div className="flex justify-between items-start gap-2">
-          <span className="text-slate-400 shrink-0">Payment</span>
-          <div className="text-right">
-            <span className="font-semibold capitalize text-xs text-blue-300 block">
-              {String(bookingState.paymentMethod).toLowerCase() === 'upi'
-                ? 'UPI After Service'
-                : 'Cash After Service'}
-            </span>
+        {/* Trust Guarantees */}
+        <div className="pt-3 border-t border-slate-100 space-y-2 text-[11px] text-slate-500 font-medium">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span>30-Day Free Revisit &amp; Rework Warranty</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span>Verified, Background-Checked Technicians</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span>Zero cancellation fee prior to arrival</span>
           </div>
         </div>
-
-        {/* Issue description — Optional */}
-        <div className="flex justify-between items-start gap-2">
-          <span className="text-slate-400 shrink-0">
-            Issue
-            <span className="ml-1 text-[10px] text-slate-500">(optional)</span>
-          </span>
-          <span className="text-right max-w-[60%] text-xs leading-relaxed">
-            {bookingState.problemDescription?.trim()
-              ? <span className="text-slate-200">{bookingState.problemDescription}</span>
-              : <span className="text-slate-500 italic">Not provided</span>}
-          </span>
-        </div>
-
-        {/* Image — Optional */}
-        <div className="flex justify-between items-center gap-2">
-          <span className="text-slate-400 shrink-0">
-            Image
-            <span className="ml-1 text-[10px] text-slate-500">(optional)</span>
-          </span>
-          <span className="text-right text-xs">
-            {bookingState.imageFile
-              ? <span className="flex items-center gap-1 text-emerald-400 font-medium">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                  {bookingState.imageFile.name.length > 18
-                    ? bookingState.imageFile.name.slice(0, 18) + '…'
-                    : bookingState.imageFile.name}
-                </span>
-              : <span className="text-slate-500 italic">No image</span>}
-          </span>
-        </div>
       </div>
 
-
-      {/* Price breakdown */}
-      <div className="space-y-4 mb-6 pb-6 border-b border-slate-700/60 relative z-10">
-        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2">
-          <span className="h-px bg-slate-700 flex-1"></span> Price Breakdown <span className="h-px bg-slate-700 flex-1"></span>
-        </p>
-        <div className="flex justify-between items-center text-sm">
-          <span className="text-slate-300 font-medium">Selected Packages</span>
-          <span className="font-bold text-white">
-            ₹{bookingState.serviceId ? Number(basePrice).toFixed(2) : '0.00'}
-          </span>
-        </div>
-        <div className="flex items-start gap-3 bg-slate-800/80 rounded-2xl p-4 mt-4 border border-slate-700/50">
-          <Info className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-slate-300 leading-relaxed">
-            <span className="text-amber-300 font-bold block mb-1">
-              Part charges are extra
-            </span>
-            Technician will inform you first.{' '}
-            <span className="text-white font-semibold">
-              You decide before any part is replaced.
-            </span>
-          </p>
-        </div>
-      </div>
-
-      {/* Total */}
-      <div className="flex justify-between items-end mb-2 relative z-10">
-        <div className="flex flex-col">
-          <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-1">Total Fixed Charge</span>
-          <span className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300 leading-none">
-            ₹{bookingState.serviceId ? Number(total).toFixed(2) : '0.00'}
-          </span>
-        </div>
-      </div>
-      <p className="text-[11px] text-slate-400 mb-8 font-medium">
-        + Part costs (if any) confirmed on-site.
-      </p>
-
-      {/* Unauthenticated User Warning */}
-      {!isLoggedIn && (
-        <div className="mb-6 bg-gradient-to-br from-amber-500/20 to-orange-500/10 border border-amber-400/30 rounded-2xl p-4 flex items-start gap-3 text-sm text-amber-200">
-          <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-extrabold text-amber-300">Login Required</p>
-            <p className="mt-1 leading-relaxed text-xs opacity-90">
-              Please log in to submit your booking.{' '}
-              <button
-                type="button"
-                onClick={() => navigate('/login', { state: { from: '/booking', reason: 'A user cannot make a booking until they log in.' } })}
-                className="underline font-bold text-orange-400 hover:text-orange-300 cursor-pointer ml-1"
-              >
-                Log in now
-              </button>
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Validation errors */}
-      {errors.length > 0 && (
-        <div
-          id="summary-errors"
-          className="mb-6 bg-red-500/10 border border-red-500/30 rounded-2xl p-4 space-y-2 backdrop-blur-sm"
-        >
-          {errors.map((e, i) => (
-            <div
-              key={i}
-              className="flex items-start gap-2 text-xs text-red-300 font-medium"
-            >
-              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-400" />
-              {e}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Submit button (Step 7) */}
-      <div className="relative z-10 group">
-        <div className="absolute -inset-1 bg-gradient-to-r from-orange-500 to-rose-500 rounded-2xl blur opacity-30 group-hover:opacity-50 transition duration-500"></div>
-        <button
-          onClick={handleBookingSubmit}
-          disabled={loading}
-          className="relative w-full bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-400 hover:to-rose-400 disabled:opacity-50 disabled:cursor-wait text-white font-black py-4 px-6 rounded-2xl shadow-xl transition-all duration-300 flex justify-center items-center gap-3 cursor-pointer text-base uppercase tracking-wider overflow-hidden"
-        >
-          {loading ? (
-            <>
-              <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-              </svg>
-              Confirming…
-            </>
-          ) : (
-            <>
-              Confirm Booking
-              <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-              </svg>
-            </>
-          )}
-        </button>
-      </div>
-
-      <div className="text-center mt-4 text-xs text-slate-400 flex items-center justify-center gap-1">
-        🔒 Pay after service — Cash / UPI only
-      </div>
-
+      {/* Login Required Modal */}
       <LoginRequiredModal
         isOpen={showLoginModal}
         onClose={() => setShowLoginModal(false)}

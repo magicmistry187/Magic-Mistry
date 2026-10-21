@@ -21,8 +21,8 @@ export function getCurrentCoordinates(options = {}) {
       return reject(err);
     }
 
-    const maxWaitTime = options.timeout || 12000;
-    const targetAccuracy = options.desiredAccuracy || 35; // meters (true satellite lock)
+    const maxWaitTime = options.timeout || 8000; // Fast 8s ceiling (prevents endless 12s freeze)
+    const targetAccuracy = options.desiredAccuracy || 45; // meters (pinpoint street lock)
     let bestPosition = null;
     let watchId = null;
     let timerId = null;
@@ -51,12 +51,22 @@ export function getCurrentCoordinates(options = {}) {
       isSettled = true;
       cleanup();
       const accuracy = pos?.coords?.accuracy || 0;
-      console.log(`[Geolocation] ✓ Settled with accuracy ${Math.round(accuracy)}m (lat: ${pos.coords.latitude}, lng: ${pos.coords.longitude})`);
+      const isCoarse = accuracy > 180; // Accuracy is in hundreds of meters or kilometers (ISP/Cell tower)
+      const isHighAccuracy = accuracy > 0 && accuracy <= 100;
+
+      console.log(
+        `[Geolocation] ✓ Settled with accuracy ${Math.round(accuracy)}m (lat: ${pos.coords.latitude}, lng: ${pos.coords.longitude}, isCoarse: ${isCoarse})`
+      );
+
       resolve({
         latitude: pos.coords.latitude,
         longitude: pos.coords.longitude,
-        accuracy: accuracy,
-        isHighAccuracy: accuracy > 0 && accuracy <= 150,
+        accuracy: Math.round(accuracy),
+        isHighAccuracy,
+        isCoarse,
+        accuracyWarning: isCoarse
+          ? `Approximate area (±${accuracy >= 1000 ? (accuracy / 1000).toFixed(1) + ' km' : Math.round(accuracy) + ' m'}). Please confirm your exact building on the map.`
+          : null,
       });
     };
 
@@ -90,23 +100,33 @@ export function getCurrentCoordinates(options = {}) {
       watchId = navigator.geolocation.watchPosition(
         (pos) => {
           const acc = pos.coords.accuracy || 9999;
-          console.log(`[Geolocation] Reading: accuracy ${Math.round(acc)}m (lat: ${pos.coords.latitude.toFixed(5)}, lng: ${pos.coords.longitude.toFixed(5)})`);
+          console.log(
+            `[Geolocation] Reading: accuracy ${Math.round(acc)}m (lat: ${pos.coords.latitude.toFixed(5)}, lng: ${pos.coords.longitude.toFixed(5)})`
+          );
 
           if (!bestPosition || acc < (bestPosition.coords.accuracy || 9999)) {
             bestPosition = pos;
           }
 
-          // Case A: Pinpoint GPS satellite lock (accuracy <= 35m) -> Settle immediately
+          // Case A: Pinpoint GPS satellite / Wi-Fi lock (acc <= targetAccuracy, ~45m) -> Settle instantly
           if (acc <= targetAccuracy) {
             finish(pos);
             return;
           }
 
-          // Case B: Good accuracy (<= 80m) -> Give up to 2 seconds for a pinpoint fix, then settle
+          // Case B: Strong urban/street accuracy (<= 80m) -> Give at most 1.2s for pinpoint lock, then settle
           if (acc <= 80 && !settleTimerId) {
             settleTimerId = setTimeout(() => {
               if (bestPosition) finish(bestPosition);
-            }, 2000);
+            }, 1200);
+            return;
+          }
+
+          // Case C: Acceptable colony/neighborhood accuracy (<= 150m) -> Give at most 2.5s for refinement
+          if (acc <= 150 && !settleTimerId) {
+            settleTimerId = setTimeout(() => {
+              if (bestPosition) finish(bestPosition);
+            }, 2500);
           }
         },
         (err) => {
@@ -381,7 +401,7 @@ export async function reverseGeocode(latitude, longitude) {
 
     if (res.ok) {
       const json = await res.json();
-      if (json.success && json.data && json.data.city) {
+      if (json.success && json.data && (json.data.city || json.data.street || json.data.fullAddress)) {
         console.log('[ReverseGeocode] ✓ Successfully resolved via Backend proxy:', json.data);
         return json.data;
       }

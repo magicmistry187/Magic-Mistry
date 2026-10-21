@@ -69,6 +69,7 @@ export default function LocationSelectorModal({ isOpen, onClose }) {
   const [detectError, setDetectError] = useState("");
   const [detectedCoords, setDetectedCoords] = useState(null);
   const [detectedData, setDetectedData] = useState(null);
+  const [accuracyNotice, setAccuracyNotice] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
 
   // Handle Autocomplete Input Debounce
@@ -122,10 +123,11 @@ export default function LocationSelectorModal({ isOpen, onClose }) {
     setDetectError("");
     setDetectedData(null);
     setDetectedCoords(null);
+    setAccuracyNotice(null);
     setIsEditing(false);
 
     try {
-      const coords = await getCurrentCoordinates({ desiredAccuracy: 35, timeout: 12000 });
+      const coords = await getCurrentCoordinates({ desiredAccuracy: 45, timeout: 8000 });
       console.log(`[LocationSelectorModal] 📍 High-accuracy GPS: Lat ${coords.latitude}, Lng ${coords.longitude}, Acc: ${coords.accuracy}m`);
 
       const res = await reverseGeocode(coords.latitude, coords.longitude);
@@ -150,6 +152,18 @@ export default function LocationSelectorModal({ isOpen, onClose }) {
       setDetectedData(resolved);
       setDetectedCoords({ lat: coords.latitude, lng: coords.longitude });
 
+      if (coords.isCoarse) {
+        setAccuracyNotice(
+          `Approximate area detected (±${
+            coords.accuracy >= 1000
+              ? (coords.accuracy / 1000).toFixed(1) + " km"
+              : coords.accuracy + " m"
+          }). Drag the pin to your exact building.`
+        );
+      } else {
+        setAccuracyNotice(null);
+      }
+
       // Automatically switch to Map view so user can visually verify or fine-tune pin
       setActiveTab("map");
     } catch (err) {
@@ -163,6 +177,7 @@ export default function LocationSelectorModal({ isOpen, onClose }) {
   // Handle location update from Interactive Map
   const handleMapLocationSelect = ({ coords, address }) => {
     setDetectedCoords(coords);
+    setAccuracyNotice(null);
     if (address) {
       setDetectedData({
         flat: address.flat || "",
@@ -173,7 +188,6 @@ export default function LocationSelectorModal({ isOpen, onClose }) {
         pincode: address.pincode || "",
         fullAddress: address.fullAddress || "",
       });
-    }
   };
 
   // Confirm Detected / Map Location
@@ -286,6 +300,13 @@ export default function LocationSelectorModal({ isOpen, onClose }) {
               {/* ── TAB 1: INTERACTIVE MAP VIEW ── */}
               {activeTab === "map" && (
                 <div className="space-y-3">
+                  {accuracyNotice && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-800 font-semibold flex items-center gap-2">
+                      <Compass className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>{accuracyNotice}</span>
+                    </div>
+                  )}
+
                   <InteractiveMapPicker
                     initialCoords={detectedCoords}
                     onLocationSelect={handleMapLocationSelect}

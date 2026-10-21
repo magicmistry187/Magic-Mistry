@@ -81,6 +81,7 @@ export default function InteractiveMapPicker({
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
+  const accuracyCircleRef = useRef(null);
   const debounceTimerRef = useRef(null);
 
   // Fallback coords: Kolkata center if none supplied
@@ -169,12 +170,22 @@ export default function InteractiveMapPicker({
     // Marker drag event
     marker.on("dragend", (e) => {
       const newPos = e.target.getLatLng();
+      if (accuracyCircleRef.current) {
+        accuracyCircleRef.current.remove();
+        accuracyCircleRef.current = null;
+      }
+      setAccuracyInfo(null);
       setCoords({ lat: newPos.lat, lng: newPos.lng });
       scheduleReverseGeocode(newPos.lat, newPos.lng);
     });
 
     // Map click to move pin
     map.on("click", (e) => {
+      if (accuracyCircleRef.current) {
+        accuracyCircleRef.current.remove();
+        accuracyCircleRef.current = null;
+      }
+      setAccuracyInfo(null);
       marker.setLatLng(e.latlng);
       setCoords({ lat: e.latlng.lat, lng: e.latlng.lng });
       scheduleReverseGeocode(e.latlng.lat, e.latlng.lng);
@@ -197,6 +208,10 @@ export default function InteractiveMapPicker({
       clearTimeout(timer);
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+      if (accuracyCircleRef.current) {
+        accuracyCircleRef.current.remove();
+        accuracyCircleRef.current = null;
+      }
       map.remove();
       mapInstanceRef.current = null;
       markerRef.current = null;
@@ -227,8 +242,8 @@ export default function InteractiveMapPicker({
     setAccuracyInfo(null);
     try {
       const pos = await getCurrentCoordinates({
-        desiredAccuracy: 35,
-        timeout: 12000,
+        desiredAccuracy: 45,
+        timeout: 8000,
       });
 
       const lat = pos.latitude;
@@ -239,11 +254,27 @@ export default function InteractiveMapPicker({
       setAccuracyInfo({
         meters: acc,
         isHighAccuracy: pos.isHighAccuracy,
+        isCoarse: pos.isCoarse,
+        warning: pos.isCoarse
+          ? `Approximate area (±${acc >= 1000 ? (acc / 1000).toFixed(1) + " km" : acc + "m"}). Drag pin to your exact building.`
+          : null,
       });
 
       if (mapInstanceRef.current && markerRef.current) {
         markerRef.current.setLatLng([lat, lng]);
-        mapInstanceRef.current.flyTo([lat, lng], 18, { duration: 1.2 });
+
+        if (accuracyCircleRef.current) {
+          accuracyCircleRef.current.remove();
+        }
+        accuracyCircleRef.current = L.circle([lat, lng], {
+          radius: Math.min(acc, 3000),
+          color: pos.isCoarse ? "#f59e0b" : "#10b981",
+          fillColor: pos.isCoarse ? "#f59e0b" : "#10b981",
+          fillOpacity: 0.12,
+          weight: 1.5,
+        }).addTo(mapInstanceRef.current);
+
+        mapInstanceRef.current.flyTo([lat, lng], pos.isCoarse ? 15 : 18, { duration: 1.2 });
       }
 
       handleReverseGeocode(lat, lng, acc);

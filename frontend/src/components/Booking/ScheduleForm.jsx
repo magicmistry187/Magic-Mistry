@@ -1,31 +1,73 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useBooking } from '../../components/Booking/BookingContext';
-import { Clock, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
+import { useBooking } from './BookingContext';
+import {
+  CalendarDays,
+  Clock,
+  ChevronLeft,
+  ChevronRight,
+  Sun,
+  Sunset,
+  Sunrise,
+  Check,
+  Calendar,
+  Sparkles,
+  CheckCircle2
+} from 'lucide-react';
 
 const MONTH_NAMES = [
-  'January','February','March','April','May','June',
-  'July','August','September','October','November','December',
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
 ];
+
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-const timeSlots = [
-  '09:00 AM – 11:00 AM',
-  '11:00 AM – 01:00 PM',
-  '02:00 PM – 04:00 PM',
-  '04:00 PM – 06:00 PM',
+const TIME_SLOTS = [
+  { id: '09:00 AM – 11:00 AM', label: '09:00 AM – 11:00 AM', period: 'Morning Slot', Icon: Sunrise },
+  { id: '11:00 AM – 01:00 PM', label: '11:00 AM – 01:00 PM', period: 'Midday Slot', Icon: Sun },
+  { id: '02:00 PM – 04:00 PM', label: '02:00 PM – 04:00 PM', period: 'Afternoon Slot', Icon: Sun },
+  { id: '04:00 PM – 06:00 PM', label: '04:00 PM – 06:00 PM', period: 'Evening Slot', Icon: Sunset },
 ];
 
 export default function ScheduleForm() {
-  const { bookingState, updateBooking, scrollToNextStep } = useBooking();
+  const { bookingState, updateBooking, nextStep, prevStep, isStep2Valid } = useBooking();
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
 
   const [curYear, setCurYear]   = useState(today.getFullYear());
   const [curMonth, setCurMonth] = useState(today.getMonth());
+  const [showFullCalendar, setShowFullCalendar] = useState(false);
 
-  /* ── helpers ─────────────────────────────────────── */
+  // Quick pick dates: Today, Tomorrow, Day After
+  const quickDates = useMemo(() => {
+    const dates = [];
+    for (let i = 0; i < 3; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      const iso = [
+        d.getFullYear(),
+        String(d.getMonth() + 1).padStart(2, '0'),
+        String(d.getDate()).padStart(2, '0'),
+      ].join('-');
+
+      let tag = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-IN', { weekday: 'short' });
+      dates.push({
+        iso,
+        tag,
+        weekday: d.toLocaleDateString('en-IN', { weekday: 'short' }),
+        dayNum: d.getDate(),
+        month: d.toLocaleDateString('en-IN', { month: 'short' }),
+        isFastest: i === 0,
+      });
+    }
+    return dates;
+  }, [today]);
+
+  /* Calendar helpers */
   const daysInMonth   = new Date(curYear, curMonth + 1, 0).getDate();
   const firstWeekday  = new Date(curYear, curMonth, 1).getDay();
 
@@ -42,6 +84,10 @@ export default function ScheduleForm() {
     curYear < today.getFullYear() ||
     (curYear === today.getFullYear() && curMonth <= today.getMonth());
 
+  const handleSelectIsoDate = (iso) => {
+    updateBooking('date', iso);
+  };
+
   const handleDayClick = (day) => {
     const d = new Date(curYear, curMonth, day);
     if (d < today) return;
@@ -51,189 +97,247 @@ export default function ScheduleForm() {
       String(day).padStart(2, '0'),
     ].join('-');
     updateBooking('date', iso);
-
-    // Auto-scroll smoothly and fast to the Preferred Time Slots
-    if (scrollToNextStep) {
-      scrollToNextStep('step-time-slots', { offset: -100, delay: 120 });
-    }
   };
-
 
   const selectedIso = bookingState.date || '';
 
-  const isoOf = (day) =>
-    `${curYear}-${String(curMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-  const isToday  = (day) =>
-    day === today.getDate() &&
-    curMonth === today.getMonth() &&
-    curYear  === today.getFullYear();
-
-  const isPast   = (day) => new Date(curYear, curMonth, day) < today;
-  const isSel    = (day) => isoOf(day) === selectedIso;
-
-  /* ── readable label for banner ───────────────────── */
   const readableDate = selectedIso
     ? new Date(selectedIso + 'T00:00:00').toLocaleDateString('en-IN', {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
       })
     : null;
 
-  /* ── grid cells: blanks + day numbers ───────────── */
+  /* Calendar cells */
   const cells = [
     ...Array(firstWeekday).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
 
   return (
-    <div className="bg-white p-7 md:p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full mix-blend-multiply filter blur-3xl opacity-50 translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
-
-      <div className="relative z-10 mb-6">
-        <h2 className="text-2xl md:text-3xl font-extrabold text-[#0B1E40] flex items-center gap-4 tracking-tight">
-          <span className="bg-gradient-to-br from-indigo-500 to-blue-600 text-white rounded-2xl w-10 h-10 inline-flex items-center justify-center text-lg font-black shadow-lg shadow-blue-500/30">
-            3
-          </span>
-          Schedule Date and Time
+    <div className="bg-white rounded-2xl md:rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="p-5 sm:p-6 md:p-8 border-b border-slate-100 bg-gradient-to-r from-slate-50/70 via-white to-indigo-50/20">
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-semibold mb-2">
+          <CalendarDays className="w-3.5 h-3.5 text-indigo-600 shrink-0" /> Step 2 of 4
+        </div>
+        <h2 className="text-xl sm:text-2xl font-extrabold text-[#0B1E40] tracking-tight">
+          Choose Date &amp; Arrival Window
         </h2>
+        <p className="text-xs sm:text-sm text-slate-500 mt-1 font-medium">
+          Select a convenient day and a 2-hour window for our verified technician to arrive.
+        </p>
       </div>
 
-      {/* ── CALENDAR ────────────────────────────────── */}
-      <div className="mb-8 relative z-10">
-        <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">
-          <CalendarDays className="w-4 h-4 text-indigo-500" /> Pick a Date
-        </label>
-
-        <div className="border border-slate-200 rounded-3xl overflow-hidden shadow-sm bg-white">
-
-          {/* Month header */}
-          <div className="flex items-center justify-between bg-slate-50 border-b border-slate-200 px-6 py-4">
+      <div className="p-5 sm:p-6 md:p-8 space-y-8">
+        {/* Section 1: Date Selection */}
+        <div>
+          <div className="flex items-center justify-between mb-3 gap-2">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-indigo-600 shrink-0" /> Select Date
+            </label>
             <button
-              onClick={goPrev}
-              disabled={isPrevDisabled}
-              className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-600 bg-white shadow-sm border border-slate-200 hover:bg-slate-100 hover:text-indigo-600 disabled:opacity-30 disabled:shadow-none disabled:cursor-not-allowed transition-all"
+              type="button"
+              onClick={() => setShowFullCalendar(p => !p)}
+              className="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
             >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <span className="text-slate-800 font-extrabold text-base tracking-wide">
-              {MONTH_NAMES[curMonth]} {curYear}
-            </span>
-            <button
-              onClick={goNext}
-              className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-600 bg-white shadow-sm border border-slate-200 hover:bg-slate-100 hover:text-indigo-600 transition-all"
-            >
-              <ChevronRight className="w-5 h-5" />
+              {showFullCalendar ? 'Show Quick Dates' : 'Pick another date from calendar'}
             </button>
           </div>
 
-          {/* Day-name headers */}
-          <div className="grid grid-cols-7 bg-white pt-4 pb-2 px-2">
-            {DAY_NAMES.map((d) => (
-              <div
-                key={d}
-                className="text-center text-[11px] font-bold text-slate-400 uppercase tracking-widest"
-              >
-                {d}
+          {/* Quick Date Chips */}
+          {!showFullCalendar ? (
+            <div className="grid grid-cols-3 gap-3 pt-2">
+              {quickDates.map((q) => {
+                const isSelected = selectedIso === q.iso;
+                return (
+                  <button
+                    key={q.iso}
+                    type="button"
+                    onClick={() => handleSelectIsoDate(q.iso)}
+                    className={`p-3 sm:p-4 rounded-2xl border text-center transition-all duration-200 cursor-pointer relative h-full min-h-[96px] flex flex-col items-center justify-center ${
+                      isSelected
+                        ? 'bg-gradient-to-b from-indigo-50/90 to-blue-50/40 border-2 border-indigo-600 shadow-sm ring-2 ring-indigo-500/10'
+                        : 'bg-white border-slate-200/90 hover:border-slate-300 hover:shadow-2xs'
+                    }`}
+                  >
+                    {q.isFastest && (
+                      <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-600 text-white shadow-2xs">
+                        Fastest
+                      </span>
+                    )}
+                    <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                      {q.tag}
+                    </span>
+                    <span className={`text-xl sm:text-2xl font-black block my-0.5 ${
+                      isSelected ? 'text-indigo-950 font-black' : 'text-slate-800'
+                    }`}>
+                      {q.dayNum}
+                    </span>
+                    <span className="text-[11px] font-medium text-slate-500 block">
+                      {q.month}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            /* Modern Full Month Calendar */
+            <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-xs">
+              {/* Month Header */}
+              <div className="flex items-center justify-between bg-slate-50 px-4 py-3 border-b border-slate-200">
+                <button
+                  type="button"
+                  onClick={goPrev}
+                  disabled={isPrevDisabled}
+                  className="p-1.5 rounded-lg text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-sm font-extrabold text-[#0B1E40]">
+                  {MONTH_NAMES[curMonth]} {curYear}
+                </span>
+                <button
+                  type="button"
+                  onClick={goNext}
+                  className="p-1.5 rounded-lg text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 transition-all cursor-pointer"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
-            ))}
-          </div>
 
-          {/* Day cells */}
-          <div className="grid grid-cols-7 gap-y-2 gap-x-1 bg-white px-2 pb-4">
-            {cells.map((day, idx) => {
-              if (!day) {
-                return <div key={`blank-${idx}`} className="h-10" />;
-              }
+              {/* Day Headers */}
+              <div className="grid grid-cols-7 bg-white pt-3 pb-1 px-2">
+                {DAY_NAMES.map((d) => (
+                  <div key={d} className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    {d}
+                  </div>
+                ))}
+              </div>
 
-              const past = isPast(day);
-              const sel  = isSel(day);
-              const tod  = isToday(day);
+              {/* Cells */}
+              <div className="grid grid-cols-7 gap-1 p-2">
+                {cells.map((day, idx) => {
+                  if (!day) return <div key={`blank-${idx}`} className="h-9 sm:h-10" />;
+
+                  const d = new Date(curYear, curMonth, day);
+                  const iso = [
+                    curYear,
+                    String(curMonth + 1).padStart(2, '0'),
+                    String(day).padStart(2, '0'),
+                  ].join('-');
+                  const isPast = d < today;
+                  const isSel = iso === selectedIso;
+                  const isCurrentDay = d.getTime() === today.getTime();
+
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      disabled={isPast}
+                      onClick={() => handleDayClick(day)}
+                      className={`h-9 w-9 sm:h-10 sm:w-10 mx-auto rounded-xl text-xs font-bold flex items-center justify-center transition-all ${
+                        isSel
+                          ? 'bg-indigo-600 text-white shadow-xs font-black scale-105'
+                          : isCurrentDay
+                          ? 'bg-indigo-50 text-indigo-700 font-extrabold border border-indigo-200'
+                          : isPast
+                          ? 'text-slate-300 cursor-not-allowed'
+                          : 'text-slate-700 hover:bg-slate-100 cursor-pointer'
+                      }`}
+                    >
+                      {day}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Selected Date Summary Pill */}
+          {readableDate && (
+            <div className="mt-3.5 flex items-center gap-2 text-xs text-indigo-900 bg-indigo-50/70 border border-indigo-100 rounded-xl px-4 py-2.5 font-semibold">
+              <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
+              <span>Selected Date: <strong className="font-extrabold">{readableDate}</strong></span>
+            </div>
+          )}
+        </div>
+
+        {/* Section 2: Arrival Window Chips */}
+        <div>
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-3">
+            <Clock className="w-4 h-4 text-indigo-600 shrink-0" /> Preferred Arrival Window
+          </label>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch">
+            {TIME_SLOTS.map((slot) => {
+              const isSelected = bookingState.timeSlot === slot.id;
+              const { Icon } = slot;
 
               return (
-                <div key={day} className="flex justify-center items-center h-10">
-                  <button
-                    onClick={() => handleDayClick(day)}
-                    disabled={past}
-                    className={[
-                      'h-10 w-10 flex flex-col items-center justify-center text-sm font-semibold rounded-full transition-all duration-300 relative',
-                      sel
-                        ? 'bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-md shadow-indigo-500/40 z-10 scale-110'
-                        : tod
-                        ? 'text-indigo-600 font-bold bg-indigo-50 hover:bg-indigo-100'
-                        : past
-                        ? 'text-slate-300 cursor-not-allowed'
-                        : 'text-slate-700 hover:bg-slate-100 cursor-pointer',
-                    ].join(' ')}
-                  >
-                    {day}
-                    {/* Today dot */}
-                    {tod && !sel && (
-                      <span className="w-1 h-1 rounded-full bg-indigo-600 absolute bottom-1.5" />
-                    )}
-                  </button>
-                </div>
+                <button
+                  key={slot.id}
+                  type="button"
+                  onClick={() => updateBooking('timeSlot', slot.id)}
+                  className={`p-4 rounded-xl border text-left flex items-center justify-between transition-all duration-200 cursor-pointer h-full min-h-[72px] ${
+                    isSelected
+                      ? 'bg-gradient-to-r from-indigo-50/90 to-blue-50/40 border-indigo-600 shadow-sm ring-2 ring-indigo-500/10'
+                      : 'bg-white border-slate-200/90 hover:border-slate-300 hover:shadow-2xs'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                      isSelected ? 'bg-indigo-600 text-white shadow-2xs' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-1">
+                        {slot.period}
+                      </div>
+                      <div className={`text-sm font-bold truncate leading-tight ${isSelected ? 'text-indigo-950 font-extrabold' : 'text-slate-800'}`}>
+                        {slot.label}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={`w-5 h-5 rounded-full border flex items-center justify-center text-xs shrink-0 ml-2 ${
+                    isSelected ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 text-transparent'
+                  }`}>
+                    <Check className="w-3 h-3 stroke-[3]" />
+                  </div>
+                </button>
               );
             })}
           </div>
-
-          {/* Legend */}
-          <div className="flex items-center gap-6 px-6 py-4 bg-slate-50 border-t border-slate-200 text-[11px] text-slate-500 font-medium">
-            <span className="flex items-center gap-2">
-              <span className="inline-block w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
-              Selected
-            </span>
-            <span className="flex items-center gap-2">
-              <span className="inline-block w-2.5 h-2.5 rounded-full bg-slate-300"></span>
-              Not available
-            </span>
-          </div>
+          <p className="text-[11px] text-slate-400 mt-2 font-medium">
+            Technician will call 30 minutes before arrival to confirm availability.
+          </p>
         </div>
 
-        {/* Selected date pill */}
-        {readableDate && (
-          <div className="mt-4 flex items-center justify-center gap-2 bg-indigo-50/80 border border-indigo-100 rounded-2xl px-5 py-3 text-sm text-indigo-900 font-bold shadow-sm">
-            <CalendarDays className="w-5 h-5 text-indigo-500 flex-shrink-0" />
-            {readableDate}
-          </div>
-        )}
-      </div>
-
-      {/* ── TIME SLOTS ──────────────────────────────── */}
-      <AnimatePresence mode="wait">
-        {selectedIso && (
-          <motion.div 
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
-            className="overflow-hidden relative z-10"
+        {/* Step 2 Action Bar */}
+        <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-4">
+          <button
+            type="button"
+            onClick={prevStep}
+            className="h-11 px-5 rounded-xl font-bold text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
           >
-            <div id="step-time-slots" className="pt-2 scroll-mt-24">
-        <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">
-          <Clock className="w-4 h-4 text-indigo-500" /> Preferred Time Slot
-        </label>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {timeSlots.map((slot) => (
-            <button
-              key={slot}
-              onClick={() => {
-                updateBooking('timeSlot', slot);
-                if (scrollToNextStep) scrollToNextStep('step-address-form', { offset: -90, delay: 180 });
-              }}
-              className={`py-4 px-4 text-sm rounded-2xl border-2 transition-all duration-300 transform hover:-translate-y-0.5 ${
-                bookingState.timeSlot === slot
-                  ? 'border-indigo-500 bg-indigo-50 text-indigo-900 font-extrabold shadow-md shadow-indigo-100 ring-2 ring-indigo-500/20'
-                  : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 hover:shadow-sm font-semibold'
-              }`}
-            >
-              {slot}
-            </button>
-          ))}
+            ← Back to Service
+          </button>
+
+          <button
+            type="button"
+            onClick={nextStep}
+            disabled={!isStep2Valid}
+            className={`h-11 px-7 rounded-xl font-bold text-sm flex items-center gap-2 transition-all duration-200 cursor-pointer shadow-sm shrink-0 ${
+              isStep2Valid
+                ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200 hover:shadow-md hover:-translate-y-0.5'
+                : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+            }`}
+          >
+            Continue to Address <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      </div>
     </div>
   );
 }
