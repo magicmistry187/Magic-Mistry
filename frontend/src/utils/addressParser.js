@@ -87,6 +87,11 @@ export const KNOWN_DISTRICTS = new Set([
 export function cleanPostalParentheses(str) {
   if (!str || typeof str !== 'string') return '';
   const trimmed = str.trim();
+  // If the text before parentheses is a valid locality (e.g. "Sripur Bazar (Bardhaman)"), keep the locality!
+  const beforeParen = trimmed.replace(/\s*\(.*?\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+  if (beforeParen && !isAdministrativeToken(beforeParen)) {
+    return beforeParen;
+  }
   const parenMatch = trimmed.match(/\((.*?)\)/);
   if (parenMatch && parenMatch[1]) {
     return parenMatch[1].trim();

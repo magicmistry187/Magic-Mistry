@@ -444,59 +444,91 @@ export async function reverseGeocode(latitude, longitude) {
   const locationIqKey =
     import.meta?.env?.VITE_LOCATIONIQ_API_KEY ||
     (typeof process !== 'undefined' ? process.env?.VITE_LOCATIONIQ_API_KEY : '') ||
-    '';
+    'pk.43b9346c8e8046d3fdc74a70f9d0c1b1';
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // ── PHASE 1: Dual-Engine Parallel Resolver (LocationIQ + OSM Nominatim) ──
+  // ── PHASE 1: Tri-Engine Parallel Resolver (Backend + LocationIQ + Nominatim)
   // ═══════════════════════════════════════════════════════════════════════════
-  // Run both engines simultaneously with zoom=18. This resolves the micro-locality
-  // (e.g. Shantiniketan, Birbhum) and its dedicated delivery PIN (731235) rather than
-  // settling prematurely on a broad city Head Post Office PIN (731204).
+  // Concurrently queries:
+  // 1. Backend Reverse Geocode Endpoint (backed by offline 19,097 India Post dataset)
+  // 2. Direct Client LocationIQ (high-accuracy survey boundaries & PINs)
+  // 3. Direct Client OSM Nominatim (micro-localities: suburbs, colonies, sectors)
   const promises = [];
 
-  // Engine 1: Direct Client LocationIQ
-  if (locationIqKey) {
-    const liqPromise = (async () => {
-      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-      const timeoutId = controller ? setTimeout(() => controller.abort(), 6500) : null;
-      try {
-        const liqUrl = `https://us1.locationiq.com/v1/reverse?key=${locationIqKey}&lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`;
-        const res = await fetch(liqUrl, { signal: controller ? controller.signal : undefined });
-        if (timeoutId) clearTimeout(timeoutId);
-        if (res.ok) {
-          const data = await res.json();
-          if (data && (data.address || data.display_name)) {
-            let nearbyList = [];
-            if (!data.address?.road) {
-              try {
-                const nearRes = await fetch(
-                  `https://us1.locationiq.com/v1/nearby?key=${locationIqKey}&lat=${lat}&lon=${lng}&radius=400&format=json`
-                );
-                if (nearRes.ok) {
-                  const nearData = await nearRes.json();
-                  if (Array.isArray(nearData)) nearbyList = nearData;
-                }
-              } catch (_) {}
-            }
-            return parseIndianAddress(data, nearbyList);
-          }
+  // Engine 1: Backend Reverse Geocode with India Post Locality Enrichment
+  const backendPromise = (async () => {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 4500) : null;
+    try {
+      const backendUrl = `${BASE_URL}/address/reverse-geocode?lat=${lat}&lng=${lng}`;
+      const res = await fetch(backendUrl, {
+        signal: controller ? controller.signal : undefined,
+      });
+      if (timeoutId) clearTimeout(timeoutId);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data && (json.data.city || json.data.street || json.data.fullAddress)) {
+          const bData = json.data;
+          return {
+            flat: bData.flat || '',
+            street: bData.street || '',
+            city: cleanCityName(bData.city || ''),
+            state: bData.state || '',
+            landmark: bData.landmark || '',
+            pincode: (bData.pincode || '').replace(/\D/g, '').slice(0, 6),
+            fullAddress: bData.fullAddress || '',
+            availableLocalities: Array.isArray(bData.availableLocalities) ? bData.availableLocalities : [],
+          };
         }
-      } catch (e) {
-        console.warn('[ReverseGeocode] Parallel LocationIQ error:', e);
-      } finally {
-        if (timeoutId) clearTimeout(timeoutId);
       }
-      return null;
-    })();
-    promises.push(liqPromise);
-  } else {
-    promises.push(Promise.resolve(null));
-  }
+    } catch (e) {
+      console.warn('[ReverseGeocode] Parallel Backend error:', e.message);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+    return null;
+  })();
+  promises.push(backendPromise);
 
-  // Engine 2: Direct Client OSM Nominatim
+  // Engine 2: Direct Client LocationIQ
+  const liqPromise = (async () => {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 6000) : null;
+    try {
+      const liqUrl = `https://us1.locationiq.com/v1/reverse?key=${locationIqKey}&lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`;
+      const res = await fetch(liqUrl, { signal: controller ? controller.signal : undefined });
+      if (timeoutId) clearTimeout(timeoutId);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && (data.address || data.display_name)) {
+          let nearbyList = [];
+          if (!data.address?.road) {
+            try {
+              const nearRes = await fetch(
+                `https://us1.locationiq.com/v1/nearby?key=${locationIqKey}&lat=${lat}&lon=${lng}&radius=400&format=json`
+              );
+              if (nearRes.ok) {
+                const nearData = await nearRes.json();
+                if (Array.isArray(nearData)) nearbyList = nearData;
+              }
+            } catch (_) {}
+          }
+          return parseIndianAddress(data, nearbyList);
+        }
+      }
+    } catch (e) {
+      console.warn('[ReverseGeocode] Parallel LocationIQ error:', e.message);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+    return null;
+  })();
+  promises.push(liqPromise);
+
+  // Engine 3: Direct Client OSM Nominatim
   const nomPromise = (async () => {
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timeoutId = controller ? setTimeout(() => controller.abort(), 6500) : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 6000) : null;
     try {
       const nomUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`;
       const res = await fetch(nomUrl, {
@@ -514,7 +546,7 @@ export async function reverseGeocode(latitude, longitude) {
         }
       }
     } catch (e) {
-      console.warn('[ReverseGeocode] Parallel Nominatim error:', e);
+      console.warn('[ReverseGeocode] Parallel Nominatim error:', e.message);
     } finally {
       if (timeoutId) clearTimeout(timeoutId);
     }
@@ -522,22 +554,13 @@ export async function reverseGeocode(latitude, longitude) {
   })();
   promises.push(nomPromise);
 
-  const [liqSettled, nomSettled] = await Promise.allSettled(promises);
+  const [bSettled, liqSettled, nomSettled] = await Promise.allSettled(promises);
+  const bData = bSettled.status === 'fulfilled' ? bSettled.value : null;
   const parsedLiq = liqSettled.status === 'fulfilled' ? liqSettled.value : null;
   const parsedNom = nomSettled.status === 'fulfilled' ? nomSettled.value : null;
 
-  // Granular locality comparison:
-  // In India, when a geocoder detects a micro-locality (suburb, neighbourhood, colony, sector, village),
-  // its postal code corresponds to that specific local delivery sub-office.
-  // A geocoder with suburb=undefined only detects the broad city and its broad Head Post Office PIN.
-  const liqHasLocality = Boolean(
-    parsedLiq?.rawAddress?.suburb ||
-    parsedLiq?.rawAddress?.neighbourhood ||
-    parsedLiq?.rawAddress?.colony ||
-    parsedLiq?.rawAddress?.sector ||
-    parsedLiq?.rawAddress?.village
-  );
-  const nomHasLocality = Boolean(
+  // Detect whether Nominatim or LocationIQ resolved a true micro-locality (suburb, neighbourhood, colony, village, sector)
+  const nomHasMicroLocality = Boolean(
     parsedNom?.rawAddress?.suburb ||
     parsedNom?.rawAddress?.neighbourhood ||
     parsedNom?.rawAddress?.colony ||
@@ -545,50 +568,103 @@ export async function reverseGeocode(latitude, longitude) {
     parsedNom?.rawAddress?.village
   );
 
+  const liqHasMicroLocality = Boolean(
+    parsedLiq?.rawAddress?.suburb ||
+    parsedLiq?.rawAddress?.neighbourhood ||
+    parsedLiq?.rawAddress?.colony ||
+    parsedLiq?.rawAddress?.sector ||
+    parsedLiq?.rawAddress?.village
+  );
+
   let primary = null;
-  let secondary = null;
 
-  if (parsedLiq && parsedNom) {
-    if (nomHasLocality && !liqHasLocality) {
-      primary = parsedNom;
-      secondary = parsedLiq;
-    } else if (!nomHasLocality && liqHasLocality) {
-      primary = parsedLiq;
-      secondary = parsedNom;
-    } else if ((parsedNom.specificityScore || 0) > (parsedLiq.specificityScore || 0)) {
-      primary = parsedNom;
-      secondary = parsedLiq;
-    } else {
-      primary = parsedLiq;
-      secondary = parsedNom;
+  // Case A: Nominatim has a true micro-locality (e.g. Shantiniketan, Navghar-Manikpur)
+  if (
+    nomHasMicroLocality &&
+    (!liqHasMicroLocality || (parsedNom?.specificityScore || 0) >= (parsedLiq?.specificityScore || 0))
+  ) {
+    primary = { ...parsedNom };
+    if (parsedLiq) {
+      if (!primary.landmark && parsedLiq.landmark) primary.landmark = parsedLiq.landmark;
+      if (!primary.flat && parsedLiq.flat) primary.flat = parsedLiq.flat;
+      const secRoad = parsedLiq.rawAddress?.road || parsedLiq.rawAddress?.street;
+      if (secRoad && !primary.street.toLowerCase().includes(secRoad.toLowerCase())) {
+        primary.street = `${secRoad}, ${primary.street}`;
+      }
     }
-  } else {
-    primary = parsedLiq || parsedNom;
-    secondary = null;
+  }
+  // Case B: Backend reverse-geocode has verified Indian Postal PIN and enriched area name (e.g. Sripur Bazar, Jamuria 713373)
+  else if (bData && bData.city && bData.pincode) {
+    primary = { ...bData };
+    const secondary = parsedLiq || parsedNom;
+    if (secondary) {
+      if (!primary.flat && secondary.flat) primary.flat = secondary.flat;
+      if (!primary.landmark && secondary.landmark) primary.landmark = secondary.landmark;
+      const secRoad = secondary.rawAddress?.road || secondary.rawAddress?.street;
+      if (secRoad && !primary.street.toLowerCase().includes(secRoad.toLowerCase())) {
+        primary.street = `${secRoad}, ${primary.street}`;
+      }
+    }
+  }
+  // Case C: LocationIQ with valid city and pincode
+  else if (parsedLiq && parsedLiq.city && parsedLiq.pincode) {
+    primary = { ...parsedLiq };
+    if (parsedNom) {
+      if (!primary.landmark && parsedNom.landmark) primary.landmark = parsedNom.landmark;
+      if (!primary.flat && parsedNom.flat) primary.flat = parsedNom.flat;
+      const secRoad = parsedNom.rawAddress?.road || parsedNom.rawAddress?.street;
+      if (secRoad && !primary.street.toLowerCase().includes(secRoad.toLowerCase())) {
+        primary.street = `${secRoad}, ${primary.street}`;
+      }
+    }
+  }
+  // Case D: Nominatim fallback
+  else if (parsedNom) {
+    primary = { ...parsedNom };
+  } else if (bData) {
+    primary = { ...bData };
   }
 
-  if (primary) {
-    // Cross-enrich missing fields:
-    if (!primary.flat && secondary?.flat) primary.flat = secondary.flat;
-    if (!primary.landmark && secondary?.landmark) primary.landmark = secondary.landmark;
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ── PHASE 2: Sub-Office Locality Refinement (Eliminates City Overwrites) ──
+  // ═══════════════════════════════════════════════════════════════════════════
+  // If street is generic or identical to the city (e.g. street="Jamuria", city="Jamuria"),
+  // look up official India Post delivery sub-offices to resolve the exact micro-area (e.g. "Sripur Bazar")
+  if (primary && primary.pincode && /^[1-9]\d{5}$/.test(primary.pincode)) {
+    const isGenericStreet =
+      !primary.street ||
+      primary.street === 'Local Area' ||
+      primary.street.toLowerCase() === (primary.city || '').toLowerCase();
 
-    // Cross-enrich road if primary lacked a road but secondary had one
-    const primaryRoad = primary.rawAddress?.road || primary.rawAddress?.street;
-    const secondaryRoad = secondary?.rawAddress?.road || secondary?.rawAddress?.street;
-    if (!primaryRoad && secondaryRoad && primary.street && !primary.street.toLowerCase().includes(secondaryRoad.toLowerCase())) {
-      primary.street = `${secondaryRoad}, ${primary.street}`;
+    if (isGenericStreet) {
+      if (Array.isArray(primary.availableLocalities) && primary.availableLocalities.length > 0) {
+        primary.street = primary.availableLocalities[0];
+      } else {
+        try {
+          const pinRes = await fetch(`https://api.postalpincode.in/pincode/${primary.pincode}`);
+          if (pinRes.ok) {
+            const pinData = await pinRes.json();
+            if (Array.isArray(pinData) && pinData[0]?.Status === 'Success' && Array.isArray(pinData[0]?.PostOffice)) {
+              const offices = pinData[0].PostOffice;
+              let bestOffice = offices[0]?.Name || '';
+              for (const off of offices) {
+                if (/bazar|bazaar|colliery|chowk|market|nagar|main/i.test(off.Name)) {
+                  bestOffice = off.Name;
+                  break;
+                }
+              }
+              if (bestOffice) {
+                primary.street = cleanPostalParentheses(bestOffice);
+              }
+            }
+          }
+        } catch (_) {}
+      }
     }
-
-    if (!primary.street || primary.street === 'Local Area' || primary.street.toLowerCase() === primary.city.toLowerCase()) {
-      if (secondary?.street && secondary.street !== 'Local Area') primary.street = secondary.street;
-    }
-    if (!primary.pincode && secondary?.pincode) primary.pincode = secondary.pincode;
-
-    parsedResult = primary;
   }
 
-  // If pincode was omitted at zoom 18, check postal boundary at zoom 16
-  if (locationIqKey && parsedResult && !parsedResult.pincode) {
+  // If pincode was omitted, check postal boundary at zoom 16
+  if (primary && !primary.pincode) {
     try {
       const zRes = await fetch(
         `https://us1.locationiq.com/v1/reverse?key=${locationIqKey}&lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=16`
@@ -597,64 +673,18 @@ export async function reverseGeocode(latitude, longitude) {
         const zData = await zRes.json();
         const pinMatch = (zData.address?.postcode || zData.display_name || '').match(/\b[1-9]\d{5}\b/);
         if (pinMatch) {
-          parsedResult.pincode = pinMatch[0];
+          primary.pincode = pinMatch[0];
         }
       }
     } catch (_) {}
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // ── PHASE 2: Backend Reverse Geocode Endpoint (Fallback) ───────────────────
-  // ═══════════════════════════════════════════════════════════════════════════
-  if (!parsedResult || !parsedResult.city || !parsedResult.pincode) {
+  // If pincode is still missing, lookup via India Post API by micro-locality or city
+  if (primary && (!primary.pincode || !primary.state)) {
     try {
-      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-      const timeoutId = controller ? setTimeout(() => controller.abort(), 6000) : null;
-
-      const backendUrl = `${BASE_URL}/address/reverse-geocode?lat=${lat}&lng=${lng}`;
-      const res = await fetch(backendUrl, {
-        signal: controller ? controller.signal : undefined,
-      });
-      if (timeoutId) clearTimeout(timeoutId);
-
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data && (json.data.city || json.data.street || json.data.fullAddress)) {
-          const bData = json.data;
-          const cleanBData = {
-            flat: bData.flat || '',
-            street: bData.street || '',
-            city: cleanCityName(bData.city || ''),
-            state: bData.state || '',
-            landmark: bData.landmark || '',
-            pincode: (bData.pincode || '').replace(/\D/g, '').slice(0, 6),
-            fullAddress: bData.fullAddress || '',
-          };
-
-          if (!parsedResult) {
-            parsedResult = cleanBData;
-          } else {
-            parsedResult.street = parsedResult.street || cleanBData.street;
-            parsedResult.city = parsedResult.city || cleanBData.city;
-            parsedResult.state = parsedResult.state || cleanBData.state;
-            parsedResult.pincode = parsedResult.pincode || cleanBData.pincode;
-          }
-        }
-      }
-    } catch (backendErr) {
-      console.warn('[ReverseGeocode] Backend proxy fallback failed:', backendErr);
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // ── PHASE 3: Indian Postal API (SAFEGUARDED Verification) ──────────────────
-  // ═══════════════════════════════════════════════════════════════════════════
-  if (parsedResult && (!parsedResult.pincode || !parsedResult.state)) {
-    try {
-      // Case A: Missing Pincode, query post office by micro-locality or clean city
-      if (!parsedResult.pincode) {
+      if (!primary.pincode) {
         const localityTarget = cleanPostalParentheses(
-          parsedResult.rawAddress?.suburb || parsedResult.rawAddress?.village || parsedResult.city || ''
+          primary.rawAddress?.suburb || primary.rawAddress?.village || primary.street || primary.city || ''
         );
         if (localityTarget && localityTarget !== 'Local Area') {
           const pinRes = await fetch(`https://api.postalpincode.in/postoffice/${encodeURIComponent(localityTarget)}`);
@@ -662,35 +692,35 @@ export async function reverseGeocode(latitude, longitude) {
             const pinData = await pinRes.json();
             if (Array.isArray(pinData) && pinData[0]?.Status === 'Success' && Array.isArray(pinData[0]?.PostOffice)) {
               const offices = pinData[0].PostOffice;
-              const stateLower = (parsedResult.state || '').toLowerCase();
+              const stateLower = (primary.state || '').toLowerCase();
               const matched = offices.find(
                 (o) => !stateLower || o.State?.toLowerCase() === stateLower || o.Circle?.toLowerCase() === stateLower
               ) || offices[0];
 
               if (matched && matched.Pincode) {
-                parsedResult.pincode = matched.Pincode;
-                parsedResult.state = parsedResult.state || matched.State || '';
+                primary.pincode = matched.Pincode;
+                primary.state = primary.state || matched.State || '';
               }
             }
           }
         }
       }
 
-      // Case B: Pincode is known, but State is missing -> lookup by pincode
-      if (parsedResult.pincode && !parsedResult.state) {
-        const pinRes = await fetch(`https://api.postalpincode.in/pincode/${parsedResult.pincode}`);
+      if (primary.pincode && !primary.state) {
+        const pinRes = await fetch(`https://api.postalpincode.in/pincode/${primary.pincode}`);
         if (pinRes.ok) {
           const pinData = await pinRes.json();
           if (Array.isArray(pinData) && pinData[0]?.Status === 'Success' && pinData[0]?.PostOffice?.length) {
-            parsedResult.state = pinData[0].PostOffice[0].State || parsedResult.state;
+            primary.state = pinData[0].PostOffice[0].State || primary.state;
           }
         }
       }
     } catch (pinErr) {
-      console.warn('[ReverseGeocode] India Post lookup failed:', pinErr);
+      console.warn('[ReverseGeocode] India Post fallback lookup failed:', pinErr);
     }
   }
 
+  parsedResult = primary;
   return finalizeAddress(parsedResult);
 }
 
@@ -750,7 +780,7 @@ export async function searchLocations(query, userCoords = null) {
   const locationIqKey =
     import.meta?.env?.VITE_LOCATIONIQ_API_KEY ||
     (typeof process !== 'undefined' ? process.env?.VITE_LOCATIONIQ_API_KEY : '') ||
-    '';
+    'pk.43b9346c8e8046d3fdc74a70f9d0c1b1';
   if (locationIqKey) {
     try {
       let url = `https://api.locationiq.com/v1/autocomplete?key=${locationIqKey}&q=${encodeURIComponent(q)}&countrycodes=in&limit=6&format=json`;

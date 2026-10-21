@@ -26,10 +26,15 @@ if (isLocalhost && customOverride && customOverride.includes('onrender.com')) {
 
 const activeOverride = (isLocalhost && customOverride && customOverride.includes('onrender.com')) ? null : customOverride;
 
-let resolvedUrl = activeOverride || import.meta?.env?.VITE_API_BASE_URL || import.meta?.env?.VITE_API_URL;
+let resolvedUrl =
+  activeOverride ||
+  import.meta?.env?.VITE_API_BASE_URL ||
+  import.meta?.env?.VITE_API_URL ||
+  (typeof process !== 'undefined' ? (process.env?.VITE_API_BASE_URL || process.env?.VITE_API_URL) : '') ||
+  '';
 
-if (!resolvedUrl || (isLocalhost && !activeOverride && resolvedUrl.includes('onrender.com'))) {
-  resolvedUrl = isLocalhost
+if (!resolvedUrl || ((isLocalhost || (!isBrowser && typeof process !== 'undefined')) && !activeOverride && resolvedUrl.includes('onrender.com'))) {
+  resolvedUrl = (isLocalhost || (!isBrowser && typeof process !== 'undefined'))
     ? `http://${hostname && hostname !== '0.0.0.0' ? hostname : 'localhost'}:5000/api`
     : 'https://magic-mistry.onrender.com/api';
 }
