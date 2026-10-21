@@ -59,11 +59,12 @@ const bookingRoutes = require('./routes/booking.routes');
 const addressRoutes = require('./routes/address.routes');
 const vendorApplicationRoutes = require('./routes/vendorApplication.routes');
 const vendorRoutes = require('./routes/vendor.routes');
-const adminRoutes = require('./routes/admin.routes')
+const adminRoutes = require('./routes/admin.routes');
 const inventoryRoutes = require('./routes/inventory.routes');
 const vendorEarningRoutes = require('./routes/vendorEarning.routes');
 const payoutRoutes = require('./routes/payout.routes');
 const fuelClaimRoutes = require('./routes/fuelClaim.routes');
+const priceConfigRoutes = require('./routes/priceConfig.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/booking', bookingRoutes);
@@ -72,8 +73,10 @@ app.use('/api/vendor-application', vendorApplicationRoutes);
 app.use('/api/vendor', vendorRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/inventory', inventoryRoutes);
+
 app.use('/api/vendor-earnings', vendorEarningRoutes);
 app.use('/api/payout', payoutRoutes);
 app.use('/api/fuel-claims', fuelClaimRoutes);
+app.use('/api/price-config', priceConfigRoutes);
 
 module.exports = app;
