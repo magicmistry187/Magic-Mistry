@@ -42,8 +42,8 @@ export default function AddressForm() {
   // Manual fields
   const [flat, setFlat]         = useState("");
   const [street, setStreet]     = useState("");
-  const [city, setCity]         = useState("Kolkata");
-  const [state, setState]       = useState("West Bengal");
+  const [city, setCity]         = useState("");
+  const [state, setState]       = useState("");
   const [landmark, setLandmark] = useState("");
   const [pincode, setPincode]   = useState("");
   const [addrType, setAddrType] = useState("Home");
@@ -139,19 +139,20 @@ export default function AddressForm() {
       const rawFlat = (address.flat || "").trim();
       const safeFlat = rawFlat && !rawFlat.includes(",") && rawFlat.length <= 25 ? rawFlat : "";
       const cleanStreet = (address.street || "").replace(/\s*\(.*?\)\s*/g, " ").replace(/\s+/g, " ").trim();
-      const cleanCity = cleanPostalParentheses(address.city || "") || "Kolkata";
+      const cleanCity = cleanPostalParentheses(address.city || address.district || "");
+      const cleanState = address.state || "";
       const cleanPincode = (address.pincode || "").replace(/\D/g, "").slice(0, 6);
 
       setFlat(safeFlat);
       setStreet(cleanStreet);
       setCity(cleanCity);
-      setState(address.state || "West Bengal");
+      setState(cleanState);
       setLandmark(address.landmark || "");
       setPincode(cleanPincode);
 
       const fullAddress =
         address.fullAddress ||
-        [safeFlat, cleanStreet, address.landmark, cleanCity, address.state || "West Bengal", cleanPincode]
+        [safeFlat, cleanStreet, address.landmark, cleanCity, cleanState, cleanPincode]
           .filter(Boolean)
           .join(", ");
 
@@ -193,19 +194,20 @@ export default function AddressForm() {
     if (address) {
       const safeFlat = (address.flat || "").trim();
       const cleanStreet = (address.street || "").replace(/\s*\(.*?\)\s*/g, " ").replace(/\s+/g, " ").trim();
-      const cleanCity = cleanPostalParentheses(address.city || "") || "Kolkata";
+      const cleanCity = cleanPostalParentheses(address.city || address.district || "");
+      const cleanState = address.state || "";
       const cleanPincode = (address.pincode || "").replace(/\D/g, "").slice(0, 6);
 
       setFlat(safeFlat);
       setStreet(cleanStreet);
       setCity(cleanCity);
-      setState(address.state || "West Bengal");
+      setState(cleanState);
       setLandmark(address.landmark || "");
       setPincode(cleanPincode);
 
       const fullAddress =
         address.fullAddress ||
-        [safeFlat, cleanStreet, address.landmark, cleanCity, address.state || "West Bengal", cleanPincode]
+        [safeFlat, cleanStreet, address.landmark, cleanCity, cleanState, cleanPincode]
           .filter(Boolean)
           .join(", ");
 
@@ -483,6 +485,7 @@ export default function AddressForm() {
                   type="text"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
+                  placeholder="e.g. Kolkata, Bidhannagar, New Delhi"
                   className="w-full h-11 px-3.5 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all outline-none font-medium placeholder:text-slate-400"
                 />
               </div>
@@ -494,8 +497,9 @@ export default function AddressForm() {
                 <input
                   type="text"
                   value={state}
-                  readOnly
-                  className="w-full h-11 px-3.5 text-sm bg-slate-100 border border-slate-200 rounded-xl text-slate-600 font-semibold cursor-not-allowed"
+                  onChange={(e) => setState(e.target.value)}
+                  placeholder="e.g. West Bengal, Delhi, Bihar"
+                  className="w-full h-11 px-3.5 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all outline-none font-medium placeholder:text-slate-400"
                 />
               </div>
             </div>

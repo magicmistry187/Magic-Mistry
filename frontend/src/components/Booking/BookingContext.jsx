@@ -366,8 +366,8 @@ export const BookingProvider = ({ children, initialAppliance = null }) => {
       if (street) {
         formData.append('address[street]', street);
       }
-      formData.append('address[city]', parsedAddr.city || 'Kolkata');
-      formData.append('address[state]', parsedAddr.state || 'West Bengal');
+      formData.append('address[city]', parsedAddr.city || '');
+      formData.append('address[state]', parsedAddr.state || '');
       formData.append('address[pincode]', parsedAddr.pincode || '');
       if (parsedAddr.landmark) {
         formData.append('address[landmark]', parsedAddr.landmark);

@@ -26,7 +26,7 @@ if (isLocalhost && customOverride && customOverride.includes('onrender.com')) {
 
 const activeOverride = (isLocalhost && customOverride && customOverride.includes('onrender.com')) ? null : customOverride;
 
-let resolvedUrl = activeOverride || import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
+let resolvedUrl = activeOverride || import.meta?.env?.VITE_API_BASE_URL || import.meta?.env?.VITE_API_URL;
 
 if (!resolvedUrl || (isLocalhost && !activeOverride && resolvedUrl.includes('onrender.com'))) {
   resolvedUrl = isLocalhost

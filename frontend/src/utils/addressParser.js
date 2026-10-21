@@ -95,24 +95,44 @@ export function cleanPostalParentheses(str) {
 }
 
 /**
- * Checks if a string represents an administrative region (district, tehsil, CD block, mandal, etc.)
+ * Strips administrative suffixes from city names
+ * e.g. "Kolkata Metropolitan Area" -> "Kolkata", "Bidhannagar Municipal Corporation" -> "Bidhannagar"
+ */
+export function cleanCityName(name) {
+  if (!name || typeof name !== 'string') return '';
+  const cleaned = cleanPostalParentheses(name)
+    .replace(/\s*(metropolitan area|municipal corporation|corporation|municipality)\s*/gi, '')
+    .replace(/\s*(tehsil|cd block|c\.d\.\s*block|development block|district|mandal|taluk|taluka|subdistrict)\s*/gi, '')
+    .trim();
+  return cleaned || cleanPostalParentheses(name);
+}
+
+/**
+ * Checks if a string represents a purely administrative region (district, tehsil, CD block, mandal, etc.)
+ * Strictly avoids stripping urban residential blocks like "AP Block", "Block A", "B Block".
  */
 export function isAdministrativeToken(t) {
   if (!t || typeof t !== 'string') return false;
   const lower = t.toLowerCase().trim();
   return (
     KNOWN_DISTRICTS.has(lower) ||
-    lower.includes('tehsil') ||
     lower.includes('cd block') ||
-    lower.includes('block') ||
-    lower.includes('district') ||
-    lower.includes('metropolitan area') ||
-    lower.includes('corporation') ||
-    lower.includes('division') ||
+    lower.includes('c.d. block') ||
+    lower.includes('development block') ||
+    lower === 'block' ||
+    lower.includes('tehsil') ||
+    lower.includes('tahsil') ||
     lower.includes('subdivision') ||
+    lower.includes('sub-district') ||
+    lower.includes('subdistrict') ||
     lower.includes('mandal') ||
     lower.includes('taluk') ||
     lower.includes('taluka') ||
+    lower.includes('district') ||
+    lower.includes('metropolitan area') ||
+    lower.includes('municipal corporation') ||
+    lower.includes('municipality') ||
+    lower.includes('division') ||
     lower === 'bolpur sriniketan'
   );
 }
@@ -141,15 +161,15 @@ export function parseAddressString(input) {
     if (objFlat.includes(',') || objFlat.length > 25) {
       objFlat = '';
     }
-    if (objCity.includes('(')) {
-      objCity = cleanPostalParentheses(objCity);
+    if (objCity) {
+      objCity = cleanCityName(objCity);
     }
 
     const isGeneric = (str) =>
       !str ||
       /^(home|office|other|current location|area|000000|set your location)$/i.test(str);
 
-    if (isGeneric(objStreet) || isAdministrativeToken(objStreet)) objStreet = '';
+    if (isGeneric(objStreet)) objStreet = '';
     if (isGeneric(objCity) || isAdministrativeToken(objCity)) objCity = '';
 
     // If both street and city are present and street is not a full 3+ comma address string:
@@ -328,9 +348,9 @@ export function parseAddressString(input) {
     extractedStreet = parts.join(', ');
   }
 
-  // Clean parentheses from city
-  if (extractedCity && extractedCity.includes('(')) {
-    extractedCity = cleanPostalParentheses(extractedCity);
+  // Clean parentheses and administrative suffixes from city
+  if (extractedCity) {
+    extractedCity = cleanCityName(extractedCity);
   }
 
   if (extractedFlat && (extractedFlat.includes(',') || extractedFlat.length > 25)) {
