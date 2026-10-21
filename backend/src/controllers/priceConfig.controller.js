@@ -1,12 +1,12 @@
-const PricingConfig = require('../models/pricingConfig.model');
+const PriceConfig = require('../models/priceConfig.model');
 
 exports.getFuelPricing = async (req, res) => {
   try {
-    let pricing = await PricingConfig.findOne();
+    let pricing = await PriceConfig.findOne();
 
     // Create the default configuration if it doesn't exist
     if (!pricing) {
-      pricing = await PricingConfig.create({
+      pricing = await PriceConfig.create({
         fuelRatePerKm: 8,
       });
     }
@@ -26,10 +26,12 @@ exports.getFuelPricing = async (req, res) => {
   }
 };
 
+
 exports.updateFuelPricing = async (req, res) => {
   try {
     const { fuelRatePerKm } = req.body;
 
+    // Validate fuel rate
     if (
       fuelRatePerKm === undefined ||
       fuelRatePerKm === null ||
@@ -39,8 +41,7 @@ exports.updateFuelPricing = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message:
-          'Please provide a valid fuel rate greater than or equal to zero.',
+        message: 'Please provide a valid fuel rate greater than or equal to zero.',
       });
     }
 
@@ -48,25 +49,22 @@ exports.updateFuelPricing = async (req, res) => {
       fuelRatePerKm: Number(fuelRatePerKm),
     };
 
-    // Record who updatd the configuration
+    // Store admin ID if available
     if (req.user?.id) {
       updateData.updatedBy = req.user.id;
     }
 
-    const pricing = await PricingConfig.findOneAndUpdate(
+    const pricing = await PriceConfig.findOneAndUpdate(
       {},
       {
         $set: updateData,
-        $setOnInsert: {
-          fuelRatePerKm: 8,
-        },
       },
       {
         new: true,
         upsert: true,
         runValidators: true,
         setDefaultsOnInsert: true,
-      },
+      }
     );
 
     return res.status(200).json({
