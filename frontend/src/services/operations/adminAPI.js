@@ -3,9 +3,18 @@ import { apiConnector, BASE_URL } from "../apiConnector";
 export const adminEndpoints = {
   USER_STATUS_UPDATE_API: BASE_URL + "/admin", // + /:userId/status
   GET_ALL_USERS_API: BASE_URL + "/admin/users",
+  GET_PAYMENT_REQUESTS_API: BASE_URL + "/admin/payment-requests",
+  UPDATE_PAYOUT_STATUS_API: BASE_URL + "/admin/payout", // + /:payoutId/status
+  UPDATE_FUEL_CLAIM_STATUS_API: BASE_URL + "/admin/fuelclaim", // + /:claimId/status
 };
 
-const { USER_STATUS_UPDATE_API, GET_ALL_USERS_API } = adminEndpoints;
+const {
+  USER_STATUS_UPDATE_API,
+  GET_ALL_USERS_API,
+  GET_PAYMENT_REQUESTS_API,
+  UPDATE_PAYOUT_STATUS_API,
+  UPDATE_FUEL_CLAIM_STATUS_API,
+} = adminEndpoints;
 
 const getAuthToken = (token) =>
   token ||
@@ -132,4 +141,119 @@ export async function getAllUsersApi(token, params = {}) {
     };
   }
 }
+
+/**
+ * Fetch combined vendor payment requests (payouts and fuel claims) for admin review.
+ * Calls backend GET /api/admin/payment-requests?page=1&limit=50
+ */
+export async function getAllPaymentRequestsApi(token, params = {}) {
+  try {
+    const authToken = getAuthToken(token);
+    const page = params?.page || 1;
+    const limit = params?.limit || 50;
+
+    const queryParams = new URLSearchParams();
+    if (page) queryParams.set("page", String(page));
+    if (limit) queryParams.set("limit", String(limit));
+    const queryString = queryParams.toString();
+    const endpoint = queryString ? `${GET_PAYMENT_REQUESTS_API}?${queryString}` : GET_PAYMENT_REQUESTS_API;
+
+    const res = await apiConnector(
+      "GET",
+      endpoint,
+      null,
+      authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    );
+
+    if (!res.data?.success) {
+      throw new Error(res.data?.message || "Failed to fetch payment requests");
+    }
+
+    return {
+      success: true,
+      data: res.data.data || [],
+      pagination: res.data.pagination || {},
+      message: res.data.message || "Payment requests retrieved successfully",
+    };
+  } catch (err) {
+    console.error("Error fetching payment requests:", err);
+    return {
+      success: false,
+      message: err.response?.data?.message || err.message || "Failed to fetch payment requests",
+      data: [],
+    };
+  }
+}
+
+/**
+ * Update vendor payout request status ('Processing' | 'Paid' | 'Rejected').
+ * Calls backend PATCH /api/admin/payout/:payoutId/status
+ */
+export async function updatePayoutStatusApi(payoutId, status, adminNote = "", transactionId = "", token = null) {
+  try {
+    const authToken = getAuthToken(token);
+    const payload = { status };
+    if (adminNote) payload.adminNote = adminNote;
+    if (transactionId) payload.transactionId = transactionId;
+
+    const res = await apiConnector(
+      "PATCH",
+      `${UPDATE_PAYOUT_STATUS_API}/${payoutId}/status`,
+      payload,
+      authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    );
+
+    if (!res.data?.success) {
+      throw new Error(res.data?.message || "Failed to update payout status");
+    }
+
+    return {
+      success: true,
+      data: res.data.data,
+      message: res.data.message || `Payout request ${status.toLowerCase()} successfully`,
+    };
+  } catch (err) {
+    console.error("Error updating payout status:", err);
+    return {
+      success: false,
+      message: err.response?.data?.message || err.message || "Failed to update payout status",
+    };
+  }
+}
+
+/**
+ * Update vendor fuel claim status ('Approved' | 'Rejected').
+ * Calls backend PATCH /api/admin/fuelclaim/:claimId/status
+ */
+export async function updateFuelClaimStatusApi(claimId, status, adminNote = "", token = null) {
+  try {
+    const authToken = getAuthToken(token);
+    const payload = { status };
+    if (adminNote) payload.adminNote = adminNote;
+
+    const res = await apiConnector(
+      "PATCH",
+      `${UPDATE_FUEL_CLAIM_STATUS_API}/${claimId}/status`,
+      payload,
+      authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    );
+
+    if (!res.data?.success) {
+      throw new Error(res.data?.message || "Failed to update fuel claim status");
+    }
+
+    return {
+      success: true,
+      data: res.data.data,
+      message: res.data.message || `Fuel claim ${status.toLowerCase()} successfully`,
+    };
+  } catch (err) {
+    console.error("Error updating fuel claim status:", err);
+    return {
+      success: false,
+      message: err.response?.data?.message || err.message || "Failed to update fuel claim status",
+    };
+  }
+}
+
 

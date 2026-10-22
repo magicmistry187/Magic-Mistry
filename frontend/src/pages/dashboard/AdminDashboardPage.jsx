@@ -43,6 +43,9 @@ import {
   deleteInventoryApi,
   restockInventoryApi,
   fetchAllVendorEarningsForAdmin,
+  getAllPaymentRequestsApi,
+  updatePayoutStatusApi,
+  updateFuelClaimStatusApi,
 } from '../../services/api';
 import { getAdminBookingsApi } from '../../services/operations/bookingAPI';
 import { getLiveServicePricing } from '../../services/pricingService';
@@ -1472,22 +1475,53 @@ export default function AdminDashboardPage() {
     } catch {}
     return [];
   });
+  const [isLoadingPaymentRequests, setIsLoadingPaymentRequests] = useState(false);
 
-  // Keep paymentRequests synchronized with real storage and socket updates
+  const fetchPaymentRequests = useCallback(async () => {
+    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('adminToken') || localStorage.getItem('mm_token') || localStorage.getItem('token') : null) || CANONICAL_ADMIN_TOKEN;
+    setIsLoadingPaymentRequests(true);
+    try {
+      const res = await getAllPaymentRequestsApi(authToken, { page: 1, limit: 100 });
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        const backendRequests = res.data.map(req => {
+          const isFuel = req.requestType === 'fuelClaim';
+          const v = req.vendor || {};
+          return {
+            _id: req._id,
+            id: req.id || String(req._id).slice(-8).toUpperCase(),
+            rawId: req._id,
+            requestType: req.requestType || 'payout',
+            vendorName: v.fullName || req.vendorName || 'Vendor',
+            vendorId: v.vendorId || (v._id ? `V-${String(v._id).slice(-4).toUpperCase()}` : '—'),
+            vendorPhone: v.phoneNumber || '—',
+            upiId: v.vendorUpiId || req.upiId || '—',
+            bankAccount: v.bankDetails?.accountNumber ? `${v.bankDetails.accountNumber} (${v.bankDetails.ifscCode || ''})` : (req.bankAccount || '—'),
+            daysOfWork: isFuel ? `${req.distanceKm || 0} KM (Fuel)` : `${req.daysOfWork || 1} Days`,
+            amount: Number(req.amount ?? req.claimAmount ?? 0),
+            date: req.createdAt ? new Date(req.createdAt).toLocaleDateString('en-IN') : '—',
+            status: req.status === 'Requested' ? 'Pending' : (req.status || 'Pending'),
+            adminNote: req.adminNote || '',
+            reason: req.reason || req.settlementNotes || '',
+            vehicleType: req.vehicleType || '',
+            proofs: req.proofs || null,
+            fromBackend: true,
+          };
+        });
+        setPaymentRequests(backendRequests);
+      }
+    } catch (err) {
+      console.warn('Error fetching live payment requests:', err);
+    } finally {
+      setIsLoadingPaymentRequests(false);
+    }
+  }, [token]);
+
+  // Keep paymentRequests synchronized with real storage and backend updates
   useEffect(() => {
     if (activeTab === 'payment-requests') {
-      try {
-        const stored = localStorage.getItem('mm_vendor_payout_requests');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed)) {
-            const clean = parsed.filter(p => !p.isSample && !String(p.id).includes('PAY-104'));
-            setPaymentRequests(clean);
-          }
-        }
-      } catch {}
+      fetchPaymentRequests();
     }
-  }, [activeTab]);
+  }, [activeTab, fetchPaymentRequests]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [selectedStatus, setSelectedStatus] = useState('All Status');
@@ -1587,6 +1621,78 @@ export default function AdminDashboardPage() {
       pages.push(totalAppPages);
     }
     return pages;
+  };
+
+  // Payment Requests Handlers connecting to backend APIs
+  const handleApprovePaymentRequest = async (req) => {
+    const targetId = req.rawId || req._id || req.id;
+    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('adminToken') || localStorage.getItem('mm_token') || localStorage.getItem('token') : null) || CANONICAL_ADMIN_TOKEN;
+
+    if (req.requestType === 'fuelClaim') {
+      setPaymentRequests(prev => prev.map(p => p.id === req.id ? { ...p, status: 'Approved' } : p));
+      if (targetId && /^[0-9a-fA-F]{24}$/.test(String(targetId))) {
+        await updateFuelClaimStatusApi(targetId, 'Approved', 'Approved by admin', authToken);
+      }
+    } else {
+      setPaymentRequests(prev => prev.map(p => p.id === req.id ? { ...p, status: 'Processing' } : p));
+      if (targetId && /^[0-9a-fA-F]{24}$/.test(String(targetId))) {
+        await updatePayoutStatusApi(targetId, 'Processing', 'Processing payout', undefined, authToken);
+      }
+    }
+
+    if (socket && req.vendorId) {
+      socket.emit('admin:update_payout', {
+        vendorId: req.vendorId,
+        payoutId: req.id,
+        status: req.requestType === 'fuelClaim' ? 'Approved' : 'Processing',
+        amount: req.amount,
+      });
+    }
+    showToast(`Request ${req.id} ${req.requestType === 'fuelClaim' ? 'Approved' : 'Moved to Processing'}`);
+  };
+
+  const handleRejectPaymentRequest = async (req) => {
+    const targetId = req.rawId || req._id || req.id;
+    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('adminToken') || localStorage.getItem('mm_token') || localStorage.getItem('token') : null) || CANONICAL_ADMIN_TOKEN;
+
+    setPaymentRequests(prev => prev.map(p => p.id === req.id ? { ...p, status: 'Rejected' } : p));
+    if (targetId && /^[0-9a-fA-F]{24}$/.test(String(targetId))) {
+      if (req.requestType === 'fuelClaim') {
+        await updateFuelClaimStatusApi(targetId, 'Rejected', 'Rejected by admin', authToken);
+      } else {
+        await updatePayoutStatusApi(targetId, 'Rejected', 'Rejected by admin', undefined, authToken);
+      }
+    }
+
+    if (socket && req.vendorId) {
+      socket.emit('admin:update_payout', {
+        vendorId: req.vendorId,
+        payoutId: req.id,
+        status: 'Rejected',
+        amount: req.amount,
+      });
+    }
+    showToast(`Request ${req.id} Rejected`);
+  };
+
+  const handleMarkPaidPaymentRequest = async (req) => {
+    const targetId = req.rawId || req._id || req.id;
+    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('adminToken') || localStorage.getItem('mm_token') || localStorage.getItem('token') : null) || CANONICAL_ADMIN_TOKEN;
+
+    setPaymentRequests(prev => prev.map(p => p.id === req.id ? { ...p, status: 'Paid' } : p));
+    if (targetId && /^[0-9a-fA-F]{24}$/.test(String(targetId))) {
+      await updatePayoutStatusApi(targetId, 'Paid', 'Payout settled', `TXN-${Date.now()}`, authToken);
+    }
+
+    if (socket && req.vendorId) {
+      socket.emit('admin:update_payout', {
+        vendorId: req.vendorId,
+        payoutId: req.id,
+        status: 'Paid',
+        amount: req.amount,
+      });
+    }
+    showToast(`Request ${req.id} Marked as Paid`);
   };
 
   // Payment Requests Pagination & Search State
@@ -4261,7 +4367,14 @@ export default function AdminDashboardPage() {
                             ) : (
                               paginatedPaymentRequests.map((req) => (
                                 <tr key={req.id} className="hover:bg-slate-50/80 transition-colors">
-                                  <td className="py-4 px-5 font-bold text-slate-700">{req.id}</td>
+                                  <td className="py-4 px-5">
+                                    <div className="font-bold text-slate-700">{req.id}</div>
+                                    <span className={`inline-block mt-0.5 text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                                      req.requestType === 'fuelClaim' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'
+                                    }`}>
+                                      {req.requestType === 'fuelClaim' ? 'Fuel Claim' : 'Payout'}
+                                    </span>
+                                  </td>
                                   <td className="py-4 px-4">
                                     <div className="font-bold text-slate-900">{req.vendorName}</div>
                                     <div className="text-[10px] text-slate-500 mt-0.5">{req.vendorId}</div>
@@ -4270,18 +4383,22 @@ export default function AdminDashboardPage() {
                                     <div className="text-xs font-semibold text-slate-700">UPI: <span className="text-blue-600">{req.upiId}</span></div>
                                     <div className="text-[10px] text-slate-500 mt-0.5">A/C: {req.bankAccount}</div>
                                   </td>
-                                  <td className="py-4 px-4 font-semibold text-slate-600">{req.daysOfWork} Days</td>
+                                  <td className="py-4 px-4 font-semibold text-slate-600">{req.daysOfWork}</td>
                                   <td className="py-4 px-4 font-black text-slate-900">₹{(Number(req?.amount) || 0).toLocaleString('en-IN')}</td>
                                   <td className="py-4 px-4 text-slate-500 font-medium">{req.date}</td>
                                   <td className="py-4 px-4">
                                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
                                       req.status === 'Paid' ? 'bg-emerald-100/90 text-emerald-800 border border-emerald-200' :
                                       req.status === 'Approved' ? 'bg-blue-100/90 text-blue-800 border border-blue-200' :
+                                      req.status === 'Processing' ? 'bg-sky-100/90 text-sky-800 border border-sky-200' :
+                                      req.status === 'Rejected' ? 'bg-rose-100/90 text-rose-800 border border-rose-200' :
                                       'bg-amber-100/90 text-amber-800 border border-amber-200'
                                     }`}>
                                       <span className={`w-1.5 h-1.5 rounded-full ${
                                         req.status === 'Paid' ? 'bg-emerald-500' :
                                         req.status === 'Approved' ? 'bg-blue-500' :
+                                        req.status === 'Processing' ? 'bg-sky-500' :
+                                        req.status === 'Rejected' ? 'bg-rose-500' :
                                         'bg-amber-500 animate-pulse'
                                       }`} />
                                       {req.status}
@@ -4291,58 +4408,33 @@ export default function AdminDashboardPage() {
                                     {req.status === 'Pending' ? (
                                       <div className="flex items-center justify-end gap-2">
                                         <button 
-                                          onClick={() => {
-                                            setPaymentRequests(prev => prev.map(p => p.id === req.id ? { ...p, status: 'Approved' } : p));
-                                            if (socket && req.vendorId) {
-                                              socket.emit('admin:update_payout', {
-                                                vendorId: req.vendorId,
-                                                payoutId: req.id,
-                                                status: 'Approved',
-                                                amount: req.amount,
-                                              });
-                                            }
-                                            showToast(`Request ${req.id} Approved`);
-                                          }}
-                                          className="p-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg transition-colors cursor-pointer" title="Approve"
+                                          onClick={() => handleApprovePaymentRequest(req)}
+                                          className="p-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg transition-colors cursor-pointer"
+                                          title={req.requestType === 'fuelClaim' ? 'Approve Claim' : 'Process Payout'}
                                         >
                                           <Check className="w-4 h-4" />
                                         </button>
                                         <button 
-                                          onClick={() => {
-                                            setPaymentRequests(prev => prev.filter(p => p.id !== req.id));
-                                            if (socket && req.vendorId) {
-                                              socket.emit('admin:update_payout', {
-                                                vendorId: req.vendorId,
-                                                payoutId: req.id,
-                                                status: 'Rejected',
-                                                amount: req.amount,
-                                              });
-                                            }
-                                            showToast(`Request ${req.id} Rejected`);
-                                          }}
-                                          className="p-1.5 bg-rose-100 text-rose-700 hover:bg-rose-200 rounded-lg transition-colors cursor-pointer" title="Reject"
+                                          onClick={() => handleRejectPaymentRequest(req)}
+                                          className="p-1.5 bg-rose-100 text-rose-700 hover:bg-rose-200 rounded-lg transition-colors cursor-pointer"
+                                          title="Reject"
                                         >
                                           <X className="w-4 h-4" />
                                         </button>
                                       </div>
-                                    ) : req.status === 'Approved' ? (
-                                      <button 
-                                        onClick={() => {
-                                          setPaymentRequests(prev => prev.map(p => p.id === req.id ? { ...p, status: 'Paid' } : p));
-                                          if (socket && req.vendorId) {
-                                            socket.emit('admin:update_payout', {
-                                              vendorId: req.vendorId,
-                                              payoutId: req.id,
-                                              status: 'Paid',
-                                              amount: req.amount,
-                                            });
-                                          }
-                                          showToast(`Request ${req.id} Marked as Paid`);
-                                        }}
-                                        className="px-3 py-1.5 bg-[#02182e] hover:bg-[#082848] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
-                                      >
-                                        Mark Paid
-                                      </button>
+                                    ) : (req.status === 'Approved' || req.status === 'Processing') ? (
+                                      req.requestType === 'fuelClaim' ? (
+                                        <span className="text-[10px] font-bold text-emerald-600">APPROVED</span>
+                                      ) : (
+                                        <button 
+                                          onClick={() => handleMarkPaidPaymentRequest(req)}
+                                          className="px-3 py-1.5 bg-[#02182e] hover:bg-[#082848] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                                        >
+                                          Mark Paid
+                                        </button>
+                                      )
+                                    ) : req.status === 'Paid' ? (
+                                      <span className="text-[10px] font-bold text-emerald-600">PAID</span>
                                     ) : (
                                       <span className="text-[10px] font-bold text-slate-400">COMPLETED</span>
                                     )}

@@ -1743,12 +1743,10 @@ export default function VendorDashboardPage() {
     const availableEarningIds = availableBackendEarnings.map(e => String(e._id));
 
     // Calculate exact available amount according to backend calculation
+    const serviceSum = Number(availableBackendEarnings.reduce((acc, e) => acc + Number(e.serviceShareAmount || 0), 0).toFixed(2));
+    const travelSum = Number(availableBackendEarnings.reduce((acc, e) => acc + Number(e.travelCharge || 0), 0).toFixed(2));
     const payoutAmount = availableBackendEarnings.length > 0
-      ? Number(availableBackendEarnings.reduce((acc, e) => {
-          const s = Number(e.serviceShareAmount) || ((Number(e.serviceAmount) || 0) * 0.5);
-          const t = Number(e.travelCharge) || 0;
-          return acc + s + t;
-        }, 0).toFixed(2))
+      ? Number((serviceSum + travelSum).toFixed(2))
       : Number(Number(todayEarnings || 0).toFixed(2));
 
     const workDays = Math.max(1, Math.round(Number(payoutDays) || (earningsBreakdown?.completedJobs || []).length || 1));
@@ -1775,12 +1773,14 @@ export default function VendorDashboardPage() {
             }
           });
         }
+      } else if (res?.error) {
+        showToast(res.error, 'error');
       } else {
-        showToast('Payout request submitted successfully! Processing time: 1-2 business days.', 'success');
+        showToast('Payout request recorded locally. Processing time: 1-2 business days.', 'success');
       }
     } catch (e) {
       console.warn('Error saving payout request:', e);
-      showToast('Payout request submitted locally.', 'info');
+      showToast('Payout request saved locally.', 'info');
     }
   };
 
@@ -1801,6 +1801,15 @@ export default function VendorDashboardPage() {
       const res = await submitVendorFuelClaim(claimData, authToken);
       if (res?.fromBackend) {
         showToast(`Fuel allowance claim ${claimData.id} submitted to backend successfully!`, 'success');
+        if (authToken) {
+          fetchVendorEarningsFromBackend(authToken).then(earnRes => {
+            if (earnRes?.success && earnRes?.earnings) {
+              setBackendEarnings(earnRes.earnings);
+            }
+          });
+        }
+      } else if (res?.error) {
+        showToast(res.error, 'error');
       } else {
         showToast(`Fuel allowance claim ${claimData.id} submitted for ₹${(Number(claimData?.claimedAmount) || 0).toFixed(2)}!`, 'success');
       }
@@ -5508,7 +5517,10 @@ export default function VendorDashboardPage() {
         <VendorFuelClaimModal
           isOpen={showFuelClaimModal}
           onClose={() => setShowFuelClaimModal(false)}
-          completedJobs={history.filter(h => h.status === 'Completed')}
+          completedJobs={[
+            ...history.filter(h => h.status === 'Completed'),
+            ...jobs.filter(j => j.status === 'Accepted' || j.status === 'On the Way' || j.status === 'In Progress')
+          ]}
           vendorProfile={vendorProfile}
           onSubmitClaim={handleSubmitFuelClaim}
         />
