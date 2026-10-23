@@ -13,7 +13,13 @@ import {
   CheckCircle2,
   FileText,
   ShieldCheck,
-  Info
+  Info,
+  ArrowLeftRight,
+  Zap,
+  Award,
+  Layers,
+  Clock,
+  RotateCcw
 } from 'lucide-react';
 
 const CATEGORY_TABS = [
@@ -30,14 +36,17 @@ export default function ApplianceSelector() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTab, setSelectedTab] = useState('all');
+  const [isChangingService, setIsChangingService] = useState(false);
+  const [allowMultiplePackages, setAllowMultiplePackages] = useState(false);
   const [showOptionalDetails, setShowOptionalDetails] = useState(
     Boolean(bookingState.problemDescription || bookingState.imageFile)
   );
 
   const fileInputRef = useRef(null);
+  const searchInputRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
 
-  // Map services into enhanced categories
+  // Map services into enhanced categories with descriptions & pricing
   const formattedServices = useMemo(() => {
     return services.map((s, idx) => {
       const id = typeof s.id === 'number' ? s.id : (idx + 1);
@@ -58,7 +67,9 @@ export default function ApplianceSelector() {
         id,
         name,
         icon: s.icon,
+        description: s.description || 'Doorstep inspection, genuine spares, and expert certified servicing.',
         basePrice: s.basePrice || 199,
+        category: s.category || (group === 'cooling' ? 'Cooling' : group === 'cleaning' ? 'Cleaning' : group === 'kitchen' ? 'Kitchen' : 'Electrical'),
         group,
         subServicesCount: s.subServices?.length || 0,
       };
@@ -76,29 +87,42 @@ export default function ApplianceSelector() {
 
   const currentCatId = bookingState.serviceId || null;
   const currentCatData = currentCatId ? (applianceSubServices[currentCatId] || null) : null;
+  const currentFormattedService = useMemo(() => {
+    if (!currentCatId) return null;
+    return formattedServices.find(s => s.id === currentCatId) || null;
+  }, [currentCatId, formattedServices]);
+
   const subServicesList = currentCatData?.subServices || [];
 
-  const handleSelectCategory = (cat) => {
-    updateBooking('serviceId', cat.id);
-    updateBooking('serviceName', cat.name);
+  // Determine whether we are in "Focused Single Service Mode" or "Catalog Browser Mode"
+  const hasSelectedService = Boolean(bookingState.serviceId && currentCatData);
+  const showCatalogBrowser = !hasSelectedService || isChangingService;
 
-    // Auto-select first sub-service with its actual price
-    const catData = applianceSubServices[cat.id];
-    if (catData?.subServices?.length) {
-      const firstSub = catData.subServices[0];
-      updateBooking('selectedSubServices', [firstSub]);
-    }
+  // Select an appliance category
+  const handleSelectCategory = (cat) => {
+    updateBooking({
+      serviceId: cat.id,
+      serviceName: cat.name,
+    });
+    setIsChangingService(false);
+    setSearchQuery('');
   };
 
-  const handleToggleSubService = (sub) => {
-    const isSelected = bookingState.selectedSubServices.some(s => s.label === sub.label || s.id === sub.id);
-    let newServices;
-    if (isSelected) {
-      newServices = bookingState.selectedSubServices.filter(s => s.label !== sub.label && s.id !== sub.id);
+  // Toggle or select sub-service package
+  const handleSelectPackage = (sub) => {
+    if (allowMultiplePackages) {
+      const isSelected = bookingState.selectedSubServices.some(s => s.label === sub.label || s.id === sub.id);
+      let newServices;
+      if (isSelected) {
+        newServices = bookingState.selectedSubServices.filter(s => s.label !== sub.label && s.id !== sub.id);
+      } else {
+        newServices = [...bookingState.selectedSubServices, sub];
+      }
+      updateBooking('selectedSubServices', newServices);
     } else {
-      newServices = [...bookingState.selectedSubServices, sub];
+      // Single selection: clicking selects this package directly
+      updateBooking('selectedSubServices', [sub]);
     }
-    updateBooking('selectedSubServices', newServices);
   };
 
   // Image handling
@@ -124,7 +148,9 @@ export default function ApplianceSelector() {
 
   return (
     <div className="bg-white rounded-2xl md:rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden">
-      {/* Header */}
+      {/* ============================================================ */}
+      {/* 1. STEP 1 HEADER                                             */}
+      {/* ============================================================ */}
       <div className="p-5 sm:p-6 md:p-8 border-b border-slate-100 bg-gradient-to-r from-slate-50/70 via-white to-indigo-50/20">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -132,235 +158,425 @@ export default function ApplianceSelector() {
               <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" /> Step 1 of 4
             </div>
             <h2 className="text-xl sm:text-2xl font-extrabold text-[#0B1E40] tracking-tight">
-              Select Appliance &amp; Service Package
+              {hasSelectedService && !isChangingService
+                ? 'Your Selected Service & Package'
+                : 'Select Appliance & Service'}
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 mt-1 font-medium">
-              Choose your appliance to see transparent, fixed pricing with zero hidden charges.
+              {hasSelectedService && !isChangingService
+                ? 'Review your selected main service, choose your package, and proceed with transparent pricing.'
+                : 'Select the home appliance you want repaired to unlock instant upfront rates.'}
             </p>
           </div>
 
           {/* Quick Counter */}
-          {bookingState.serviceName && (
+          {hasSelectedService && !isChangingService && (
             <div className="flex items-center gap-3 bg-white px-3.5 py-2 rounded-xl border border-indigo-100 shadow-2xs self-start sm:self-auto shrink-0">
-              <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
-                <ApplianceIcon id={bookingState.serviceId} name={bookingState.serviceName} className="w-5 h-5 object-contain" />
+              <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
+                <ApplianceIcon id={bookingState.serviceId} name={bookingState.serviceName} className="w-6 h-6 object-contain" />
               </div>
               <div className="text-left min-w-0">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-0.5">Selected</div>
-                <div className="text-xs font-extrabold text-[#0B1E40] truncate max-w-[130px] leading-tight">{bookingState.serviceName}</div>
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-0.5">Active Service</div>
+                <div className="text-xs font-extrabold text-[#0B1E40] truncate max-w-[140px] leading-tight">{bookingState.serviceName}</div>
               </div>
             </div>
           )}
-        </div>
-
-        {/* Search & Category Tabs */}
-        <div className="mt-5 flex flex-col md:flex-row gap-3 items-stretch md:items-center">
-          {/* Search Box */}
-          <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search appliance (e.g., AC, Refrigerator, Geyser)..."
-              className="w-full h-11 pl-10 pr-9 text-sm bg-white border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all outline-none placeholder:text-slate-400 font-medium"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-md"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          {/* Category Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none shrink-0">
-            {CATEGORY_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setSelectedTab(tab.id)}
-                className={`whitespace-nowrap h-11 px-3.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center shrink-0 cursor-pointer ${
-                  selectedTab === tab.id
-                    ? 'bg-[#0B1E40] text-white shadow-xs'
-                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
-      {/* Appliance Grid */}
-      <div className="p-5 sm:p-6 md:p-8 space-y-8">
-        <div>
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-            Available Appliances ({filteredServices.length})
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 items-stretch">
-            {filteredServices.map((cat) => {
-              const isSelected = bookingState.serviceId === cat.id;
-
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => handleSelectCategory(cat)}
-                  className={`relative p-3.5 sm:p-4 rounded-2xl flex flex-col justify-between items-center transition-all duration-200 text-center group cursor-pointer h-full min-h-[148px] ${
-                    isSelected
-                      ? 'bg-gradient-to-b from-indigo-50/80 to-blue-50/40 border-2 border-indigo-600 shadow-md shadow-indigo-100/50 ring-2 ring-indigo-500/10'
-                      : 'bg-white border border-slate-200/90 hover:border-indigo-300 hover:shadow-2xs hover:-translate-y-0.5'
-                  }`}
-                >
-                  {/* Selected checkmark */}
-                  {isSelected && (
-                    <span className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] shadow-2xs font-black z-10">
-                      <Check className="w-3 h-3 stroke-[3]" />
-                    </span>
-                  )}
-
-                  {/* Icon Box */}
-                  <div
-                    className={`w-14 h-14 sm:w-16 sm:h-16 p-2 rounded-xl flex items-center justify-center shrink-0 transition-all ${
-                      isSelected
-                        ? 'bg-white shadow-2xs border border-indigo-100'
-                        : 'bg-slate-50/80 border border-slate-100 group-hover:bg-white group-hover:shadow-2xs'
-                    }`}
-                  >
-                    <ApplianceIcon
-                      id={cat.id}
-                      name={cat.name}
-                      className={`w-full h-full object-contain transition-transform duration-300 ${
-                        isSelected ? 'scale-105' : 'group-hover:scale-105'
-                      }`}
-                    />
-                  </div>
-
-                  {/* Title & Baseline Price */}
-                  <div className="mt-2 w-full flex flex-col items-center justify-end flex-1 min-w-0">
-                    <span className={`text-xs sm:text-sm leading-tight block font-bold transition-colors line-clamp-2 min-h-[2.1rem] flex items-center justify-center ${
-                      isSelected ? 'text-indigo-950 font-extrabold' : 'text-slate-800 group-hover:text-slate-950'
-                    }`}>
-                      {cat.name}
-                    </span>
-                    <span className="text-[11px] font-medium text-slate-400 mt-1 block">
-                      From ₹{cat.basePrice}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {filteredServices.length === 0 && (
-            <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-              <p className="text-sm font-semibold text-slate-600">No appliances found matching "{searchQuery}"</p>
-              <button
-                type="button"
-                onClick={() => { setSearchQuery(''); setSelectedTab('all'); }}
-                className="mt-2 text-xs font-bold text-indigo-600 hover:underline"
-              >
-                Clear search and filters
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Service Packages Section */}
-        <AnimatePresence>
-          {currentCatData && (
+      <div className="p-5 sm:p-6 md:p-8 space-y-6">
+        {/* ============================================================ */}
+        {/* 2. FOCUSED MODE: ONLY SELECTED MAIN SERVICE SHOWS            */}
+        {/* All other 15 appliances are completely hidden!               */}
+        {/* ============================================================ */}
+        <AnimatePresence mode="wait">
+          {!showCatalogBrowser && currentCatData && (
             <motion.div
-              key={currentCatData.id}
-              initial={{ opacity: 0, y: 15 }}
+              key="selected-single-service-view"
+              initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.25 }}
-              className="bg-slate-50/70 p-5 md:p-7 rounded-2xl border border-slate-200/90 space-y-5"
+              className="space-y-6"
             >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200/70 gap-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center shrink-0">
-                    <ApplianceIcon id={currentCatData.id} name={currentCatData.name} className="w-7 h-7 object-contain" />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 block">Select Package</span>
-                    <h3 className="font-extrabold text-[#0B1E40] text-base sm:text-lg">
-                      {currentCatData.name} Service Packages
-                    </h3>
-                  </div>
-                </div>
-                <div className="text-xs font-semibold text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200 self-start sm:self-auto shrink-0">
-                  {subServicesList.length} options available
-                </div>
-              </div>
+              {/* Luxury Selected Main Service Hero Card */}
+              <div className="relative overflow-hidden rounded-2xl md:rounded-3xl border-2 border-indigo-500/80 bg-gradient-to-br from-indigo-50/70 via-white to-blue-50/40 p-5 sm:p-6 md:p-7 shadow-sm ring-4 ring-indigo-500/5">
+                {/* Decorative background glow */}
+                <div className="absolute -top-12 -right-12 w-48 h-48 bg-indigo-200/40 rounded-full blur-3xl pointer-events-none" />
 
-              {/* Package cards grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 items-stretch">
-                {subServicesList.map((sub, idx) => {
-                  const isSubSelected = bookingState.selectedSubServices.some(
-                    s => s.label === sub.label || s.id === sub.id
-                  );
+                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+                  <div className="flex items-start sm:items-center gap-4 sm:gap-5 min-w-0 flex-1">
+                    {/* Appliance Icon Container */}
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white border border-indigo-100 shadow-sm flex items-center justify-center p-2.5 shrink-0 transition-transform hover:scale-105">
+                      <ApplianceIcon
+                        id={currentCatData.id}
+                        name={currentCatData.name}
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
 
-                  return (
-                    <div
-                      key={idx}
-                      onClick={() => handleToggleSubService(sub)}
-                      className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer flex flex-col justify-between h-full group ${
-                        isSubSelected
-                          ? 'bg-white border-indigo-600 shadow-sm ring-2 ring-indigo-500/10'
-                          : 'bg-white border-slate-200/90 hover:border-slate-300 hover:shadow-2xs'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
-                        <div
-                          className={`w-5 h-5 rounded-lg border flex items-center justify-center text-xs font-bold mt-0.5 shrink-0 transition-colors ${
-                            isSubSelected
-                              ? 'border-indigo-600 bg-indigo-600 text-white shadow-2xs'
-                              : 'border-slate-300 text-transparent group-hover:border-indigo-300'
-                          }`}
-                        >
-                          <Check className="w-3.5 h-3.5 stroke-[3]" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className={`text-sm font-bold leading-snug transition-colors ${
-                            isSubSelected ? 'text-indigo-950 font-extrabold' : 'text-slate-800'
-                          }`}>
-                            {sub.label}
-                          </h4>
-                          <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1 leading-normal font-medium">
-                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                            <span>Includes inspection, standard repair &amp; 30-day warranty.</span>
-                          </p>
-                        </div>
+                    {/* Service Info */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100/90 text-emerald-800 border border-emerald-200">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                          Selected Main Service
+                        </span>
+                        <span className="text-[11px] font-semibold text-slate-500 bg-white/80 px-2 py-0.5 rounded-md border border-slate-200/80">
+                          {currentFormattedService?.category || 'Major Appliance'}
+                        </span>
                       </div>
 
-                      <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fixed Price</span>
-                        <span className="text-base font-black text-[#0B1E40]">₹{sub.price}</span>
+                      <h3 className="text-lg sm:text-2xl font-black text-[#0B1E40] tracking-tight">
+                        {currentCatData.name}
+                      </h3>
+
+                      <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1 max-w-xl leading-relaxed line-clamp-2 sm:line-clamp-none">
+                        {currentFormattedService?.description ||
+                          'Professional doorstep inspection, certified repair technicians, and genuine OEM spares.'}
+                      </p>
+
+                      {/* Value props pills */}
+                      <div className="mt-3 flex items-center gap-2 sm:gap-3 flex-wrap text-[11px] font-semibold text-slate-600">
+                        <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50/80 px-2 py-0.5 rounded-md border border-emerald-100">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          30-Day Free Warranty
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-blue-700 bg-blue-50/80 px-2 py-0.5 rounded-md border border-blue-100">
+                          <Zap className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          60-Min Doorstep Visit
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50/80 px-2 py-0.5 rounded-md border border-amber-100">
+                          <Award className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          Verified Mistry
+                        </span>
                       </div>
                     </div>
-                  );
-                })}
+                  </div>
+
+                  {/* Change Appliance Action Button */}
+                  <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center border-t sm:border-t-0 border-indigo-100/80 pt-3 sm:pt-0 shrink-0 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsChangingService(true);
+                        setTimeout(() => searchInputRef.current?.focus(), 100);
+                      }}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-white text-indigo-700 hover:bg-indigo-600 hover:text-white border border-indigo-200 hover:border-indigo-600 shadow-xs hover:shadow transition-all group cursor-pointer"
+                    >
+                      <ArrowLeftRight className="w-3.5 h-3.5 transition-transform group-hover:rotate-180" />
+                      <span>Change Appliance</span>
+                    </button>
+                    <span className="text-[10px] text-slate-400 font-medium hidden sm:block">
+                      Click to choose another appliance
+                    </span>
+                  </div>
+                </div>
               </div>
 
-              {bookingState.selectedSubServices.length === 0 && (
-                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-xs font-semibold flex items-center gap-2">
-                  <Info className="w-4 h-4 text-amber-600 shrink-0" />
-                  Please select at least one package to proceed.
+              {/* ============================================================ */}
+              {/* 3. SERVICE PACKAGES SECTION (Directly below selected service) */}
+              {/* ============================================================ */}
+              <div className="bg-slate-50/70 p-5 md:p-7 rounded-2xl md:rounded-3xl border border-slate-200/90 space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200/70 gap-3">
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-indigo-600">
+                      <Layers className="w-3.5 h-3.5" /> Select Service Package
+                    </div>
+                    <h3 className="font-extrabold text-[#0B1E40] text-base sm:text-xl">
+                      {currentCatData.name} Packages
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                      Choose the specific repair or maintenance package you need. Zero surprise charges.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3 self-start sm:self-auto shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setAllowMultiplePackages(p => !p)}
+                      className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer ${
+                        allowMultiplePackages
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                      }`}
+                      title="Toggle multi-package selection"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-current opacity-70" />
+                      {allowMultiplePackages ? 'Multiple Packages: ON' : 'Multiple Packages: OFF'}
+                    </button>
+
+                    <div className="text-xs font-semibold text-slate-500 bg-white px-3 py-1.5 rounded-xl border border-slate-200">
+                      {subServicesList.length} options
+                    </div>
+                  </div>
                 </div>
-              )}
+
+                {/* Package Cards Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 items-stretch">
+                  {subServicesList.map((sub, idx) => {
+                    const isSubSelected = bookingState.selectedSubServices.some(
+                      s => s.label === sub.label || s.id === sub.id
+                    );
+                    const isPopular = idx === 0 || /jet|service|general/i.test(sub.label);
+
+                    return (
+                      <div
+                        key={sub.id || idx}
+                        onClick={() => handleSelectPackage(sub)}
+                        className={`p-4 sm:p-5 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between h-full group relative ${
+                          isSubSelected
+                            ? 'bg-gradient-to-br from-indigo-50/60 via-white to-white border-indigo-600 shadow-md ring-2 ring-indigo-500/15'
+                            : 'bg-white border-slate-200/90 hover:border-indigo-300 hover:shadow-xs hover:-translate-y-0.5'
+                        }`}
+                      >
+                        {/* Popular badge */}
+                        {isPopular && (
+                          <span className="absolute -top-2.5 right-4 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-2xs">
+                            Most Booked
+                          </span>
+                        )}
+
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          {/* Radio / Check indicator */}
+                          <div
+                            className={`w-5 h-5 rounded-full border flex items-center justify-center text-xs font-bold mt-0.5 shrink-0 transition-colors ${
+                              isSubSelected
+                                ? 'border-indigo-600 bg-indigo-600 text-white shadow-2xs'
+                                : 'border-slate-300 text-transparent group-hover:border-indigo-400 bg-white'
+                            }`}
+                          >
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <h4 className={`text-sm sm:text-base font-bold leading-snug transition-colors ${
+                              isSubSelected ? 'text-indigo-950 font-extrabold' : 'text-slate-800 group-hover:text-slate-950'
+                            }`}>
+                              {sub.label}
+                            </h4>
+
+                            <div className="mt-2 space-y-1 text-[11px] text-slate-500 font-medium">
+                              <p className="flex items-center gap-1.5">
+                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span>Complete inspection &amp; diagnosis included</span>
+                              </p>
+                              <p className="flex items-center gap-1.5">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                <span>30-Day rework warranty &amp; post-repair testing</span>
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Price footer */}
+                        <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block leading-none">Fixed Price</span>
+                            <span className="text-lg font-black text-[#0B1E40]">₹{sub.price}</span>
+                          </div>
+
+                          <div className={`text-xs font-bold px-3 py-1 rounded-lg transition-colors flex items-center gap-1 ${
+                            isSubSelected
+                              ? 'bg-indigo-50 text-indigo-700 font-extrabold border border-indigo-100'
+                              : 'text-slate-500 group-hover:text-indigo-600 group-hover:bg-slate-50'
+                          }`}>
+                            {isSubSelected ? (
+                              <>
+                                <Check className="w-3 h-3 stroke-[3]" /> Selected
+                              </>
+                            ) : (
+                              'Select Package'
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {bookingState.selectedSubServices.length === 0 && (
+                  <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-xs font-semibold flex items-center gap-2">
+                    <Info className="w-4 h-4 text-amber-600 shrink-0" />
+                    Please click a package to select it before continuing.
+                  </div>
+                )}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Integrated Optional Details Accordion */}
-        {bookingState.serviceId && (
+        {/* ============================================================ */}
+        {/* 4. CATALOG BROWSER MODE: SHOWN WHEN NO APPLIANCE SELECTED    */}
+        {/* OR WHEN USER CLICKS "CHANGE APPLIANCE"                       */}
+        {/* ============================================================ */}
+        <AnimatePresence mode="wait">
+          {showCatalogBrowser && (
+            <motion.div
+              key="catalog-browser-view"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.25 }}
+              className="space-y-6"
+            >
+              {/* Notice Banner if user is changing appliance */}
+              {isChangingService && currentCatData && (
+                <div className="p-4 rounded-2xl bg-indigo-50/80 border border-indigo-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-white border border-indigo-100 flex items-center justify-center shrink-0 shadow-2xs">
+                      <ApplianceIcon id={currentCatData.id} name={currentCatData.name} className="w-6 h-6 object-contain" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-700">Currently Selected</div>
+                      <div className="text-sm font-extrabold text-[#0B1E40] truncate">
+                        {currentCatData.name}
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsChangingService(false)}
+                    className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white text-slate-700 hover:text-slate-900 border border-slate-200 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Cancel (Keep {currentCatData.name})</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Search & Category Tabs */}
+              <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center">
+                {/* Search Box */}
+                <div className="relative flex-1">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search appliance (e.g., AC, Refrigerator, Geyser, Washing Machine)..."
+                    className="w-full h-11 pl-10 pr-9 text-sm bg-white border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all outline-none placeholder:text-slate-400 font-medium"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-md"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Category Tabs */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none shrink-0">
+                  {CATEGORY_TABS.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setSelectedTab(tab.id)}
+                      className={`whitespace-nowrap h-11 px-3.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center shrink-0 cursor-pointer ${
+                        selectedTab === tab.id
+                          ? 'bg-[#0B1E40] text-white shadow-xs'
+                          : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Available Appliances Grid */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    Select One Main Service ({filteredServices.length} available)
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    Once selected, other services will be hidden
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 items-stretch">
+                  {filteredServices.map((cat) => {
+                    const isSelected = bookingState.serviceId === cat.id;
+
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => handleSelectCategory(cat)}
+                        className={`relative p-3.5 sm:p-4 rounded-2xl flex flex-col justify-between items-center transition-all duration-200 text-center group cursor-pointer h-full min-h-[154px] ${
+                          isSelected
+                            ? 'bg-gradient-to-b from-indigo-50/80 to-blue-50/40 border-2 border-indigo-600 shadow-md shadow-indigo-100/50 ring-2 ring-indigo-500/10'
+                            : 'bg-white border border-slate-200/90 hover:border-indigo-400 hover:shadow-sm hover:-translate-y-1'
+                        }`}
+                      >
+                        {/* Selected checkmark badge */}
+                        {isSelected && (
+                          <span className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] shadow-2xs font-black z-10">
+                            <Check className="w-3 h-3 stroke-[3]" />
+                          </span>
+                        )}
+
+                        {/* Icon Container */}
+                        <div
+                          className={`w-14 h-14 sm:w-16 sm:h-16 p-2 rounded-xl flex items-center justify-center shrink-0 transition-all ${
+                            isSelected
+                              ? 'bg-white shadow-2xs border border-indigo-100'
+                              : 'bg-slate-50/80 border border-slate-100 group-hover:bg-white group-hover:shadow-2xs'
+                          }`}
+                        >
+                          <ApplianceIcon
+                            id={cat.id}
+                            name={cat.name}
+                            className={`w-full h-full object-contain transition-transform duration-300 ${
+                              isSelected ? 'scale-105' : 'group-hover:scale-110'
+                            }`}
+                          />
+                        </div>
+
+                        {/* Title & Price */}
+                        <div className="mt-2 w-full flex flex-col items-center justify-end flex-1 min-w-0">
+                          <span className={`text-xs sm:text-sm leading-tight block font-bold transition-colors line-clamp-2 min-h-[2.1rem] flex items-center justify-center ${
+                            isSelected ? 'text-indigo-950 font-extrabold' : 'text-slate-800 group-hover:text-indigo-900'
+                          }`}>
+                            {cat.name}
+                          </span>
+                          <span className="text-[11px] font-medium text-slate-400 mt-1 block">
+                            From ₹{cat.basePrice}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {filteredServices.length === 0 && (
+                  <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                    <p className="text-sm font-semibold text-slate-600">No appliances found matching "{searchQuery}"</p>
+                    <button
+                      type="button"
+                      onClick={() => { setSearchQuery(''); setSelectedTab('all'); }}
+                      className="mt-2 text-xs font-bold text-indigo-600 hover:underline"
+                    >
+                      Clear search and filters
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ============================================================ */}
+        {/* 5. INTEGRATED OPTIONAL DETAILS ACCORDION                     */}
+        {/* (Issue description notes & appliance image uploader)        */}
+        {/* ============================================================ */}
+        {hasSelectedService && (
           <div className="rounded-2xl border border-slate-200/90 overflow-hidden bg-white">
             <button
               type="button"
@@ -498,16 +714,18 @@ export default function ApplianceSelector() {
           </div>
         )}
 
-        {/* Step 1 Action Bar */}
+        {/* ============================================================ */}
+        {/* 6. STEP 1 ACTION BAR                                         */}
+        {/* ============================================================ */}
         <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="text-xs text-slate-500 font-medium">
             {isStep1Valid ? (
               <span className="flex items-center gap-1.5 text-emerald-700 font-semibold">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                Service ready: {bookingState.selectedSubServices.length} package(s) selected
+                Service ready: {bookingState.serviceName} ({bookingState.selectedSubServices.length} package selected)
               </span>
             ) : (
-              <span>Please select an appliance and at least one service package.</span>
+              <span>Please select an appliance and package to continue.</span>
             )}
           </div>
 

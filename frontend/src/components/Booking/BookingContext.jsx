@@ -209,25 +209,47 @@ export const BookingProvider = ({ children, initialAppliance = null }) => {
 
   const updateBooking = (key, value) => {
     setBookingState((prev) => {
-      const next = { ...prev, [key]: value };
+      let next;
+      if (typeof key === 'object' && key !== null) {
+        next = { ...prev, ...key };
+        if (key.serviceId !== undefined) {
+          const liveSubs = buildLiveApplianceSubServices();
+          const catSubs = liveSubs[key.serviceId]?.subServices || [];
+          const firstSub = catSubs.length > 0 ? [catSubs[0]] : [];
+          const initialTotal = firstSub.reduce((sum, sub) => sum + (Number(sub.price) || 0), 0);
 
-      if (key === 'serviceId') {
-        const liveSubs = buildLiveApplianceSubServices();
-        const catSubs = liveSubs[value]?.subServices || [];
-        const firstSub = catSubs.length > 0 ? [catSubs[0]] : [];
-        const initialTotal = firstSub.reduce((sum, sub) => sum + (Number(sub.price) || 0), 0);
+          next.selectedSubServices = firstSub;
+          next.priceInfo = {
+            basePrice: initialTotal,
+            visitCharge: 0,
+            total: initialTotal
+          };
+        }
+        if (key.selectedSubServices !== undefined) {
+          const total = (key.selectedSubServices || []).reduce((sum, sub) => sum + (Number(sub.price) || 0), 0);
+          next.priceInfo = { basePrice: total, visitCharge: 0, total: total };
+        }
+      } else {
+        next = { ...prev, [key]: value };
 
-        next.selectedSubServices = firstSub;
-        next.priceInfo = {
-          basePrice: initialTotal,
-          visitCharge: 0,
-          total: initialTotal
-        };
-      }
+        if (key === 'serviceId') {
+          const liveSubs = buildLiveApplianceSubServices();
+          const catSubs = liveSubs[value]?.subServices || [];
+          const firstSub = catSubs.length > 0 ? [catSubs[0]] : [];
+          const initialTotal = firstSub.reduce((sum, sub) => sum + (Number(sub.price) || 0), 0);
 
-      if (key === 'selectedSubServices') {
-        const total = (value || []).reduce((sum, sub) => sum + (Number(sub.price) || 0), 0);
-        next.priceInfo = { basePrice: total, visitCharge: 0, total: total };
+          next.selectedSubServices = firstSub;
+          next.priceInfo = {
+            basePrice: initialTotal,
+            visitCharge: 0,
+            total: initialTotal
+          };
+        }
+
+        if (key === 'selectedSubServices') {
+          const total = (value || []).reduce((sum, sub) => sum + (Number(sub.price) || 0), 0);
+          next.priceInfo = { basePrice: total, visitCharge: 0, total: total };
+        }
       }
 
       return next;
