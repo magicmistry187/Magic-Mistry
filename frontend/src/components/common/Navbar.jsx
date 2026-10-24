@@ -860,25 +860,19 @@ const Navbar = () => {
                             <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
                           </button>
 
-                          {/* My Bookings */}
-                          {!isAdmin && (
+                          {/* My Bookings (Customers Only) */}
+                          {!isAdmin && !isVendor && (
                             <button
                               type="button"
                               onClick={() => {
                                 setIsDropdownOpen(false);
-                                if (isVendor) {
-                                  navigate('/vendor-dashboard?tab=jobs', { state: { tab: 'jobs' } });
-                                } else {
-                                  navigate('/dashboard?tab=bookings', { state: { tab: 'bookings' } });
-                                }
+                                navigate('/dashboard?tab=bookings', { state: { tab: 'bookings' } });
                               }}
                               className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50/70 transition-colors text-left cursor-pointer"
                             >
                               <Calendar className="w-4 h-4 text-amber-500" />
                               <div className="flex-1">
-                                <p className="leading-tight">
-                                  {isVendor ? 'Assigned Jobs' : 'My Repair Bookings'}
-                                </p>
+                                <p className="leading-tight">My Repair Bookings</p>
                                 <p className="text-[10px] text-slate-400 font-normal">
                                   Track scheduled technician visits
                                 </p>
@@ -887,32 +881,32 @@ const Navbar = () => {
                             </button>
                           )}
 
-                          {/* Saved Addresses / Pricing */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsDropdownOpen(false);
-                              if (isAdmin) {
-                                navigate('/admin-dashboard?tab=price-config');
-                              } else if (isVendor) {
-                                navigate('/vendor-dashboard?tab=profile');
-                              } else {
-                                navigate('/dashboard?tab=addresses');
-                              }
-                            }}
-                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50/70 transition-colors text-left cursor-pointer"
-                          >
-                            <MapPin className="w-4 h-4 text-emerald-600" />
-                            <div className="flex-1">
-                              <p className="leading-tight">
-                                {isAdmin ? 'Pricing & Rates Config' : isVendor ? 'Service Radius & Profile' : 'Saved Addresses'}
-                              </p>
-                              <p className="text-[10px] text-slate-400 font-normal">
-                                {isAdmin ? 'Update fuel & appliance charges' : 'Configure delivery location'}
-                              </p>
-                            </div>
-                            <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
-                          </button>
+                          {/* Saved Addresses / Pricing (Admin and Customers Only) */}
+                          {!isVendor && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsDropdownOpen(false);
+                                if (isAdmin) {
+                                  navigate('/admin-dashboard?tab=price-config');
+                                } else {
+                                  navigate('/dashboard?tab=addresses');
+                                }
+                              }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50/70 transition-colors text-left cursor-pointer"
+                            >
+                              <MapPin className="w-4 h-4 text-emerald-600" />
+                              <div className="flex-1">
+                                <p className="leading-tight">
+                                  {isAdmin ? 'Pricing & Rates Config' : 'Saved Addresses'}
+                                </p>
+                                <p className="text-[10px] text-slate-400 font-normal">
+                                  {isAdmin ? 'Update fuel & appliance charges' : 'Configure delivery location'}
+                                </p>
+                              </div>
+                              <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
+                            </button>
+                          )}
                         </div>
 
                         {/* Support & Logout */}
@@ -1238,22 +1232,18 @@ const Navbar = () => {
                       <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
                     </button>
 
-                    {!isAdmin && (
+                    {!isAdmin && !isVendor && (
                       <button
                         type="button"
                         onClick={() => {
                           setIsMobileMenuOpen(false);
-                          if (isVendor) {
-                            navigate('/vendor-dashboard?tab=jobs');
-                          } else {
-                            navigate('/dashboard?tab=bookings');
-                          }
+                          navigate('/dashboard?tab=bookings');
                         }}
                         className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
                       >
                         <div className="flex items-center gap-2.5">
                           <Calendar className="w-4 h-4 text-amber-500" />
-                          <span>{isVendor ? 'Job Tasks' : 'My Bookings'}</span>
+                          <span>My Bookings</span>
                         </div>
                         <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
                       </button>

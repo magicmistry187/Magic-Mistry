@@ -1,41 +1,33 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import { 
-  TbRosetteDiscountCheck, 
-  TbAward,
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Phone, Mail, ArrowUp, ArrowRight } from 'lucide-react';
+import {
   TbBrandFacebook,
-  TbBrandTwitter,
   TbBrandInstagram,
-  TbBrandLinkedin
-} from "react-icons/tb";
-import { useAuth } from "../../context/AuthContext";
-import LoginRequiredModal from "../auth/LoginRequiredModal";
+  TbBrandTwitter,
+  TbBrandLinkedin,
+  TbBrandWhatsapp,
+} from 'react-icons/tb';
+import { useAuth } from '../../context/AuthContext';
+import LoginRequiredModal from '../auth/LoginRequiredModal';
+
+const logo2 = '/logo2.png';
+
+// ── Top 6 High-Intent Repair Services ───────────────────────────────
+const POPULAR_SERVICES = [
+  { id: 1, name: 'AC Repair & Jet Service' },
+  { id: 2, name: 'Refrigerator Repair' },
+  { id: 3, name: 'Washing Machine Repair' },
+  { id: 13, name: 'Geyser & Water Heater' },
+  { id: 4, name: 'Microwave Oven Repair' },
+  { id: 12, name: 'Ceiling Fan & Electrical' },
+];
 
 const Footer = () => {
   const navigate = useNavigate();
   const { isLoggedIn } = useAuth();
   const [selectedAppliance, setSelectedAppliance] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
-
-  const categories = [
-    { id: 1, name: 'AC Repair', icon: '❄️' },
-    { id: 2, name: 'Refrigerator', icon: '🧊' },
-    { id: 3, name: 'Washing Machine', icon: '🧺' },
-    { id: 4, name: 'Microwave', icon: '♨️' },
-    { id: 5, name: 'Mixer Grinder', icon: '🥛' },
-    { id: 6, name: 'Pump Motor', icon: '💧' },
-    { id: 7, name: 'Air Cooler', icon: '💨' },
-    { id: 8, name: 'Induction Cooktop', icon: '🍳' },
-    { id: 9, name: 'Stabilizer', icon: '🔌' },
-    { id: 10, name: 'Press Iron', icon: '👔' },
-    { id: 11, name: 'TV', icon: '📺' },
-    { id: 12, name: 'Ceiling Fan', icon: '🌀' },
-    { id: 13, name: 'Geyser', icon: '🚿' },
-    { id: 14, name: 'Stand Fan', icon: '🌬️' },
-    { id: 15, name: 'Table / Wall Fan', icon: '🎐' },
-    { id: 16, name: 'Wiring / Switch Board', icon: '⚡' },
-  ];
 
   const handleServiceClick = (e, appliance) => {
     e.preventDefault();
@@ -47,189 +39,255 @@ const Footer = () => {
 
     navigate('/booking', {
       state: {
-        appliance: appliance 
-      }
+        appliance: appliance,
+      },
     });
   };
 
-  const displayedServices = categories.slice(0, 4);
-  const containerVariants = {
-    hidden: { opacity: 0, y: 15 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: 0.5,
-        staggerChildren: 0.1,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 10 },
-    visible: { opacity: 1, y: 0 },
+  const handleScrollToTop = () => {
+    if (window.__lenis) {
+      window.__lenis.scrollTo(0, { duration: 1.1 });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   return (
-    <footer className="bg-[#02182e] text-[#94a9c5] font-sans w-full">
-     
-      <div className="max-w-[1400px] w-full mx-auto px-6 md:px-12 pt-8 pb-4">
-        
-        <motion.div
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-6"
-          variants={containerVariants}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-        >
-          {/* Column 1: Brand & Badges */}
-          <motion.div variants={itemVariants} className="flex flex-col">
-            <h2 className="text-xl font-bold text-white mb-3 tracking-wide">
-              Magic Mistry
-            </h2>
-            <p className="text-[13px] leading-relaxed mb-4 pe-2">
-              Professional, certified, and transparent electronics repair service
-              you can trust.
-            </p>
-            <div className="flex flex-col gap-2">
-
-              {/* this function when i add when the client send me the certifications that when they will arange it */}
-              {/* <motion.div 
-                whileHover={{ scale: 1.02 }}
-                className="flex items-center gap-2 border border-[#1a385b] bg-[#09223e] px-3 py-1.5 rounded-md text-xs font-medium w-fit shadow-sm cursor-default"
+    <footer className="bg-[#0B111E] text-slate-400 font-sans border-t border-slate-800/80">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-16">
+        {/* Main Grid: 4 Balanced, Breathable Columns */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-12">
+          
+          {/* ── Brand & Contact Info (lg:col-span-4) ── */}
+          <div className="lg:col-span-4 flex flex-col justify-between space-y-6">
+            <div className="space-y-4">
+              <Link
+                to="/"
+                className="inline-flex items-center gap-2.5 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-md"
+                aria-label="Magic Mistry Home"
               >
-                <TbRosetteDiscountCheck className="text-base text-[#a8c1de]" />
-                ISO 9001:2015
-              </motion.div>
-              <motion.div 
-                whileHover={{ scale: 1.02 }}
-                className="flex items-center gap-2 border border-[#1a385b] bg-[#09223e] px-3 py-1.5 rounded-md text-xs font-medium w-fit shadow-sm cursor-default"
-              >
-                <TbAward className="text-base text-[#a8c1de]" />
-                NABL Certified
-              </motion.div> */}
-              
-            </div>
-             {/* Added Social Media Icons */}
-          <div className="flex items-center gap-4 text-[#a8c1de] pt-4">
-            <Link to="#" className="hover:text-white hover:scale-110 transition-all duration-200">
-              <TbBrandFacebook size={18} />
-            </Link>
-            <Link to="#" className="hover:text-white hover:scale-110 transition-all duration-200">
-              <TbBrandTwitter size={18} />
-            </Link>
-            <Link to="#" className="hover:text-white hover:scale-110 transition-all duration-200">
-              <TbBrandInstagram size={18} />
-            </Link>
-            <Link to="#" className="hover:text-white hover:scale-110 transition-all duration-200">
-              <TbBrandLinkedin size={18} />
-            </Link>
-          </div>
-          </motion.div>
+                <img
+                  src={logo2}
+                  alt="Magic Mistry Logo"
+                  className="h-9 w-auto object-contain transition-transform duration-200 group-hover:scale-105"
+                  loading="lazy"
+                />
+                <div className="flex items-center font-black text-xl tracking-tight text-white leading-none">
+                  <span>Magic</span>
+                  <span className="text-orange-500 ml-1">Mistry</span>
+                </div>
+              </Link>
 
-          {/* Column 2: Services */}
-          <motion.div variants={itemVariants}>
-            <h3 className="text-[14px] font-bold text-white mb-3 tracking-wide">
-              Services
-            </h3>
-            <ul className="flex flex-col gap-2">
-              {displayedServices.map((link) => (
-                <li key={link.id}>
-                  <button
-                    onClick={(e) => handleServiceClick(e, link)}
-                    className="text-[13px] inline-block transition-all duration-200 hover:translate-x-1 hover:text-white text-left"
+              <p className="text-sm text-slate-400 leading-relaxed max-w-sm">
+                Doorstep electronics repair and home appliance maintenance across West Bengal.
+                Certified technicians, upfront transparent pricing, and 30-day rework warranty.
+              </p>
+
+              {/* Minimal Contact Details */}
+              <div className="space-y-2 pt-1 text-xs text-slate-300">
+                <a
+                  href="tel:+919830012345"
+                  className="inline-flex items-center gap-2 hover:text-white transition-colors"
+                >
+                  <Phone className="w-3.5 h-3.5 text-blue-400" />
+                  <span>+91 98300 12345</span>
+                  <span className="text-[10px] text-slate-500">(8:00 AM – 9:30 PM)</span>
+                </a>
+                <div className="flex items-center gap-2">
+                  <a
+                    href="mailto:magicmistry187@gmail.com"
+                    className="inline-flex items-center gap-2 hover:text-white transition-colors"
                   >
-                    {link.name}
+                    <Mail className="w-3.5 h-3.5 text-slate-400" />
+                    <span>magicmistry187@gmail.com</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* Social Icons */}
+            <div className="flex items-center gap-3 pt-2">
+              {[
+                {
+                  icon: TbBrandFacebook,
+                  label: 'Facebook',
+                  url: 'https://facebook.com',
+                },
+                {
+                  icon: TbBrandInstagram,
+                  label: 'Instagram',
+                  url: 'https://instagram.com',
+                },
+                {
+                  icon: TbBrandTwitter,
+                  label: 'Twitter',
+                  url: 'https://twitter.com',
+                },
+                {
+                  icon: TbBrandLinkedin,
+                  label: 'LinkedIn',
+                  url: 'https://linkedin.com',
+                },
+                {
+                  icon: TbBrandWhatsapp,
+                  label: 'WhatsApp',
+                  url: 'https://wa.me/919830012345',
+                },
+              ].map((item, idx) => {
+                const Icon = item.icon;
+                return (
+                  <a
+                    key={idx}
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Magic Mistry on ${item.label}`}
+                    className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 hover:bg-slate-800 flex items-center justify-center transition-all duration-150"
+                  >
+                    <Icon className="w-4 h-4" />
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Column 2: Popular Services (lg:col-span-3) ── */}
+          <div className="lg:col-span-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-4">
+              Popular Services
+            </h3>
+            <ul className="space-y-2.5 text-sm">
+              {POPULAR_SERVICES.map((service) => (
+                <li key={service.id}>
+                  <button
+                    type="button"
+                    onClick={(e) => handleServiceClick(e, service)}
+                    className="hover:text-white transition-colors duration-150 text-left cursor-pointer"
+                  >
+                    {service.name}
                   </button>
                 </li>
               ))}
-              <li>
-                <button
-                  onClick={() => navigate('/booking')}
-                  className="text-[13px] font-bold text-[#a8c1de] mt-2 transition-all duration-200 hover:text-white"
+              <li className="pt-1.5">
+                <Link
+                  to="/pricing"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors"
                 >
-                  View More
-                </button>
+                  <span>All 16+ Services & Rates</span>
+                  <ArrowRight className="w-3 h-3" />
+                </Link>
               </li>
             </ul>
-          </motion.div>
+          </div>
 
-          {/* Column 3: Company */}
-          <motion.div variants={itemVariants}>
-            <h3 className="text-[14px] font-bold text-white mb-3 tracking-wide">
-              Company
+          {/* ── Column 3: Customers & Booking (lg:col-span-3) ── */}
+          <div className="lg:col-span-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-4">
+              For Customers
             </h3>
-            <ul className="flex flex-col gap-2">
-              {[
-                { name: "About Us", path: "/about" },
-                { name: "Contact Us", path: "/contact" },
-                { name: "FAQ / Help Center", path: "/faq" },
-                { name: "Become a Vendor", path: "/become-a-vendor" },
-                { name: "Vendor Login", path: "/login", state: { isVendorLogin: true } },
-              ].map((link) => (
-                <li key={link.name}>
-                  <Link
-                    to={link.path}
-                    state={link.state}
-                    className={`text-[13px] inline-flex items-center gap-1.5 transition-all duration-200 hover:translate-x-1 ${
-                      link.isBadge 
-                        ? 'text-orange-400 font-bold hover:text-orange-300' 
-                        : 'hover:text-white'
-                    }`}
-                  >
-                    <span>{link.name}</span>
-                    {link.isBadge && (
-                      <span className="text-[10px] font-extrabold bg-orange-500/20 text-orange-400 border border-orange-500/40 px-1.5 py-0.2 rounded uppercase">
-                        {link.badgeText || 'Demo'}
-                      </span>
-                    )}
-                  </Link>
-                </li>
-              ))}
+            <ul className="space-y-2.5 text-sm">
+              <li>
+                <Link to="/booking" className="hover:text-white transition-colors duration-150">
+                  Book a Repair
+                </Link>
+              </li>
+              <li>
+                <Link to="/pricing" className="hover:text-white transition-colors duration-150">
+                  Transparent Rate Card
+                </Link>
+              </li>
+              <li>
+                <Link to="/how-it-works" className="hover:text-white transition-colors duration-150">
+                  How It Works
+                </Link>
+              </li>
+              <li>
+                <Link to="/faq" className="hover:text-white transition-colors duration-150">
+                  Help & FAQs
+                </Link>
+              </li>
+              <li>
+                <Link to="/contact" className="hover:text-white transition-colors duration-150">
+                  Contact Support
+                </Link>
+              </li>
             </ul>
-          </motion.div>
+          </div>
 
-          {/* Column 4: Legal */}
-          <motion.div variants={itemVariants}>
-            <h3 className="text-[14px] font-bold text-white mb-3 tracking-wide">
-              Legal
+          {/* ── Column 4: Partners & Company (lg:col-span-2) ── */}
+          <div className="lg:col-span-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-4">
+              Partner & Company
             </h3>
-            <ul className="flex flex-col gap-2">
-              {[
-                { name: "Privacy Policy", path: "/privacy" },
-                { name: "Terms of Service", path: "/terms" },
-                { name: "Cookie Policy", path: "/cookies" },
-              ].map((link) => (
-                <li key={link.name}>
-                  <Link
-                    to={link.path}
-                    className="text-[13px] inline-block transition-all duration-200 hover:translate-x-1 hover:text-white"
-                  >
-                    {link.name}
-                  </Link>
-                </li>
-              ))}
+            <ul className="space-y-2.5 text-sm">
+              <li>
+                <Link
+                  to="/become-a-vendor"
+                  className="inline-flex items-center gap-1.5 hover:text-white transition-colors duration-150"
+                >
+                  <span>Join as Partner</span>
+                  <span className="text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1 rounded">
+                    Earn
+                  </span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/login"
+                  state={{ isVendorLogin: true }}
+                  className="hover:text-white transition-colors duration-150"
+                >
+                  Partner Login
+                </Link>
+              </li>
+              <li>
+                <Link to="/about" className="hover:text-white transition-colors duration-150">
+                  About Us
+                </Link>
+              </li>
+              <li>
+                <Link to="/terms" className="hover:text-white transition-colors duration-150">
+                  Terms of Service
+                </Link>
+              </li>
+              <li>
+                <Link to="/privacy" className="hover:text-white transition-colors duration-150">
+                  Privacy Policy
+                </Link>
+              </li>
             </ul>
-          </motion.div>
-        </motion.div>
+          </div>
 
-        {/* Bottom Copyright & Socials Bar */}
-        <motion.div
-          className="border-t border-[#122e4d] pt-5 mt-2 flex flex-col md:flex-row justify-between items-center gap-4"
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          transition={{ delay: 0.3, duration: 0.5 }}
-          viewport={{ once: true }}
-        >
-          <p className="text-xs">
-            © 2024 Magic Mistry. All rights reserved.
-          </p>
-          
-         
-        </motion.div>
-        
+        </div>
+
+        {/* ── Bottom Bar: Copyright & Back to Top ── */}
+        <div className="mt-12 pt-8 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <p>© {new Date().getFullYear()} Magic Mistry. All rights reserved.</p>
+            <div className="flex items-center gap-3 text-slate-400">
+              <span>UPI</span>
+              <span>•</span>
+              <span>Cards</span>
+              <span>•</span>
+              <span>NetBanking</span>
+              <span>•</span>
+              <span>Cash on Service</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleScrollToTop}
+            className="inline-flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer text-slate-400"
+            aria-label="Back to top"
+          >
+            <span>Back to top</span>
+            <ArrowUp className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
-      
+
+      {/* Auth Modal Trigger */}
       <LoginRequiredModal
         isOpen={showLoginModal}
         onClose={() => setShowLoginModal(false)}
