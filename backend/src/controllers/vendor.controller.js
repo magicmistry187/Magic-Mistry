@@ -35,6 +35,7 @@ exports.vendorLogin = async (req, res) => {
     }).select('+password');
 
     if (!vendor) {
+      console.log("Vendor nhi mila")
       return res.status(401).json({
         success: false,
         message: 'Invalid Vendor ID/email or password',
