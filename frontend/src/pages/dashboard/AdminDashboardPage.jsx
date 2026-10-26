@@ -16,6 +16,7 @@ import AdminWorkReportModal from '../../components/dashboard/admin/AdminWorkRepo
 import AdminExportModal from '../../components/dashboard/admin/AdminExportModal';
 import AdminEditUserModal from '../../components/dashboard/admin/AdminEditUserModal';
 import AdminServicePricingTab from '../../components/dashboard/admin/AdminServicePricingTab';
+import AdminBannerTab from '../../components/dashboard/admin/AdminBannerTab';
 import {
   LayoutDashboard, Users, FileText, UserPlus, TrendingUp,
   Package, AlertTriangle, Truck, DollarSign, Search, ChevronDown,
@@ -23,7 +24,7 @@ import {
   Copy, Download, Filter, RefreshCw, LogOut, ChevronRight, ChevronLeft, Eye,
   CheckCircle2, AlertCircle, Wrench, IndianRupee, ArrowUpRight,
   FileCheck, UserCheck, UserX, ExternalLink, Briefcase, MapPin, Phone, User,
-  Snowflake, Droplets, Store, Star, BadgeCheck, BadgeIcon, Contact, Ban, UserMinus
+  Snowflake, Droplets, Store, Star, BadgeCheck, BadgeIcon, Contact, Ban, UserMinus, Tag
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket, useSocketEvent } from '../../context/SocketContext';
@@ -3216,6 +3217,7 @@ export default function AdminDashboardPage() {
         { id: 'work-history',    label: 'Work History',         icon: Clock },
         { id: 'inventory',       label: 'Inventory Management', icon: Package },
         { id: 'service-pricing', label: 'Services & Fuel Pricing', icon: IndianRupee },
+        { id: 'banners',         label: 'Banners & Offers',     icon: Tag },
       ],
     },
     {
@@ -5320,6 +5322,11 @@ export default function AdminDashboardPage() {
                 {/* ── SERVICES & FUEL PRICING TAB ── */}
                 {activeTab === 'service-pricing' && (
                   <AdminServicePricingTab showToast={showToast} />
+                )}
+
+                {/* ── PROMOTIONAL BANNERS & OFFERS TAB ── */}
+                {activeTab === 'banners' && (
+                  <AdminBannerTab adminToken={adminToken || token} showToast={showToast} />
                 )}
 
                 {/* 9. WORK HISTORY */}

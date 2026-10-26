@@ -6,6 +6,7 @@ import WhyTrustUs from '../../components/home/WhyTrustUs';
 import HowItWorks from '../../components/home/HowItWorks';
 import CustomerReviews from '../../components/home/CustomerReviews';
 import CoverageBanner from '../../components/home/CoverageBanner';
+import DiscountPopupBanner from '../../components/home/DiscountPopupBanner';
 import Footer from '../../components/common/Footer';
 
 const HomePage = () => {
@@ -35,6 +36,9 @@ const HomePage = () => {
 
         {/* 6. Service Coverage in West Bengal & Closing Conversion Banner */}
         <CoverageBanner />
+
+        {/* 7. High-Converting Promotional Discount Popup & Floating Offer Pill */}
+        <DiscountPopupBanner />
       </main>
 
       <Footer />
