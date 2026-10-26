@@ -65,6 +65,9 @@ const vendorEarningRoutes = require('./routes/vendorEarning.routes');
 const payoutRoutes = require('./routes/payout.routes');
 const fuelClaimRoutes = require('./routes/fuelClaim.routes');
 const priceConfigRoutes = require('./routes/priceConfig.routes');
+const serviceCategoryRoutes = require('./routes/serviceCategory.routes');
+
+
 
 app.use('/api/auth', authRoutes);
 app.use('/api/booking', bookingRoutes);
@@ -78,5 +81,6 @@ app.use('/api/vendor-earnings', vendorEarningRoutes);
 app.use('/api/payout', payoutRoutes);
 app.use('/api/fuel-claims', fuelClaimRoutes);
 app.use('/api/price-config', priceConfigRoutes);
+app.use('/api/service-categories', serviceCategoryRoutes);
 
 module.exports = app;
