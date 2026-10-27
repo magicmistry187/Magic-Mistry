@@ -240,6 +240,14 @@ const emitFuelClaimStatusUpdated = (vendorId, fuelClaim) => {
   ioInstance.to(`vendor:${String(vendorId)}`).emit('fuel_claim:updated', fuelClaim);
 };
 
+/**
+ * Emits when an admin updates the website promotional banner.
+ */
+const emitBannerUpdated = (banner) => {
+  if (!ioInstance) return;
+  ioInstance.emit('banner:updated', banner);
+};
+
 module.exports = {
   setIO,
   getIO,
@@ -255,4 +263,5 @@ module.exports = {
   emitAccountStatusUpdated,
   emitPayoutStatusUpdated,
   emitFuelClaimStatusUpdated,
+  emitBannerUpdated,
 };

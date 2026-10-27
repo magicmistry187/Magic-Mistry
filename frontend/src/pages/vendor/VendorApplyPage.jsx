@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, CheckCircle2, User, Phone,
   Mail, MapPin, Briefcase, Wrench, FileText, Shield,
@@ -560,6 +560,19 @@ const StepIndicator = ({ current }) => (
 /* ═══════════════════════════════════════════════════════════════════ */
 export default function VendorApplyPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const quick = location.state?.quickApply || {};
+  const passedService = quick.serviceType || location.state?.selectedService;
+
+  const initialServiceTypes = React.useMemo(() => {
+    if (!passedService) return [];
+    const matched = serviceOptions.find(opt => 
+      opt.toLowerCase().includes(passedService.toLowerCase()) || 
+      passedService.toLowerCase().includes(opt.toLowerCase())
+    );
+    return matched ? [matched] : [passedService];
+  }, [passedService]);
+
   const [step, setStep]       = useState(0);
   const [direction, setDirection] = useState(1);
   const [submitted, setSubmitted] = useState(false);
@@ -568,14 +581,14 @@ export default function VendorApplyPage() {
   const [errors, setErrors]   = useState({});
 
   const [form, setForm] = useState({
-    fullName:     '',
+    fullName:     quick.fullName || '',
     email:        '',
-    phone:        '',
-    city:         '',
+    phone:        quick.phone || '',
+    city:         quick.city || '',
     pincode:      '',
-    specialOption:'',
-    serviceType:  [],
-    experience:   '',
+    specialOption:'Self-employed',
+    serviceType:  initialServiceTypes,
+    experience:   quick.experience || '',
     about:        '',
     photo:        null,
     aadhar:       null,

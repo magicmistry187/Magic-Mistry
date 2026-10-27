@@ -68,6 +68,7 @@ const priceConfigRoutes = require('./routes/priceConfig.routes');
 const serviceCategoryRoutes = require('./routes/serviceCategory.routes');
 const vendorReviewRoutes = require('./routes/vendorReview.routes');
 
+const bannerRoutes = require('./routes/banner.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/booking', bookingRoutes);
@@ -83,4 +84,6 @@ app.use('/api/fuel-claims', fuelClaimRoutes);
 app.use('/api/price-config', priceConfigRoutes);
 app.use('/api/service-categories', serviceCategoryRoutes);
 app.use('/api/vendor-reviews', vendorReviewRoutes);
+app.use('/api/banners', bannerRoutes);
+
 module.exports = app;

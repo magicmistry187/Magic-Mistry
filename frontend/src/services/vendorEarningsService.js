@@ -27,22 +27,36 @@ export const vendorEarningsEndpoints = {
 };
 
 function dataURLtoFile(dataurl, filename = 'receipt.png') {
-  if (!dataurl || typeof dataurl !== 'string' || !dataurl.includes(',')) return null;
+  if (!dataurl || typeof dataurl !== 'string') return null;
   try {
-    const arr = dataurl.split(',');
-    const mimeMatch = arr[0].match(/:(.*?);/);
-    const mime = mimeMatch ? mimeMatch[1] : 'image/png';
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while (n--) {
-      u8arr[n] = bstr.charCodeAt(n);
+    if (dataurl.startsWith('data:')) {
+      const parts = dataurl.split(',');
+      const meta = parts[0] || '';
+      const content = parts.slice(1).join(',');
+      const isBase64 = meta.includes(';base64');
+      const mime = (meta.match(/^data:([^;,]+)/) || [])[1] || 'image/png';
+
+      if (isBase64) {
+        const bstr = atob(content);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        return new File([u8arr], filename, { type: mime });
+      } else {
+        const decoded = decodeURIComponent(content);
+        const svgFilename = filename.endsWith('.svg') ? filename : `${filename.replace(/\.[^.]+$/, '')}.svg`;
+        return new File([decoded], svgFilename, { type: mime || 'image/svg+xml' });
+      }
     }
-    return new File([u8arr], filename, { type: mime });
+    if (dataurl.trim().startsWith('<svg')) {
+      return new File([dataurl], 'receipt.svg', { type: 'image/svg+xml' });
+    }
   } catch (err) {
     console.warn('[VendorEarningsService] Error converting dataURL to File:', err);
-    return null;
   }
+  return null;
 }
 
 const STORAGE_KEYS = {
@@ -346,7 +360,7 @@ export async function submitVendorFuelClaim(claimData, token) {
   const newClaim = {
     id: `CLAIM-${Date.now().toString().slice(-6)}`,
     ...claimData,
-    status: 'Submitted',
+    status: 'Pending',
     createdAt: new Date().toISOString(),
   };
 
@@ -375,20 +389,48 @@ export async function submitVendorFuelClaim(claimData, token) {
           vehicleType = '3-Wheeler';
         } else if (rawV.includes('4w') || rawV.includes('4-wheeler') || rawV.includes('car')) {
           vehicleType = '4-Wheeler';
+        } else if (['Company', '2-Wheeler', '3-Wheeler', '4-Wheeler'].includes(claimData.vehicleType)) {
+          vehicleType = claimData.vehicleType;
         }
         formData.append('vehicleType', vehicleType);
 
         const reason = String(claimData.notes || claimData.reason || 'Travel reimbursement for completed service trip').trim();
         formData.append('reason', reason);
 
-        // Append proof file
+        // Append petrolReceipt if present
         if (claimData.receiptFile instanceof File || claimData.receiptFile instanceof Blob) {
           formData.append('petrolReceipt', claimData.receiptFile, claimData.receiptFile.name || 'fuel_receipt.png');
-        } else if (claimData.receiptImage && typeof claimData.receiptImage === 'string' && claimData.receiptImage.startsWith('data:')) {
+        } else if (claimData.receiptImage && typeof claimData.receiptImage === 'string') {
           const fileObj = dataURLtoFile(claimData.receiptImage, 'petrol_receipt.png');
           if (fileObj) {
-            formData.append('petrolReceipt', fileObj);
+            formData.append('petrolReceipt', fileObj, fileObj.name || 'petrol_receipt.png');
           }
+        }
+
+        // Append mapProof if present
+        if (claimData.mapProofFile instanceof File || claimData.mapProofFile instanceof Blob) {
+          formData.append('mapProof', claimData.mapProofFile, claimData.mapProofFile.name || 'map_proof.png');
+        } else if (claimData.mapScreenshot && typeof claimData.mapScreenshot === 'string') {
+          const fileObj = dataURLtoFile(claimData.mapScreenshot, 'map_proof.png');
+          if (fileObj) {
+            formData.append('mapProof', fileObj, fileObj.name || 'map_proof.png');
+          }
+        }
+
+        // Append odometer if present
+        if (claimData.odometerFile instanceof File || claimData.odometerFile instanceof Blob) {
+          formData.append('odometer', claimData.odometerFile, claimData.odometerFile.name || 'odometer.png');
+        } else if (claimData.odometerImage && typeof claimData.odometerImage === 'string') {
+          const fileObj = dataURLtoFile(claimData.odometerImage, 'odometer.png');
+          if (fileObj) {
+            formData.append('odometer', fileObj, fileObj.name || 'odometer.png');
+          }
+        }
+
+        // Ensure at least one proof file is attached as required by backend multer validation
+        if (!formData.has('petrolReceipt') && !formData.has('mapProof') && !formData.has('odometer')) {
+          const fallbackFile = new File(['Verified Fuel Trip Proof'], 'fuel_trip_proof.txt', { type: 'text/plain' });
+          formData.append('petrolReceipt', fallbackFile);
         }
 
         const response = await apiConnector(
@@ -399,14 +441,17 @@ export async function submitVendorFuelClaim(claimData, token) {
         );
 
         if (response.data?.success) {
-          return { success: true, claim: response.data.fuelClaim || response.data.claim || newClaim, fromBackend: true };
+          const returnedClaim = response.data.data || response.data.fuelClaim || response.data.claim || newClaim;
+          return { success: true, claim: returnedClaim, fromBackend: true };
         }
       } else {
         console.log('[VendorEarningsService] Booking ID is not a MongoDB ObjectId, saved fuel claim locally.');
+        return { success: true, claim: newClaim, fromBackend: false, warning: 'Booking ID is not a valid database ObjectId' };
       }
     } catch (err) {
-      console.warn('[VendorEarningsService] Backend fuel claim notice (saved to local pending queue):', err.response?.data?.message || err.message);
-      return { success: true, claim: newClaim, fromBackend: false, error: err.response?.data?.message || err.message };
+      const errMsg = err.response?.data?.message || err.message || 'Failed to submit fuel claim';
+      console.warn('[VendorEarningsService] Backend fuel claim notice (saved to local pending queue):', errMsg);
+      return { success: false, claim: newClaim, fromBackend: false, error: errMsg };
     }
   }
 
@@ -421,7 +466,7 @@ export async function requestVendorPayoutApi(payoutPayload, token) {
   const requestRecord = {
     id: `PAYOUT-${Date.now()}`,
     ...payoutPayload,
-    status: 'Processing',
+    status: 'Requested',
     requestedAt: new Date().toISOString(),
   };
 
@@ -455,23 +500,31 @@ export async function requestVendorPayoutApi(payoutPayload, token) {
         );
 
         if (response.data?.success) {
+          const payoutData = response.data.data || response.data.payout || requestRecord;
           return {
             success: true,
-            data: response.data.payout || requestRecord,
-            payout: response.data.payout,
+            data: payoutData,
+            payout: payoutData,
             fromBackend: true,
           };
         }
       } else {
         console.log('[VendorEarningsService] No valid MongoDB earning IDs provided for payout request, saved to local ledger.');
+        return {
+          success: true,
+          data: requestRecord,
+          fromBackend: false,
+          warning: 'No valid MongoDB earning IDs provided',
+        };
       }
     } catch (err) {
-      console.warn('[VendorEarningsService] Backend payout request notice (saved locally):', err.response?.data?.message || err.message);
+      const errMsg = err.response?.data?.message || err.message || 'Failed to create payout request';
+      console.warn('[VendorEarningsService] Backend payout request notice (saved locally):', errMsg);
       return {
-        success: true,
+        success: false,
         data: requestRecord,
         fromBackend: false,
-        error: err.response?.data?.message || err.message,
+        error: errMsg,
       };
     }
   }

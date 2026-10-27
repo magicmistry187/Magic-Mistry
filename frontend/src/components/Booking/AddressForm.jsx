@@ -1,9 +1,19 @@
 import React, { useState, useEffect } from "react";
-import { useBooking } from "../../components/Booking/BookingContext";
+import { useBooking } from "./BookingContext";
 import {
-  LocateFixed, Loader2, MapPin, AlertCircle, CheckCircle2,
-  MapPinOff, Clock3, Home, Briefcase, Tag, Edit3, BookmarkCheck,
-  Map, ChevronRight,
+  MapPin,
+  LocateFixed,
+  Loader2,
+  CheckCircle2,
+  Home,
+  Briefcase,
+  Tag,
+  BookmarkCheck,
+  Map,
+  ChevronRight,
+  AlertCircle,
+  Check,
+  Edit3
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAddressesApi } from "../../services/operations/addressAPI";
@@ -11,565 +21,570 @@ import { getCurrentCoordinates, reverseGeocode } from "../../utils/reverseGeocod
 import { cleanPostalParentheses } from "../../utils/addressParser";
 import InteractiveMapPicker from "../common/InteractiveMapPicker";
 
-const LOC = { IDLE: "idle", LOADING: "loading", SUCCESS: "success", ERROR: "error" };
-const MODE = { CHOOSE: "choose", SAVED: "saved", MANUAL: "manual" };
-
-function OutOfAreaModal({ city, state, onClose }) {
-  useEffect(() => {
-    const origBody = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = origBody;
-    };
-  }, []);
-
-  return (
-    <div
-      data-lenis-prevent
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 overscroll-contain overflow-y-auto"
-      style={{ backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)" }}
-      onClick={onClose}
-    >
-      <div data-lenis-prevent className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden my-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="bg-gradient-to-br from-[#0B1E40] to-[#1a3a70] px-6 pt-8 pb-6 text-center">
-          <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-4">
-            <MapPinOff className="w-8 h-8 text-white" />
-          </div>
-          <h2 className="text-white text-xl font-bold">Outside Our Service Area</h2>
-          {(city || state) && (
-            <p className="text-blue-200 text-sm mt-1">{city ? `${city}${state ? ", " : ""}` : ""}{state || ""}</p>
-          )}
-        </div>
-        <div className="px-6 py-6 text-center">
-          <div className="flex justify-center mb-3">
-            <span className="w-12 h-12 rounded-full bg-amber-50 border-2 border-amber-200 flex items-center justify-center">
-              <Clock3 className="w-6 h-6 text-amber-500" />
-            </span>
-          </div>
-          <h3 className="text-slate-800 font-bold text-lg leading-snug">We are Expanding to <br />Your Area Soon!</h3>
-          <p className="text-slate-500 text-sm mt-2 leading-relaxed">
-            Currently, Magic Mistry services are available only in{" "}
-            <span className="font-semibold text-[#0B1E40]">West Bengal</span>.
-          </p>
-        </div>
-        <div className="px-6 pb-6">
-          <button onClick={onClose} className="w-full bg-[#0B1E40] hover:bg-[#1a3a70] text-white font-semibold py-3 rounded-xl transition-colors text-sm">
-            Got it, I will Enter a West Bengal Address
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const TYPE_OPTIONS = [
-  { label: "Home",   Icon: Home },
-  { label: "Office", Icon: Briefcase },
-  { label: "Other",  Icon: Tag },
-];
+const ADDR_TABS = {
+  SAVED: "saved",
+  GPS: "gps",
+  MANUAL: "manual",
+};
 
 export default function AddressForm() {
-  const { bookingState, updateBooking, scrollToNextStep } = useBooking();
+  const { bookingState, updateBooking, nextStep, prevStep, isStep3Valid } = useBooking();
   const { token, isLoggedIn, updateLocation } = useAuth();
 
-  const [mode, setMode] = useState(MODE.CHOOSE);
+  const [activeTab, setActiveTab] = useState(isLoggedIn ? ADDR_TABS.SAVED : ADDR_TABS.MANUAL);
 
-  const [savedAddress, setSavedAddress] = useState(null);
+  // Saved addresses
+  const [savedAddressesList, setSavedAddressesList] = useState([]);
+  const [selectedSavedId, setSelectedSavedId] = useState(null);
   const [loadingSaved, setLoadingSaved] = useState(false);
-  const [savedError, setSavedError]     = useState("");
+  const [savedError, setSavedError] = useState("");
 
-  const [addrType, setAddrType]         = useState("Home");
-  const [flat, setFlat]                 = useState("");
-  const [street, setStreet]             = useState("");
-  const [city, setCity]                 = useState("");
-  const [state, setState]               = useState("");
-  const [landmark, setLandmark]         = useState("");
-  const [pincode, setPincode]           = useState("");
-  const [manualError, setManualError]   = useState("");
+  // Manual fields
+  const [flat, setFlat]         = useState("");
+  const [street, setStreet]     = useState("");
+  const [city, setCity]         = useState("");
+  const [state, setState]       = useState("");
+  const [landmark, setLandmark] = useState("");
+  const [pincode, setPincode]   = useState("");
+  const [addrType, setAddrType] = useState("Home");
 
-  const [locState, setLocState]         = useState(LOC.IDLE);
-  const [locError, setLocError]         = useState("");
-  const [outOfArea, setOutOfArea]       = useState(null);
-  const [showMap, setShowMap]           = useState(false);
-  const [mapCoords, setMapCoords]       = useState(null);
+  // GPS state
+  const [isLocating, setIsLocating] = useState(false);
+  const [locSuccess, setLocSuccess] = useState(false);
+  const [locError, setLocError]     = useState("");
+  const [locAccuracyInfo, setLocAccuracyInfo] = useState(null);
 
-  const applyAddress = (fullStr) => updateBooking("address", fullStr);
+  // Interactive map modal
+  const [showMapModal, setShowMapModal] = useState(false);
 
-  const handleUseSavedAddress = async () => {
-    setMode(MODE.SAVED);
-    if (savedAddress) {
-      if (scrollToNextStep) scrollToNextStep('step-image-uploader', { offset: -90, delay: 100 });
-      return;
+  // Fetch saved addresses on mount if logged in
+  useEffect(() => {
+    if (isLoggedIn && token) {
+      loadSavedAddresses();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn, token]);
+
+  const loadSavedAddresses = async () => {
     setLoadingSaved(true);
     setSavedError("");
     try {
       const res = await getAddressesApi(token);
       if (res.success && res.addresses?.length > 0) {
+        setSavedAddressesList(res.addresses);
         const def = res.addresses.find((a) => a.isDefault) || res.addresses[0];
-        setSavedAddress(def);
-        const parts = [def.house || def.flat || def.addressLine1, def.street, def.landmark, def.city, def.state, def.pincode].filter(Boolean);
-        const fullStr = parts.join(", ");
-        applyAddress(fullStr);
-        if (def.location?.coordinates?.length === 2) {
-          updateBooking("longitude", def.location.coordinates[0]);
-          updateBooking("latitude", def.location.coordinates[1]);
-        } else if (def.longitude && def.latitude) {
-          updateBooking("longitude", Number(def.longitude));
-          updateBooking("latitude", Number(def.latitude));
-        }
-        if (scrollToNextStep) {
-          scrollToNextStep('step-image-uploader', { offset: -90, delay: 250 });
-        }
+        setSelectedSavedId(def._id || def.id || 0);
+        applySavedAddressToBooking(def);
+        setActiveTab(ADDR_TABS.SAVED);
       } else {
-        setSavedError("No saved address found. Please enter one below.");
-        setMode(MODE.MANUAL);
+        setSavedAddressesList([]);
+        setActiveTab(ADDR_TABS.MANUAL);
       }
     } catch {
-      setSavedError("Could not load your saved address. Please enter manually.");
-      setMode(MODE.MANUAL);
+      setSavedError("Could not load your saved addresses.");
+      setActiveTab(ADDR_TABS.MANUAL);
     } finally {
       setLoadingSaved(false);
     }
   };
 
-  const handleEnterDifferent = () => {
-    applyAddress("");
-    setFlat(""); setStreet(""); setCity(""); setState(""); setLandmark(""); setPincode(""); setAddrType("Home");
-    setManualError(""); setLocState(LOC.IDLE); setLocError("");
-    setShowMap(false);
-    setMode(MODE.MANUAL);
+  const applySavedAddressToBooking = (addr) => {
+    const parts = [
+      addr.house || addr.flat || addr.addressLine1,
+      addr.street,
+      addr.landmark,
+      addr.city,
+      addr.state,
+      addr.pincode,
+    ].filter(Boolean);
+    const fullStr = parts.join(", ");
+    updateBooking("address", fullStr);
+
+    if (addr.location?.coordinates?.length === 2) {
+      updateBooking("longitude", addr.location.coordinates[0]);
+      updateBooking("latitude", addr.location.coordinates[1]);
+    } else if (addr.longitude && addr.latitude) {
+      updateBooking("longitude", Number(addr.longitude));
+      updateBooking("latitude", Number(addr.latitude));
+    }
   };
 
-  useEffect(() => {
-    if (mode !== MODE.MANUAL) return;
-    const full = [flat, street, landmark, city, state, pincode].filter(Boolean).join(", ");
-    applyAddress(full);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flat, street, landmark, city, state, pincode, addrType, mode]);
+  const handleSelectSavedAddress = (addr) => {
+    setSelectedSavedId(addr._id || addr.id);
+    applySavedAddressToBooking(addr);
+  };
 
-  const handleUseLocation = async () => {
-    setLocState(LOC.LOADING);
+  // Sync manual fields to booking state when in MANUAL or GPS mode
+  useEffect(() => {
+    if (activeTab === ADDR_TABS.SAVED) return;
+
+    const full = [flat, street, landmark, city, state, pincode].filter(Boolean).join(", ");
+    if (full.trim()) {
+      updateBooking("address", full);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flat, street, landmark, city, state, pincode, activeTab]);
+
+  // GPS Auto-Detect with Strict Accuracy Ceiling
+  const handleDetectGPS = async () => {
+    setIsLocating(true);
     setLocError("");
+    setLocSuccess(false);
+    setLocAccuracyInfo(null);
+
     try {
-      const coords = await getCurrentCoordinates({ desiredAccuracy: 35, timeout: 12000 });
+      const coords = await getCurrentCoordinates({ desiredAccuracy: 45, timeout: 8000 });
       const address = await reverseGeocode(coords.latitude, coords.longitude);
 
       const rawFlat = (address.flat || "").trim();
       const safeFlat = rawFlat && !rawFlat.includes(",") && rawFlat.length <= 25 ? rawFlat : "";
       const cleanStreet = (address.street || "").replace(/\s*\(.*?\)\s*/g, " ").replace(/\s+/g, " ").trim();
-      const cleanCity = cleanPostalParentheses(address.city || "");
+      const cleanCity = cleanPostalParentheses(address.city || address.district || "");
+      const cleanState = address.state || "";
       const cleanPincode = (address.pincode || "").replace(/\D/g, "").slice(0, 6);
 
       setFlat(safeFlat);
       setStreet(cleanStreet);
       setCity(cleanCity);
-      setState(address.state || "");
+      setState(cleanState);
       setLandmark(address.landmark || "");
       setPincode(cleanPincode);
 
       const fullAddress =
         address.fullAddress ||
-        [safeFlat, cleanStreet, address.landmark, cleanCity, address.state, cleanPincode]
+        [safeFlat, cleanStreet, address.landmark, cleanCity, cleanState, cleanPincode]
           .filter(Boolean)
           .join(", ");
 
       updateBooking("address", fullAddress);
       updateBooking("latitude", coords.latitude);
       updateBooking("longitude", coords.longitude);
-      updateLocation(fullAddress, { lat: coords.latitude, lng: coords.longitude });
+      if (updateLocation) {
+        updateLocation(fullAddress, { lat: coords.latitude, lng: coords.longitude });
+      }
 
-      setMapCoords({ lat: coords.latitude, lng: coords.longitude });
-      setShowMap(true);
-      setLocState(LOC.SUCCESS);
-      setLocError("");
+      setLocAccuracyInfo({
+        isCoarse: coords.isCoarse,
+        meters: coords.accuracy,
+      });
+
+      setLocSuccess(true);
+
+      // If accuracy was coarse (>180m, e.g. desktop ISP/Cell tower), don't just switch to manual blindly.
+      // Automatically open the map picker so the user can pin their exact building in 1 tap!
+      if (coords.isCoarse) {
+        setShowMapModal(true);
+      } else {
+        setActiveTab(ADDR_TABS.MANUAL);
+      }
     } catch (err) {
       console.error("[AddressForm] Geolocation error:", err);
-      setLocState(LOC.ERROR);
-      setLocError(err.message || "Could not fetch address. Please enter manually.");
+      setLocError(err.message || "Could not detect GPS location. Please type manually or pick on map.");
+    } finally {
+      setIsLocating(false);
     }
   };
 
-  const handleMapSelect = ({ coords, address }) => {
+  // Handle map selection
+  const handleMapPinSelected = ({ coords, address }) => {
     if (!coords) return;
-    setMapCoords(coords);
     updateBooking("latitude", coords.lat);
     updateBooking("longitude", coords.lng);
 
     if (address) {
-      const rawFlat = (address.flat || "").trim();
-      const safeFlat = rawFlat && !rawFlat.includes(",") && rawFlat.length <= 25 ? rawFlat : "";
+      const safeFlat = (address.flat || "").trim();
       const cleanStreet = (address.street || "").replace(/\s*\(.*?\)\s*/g, " ").replace(/\s+/g, " ").trim();
-      const cleanCity = cleanPostalParentheses(address.city || "");
+      const cleanCity = cleanPostalParentheses(address.city || address.district || "");
+      const cleanState = address.state || "";
       const cleanPincode = (address.pincode || "").replace(/\D/g, "").slice(0, 6);
 
       setFlat(safeFlat);
       setStreet(cleanStreet);
       setCity(cleanCity);
-      setState(address.state || "");
+      setState(cleanState);
       setLandmark(address.landmark || "");
       setPincode(cleanPincode);
 
       const fullAddress =
         address.fullAddress ||
-        [safeFlat, cleanStreet, address.landmark, cleanCity, address.state, cleanPincode]
+        [safeFlat, cleanStreet, address.landmark, cleanCity, cleanState, cleanPincode]
           .filter(Boolean)
           .join(", ");
 
       updateBooking("address", fullAddress);
-      updateLocation(fullAddress, coords);
     }
+    setShowMapModal(false);
   };
 
-  const savedAddressLine = savedAddress
-    ? [savedAddress.house || savedAddress.flat || savedAddress.addressLine1, savedAddress.street, savedAddress.landmark, savedAddress.city, savedAddress.state, savedAddress.pincode].filter(Boolean).join(", ")
-    : "";
-
   return (
-    <>
-      {outOfArea && <OutOfAreaModal city={outOfArea.city} state={outOfArea.state} onClose={() => setOutOfArea(null)} />}
-
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <h2 className="text-xl font-extrabold text-[#0B1E40] mb-5 flex items-center gap-3">
-          <span className="bg-blue-600 text-white rounded-full w-8 h-8 inline-flex items-center justify-center text-sm font-bold shadow-md shadow-blue-200">4</span>
-          Share Address
+    <div className="bg-white rounded-2xl md:rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="p-5 sm:p-6 md:p-8 border-b border-slate-100 bg-gradient-to-r from-slate-50/70 via-white to-indigo-50/20">
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-semibold mb-2">
+          <MapPin className="w-3.5 h-3.5 text-indigo-600 shrink-0" /> Step 3 of 4
+        </div>
+        <h2 className="text-xl sm:text-2xl font-extrabold text-[#0B1E40] tracking-tight">
+          Service Location &amp; Address
         </h2>
+        <p className="text-xs sm:text-sm text-slate-500 mt-1 font-medium">
+          Where should our certified technician arrive to service your appliance?
+        </p>
 
-        {/* ── CHOOSE MODE ── */}
-        {mode === MODE.CHOOSE && (
-          <div className="space-y-3">
-            {isLoggedIn ? (
-              <button
-                type="button"
-                onClick={handleUseSavedAddress}
-                className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-blue-500 bg-blue-50 hover:bg-blue-100 transition-all text-left group"
-              >
-                <span className="w-11 h-11 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 shadow-md shadow-blue-200 group-hover:scale-105 transition-transform">
-                  <BookmarkCheck className="w-5 h-5 text-white" />
-                </span>
-                <div>
-                  <p className="font-bold text-[#0B1E40] text-sm">Use My Saved Address</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Auto-fill from your default saved address</p>
-                </div>
-                <CheckCircle2 className="w-5 h-5 text-blue-500 ml-auto shrink-0 opacity-70" />
-              </button>
-            ) : (
-              <div className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-gray-200 bg-gray-50 text-left opacity-60 cursor-not-allowed">
-                <span className="w-11 h-11 rounded-xl bg-gray-300 flex items-center justify-center shrink-0">
-                  <BookmarkCheck className="w-5 h-5 text-white" />
-                </span>
-                <div>
-                  <p className="font-bold text-gray-500 text-sm">Use My Saved Address</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Log in to use your saved address</p>
-                </div>
-              </div>
-            )}
-
+        {/* Mode Selector Tabs */}
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          {isLoggedIn && savedAddressesList.length > 0 && (
             <button
               type="button"
-              onClick={handleEnterDifferent}
-              className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-gray-200 hover:border-orange-400 hover:bg-orange-50 transition-all text-left group"
+              onClick={() => setActiveTab(ADDR_TABS.SAVED)}
+              className={`h-10 px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+                activeTab === ADDR_TABS.SAVED
+                  ? "bg-[#0B1E40] text-white shadow-xs"
+                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
             >
-              <span className="w-11 h-11 rounded-xl bg-orange-500 flex items-center justify-center shrink-0 shadow-md shadow-orange-200 group-hover:scale-105 transition-transform">
-                <Edit3 className="w-5 h-5 text-white" />
-              </span>
-              <div>
-                <p className="font-bold text-[#0B1E40] text-sm">Enter a Different Address</p>
-                <p className="text-xs text-gray-500 mt-0.5">Fill in a new address for this booking</p>
-              </div>
+              <BookmarkCheck className="w-3.5 h-3.5" />
+              Saved Addresses ({savedAddressesList.length})
             </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleDetectGPS}
+            disabled={isLocating}
+            className={`h-10 px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+              isLocating
+                ? "bg-indigo-100 text-indigo-700 border border-indigo-200"
+                : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            {isLocating ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600" />
+            ) : (
+              <LocateFixed className="w-3.5 h-3.5 text-indigo-600" />
+            )}
+            {isLocating ? "Detecting GPS..." : "Auto-Detect Current GPS"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab(ADDR_TABS.MANUAL)}
+            className={`h-10 px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+              activeTab === ADDR_TABS.MANUAL
+                ? "bg-[#0B1E40] text-white shadow-xs"
+                : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+            Enter Manually
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowMapModal(true)}
+            className="h-10 px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-2 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 cursor-pointer shrink-0 sm:ml-auto"
+          >
+            <Map className="w-3.5 h-3.5 text-indigo-600" />
+            Pinpoint on Map
+          </button>
+        </div>
+      </div>
+
+      <div className="p-5 sm:p-6 md:p-8 space-y-6">
+        {/* GPS Success or Error alerts */}
+        {locSuccess && (
+          <div
+            className={`p-3.5 border rounded-xl flex items-center gap-2.5 text-xs font-semibold ${
+              locAccuracyInfo?.isCoarse
+                ? "bg-amber-50 border-amber-200 text-amber-800"
+                : "bg-emerald-50 border-emerald-200 text-emerald-800"
+            }`}
+          >
+            {locAccuracyInfo?.isCoarse ? (
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            )}
+            <span>
+              {locAccuracyInfo?.isCoarse
+                ? `Approximate area detected (±${
+                    locAccuracyInfo.meters >= 1000
+                      ? (locAccuracyInfo.meters / 1000).toFixed(1) + " km"
+                      : locAccuracyInfo.meters + " m"
+                  }). Please confirm or drag your pin on the map to your exact building.`
+                : `High-accuracy GPS acquired (±${locAccuracyInfo?.meters || 35}m). You can verify or edit details below.`}
+            </span>
           </div>
         )}
 
-        {/* ── SAVED MODE ── */}
-        {mode === MODE.SAVED && (
-          <div>
-            {loadingSaved ? (
-              <div className="flex items-center justify-center gap-2 py-8 text-blue-600 text-sm font-medium">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Loading your saved address...
-              </div>
-            ) : savedError ? (
-              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 mb-4">
-                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                {savedError}
-              </div>
-            ) : savedAddress ? (
-              <div className="rounded-xl border-2 border-emerald-400 bg-emerald-50 p-4 mb-4">
-                <div className="flex items-start gap-3">
-                  <span className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center shrink-0">
-                    <MapPin className="w-4 h-4 text-white" />
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[11px] font-extrabold bg-emerald-600 text-white px-2 py-0.5 rounded-full uppercase tracking-wide">
-                        {savedAddress.addressType || savedAddress.type || "Saved"}
-                      </span>
-                      {savedAddress.isDefault && (
-                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Default</span>
-                      )}
-                    </div>
-                    <p className="text-sm font-semibold text-slate-800 leading-snug">{savedAddressLine}</p>
-                  </div>
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                </div>
-              </div>
-            ) : null}
+        {locError && (
+          <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-xs text-red-800 font-semibold">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+            <span>{locError}</span>
+          </div>
+        )}
 
-            {savedAddress && (
-              <div className="mb-3">
+        {/* Tab 1: Saved Addresses List */}
+        {activeTab === ADDR_TABS.SAVED && (
+          <div className="space-y-3">
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+              Select from your saved addresses
+            </div>
+
+            {loadingSaved ? (
+              <div className="py-8 flex items-center justify-center gap-2 text-sm text-slate-500">
+                <Loader2 className="w-4 h-4 animate-spin text-indigo-600" /> Loading saved addresses...
+              </div>
+            ) : savedAddressesList.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch">
+                {savedAddressesList.map((addr) => {
+                  const id = addr._id || addr.id;
+                  const isSelected = selectedSavedId === id;
+                  const line1 = addr.house || addr.flat || addr.addressLine1;
+                  const full = [line1, addr.street, addr.city, addr.pincode].filter(Boolean).join(", ");
+
+                  return (
+                    <div
+                      key={id}
+                      onClick={() => handleSelectSavedAddress(addr)}
+                      className={`p-4 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between h-full ${
+                        isSelected
+                          ? "bg-gradient-to-r from-indigo-50/90 to-blue-50/40 border-indigo-600 shadow-sm ring-2 ring-indigo-500/10"
+                          : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-2xs"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold shrink-0">
+                            <Home className="w-3.5 h-3.5" />
+                          </span>
+                          <span className="text-xs font-extrabold text-[#0B1E40]">
+                            {addr.addressType || "Home"}
+                          </span>
+                        </div>
+                        <div
+                          className={`w-5 h-5 rounded-full border flex items-center justify-center text-xs shrink-0 ${
+                            isSelected
+                              ? "border-indigo-600 bg-indigo-600 text-white"
+                              : "border-slate-300 text-transparent"
+                          }`}
+                        >
+                          <Check className="w-3 h-3 stroke-[3]" />
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-slate-600 mt-2 font-medium leading-relaxed break-words">
+                        {full}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="p-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                <p className="text-xs text-slate-500 font-semibold">No saved addresses found.</p>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (scrollToNextStep) scrollToNextStep('step-image-uploader', { offset: -90, delay: 50 });
-                  }}
-                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md shadow-indigo-500/20 transition-all cursor-pointer"
+                  onClick={() => setActiveTab(ADDR_TABS.MANUAL)}
+                  className="mt-2 text-xs font-bold text-indigo-600 hover:underline cursor-pointer"
                 >
-                  Continue to Appliance Photo <ChevronRight className="w-4 h-4" />
+                  Enter address manually
                 </button>
               </div>
             )}
-
-            <button
-              type="button"
-              onClick={handleEnterDifferent}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-dashed border-gray-300 text-sm font-semibold text-gray-500 hover:border-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-all"
-            >
-              <Edit3 className="w-4 h-4" />
-              Enter a Different Address Instead
-            </button>
           </div>
         )}
 
-        {/* ── MANUAL MODE ── */}
-        {mode === MODE.MANUAL && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <button
-                type="button"
-                onClick={handleUseLocation}
-                disabled={locState === LOC.LOADING}
-                className={`flex items-center justify-center gap-2 py-3 px-3.5 rounded-xl border-2 font-semibold text-xs transition-all ${
-                  locState === LOC.SUCCESS ? "border-emerald-400 bg-emerald-50 text-emerald-700"
-                  : locState === LOC.ERROR ? "border-red-300 bg-red-50 text-red-600"
-                  : locState === LOC.LOADING ? "border-blue-300 bg-blue-50 text-blue-600 cursor-wait"
-                  : "border-dashed border-blue-400 bg-blue-50/50 text-blue-700 hover:bg-blue-100 hover:border-blue-500 cursor-pointer"
-                }`}
-              >
-                {locState === LOC.LOADING && <Loader2 className="w-4 h-4 animate-spin" />}
-                {locState === LOC.SUCCESS && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
-                {locState === LOC.ERROR   && <AlertCircle className="w-4 h-4 text-red-500" />}
-                {locState === LOC.IDLE    && <LocateFixed className="w-4 h-4" />}
-                <span>
-                  {locState === LOC.LOADING && "Acquiring GPS..."}
-                  {locState === LOC.SUCCESS && "GPS Detected ✓"}
-                  {locState === LOC.ERROR   && "Retry GPS"}
-                  {locState === LOC.IDLE    && "Use My Current Location"}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowMap((prev) => !prev)}
-                className={`flex items-center justify-center gap-2 py-3 px-3.5 rounded-xl border-2 font-semibold text-xs transition-all cursor-pointer ${
-                  showMap
-                    ? "border-orange-500 bg-orange-50 text-orange-900 shadow-sm"
-                    : "border-dashed border-orange-300 bg-orange-50/50 text-orange-800 hover:bg-orange-100"
-                }`}
-              >
-                <Map className="w-4 h-4 text-orange-600" />
-                <span>{showMap ? "Hide Map View" : "Pinpoint / Adjust on Map"}</span>
-              </button>
+        {/* Tab 2/3: Manual Input Grid */}
+        {(activeTab === ADDR_TABS.MANUAL || activeTab === ADDR_TABS.GPS) && (
+          <div className="space-y-5">
+            {/* Address Type */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">
+                Type:
+              </span>
+              {[
+                { label: "Home", Icon: Home },
+                { label: "Office", Icon: Briefcase },
+                { label: "Other", Icon: Tag },
+              ].map(({ label, Icon }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => setAddrType(label)}
+                  className={`h-8 px-3 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    addrType === label
+                      ? "bg-indigo-600 text-white shadow-2xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  <Icon className="w-3 h-3" /> {label}
+                </button>
+              ))}
             </div>
 
-            {/* ── Interactive Map Pin Picker ── */}
-            {showMap && (
-              <div className="space-y-2 mt-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
-                <div className="flex items-center justify-between px-1">
-                  <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-                    Drag pin to your exact building or street entrance
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowMap(false)}
-                    className="text-[11px] text-slate-500 hover:text-slate-800 font-bold"
-                  >
-                    ✕ Close Map
-                  </button>
-                </div>
-                <InteractiveMapPicker
-                  initialCoords={mapCoords || (bookingState.latitude && bookingState.longitude ? { lat: Number(bookingState.latitude), lng: Number(bookingState.longitude) } : null)}
-                  onLocationSelect={handleMapSelect}
-                  height="260px"
-                  showSearch={true}
-                />
-              </div>
-            )}
-
-            {locState === LOC.ERROR && locError && (
-              <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 text-xs text-red-700">
-                <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />{locError}
-              </div>
-            )}
-
-            <div className="flex items-center gap-3">
-              <div className="flex-1 border-t border-gray-200" />
-              <span className="text-xs text-gray-400 font-medium">or fill in manually</span>
-              <div className="flex-1 border-t border-gray-200" />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Address Type</label>
-              <div className="flex gap-3">
-                {TYPE_OPTIONS.map(({ label, Icon }) => (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => setAddrType(label)}
-                    className={`flex-1 py-2.5 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
-                      addrType === label
-                        ? "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200"
-                        : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5" />{label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block font-bold text-xs text-slate-600 mb-1.5">
-                House / Flat <span className="text-gray-400 font-normal text-xs">(Optional)</span>
-              </label>
-              <input
-                type="text"
-                value={flat}
-                onChange={(e) => setFlat(e.target.value)}
-                placeholder="e.g. House #4B, Flat 201"
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all"
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold text-xs text-slate-600 mb-1.5">
-                Street / Locality <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={street}
-                onChange={(e) => setStreet(e.target.value)}
-                placeholder="Enter street, area, or landmark"
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
+            {/* Form Fields Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block font-bold text-xs text-slate-600 mb-1.5">
-                  City <span className="text-red-500">*</span>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                  Flat / House / Floor / Building <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  required
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  placeholder="Enter city / town"
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all"
+                  value={flat}
+                  onChange={(e) => setFlat(e.target.value)}
+                  placeholder="e.g. Flat 3B, Tower 2, Green Heights"
+                  className="w-full h-11 px-3.5 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all outline-none font-medium placeholder:text-slate-400"
                 />
               </div>
+
               <div>
-                <label className="block font-bold text-xs text-slate-600 mb-1.5">
-                  State <span className="text-red-500">*</span>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                  Street / Area / Locality <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  required
-                  value={state}
-                  onChange={(e) => setState(e.target.value)}
-                  placeholder="Enter state"
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all"
+                  value={street}
+                  onChange={(e) => setStreet(e.target.value)}
+                  placeholder="e.g. Sector V, Salt Lake City"
+                  className="w-full h-11 px-3.5 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all outline-none font-medium placeholder:text-slate-400"
                 />
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block font-bold text-xs text-slate-600 mb-1.5">
-                  Landmark <span className="text-gray-400 font-normal text-xs">(Optional)</span>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                  Landmark (Optional)
                 </label>
                 <input
                   type="text"
                   value={landmark}
                   onChange={(e) => setLandmark(e.target.value)}
-                  placeholder="e.g. Near Park, Opp Temple"
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all"
+                  placeholder="e.g. Near RDB Cinema or Metro Gate 2"
+                  className="w-full h-11 px-3.5 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all outline-none font-medium placeholder:text-slate-400"
                 />
               </div>
+
               <div>
-                <label className="block font-bold text-xs text-slate-600 mb-1.5">
-                  Pincode <span className="text-red-500">*</span>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                  6-Digit Pincode <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  required
-                  value={pincode}
-                  onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="700001"
                   maxLength={6}
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all"
+                  value={pincode}
+                  onChange={(e) => setPincode(e.target.value.replace(/\D/g, ""))}
+                  placeholder="e.g. 700091"
+                  className="w-full h-11 px-3.5 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all outline-none font-medium placeholder:text-slate-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                  City
+                </label>
+                <input
+                  type="text"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="e.g. Kolkata, Bidhannagar, New Delhi"
+                  className="w-full h-11 px-3.5 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all outline-none font-medium placeholder:text-slate-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                  State
+                </label>
+                <input
+                  type="text"
+                  value={state}
+                  onChange={(e) => setState(e.target.value)}
+                  placeholder="e.g. West Bengal, Delhi, Bihar"
+                  className="w-full h-11 px-3.5 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all outline-none font-medium placeholder:text-slate-400"
                 />
               </div>
             </div>
 
+            {/* Address Preview Box */}
             {bookingState.address && (
-              <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 text-xs text-blue-800">
-                <MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0 text-blue-500" />
-                <span><strong>Service Address:</strong> {bookingState.address}</span>
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 flex items-start gap-2.5">
+                <MapPin className="w-4 h-4 text-indigo-600 mt-0.5 shrink-0" />
+                <div className="text-xs text-slate-700 leading-relaxed font-medium break-words flex-1 min-w-0">
+                  <span className="font-bold text-[#0B1E40]">Destination: </span>
+                  {bookingState.address}
+                </div>
               </div>
             )}
-
-            {manualError && (
-              <p className="text-xs text-red-600 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" /> {manualError}
-              </p>
-            )}
-
-            {bookingState.address && (
-              <div className="pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!city || !pincode) {
-                      setManualError("Please fill required fields (City, Pincode)");
-                      return;
-                    }
-                    if (scrollToNextStep) scrollToNextStep('step-image-uploader', { offset: -90, delay: 50 });
-                  }}
-                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md shadow-indigo-500/20 transition-all cursor-pointer mb-2"
-                >
-                  Continue to Appliance Photo <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-
-            <div className="pt-2 border-t border-gray-100">
-              <button
-                type="button"
-                onClick={() => setMode(MODE.CHOOSE)}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl border-2 border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-slate-400 text-slate-700 font-bold text-sm transition-all"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M19 12H5M12 5l-7 7 7 7"/>
-                </svg>
-                Back to Address Options
-              </button>
-            </div>
           </div>
         )}
+
+        {/* Step 3 Action Bar */}
+        <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-4">
+          <button
+            type="button"
+            onClick={prevStep}
+            className="h-11 px-5 rounded-xl font-bold text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+          >
+            ← Back to Schedule
+          </button>
+
+          <button
+            type="button"
+            onClick={nextStep}
+            disabled={!isStep3Valid}
+            className={`h-11 px-7 rounded-xl font-bold text-sm flex items-center gap-2 transition-all duration-200 cursor-pointer shadow-sm shrink-0 ${
+              isStep3Valid
+                ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200 hover:shadow-md hover:-translate-y-0.5"
+                : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
+            }`}
+          >
+            Continue to Payment &amp; Review <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
       </div>
-    </>
+
+      {/* Interactive Map Picker Modal */}
+      {showMapModal && (
+        <div
+          data-lenis-prevent
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-xs overscroll-contain"
+        >
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[90vh]">
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-[#0B1E40] to-indigo-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <MapPin className="w-5 h-5 text-indigo-300" />
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base">Pinpoint Your Exact Location</h3>
+                  <p className="text-[11px] text-blue-200 font-medium">Drag the pin or click on your building/gate</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMapModal(false)}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 flex-1 overflow-y-auto">
+              <InteractiveMapPicker
+                initialCoords={
+                  bookingState.latitude && bookingState.longitude
+                    ? { lat: bookingState.latitude, lng: bookingState.longitude }
+                    : null
+                }
+                initialAddress={
+                  street || city || pincode
+                    ? { flat, street, city, state, landmark, pincode }
+                    : null
+                }
+                onLocationSelect={handleMapPinSelected}
+                height="360px"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

@@ -33,14 +33,14 @@ export default function VendorFuelClaimModal({
   const { fuelRate } = useLivePricing();
 
   const VEHICLE_TYPES = [
-    { id: 'custom', name: `Company Standard Rate (₹${fuelRate}/km)`, defaultRate: fuelRate, icon: '⚡' },
-    { id: '2w', name: '2-Wheeler (Motorcycle / Scooter)', defaultRate: 3.5, icon: '🛵' },
-    { id: '3w', name: '3-Wheeler (Auto / Cargo)', defaultRate: 6.0, icon: '🛺' },
-    { id: '4w', name: '4-Wheeler (Car / Utility Van)', defaultRate: 9.0, icon: '🚗' },
+    { id: 'Company', backendType: 'Company', name: `Company Standard Rate (₹${fuelRate}/km)`, defaultRate: fuelRate, icon: '⚡' },
+    { id: '2-Wheeler', backendType: '2-Wheeler', name: '2-Wheeler (Motorcycle / Scooter)', defaultRate: 3.5, icon: '🛵' },
+    { id: '3-Wheeler', backendType: '3-Wheeler', name: '3-Wheeler (Auto / Cargo)', defaultRate: 6.0, icon: '🛺' },
+    { id: '4-Wheeler', backendType: '4-Wheeler', name: '4-Wheeler (Car / Utility Van)', defaultRate: 9.0, icon: '🚗' },
   ];
 
   const [selectedJobId, setSelectedJobId] = useState('');
-  const [vehicleType, setVehicleType] = useState('custom');
+  const [vehicleType, setVehicleType] = useState('Company');
   const [ratePerKm, setRatePerKm] = useState(fuelRate);
   const [distanceKm, setDistanceKm] = useState(5.0);
   const [fuelReceiptImage, setFuelReceiptImage] = useState(null);
@@ -49,9 +49,18 @@ export default function VendorFuelClaimModal({
   const [notes, setNotes] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Auto-select first completed job if available
+  useEffect(() => {
+    if (!selectedJobId && completedJobs.length > 0) {
+      const first = completedJobs[0];
+      const initialId = first.id || first._id || first.backendJobId || '';
+      setSelectedJobId(initialId);
+    }
+  }, [completedJobs, selectedJobId]);
+
   // Update rate when fuelRate changes
   useEffect(() => {
-    if (vehicleType === 'custom') {
+    if (vehicleType === 'Company') {
       setRatePerKm(fuelRate);
     }
   }, [fuelRate, vehicleType]);
@@ -59,7 +68,7 @@ export default function VendorFuelClaimModal({
   // Auto-fill when job is selected
   useEffect(() => {
     if (selectedJobId && selectedJobId !== 'custom') {
-      const found = completedJobs.find(j => j.id === selectedJobId);
+      const found = completedJobs.find(j => j.id === selectedJobId || j._id === selectedJobId || j.backendJobId === selectedJobId);
       if (found) {
         if (found.travelDistanceKm) {
           setDistanceKm(Number(found.travelDistanceKm));
@@ -87,7 +96,6 @@ export default function VendorFuelClaimModal({
     }
   };
 
-
   const calculatedAmount = Math.max(0, (Number(distanceKm) || 0) * (Number(ratePerKm) || 0));
 
   const handleFileUpload = (e) => {
@@ -110,8 +118,9 @@ export default function VendorFuelClaimModal({
 
   const handleUseSampleReceipt = () => {
     setFuelReceiptImage(SAMPLE_FUEL_BILL_SVG);
-    setReceiptFile(null);
-    setReceiptFileName('sample_petrol_bill.png');
+    const fileObj = new File([SAMPLE_FUEL_BILL_SVG], 'sample_petrol_bill.svg', { type: 'image/svg+xml' });
+    setReceiptFile(fileObj);
+    setReceiptFileName('sample_petrol_bill.svg');
     setErrorMsg('');
   };
 
@@ -127,24 +136,40 @@ export default function VendorFuelClaimModal({
       return;
     }
 
-    const selectedJobObj = completedJobs.find(j => j.id === selectedJobId);
-    const bookingObjectId = selectedJobObj?.backendJobId || selectedJobObj?._id || (selectedJobId !== 'custom' ? selectedJobId : null);
+    const selectedJobObj = completedJobs.find(j => j.id === selectedJobId || j._id === selectedJobId || j.backendJobId === selectedJobId);
+    const bookingObjectId =
+      (selectedJobObj?._id && /^[0-9a-fA-F]{24}$/.test(String(selectedJobObj._id)) ? String(selectedJobObj._id) : null) ||
+      (selectedJobObj?.backendJobId && /^[0-9a-fA-F]{24}$/.test(String(selectedJobObj.backendJobId)) ? String(selectedJobObj.backendJobId) : null) ||
+      (selectedJobObj?.bookingId && /^[0-9a-fA-F]{24}$/.test(String(selectedJobObj.bookingId)) ? String(selectedJobObj.bookingId) : null) ||
+      (selectedJobObj?.rawBooking?._id && /^[0-9a-fA-F]{24}$/.test(String(selectedJobObj.rawBooking._id)) ? String(selectedJobObj.rawBooking._id) : null) ||
+      (selectedJobId && /^[0-9a-fA-F]{24}$/.test(String(selectedJobId)) ? String(selectedJobId) : null);
+
+    if (!bookingObjectId) {
+      setErrorMsg('Please select a valid service booking to link with this fuel reimbursement claim.');
+      return;
+    }
+
+    const currentVehicle = VEHICLE_TYPES.find(v => v.id === vehicleType) || VEHICLE_TYPES[0];
 
     const claimData = {
       id: `FUEL-${Date.now().toString().slice(-4)}`,
       date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-      jobId: bookingObjectId || (selectedJobId !== 'custom' ? selectedJobId : 'Multi-Trip'),
+      jobId: bookingObjectId,
       booking: bookingObjectId,
-      jobDisplay: selectedJobObj ? (selectedJobObj.displayId || selectedJobObj.id) : 'General Travel',
-      customerName: selectedJobObj?.customerName || 'Multiple Customer Visits',
+      bookingId: bookingObjectId,
+      jobDisplay: selectedJobObj ? (selectedJobObj.displayId || selectedJobObj.id) : 'Service Trip',
+      customerName: selectedJobObj?.customerName || 'Customer Trip',
       distanceKm: kmNum,
-      vehicleType: VEHICLE_TYPES.find(v => v.id === vehicleType)?.name || vehicleType,
+      vehicleType: currentVehicle.backendType,
       ratePerKm: Number(ratePerKm),
+      claimAmount: calculatedAmount,
       claimedAmount: calculatedAmount,
       receiptImage: fuelReceiptImage,
       receiptFile: receiptFile,
-      notes: notes.trim() || 'Travel allowance claim for completed customer service order.',
-      status: 'Pending Approval',
+      mapScreenshot: selectedJobObj?.mapScreenshot || null,
+      reason: notes.trim() || `Fuel reimbursement for ${selectedJobObj?.serviceTitle || 'service trip'}`,
+      notes: notes.trim() || `Fuel reimbursement for ${selectedJobObj?.serviceTitle || 'service trip'}`,
+      status: 'Pending',
       settlementAccount: vendorProfile?.upiId ? `UPI: ${vendorProfile.upiId}` : (vendorProfile?.bankAccount ? `Bank A/C ${vendorProfile.bankAccount}` : 'Registered Bank Account')
     };
 
@@ -208,12 +233,14 @@ export default function VendorFuelClaimModal({
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
               >
                 <option value="">-- Choose Completed Service (Auto-fills KM &amp; Map Proof) --</option>
-                {completedJobs.map((j) => (
-                  <option key={j.id} value={j.id}>
-                    {j.displayId || j.id} • {j.serviceTitle} ({j.customerName}) {j.travelDistanceKm ? `[${j.travelDistanceKm} KM]` : ''}
-                  </option>
-                ))}
-                <option value="custom">Other / Custom Daily Route / Multi-stop Trips</option>
+                {completedJobs.map((j) => {
+                  const val = j.id || j._id || j.backendJobId;
+                  return (
+                    <option key={val} value={val}>
+                      {j.displayId || j.id} • {j.serviceTitle} ({j.customerName}) {j.travelDistanceKm ? `[${j.travelDistanceKm} KM]` : ''}
+                    </option>
+                  );
+                })}
               </select>
               <p className="text-[11px] text-slate-500 mt-1">
                 Selecting a completed service with an existing map screenshot will auto-link the route verification.

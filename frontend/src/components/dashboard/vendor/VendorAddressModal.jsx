@@ -39,6 +39,7 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
 
   const [locState, setLocState] = useState('idle'); // 'idle' | 'loading' | 'success' | 'error'
   const [locError, setLocError] = useState('');
+  const [accuracyNotice, setAccuracyNotice] = useState(null);
 
 
   useEffect(() => {
@@ -88,14 +89,16 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
     }
     setLocState('idle');
     setLocError('');
+    setAccuracyNotice(null);
     setShowMap(false);
   }, [initialAddress, isOpen]);
 
   const handleUseLocation = async () => {
     setLocState('loading');
     setLocError('');
+    setAccuracyNotice(null);
     try {
-      const coords = await getCurrentCoordinates({ desiredAccuracy: 35, timeout: 12000 });
+      const coords = await getCurrentCoordinates({ desiredAccuracy: 45, timeout: 8000 });
       const address = await reverseGeocode(coords.latitude, coords.longitude);
 
       const rawFlat = (address.flat || '').trim();
@@ -110,6 +113,18 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
       setShowMap(true);
       setLocState('success');
       setLocError('');
+
+      if (coords.isCoarse) {
+        setAccuracyNotice(
+          `Approximate area detected (±${
+            coords.accuracy >= 1000
+              ? (coords.accuracy / 1000).toFixed(1) + ' km'
+              : coords.accuracy + ' m'
+          }). Please adjust the pin on the map to your exact workshop or service base.`
+        );
+      } else {
+        setAccuracyNotice(null);
+      }
     } catch (err) {
       console.error('[VendorAddressModal] Geolocation error:', err);
       setLocState('error');
@@ -120,6 +135,7 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
   const handleMapSelect = ({ coords, address }) => {
     if (!coords) return;
     setGeoCoords(coords);
+    setAccuracyNotice(null);
     if (address) {
       const rawFlat = (address.flat || '').trim();
       const safeFlat = rawFlat && !rawFlat.includes(',') && rawFlat.length <= 25 ? rawFlat : '';
@@ -253,6 +269,13 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
               </button>
             </div>
 
+            {accuracyNotice && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-800 font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>{accuracyNotice}</span>
+              </div>
+            )}
+
             {/* Interactive Map Picker */}
             {showMap && (
               <div className="space-y-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
@@ -271,6 +294,11 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
                 </div>
                 <InteractiveMapPicker
                   initialCoords={geoCoords}
+                  initialAddress={
+                    street || city || pincode
+                      ? { flat, street, city, state, landmark, pincode }
+                      : null
+                  }
                   onLocationSelect={handleMapSelect}
                   height="260px"
                   showSearch={true}

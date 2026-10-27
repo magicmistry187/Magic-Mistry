@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { apiConnector, BASE_URL } from './apiConnector';
+import { getAdminToken } from '../utils/adminAuth';
 
 // Master default catalog of appliances, categories, base prices, and sub-services
 // Each category and sub-service has an isActive flag (default: true).
@@ -386,14 +387,20 @@ export async function saveLiveFuelRate(rate, syncToBackend = true) {
     window.dispatchEvent(new CustomEvent(MM_FUEL_EVENT, { detail: { fuelRate: numRate } }));
 
     if (syncToBackend) {
-      apiConnector('PUT', `${BASE_URL}/pricing/fuel`, { fuelRatePerKm: numRate })
+      const adminToken = getAdminToken();
+      apiConnector(
+        'PUT',
+        `${BASE_URL}/price-config/fuel`,
+        { fuelRatePerKm: numRate },
+        adminToken ? { Authorization: `Bearer ${adminToken}` } : {}
+      )
         .then((res) => {
           if (res.data?.success) {
-            console.log('[PricingService] Successfully synced fuel rate with backend MongoDB.');
+            console.log('[PricingService] Successfully synced fuel rate with backend MongoDB:', res.data.pricing);
           }
         })
         .catch((err) => {
-          console.info('[PricingService] Backend fuel sync offline:', err.message);
+          console.info('[PricingService] Backend fuel sync notice:', err.message);
         });
     }
   } catch (e) {
@@ -407,18 +414,35 @@ export async function saveLiveFuelRate(rate, syncToBackend = true) {
 export async function fetchLivePricingFromBackend() {
   if (typeof window === 'undefined') return;
   try {
-    const res = await apiConnector('GET', `${BASE_URL}/pricing?adminView=true`);
-    if (res.data?.success && res.data?.data) {
-      const { services, fuelRatePerKm } = res.data.data;
-      if (Array.isArray(services) && services.length > 0) {
-        saveLiveServicePricing(services, false);
+    // 1. Fetch fuel pricing from live backend
+    try {
+      const fuelRes = await apiConnector('GET', `${BASE_URL}/price-config/fuel`);
+      if (fuelRes.data?.success && fuelRes.data?.pricing) {
+        const rate = Number(fuelRes.data.pricing.fuelRatePerKm);
+        if (!isNaN(rate) && rate > 0) {
+          saveLiveFuelRate(rate, false);
+        }
       }
-      if (fuelRatePerKm) {
-        saveLiveFuelRate(fuelRatePerKm, false);
+    } catch (fuelErr) {
+      console.info('[PricingService] Live fuel pricing endpoint notice:', fuelErr.message);
+    }
+
+    // 2. Fetch service catalog pricing if endpoint exists
+    try {
+      const res = await apiConnector('GET', `${BASE_URL}/pricing?adminView=true`);
+      if (res.data?.success && res.data?.data) {
+        const { services, fuelRatePerKm } = res.data.data;
+        if (Array.isArray(services) && services.length > 0) {
+          saveLiveServicePricing(services, false);
+        }
+        if (fuelRatePerKm) {
+          saveLiveFuelRate(fuelRatePerKm, false);
+        }
       }
+    } catch {
+      // Offline fallback for service catalog
     }
   } catch (err) {
-    // Offline or backend endpoint pending - fallback to cached localStorage values
     console.info('[PricingService] Using cached local pricing configuration.');
   }
 }
