@@ -67,6 +67,7 @@ router.post(
   '/:bookingId/complete',
   auth,
   isVendor,
+  checkUserRestricted,
   completeService
 );
 
