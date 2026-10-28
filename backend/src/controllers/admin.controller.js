@@ -120,23 +120,18 @@ exports.updateUserStatus = async (req, res) => {
       user.role === "vendor" &&
       (newStatus === "suspended" || newStatus === "blocked")
     ) {
-      //Find the accepted Booking of vendor and update it
 
-      // await Booking.updateOne(
-      //   {
-      //     vendor: user._id,
-      //     bookingStatus: "Accepted",
-      //   },
-      //   {
-      //     $set: {
-      //       vendor: null,
-      //       bookingStatus: "Pending",
-      //       isReassignmentRequired: true,
-      //     },
-      //   },
-      // );
+      
+      //Find all accepted bookings and get customer details
 
-      const booking = await Booking.updateMany(
+      const bookings = await Booking.find({
+        vendor: user._id,
+        bookingStatus: "Accepted",
+      }).populate("customer", "email fullName phoneNumber");
+
+      //Update all accepted bookings
+
+      const result = await Booking.updateMany(
         {
           vendor: user._id,
           bookingStatus: "Accepted",
@@ -148,17 +143,18 @@ exports.updateUserStatus = async (req, res) => {
             isReassignmentRequired: true,
           },
         },
-        {
-          new: true,
-        },
-      ).populate("customer", "email fullName phoneNumber");
+      );
 
+      //Send an email to each customer about the reassignment of their booking
 
-      if (booking) {
-        try {
-          //sending mail to customer for updating about booking
+      if (result.modifiedCount > 0) {
+        for (const booking of bookings) {
+          if (!booking.customer?.email) continue;
 
-          const emailBody = `
+          try {
+            //sending mail to customer for updating about booking
+
+            const emailBody = `
   <div>
     <p>Dear ${booking.customer.fullName},</p>
 
@@ -185,16 +181,17 @@ exports.updateUserStatus = async (req, res) => {
   </div>
 `;
 
-          await sendEmail(
-            booking.customer.email,
-            "Update regarding your Magic Mistry service booking",
-            emailBody,
-          );
-        } catch (emailErr) {
-          console.warn(
-            " Email notification failed while updating customer about service:",
-            emailErr.message,
-          );
+            await sendEmail(
+              booking.customer.email,
+              "Update regarding your Magic Mistry service booking",
+              emailBody,
+            );
+          } catch (emailErr) {
+            console.warn(
+              "Email notification failed while updating customer about service:",
+              emailErr.message,
+            );
+          }
         }
       }
     }
@@ -203,9 +200,10 @@ exports.updateUserStatus = async (req, res) => {
 
     // If blocked or suspended, immediately notify and log out the client session via WebSockets
     if (status === "blocked" || status === "suspended") {
-      const reasonMessage = status === "blocked"
-        ? "Your account has been blocked by the administrator."
-        : `Your account has been suspended until ${suspendedUntil?.toLocaleDateString() || "further notice"}.`;
+      const reasonMessage =
+        status === "blocked"
+          ? "Your account has been blocked by the administrator."
+          : `Your account has been suspended until ${suspendedUntil?.toLocaleDateString() || "further notice"}.`;
       emitAccountStatusUpdated(user._id, status, reasonMessage);
     }
 
