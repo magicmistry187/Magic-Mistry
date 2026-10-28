@@ -5,9 +5,9 @@ const handleSuspensionExpiry = async(user)=> {
 
   
 
-    if(user.status === "suspended" && user.suspendUntil && new Date()>= user.suspendUntil){
+    if(user.status === "suspended" && user.suspendedUntil && new Date()>= user.suspendedUntil){
 
-        user.status === "active";
+        user.status = "active";
         user.suspendUntil = null;
         
         await user.save();

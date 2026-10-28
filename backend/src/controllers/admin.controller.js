@@ -136,7 +136,7 @@ exports.updateUserStatus = async (req, res) => {
       //   },
       // );
 
-      const booking = await Booking.findOneAndUpdate(
+      const booking = await Booking.updateMany(
         {
           vendor: user._id,
           bookingStatus: "Accepted",
@@ -153,7 +153,6 @@ exports.updateUserStatus = async (req, res) => {
         },
       ).populate("customer", "email fullName phoneNumber");
 
-      console.log("Email of customer : ", booking.customer.email);
 
       if (booking) {
         try {
