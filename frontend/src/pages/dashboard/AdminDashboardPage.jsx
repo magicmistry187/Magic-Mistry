@@ -3428,7 +3428,7 @@ export default function AdminDashboardPage() {
                             </div>
                           </div>
                           
-                          <div className="flex-1 overflow-x-auto">
+                          <div className="flex-1 overflow-x-auto hidden md:block">
                             <table className="w-full text-left text-xs border-collapse min-w-[700px]">
                               <thead>
                                 <tr className="bg-slate-50/80 text-slate-500 uppercase font-extrabold tracking-wider border-b border-slate-100">
@@ -3500,6 +3500,73 @@ export default function AdminDashboardPage() {
                                 )}
                               </tbody>
                             </table>
+                          </div>
+
+                          {/* Mobile Row Cards */}
+                          <div className="block md:hidden p-4 space-y-3 bg-slate-50/50">
+                            {isBookingsLoading ? (
+                              <div className="py-8 text-center text-slate-500 font-medium">
+                                <div className="flex items-center justify-center gap-2">
+                                  <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                                  <span>Loading live dispatches from server...</span>
+                                </div>
+                              </div>
+                            ) : paginatedDispatch.length > 0 ? (
+                              paginatedDispatch.map((item) => {
+                                const AppIcon = getSafeApplianceIcon(item.applianceIcon, item.appliance);
+                                return (
+                                  <div key={item.rawId || item.id} className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-700 shrink-0">
+                                          <AppIcon className="w-4 h-4" />
+                                        </div>
+                                        <div className="min-w-0">
+                                          <h4 className="text-xs font-black text-slate-900 truncate">{item.appliance}</h4>
+                                          <p className="text-[10px] font-semibold text-slate-500">ID: {item.id}</p>
+                                        </div>
+                                      </div>
+                                      <div className="shrink-0">
+                                        {renderBookingStatusBadge(item.status)}
+                                      </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2 text-xs pt-2.5 border-t border-slate-100">
+                                      <div>
+                                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">Customer</span>
+                                        <span className="font-semibold text-slate-800 break-words">{item.customer}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">Technician</span>
+                                        {item.technicianAvatar ? (
+                                          <div className="flex items-center gap-1.5 min-w-0">
+                                            <div className="w-5 h-5 rounded-full bg-slate-800 text-white flex items-center justify-center text-[9px] font-bold shrink-0">
+                                              {item.technicianAvatar}
+                                            </div>
+                                            <span className="font-semibold text-slate-800 truncate">{item.technician}</span>
+                                          </div>
+                                        ) : (
+                                          <span className="text-slate-400 font-medium">{item.technician}</span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <div className="pt-2 border-t border-slate-100 flex justify-end">
+                                      <button
+                                        onClick={() => { setSelectedDispatchItem(item); setIsDispatchModalOpen(true); }}
+                                        className="w-full py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold text-center cursor-pointer transition-colors"
+                                      >
+                                        View Details
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <div className="p-6 text-center text-slate-500 font-medium text-xs bg-white rounded-xl border border-slate-200">
+                                No active dispatches currently in queue.
+                              </div>
+                            )}
                           </div>
 
                           <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-semibold text-slate-500 mt-auto">
@@ -3786,7 +3853,7 @@ export default function AdminDashboardPage() {
                       </div>
 
                       {/* Inventory Data Table */}
-                      <div className="overflow-x-auto">
+                      <div className="overflow-x-auto hidden md:block">
                         <table className="w-full text-left text-xs border-collapse min-w-[700px]">
                           <thead>
                             <tr className="bg-slate-50/80 text-slate-500 uppercase font-extrabold tracking-wider border-y border-slate-100">
@@ -3850,6 +3917,70 @@ export default function AdminDashboardPage() {
                             )}
                           </tbody>
                         </table>
+                      </div>
+
+                      {/* Mobile Row Cards */}
+                      <div className="block md:hidden p-4 space-y-3 bg-slate-50/50">
+                        {filteredInventory.length === 0 ? (
+                          <div className="py-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 p-6">
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-1">
+                                <Package className="w-6 h-6" />
+                              </div>
+                              <p className="font-extrabold text-sm text-slate-700">No inventory items found</p>
+                              <p className="text-xs text-slate-400 max-w-sm">
+                                {inventoryList.length === 0
+                                  ? 'No inventory items tracked yet. Click "Add New Item" to populate your catalog.'
+                                  : 'No items match your search or filter criteria. Try adjusting the filters above.'}
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          paginatedInventory.map((row) => (
+                            <div key={row.id} className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-3">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-[10px] font-mono font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">{row.id}</span>
+                                    <span className="text-[11px] font-semibold text-slate-400">{row.category}</span>
+                                  </div>
+                                  <h4 className="text-sm font-extrabold text-slate-900 leading-snug">{row.name}</h4>
+                                </div>
+                                <div className="shrink-0">
+                                  <StockLevelBadge level={row.stockLevel} count={row.stockCount} />
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2 text-xs pt-2.5 border-t border-slate-100">
+                                <div>
+                                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">Unit Price</span>
+                                  <span className="font-extrabold text-slate-900 text-sm">₹{Number(row.unitPrice || 0).toLocaleString('en-IN')}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">Last Updated</span>
+                                  <span className="font-medium text-slate-600">{row.lastUpdated}</span>
+                                </div>
+                              </div>
+
+                              <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => handleOpenRestock(row)}
+                                  className="flex-1 py-2 px-3 bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  Restock
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteInventoryItem(row.id, row.name)}
+                                  className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-xl transition-colors cursor-pointer"
+                                  title="Delete Item"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        )}
                       </div>
 
                       {/* Professional Inventory Pagination Controls */}
@@ -4014,7 +4145,7 @@ export default function AdminDashboardPage() {
                     </div>
 
                     <div ref={appTableRef} className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
-                      <div className="overflow-x-auto">
+                      <div className="overflow-x-auto hidden md:block">
                         <table className="w-full text-left text-xs border-collapse min-w-[700px]">
                           <thead>
                             <tr className="bg-slate-50 text-slate-500 uppercase font-extrabold tracking-wider border-b border-slate-100">
@@ -4125,6 +4256,106 @@ export default function AdminDashboardPage() {
                             )}
                           </tbody>
                         </table>
+                      </div>
+
+                      {/* Mobile Row Cards */}
+                      <div className="block md:hidden p-4 space-y-3 bg-slate-50/50">
+                        {filteredApplications.length === 0 ? (
+                          <div className="py-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 p-6">
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-1">
+                                <FileText className="w-6 h-6" />
+                              </div>
+                              <p className="font-extrabold text-sm text-slate-700">No vendor applications found</p>
+                              <p className="text-xs text-slate-400 max-w-sm">
+                                {applicationsList.length === 0
+                                  ? 'Submitted technician partner applications will appear here for review and verification.'
+                                  : 'No applications match your current search or filter criteria. Try adjusting the filters above.'}
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          paginatedApplications.map((app) => (
+                            <div key={app.id} className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-3">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 mb-0.5">
+                                    <span className="text-[10px] font-mono font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">{app.id}</span>
+                                    <span className="text-[11px] font-semibold text-slate-500">• {app.city}</span>
+                                  </div>
+                                  <h4 className="text-sm font-black text-slate-900 leading-snug">{app.name}</h4>
+                                  <p className="text-[11px] text-slate-500 font-medium truncate">{app.email}</p>
+                                </div>
+                                <div className="shrink-0">
+                                  <StockLevelBadge level={app.status} />
+                                </div>
+                              </div>
+
+                              <div className="pt-2 border-t border-slate-100">
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">Specialization</span>
+                                <span className="font-bold text-slate-800 text-xs">{app.service}</span>
+                              </div>
+
+                              <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleViewApplication(app);
+                                  }}
+                                  className="flex-1 py-2 px-3 bg-[#02182e] hover:bg-[#082848] text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                >
+                                  <Eye className="w-3.5 h-3.5 text-orange-400" /> View App
+                                </button>
+
+                                {(app.status === 'Approved' || vendorCredentials[app.id]) && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleViewVendorCreds(app.id);
+                                    }}
+                                    className="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                    title="View Vendor ID"
+                                  >
+                                    <ShieldCheck className="w-3.5 h-3.5" /> Vendor ID
+                                  </button>
+                                )}
+
+                                {app.status === 'Pending' && !vendorCredentials[app.id] && (
+                                  <div className="flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleApproveNavigate(app);
+                                      }}
+                                      className="p-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors cursor-pointer"
+                                      title="Approve & Create Vendor ID"
+                                    >
+                                      <Check className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleRejectApp(app.id);
+                                      }}
+                                      className="p-2 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-xl transition-colors cursor-pointer"
+                                      title="Reject Application"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        )}
                       </div>
 
                       {/* Pagination Controls */}
@@ -4335,7 +4566,7 @@ export default function AdminDashboardPage() {
                         </span>
                       </div>
                       
-                      <div className="overflow-x-auto">
+                      <div className="overflow-x-auto hidden md:block">
                         <table className="w-full text-left text-xs border-collapse min-w-[800px]">
                           <thead>
                             <tr className="bg-slate-50/80 text-slate-500 uppercase font-extrabold tracking-wider border-b border-slate-100">
@@ -4446,6 +4677,114 @@ export default function AdminDashboardPage() {
                             )}
                           </tbody>
                         </table>
+                      </div>
+
+                      {/* Mobile Row Cards */}
+                      <div className="block md:hidden p-4 space-y-3 bg-slate-50/50">
+                        {filteredPaymentRequests.length === 0 ? (
+                          <div className="py-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 p-6">
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-1">
+                                <IndianRupee className="w-6 h-6" />
+                              </div>
+                              <p className="font-extrabold text-sm text-slate-700">No payment requests found</p>
+                              <p className="text-xs text-slate-400 max-w-sm">
+                                {paymentRequests.length === 0
+                                  ? 'Vendor payout requests will appear here once submitted.'
+                                  : 'No requests match your current search or filter criteria. Try adjusting the filters above.'}
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          paginatedPaymentRequests.map((req) => (
+                            <div key={req.id} className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-3">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 mb-1">
+                                    <span className="font-bold text-slate-700 text-xs">{req.id}</span>
+                                    <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                                      req.requestType === 'fuelClaim' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'
+                                    }`}>
+                                      {req.requestType === 'fuelClaim' ? 'Fuel Claim' : 'Payout'}
+                                    </span>
+                                  </div>
+                                  <h4 className="text-sm font-black text-slate-900">{req.vendorName}</h4>
+                                  <p className="text-[10px] text-slate-500 font-semibold">{req.vendorId}</p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <span className="text-base font-black text-slate-900 block">
+                                    ₹{(Number(req?.amount) || 0).toLocaleString('en-IN')}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-medium">{req.date}</span>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2 text-xs pt-2.5 border-t border-slate-100">
+                                <div>
+                                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">UPI ID</span>
+                                  <span className="font-bold text-blue-600 break-all">{req.upiId}</span>
+                                  <span className="text-[10px] text-slate-400 block">A/C: {req.bankAccount}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">Work / Status</span>
+                                  <span className="font-semibold text-slate-700 block mb-1">{req.daysOfWork}</span>
+                                  <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    req.status === 'Paid' ? 'bg-emerald-100/90 text-emerald-800 border border-emerald-200' :
+                                    req.status === 'Approved' ? 'bg-blue-100/90 text-blue-800 border border-blue-200' :
+                                    req.status === 'Processing' ? 'bg-sky-100/90 text-sky-800 border border-sky-200' :
+                                    req.status === 'Rejected' ? 'bg-rose-100/90 text-rose-800 border border-rose-200' :
+                                    'bg-amber-100/90 text-amber-800 border border-amber-200'
+                                  }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${
+                                      req.status === 'Paid' ? 'bg-emerald-500' :
+                                      req.status === 'Approved' ? 'bg-blue-500' :
+                                      req.status === 'Processing' ? 'bg-sky-500' :
+                                      req.status === 'Rejected' ? 'bg-rose-500' :
+                                      'bg-amber-500 animate-pulse'
+                                    }`} />
+                                    {req.status}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2">
+                                {req.status === 'Pending' ? (
+                                  <>
+                                    <button 
+                                      onClick={() => handleApprovePaymentRequest(req)}
+                                      className="flex-1 py-2 px-3 bg-emerald-100 text-emerald-800 hover:bg-emerald-200 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                                    >
+                                      <Check className="w-4 h-4" />
+                                      {req.requestType === 'fuelClaim' ? 'Approve Claim' : 'Process Payout'}
+                                    </button>
+                                    <button 
+                                      onClick={() => handleRejectPaymentRequest(req)}
+                                      className="p-2 bg-rose-100 text-rose-700 hover:bg-rose-200 rounded-xl transition-colors cursor-pointer"
+                                      title="Reject"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </>
+                                ) : (req.status === 'Approved' || req.status === 'Processing') ? (
+                                  req.requestType === 'fuelClaim' ? (
+                                    <span className="text-xs font-bold text-emerald-600 py-1">APPROVED</span>
+                                  ) : (
+                                    <button 
+                                      onClick={() => handleMarkPaidPaymentRequest(req)}
+                                      className="w-full py-2 px-3 bg-[#02182e] hover:bg-[#082848] text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                                    >
+                                      Mark Paid
+                                    </button>
+                                  )
+                                ) : req.status === 'Paid' ? (
+                                  <span className="text-xs font-bold text-emerald-600 py-1">PAID</span>
+                                ) : (
+                                  <span className="text-xs font-bold text-slate-400 py-1">COMPLETED</span>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        )}
                       </div>
 
                       {/* Pagination Controls */}
@@ -4862,7 +5201,7 @@ export default function AdminDashboardPage() {
 
                     {/* Users Table */}
                     <div ref={userTableRef} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-                      <div className="overflow-x-auto">
+                      <div className="overflow-x-auto hidden md:block">
                         <table className="w-full text-left text-xs border-collapse min-w-[700px]">
                           <thead>
                             <tr className="bg-slate-50 text-slate-500 uppercase font-extrabold border-b border-slate-100">
@@ -5018,6 +5357,141 @@ export default function AdminDashboardPage() {
                             )}
                           </tbody>
                         </table>
+                      </div>
+
+                      {/* Mobile Row Cards */}
+                      <div className="block md:hidden p-4 space-y-3 bg-slate-50/50">
+                        {isRefreshingUsers && usersList.length === 0 ? (
+                          <div className="py-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 p-6">
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <RefreshCw className="w-8 h-8 text-orange-500 animate-spin mb-1" />
+                              <p className="font-extrabold text-sm text-slate-700">Connecting to database...</p>
+                              <p className="text-xs text-slate-400">Retrieving user roster and partner accounts.</p>
+                            </div>
+                          </div>
+                        ) : filteredUsers.length === 0 ? (
+                          <div className="py-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 p-6">
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-1">
+                                <Users className="w-6 h-6" />
+                              </div>
+                              <p className="font-extrabold text-sm text-slate-700">No original users or partners found</p>
+                              <p className="text-xs text-slate-400 max-w-sm">
+                                {usersList.length === 0
+                                  ? 'Newly registered customers, applied technicians, and approved vendors from the database will appear here automatically.'
+                                  : 'No users match your current search or filter criteria. Try adjusting the filters above.'}
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          paginatedUsers.map((usr) => {
+                            const st = usr.status?.toLowerCase();
+                            const isBlocked = st === 'blocked';
+                            const isSuspended = st === 'suspended';
+                            const isActive = st === 'active' || st === 'verified';
+
+                            return (
+                              <div key={usr.id} className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-3">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-xs shrink-0">
+                                      {usr.name ? usr.name.substring(0, 2).toUpperCase() : 'US'}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <h4 className="text-sm font-extrabold text-slate-900 leading-snug truncate">{usr.name}</h4>
+                                      <p className="text-[10px] text-slate-400 font-mono">{usr.id} • {usr.joined || 'Member'}</p>
+                                    </div>
+                                  </div>
+                                  <div className="shrink-0">
+                                    <StockLevelBadge level={usr.status} />
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2 text-xs pt-2.5 border-t border-slate-100">
+                                  <div>
+                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">Contact</span>
+                                    <span className="font-semibold text-slate-700 break-all block">{usr.email}</span>
+                                    {usr.phone && <span className="text-[10px] text-slate-500 font-medium block">{usr.phone}</span>}
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">Role & Bookings</span>
+                                    <span
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold text-[10px] mb-1 ${
+                                        usr.role === 'Technician' || usr.role === 'vendor'
+                                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                          : usr.role === 'Admin'
+                                          ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                          : 'bg-slate-100 text-slate-700 border border-slate-200'
+                                      }`}
+                                    >
+                                      {usr.role}
+                                    </span>
+                                    <p className="text-[11px] font-bold text-slate-800">{usr.bookings ?? 0} bookings</p>
+                                  </div>
+                                </div>
+
+                                <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-end gap-2">
+                                  {isActive && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleQuickStatusChange(usr, 'Suspended')}
+                                        className="py-1.5 px-3 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl border border-amber-200 text-xs font-bold transition-colors cursor-pointer"
+                                      >
+                                        Suspend
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleQuickStatusChange(usr, 'Blocked')}
+                                        className="py-1.5 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl border border-rose-200 text-xs font-bold transition-colors cursor-pointer"
+                                      >
+                                        Block
+                                      </button>
+                                    </>
+                                  )}
+
+                                  {isSuspended && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleQuickStatusChange(usr, 'Active')}
+                                        className="py-1.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl border border-emerald-200 text-xs font-bold transition-colors cursor-pointer"
+                                      >
+                                        Activate
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleQuickStatusChange(usr, 'Blocked')}
+                                        className="py-1.5 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl border border-rose-200 text-xs font-bold transition-colors cursor-pointer"
+                                      >
+                                        Block
+                                      </button>
+                                    </>
+                                  )}
+
+                                  {isBlocked && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleQuickStatusChange(usr, 'Active')}
+                                      className="py-1.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl border border-emerald-200 text-xs font-bold transition-colors cursor-pointer"
+                                    >
+                                      Unblock
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditUserProfile(usr)}
+                                    className="flex-1 py-1.5 px-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5 text-orange-400" />
+                                    Edit Profile
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
                       </div>
 
                       {/* Pagination Controls */}
@@ -5265,7 +5739,7 @@ export default function AdminDashboardPage() {
                           {adminTransactions.length} {adminTransactions.length === 1 ? 'Record' : 'Records'} Recorded
                         </span>
                       </div>
-                      <div className="overflow-x-auto">
+                      <div className="overflow-x-auto hidden md:block">
                         <table className="w-full text-left text-xs border-collapse min-w-[700px]">
                           <thead>
                             <tr className="bg-slate-50/80 text-slate-500 uppercase font-extrabold tracking-wider border-b border-slate-100">
@@ -5313,6 +5787,50 @@ export default function AdminDashboardPage() {
                             )}
                           </tbody>
                         </table>
+                      </div>
+
+                      {/* Mobile Row Cards */}
+                      <div className="block md:hidden p-4 space-y-3 bg-slate-50/50">
+                        {adminTransactions.length === 0 ? (
+                          <div className="py-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 p-6">
+                            <IndianRupee className="w-8 h-8 text-slate-300 mx-auto mb-2 opacity-60" />
+                            <p className="font-bold text-slate-600">No transactions recorded yet in database</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">When vendors complete service orders, ledger transactions will appear here automatically.</p>
+                          </div>
+                        ) : (
+                          adminTransactions.map((trx) => (
+                            <div key={trx.id} className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-3">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <div className="flex items-center gap-1.5 mb-1">
+                                    <span className="font-bold text-slate-600 text-xs">{trx.id}</span>
+                                    <span className="text-[10px] text-slate-400 font-medium">• {trx.date}</span>
+                                  </div>
+                                  <h4 className="text-xs font-black text-slate-900">{trx.type}</h4>
+                                </div>
+                                <div className="text-right">
+                                  <span className={`text-sm font-black ${(Number(trx?.amount) || 0) > 0 ? 'text-emerald-600' : 'text-slate-900'}`}>
+                                    {(Number(trx?.amount) || 0) > 0 ? '+' : ''}₹{Math.abs(Number(trx?.amount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                  </span>
+                                  <div className="mt-1">
+                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                                      trx.status === 'Completed' ? 'bg-emerald-100/80 text-emerald-800' : 'bg-amber-100/80 text-amber-800'
+                                    }`}>
+                                      {trx.status}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {(trx.customer !== '-' || trx.vendor !== '-') && (
+                                <div className="pt-2 border-t border-slate-100 text-xs flex flex-col gap-0.5">
+                                  {trx.customer !== '-' && <span className="font-semibold text-slate-800">Customer: {trx.customer}</span>}
+                                  {trx.vendor !== '-' && <span className="text-slate-500 font-medium">Vendor: {trx.vendor}</span>}
+                                </div>
+                              )}
+                            </div>
+                          ))
+                        )}
                       </div>
                     </div>
                   </motion.div>
@@ -5420,7 +5938,7 @@ export default function AdminDashboardPage() {
                           </div>
                         </div>
 
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto hidden md:block">
                           <table className="w-full text-left text-xs border-collapse min-w-[700px]">
                             <thead>
                               <tr className="bg-slate-50/80 text-slate-500 uppercase font-extrabold tracking-wider border-b border-slate-100">
@@ -5471,6 +5989,56 @@ export default function AdminDashboardPage() {
                               )}
                             </tbody>
                           </table>
+                        </div>
+
+                        {/* Mobile Row Cards */}
+                        <div className="block md:hidden p-4 space-y-3 bg-slate-50/50">
+                          {isBookingsLoading ? (
+                            <div className="py-8 text-center text-slate-500 font-medium">
+                              <div className="flex items-center justify-center gap-2">
+                                <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                                <span>Loading active service dispatches...</span>
+                              </div>
+                            </div>
+                          ) : paginatedCurrentWork.length > 0 ? (
+                            paginatedCurrentWork.map(item => (
+                              <div key={item.rawId || item.id} className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-3">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <span className="text-[10px] font-bold text-slate-500 font-mono">{item.id}</span>
+                                    <h4 className="text-sm font-black text-slate-900 leading-snug">{item.appliance}</h4>
+                                  </div>
+                                  <div className="shrink-0">
+                                    {renderBookingStatusBadge(item.status)}
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2 text-xs pt-2.5 border-t border-slate-100">
+                                  <div>
+                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">Customer</span>
+                                    <span className="font-semibold text-slate-800">{item.customer}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">Technician</span>
+                                    <span className="font-semibold text-slate-800">{item.technician}</span>
+                                  </div>
+                                </div>
+
+                                <div className="pt-2 border-t border-slate-100 flex justify-end">
+                                  <button 
+                                    onClick={() => { setSelectedDispatchItem(item); setIsDispatchModalOpen(true); }}
+                                    className="w-full py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold text-center cursor-pointer transition-colors"
+                                  >
+                                    View Details
+                                  </button>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="p-6 text-center text-slate-500 font-medium text-xs bg-white rounded-xl border border-slate-200">
+                              No active service requests matching &quot;{currentWorkFilter}&quot;.
+                            </div>
+                          )}
                         </div>
 
                         {/* Current Work Pagination */}
@@ -5565,7 +6133,7 @@ export default function AdminDashboardPage() {
                           </div>
                         </div>
 
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto hidden md:block">
                           <table className="w-full text-left text-xs border-collapse min-w-[700px]">
                             <thead>
                               <tr className="bg-slate-50/80 text-slate-500 uppercase font-extrabold tracking-wider border-b border-slate-100">
@@ -5645,6 +6213,78 @@ export default function AdminDashboardPage() {
                               )}
                             </tbody>
                           </table>
+                        </div>
+
+                        {/* Mobile Row Cards */}
+                        <div className="block md:hidden p-4 space-y-3 bg-slate-50/50">
+                          {isBookingsLoading ? (
+                            <div className="py-12 text-center text-slate-500 font-medium bg-white rounded-2xl border border-slate-200 p-6">
+                              <div className="flex flex-col items-center justify-center gap-2">
+                                <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                                <span className="text-sm font-extrabold text-slate-700">Loading live work history from database...</span>
+                              </div>
+                            </div>
+                          ) : paginatedHistory.length > 0 ? (
+                            paginatedHistory.map(item => (
+                              <div key={item.rawId || item.id} className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-3">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <span className="text-[10px] font-bold text-slate-500 font-mono">{item.id}</span>
+                                    <h4 className="text-sm font-black text-slate-900 leading-snug">{item.appliance}</h4>
+                                  </div>
+                                  <div className="shrink-0">
+                                    {renderBookingStatusBadge(item.status)}
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2 text-xs pt-2.5 border-t border-slate-100">
+                                  <div>
+                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">Customer</span>
+                                    <span className="font-semibold text-slate-800">{item.customer}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">Technician</span>
+                                    <span className="font-semibold text-slate-800">{item.technician}</span>
+                                  </div>
+                                  <div className="col-span-2 pt-1 border-t border-slate-50">
+                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">Completed Date</span>
+                                    <span className="font-medium text-slate-700">
+                                      {item.dateCompleted !== '—' ? item.dateCompleted : (item.serviceDate || '—')}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="pt-2 border-t border-slate-100 flex justify-end">
+                                  <button 
+                                    onClick={() => { setSelectedReportItem(item); setIsReportModalOpen(true); }}
+                                    className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold text-center cursor-pointer transition-colors"
+                                  >
+                                    View Report
+                                  </button>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="py-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 p-6">
+                              <div className="max-w-md mx-auto space-y-2 flex flex-col items-center justify-center">
+                                <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-1">
+                                  <CheckCircle2 className="w-6 h-6 text-slate-400" />
+                                </div>
+                                <p className="font-extrabold text-sm text-slate-700">
+                                  {historySearchTerm.trim() 
+                                    ? `No completed jobs match "${historySearchTerm}"`
+                                    : 'No completed work orders yet'
+                                  }
+                                </p>
+                                <p className="text-xs text-slate-400">
+                                  {historySearchTerm.trim()
+                                    ? 'Try searching with a different term or clear the search input.'
+                                    : 'Completed jobs will automatically appear here once vendors finalize bookings.'
+                                  }
+                                </p>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         {/* Professional Work History Pagination Controls */}

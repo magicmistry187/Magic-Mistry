@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Wrench, IndianRupee, Fuel, Plus, Trash2, Edit3, Check, X,
   Search, RefreshCw, AlertCircle, CheckCircle2, ChevronDown,
   ChevronUp, Sparkles, Sliders, ShieldCheck, DollarSign, Layers,
-  ArrowUpRight, Save, Info, Eye, EyeOff
+  ArrowUpRight, Save, Info, Eye, EyeOff, Database, UploadCloud
 } from 'lucide-react';
 import {
   useLivePricing,
@@ -12,7 +12,22 @@ import {
   saveLiveFuelRate,
   DEFAULT_SERVICES_CATALOG
 } from '../../../services/pricingService';
-export default function AdminServicePricingTab({ showToast }) {
+import {
+  getAllServiceCategoriesApi,
+  createServiceCategoryApi,
+  updateServiceCategoryApi,
+  toggleCategoryVisibilityApi,
+  updateSubServiceApi,
+  toggleSubServiceVisibilityApi,
+  deleteServiceCategoryApi,
+  deleteSubServiceApi,
+  mapUIToServiceCategoryPayload,
+} from '../../../services/api';
+import { getAdminToken } from '../../../utils/adminAuth';
+
+export default function AdminServicePricingTab({ adminToken: propAdminToken, showToast }) {
+  const adminToken = propAdminToken || getAdminToken();
+
   const {
     services,
     fuelRate,
@@ -21,6 +36,10 @@ export default function AdminServicePricingTab({ showToast }) {
     toggleCategoryVisibility,
     toggleSubServiceVisibility
   } = useLivePricing({ includeHidden: true });
+
+  // ── Backend MongoDB Synchronization State ──
+  const [isSyncingWithBackend, setIsSyncingWithBackend] = useState(false);
+  const [isSeedingDatabase, setIsSeedingDatabase] = useState(false);
 
   // ── Fuel Charge Per KM State ──
   const [fuelRatePerKm, setFuelRatePerKm] = useState(fuelRate);
@@ -61,6 +80,60 @@ export default function AdminServicePricingTab({ showToast }) {
   const [editingBasePriceId, setEditingBasePriceId] = useState(null);
   const [tempBasePrice, setTempBasePrice] = useState('');
 
+  // ── Synchronize with live backend MongoDB service categories ──
+  const handleRefreshFromBackend = useCallback(async (silent = false) => {
+    if (!adminToken) return;
+    setIsSyncingWithBackend(true);
+    try {
+      const res = await getAllServiceCategoriesApi(adminToken);
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        saveServices(res.data);
+        if (!silent && showToast) {
+          showToast(`Synced ${res.data.length} categories from MongoDB!`);
+        }
+      } else if (res.success && Array.isArray(res.data) && res.data.length === 0) {
+        if (!silent && showToast) {
+          showToast('MongoDB has 0 service categories. You can seed default catalog below.');
+        }
+      } else if (!silent && showToast) {
+        showToast(res.message || 'Could not fetch service categories from backend.');
+      }
+    } catch (err) {
+      console.error('Error fetching service categories:', err);
+    } finally {
+      setIsSyncingWithBackend(false);
+    }
+  }, [adminToken, saveServices, showToast]);
+
+  useEffect(() => {
+    handleRefreshFromBackend(true);
+  }, [handleRefreshFromBackend]);
+
+  // ── Seed all default service categories into MongoDB ──
+  const handleSeedDefaultCatalog = async () => {
+    if (!window.confirm('Upload and seed all default services into MongoDB database?')) {
+      return;
+    }
+    setIsSeedingDatabase(true);
+    let successCount = 0;
+    try {
+      for (const item of DEFAULT_SERVICES_CATALOG) {
+        const payload = mapUIToServiceCategoryPayload(item);
+        const res = await createServiceCategoryApi(payload, adminToken);
+        if (res.success) successCount++;
+      }
+      if (showToast) {
+        showToast(`Successfully seeded ${successCount} service categories into MongoDB!`);
+      }
+      await handleRefreshFromBackend(true);
+    } catch (err) {
+      console.error('Error seeding default catalog:', err);
+      if (showToast) showToast('Error seeding default catalog to MongoDB.');
+    } finally {
+      setIsSeedingDatabase(false);
+    }
+  };
+
   // ── Visibility & Metric Counts ──
   const activeCount = useMemo(() => services.filter(s => s.isActive !== false).length, [services]);
   const hiddenCount = useMemo(() => services.filter(s => s.isActive === false).length, [services]);
@@ -71,7 +144,7 @@ export default function AdminServicePricingTab({ showToast }) {
       const matchesSearch =
         srv.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         srv.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (srv.subServices && srv.subServices.some(s => s.label.toLowerCase().includes(searchQuery.toLowerCase())));
+        (srv.subServices && srv.subServices.some(s => (s.label || s.title || '').toLowerCase().includes(searchQuery.toLowerCase())));
       const matchesCategory = selectedCategory === 'All' || srv.category === selectedCategory;
       const isVisible = srv.isActive !== false;
       const matchesVisibility =
@@ -88,7 +161,7 @@ export default function AdminServicePricingTab({ showToast }) {
   }, [services]);
 
   // ── Toggle Category Visibility (Hide from users without deleting) ──
-  const handleToggleCategoryVisibility = (service) => {
+  const handleToggleCategoryVisibility = async (service) => {
     const nextState = service.isActive === false ? true : false;
     toggleCategoryVisibility(service.id, nextState);
     if (showToast) {
@@ -98,18 +171,44 @@ export default function AdminServicePricingTab({ showToast }) {
           : `"${service.name}" is now HIDDEN from customers (safe in database).`
       );
     }
+
+    const catId = service._id || service.id;
+    if (catId && /^[0-9a-fA-F]{24}$/.test(String(catId))) {
+      try {
+        await toggleCategoryVisibilityApi(catId, adminToken);
+      } catch (err) {
+        console.warn('Backend category visibility toggle notice:', err.message);
+      }
+    }
   };
 
   // ── Toggle Sub-Service Visibility ──
-  const handleToggleSubServiceVisibility = (serviceId, sub) => {
+  const handleToggleSubServiceVisibility = async (serviceId, sub) => {
     const nextState = sub.isActive === false ? true : false;
     toggleSubServiceVisibility(serviceId, sub.id, nextState);
     if (showToast) {
       showToast(
         nextState
-          ? `Repair item "${sub.label}" is now VISIBLE to customers.`
-          : `Repair item "${sub.label}" is now HIDDEN from checkout.`
+          ? `Repair item "${sub.label || sub.title}" is now VISIBLE to customers.`
+          : `Repair item "${sub.label || sub.title}" is now HIDDEN from checkout.`
       );
+    }
+
+    const targetService = services.find(s => s.id === serviceId || s._id === serviceId);
+    const catId = targetService?._id || serviceId;
+    const subId = sub._id || sub.id;
+
+    if (
+      catId &&
+      subId &&
+      /^[0-9a-fA-F]{24}$/.test(String(catId)) &&
+      /^[0-9a-fA-F]{24}$/.test(String(subId))
+    ) {
+      try {
+        await toggleSubServiceVisibilityApi(catId, subId, adminToken);
+      } catch (err) {
+        console.warn('Backend sub-service visibility toggle notice:', err.message);
+      }
     }
   };
 
@@ -139,7 +238,7 @@ export default function AdminServicePricingTab({ showToast }) {
     setTempBasePrice(String(service.basePrice));
   };
 
-  const handleSaveBasePrice = (serviceId) => {
+  const handleSaveBasePrice = async (serviceId) => {
     const num = Number(tempBasePrice);
     if (isNaN(num) || num < 0) {
       if (showToast) showToast('Please enter a valid amount.');
@@ -148,7 +247,7 @@ export default function AdminServicePricingTab({ showToast }) {
 
     const updated = services.map(s => {
       if (s.id === serviceId) {
-        return { ...s, basePrice: num };
+        return { ...s, basePrice: num, baseDiagnosticAmount: num };
       }
       return s;
     });
@@ -156,10 +255,20 @@ export default function AdminServicePricingTab({ showToast }) {
     handlePersistServices(updated);
     setEditingBasePriceId(null);
     if (showToast) showToast(`Base service charge updated to ₹${num}`);
+
+    const targetService = services.find(s => s.id === serviceId || s._id === serviceId);
+    const catId = targetService?._id || serviceId;
+    if (catId && /^[0-9a-fA-F]{24}$/.test(String(catId))) {
+      try {
+        await updateServiceCategoryApi(catId, { baseDiagnosticAmount: num }, adminToken);
+      } catch (err) {
+        console.warn('Backend baseDiagnosticAmount update notice:', err.message);
+      }
+    }
   };
 
   // ── Update Sub-Service Price ──
-  const handleUpdateSubServicePrice = (serviceId, subId, newPrice) => {
+  const handleUpdateSubServicePrice = async (serviceId, subId, newPrice) => {
     const num = Number(newPrice);
     if (isNaN(num) || num < 0) return;
 
@@ -167,7 +276,7 @@ export default function AdminServicePricingTab({ showToast }) {
       if (s.id === serviceId) {
         const updatedSubs = (s.subServices || []).map(sub => {
           if (sub.id === subId) {
-            return { ...sub, price: num };
+            return { ...sub, price: num, customerPrice: num };
           }
           return sub;
         });
@@ -177,21 +286,71 @@ export default function AdminServicePricingTab({ showToast }) {
     });
 
     handlePersistServices(updated);
+
+    const targetService = services.find(s => s.id === serviceId || s._id === serviceId);
+    const catId = targetService?._id || serviceId;
+    const targetSub = targetService?.subServices?.find(sub => sub.id === subId || sub._id === subId);
+    const realSubId = targetSub?._id || subId;
+
+    if (
+      catId &&
+      realSubId &&
+      /^[0-9a-fA-F]{24}$/.test(String(catId)) &&
+      /^[0-9a-fA-F]{24}$/.test(String(realSubId))
+    ) {
+      try {
+        await updateSubServiceApi(
+          catId,
+          { subServiceId: realSubId, customerPrice: num },
+          adminToken
+        );
+      } catch (err) {
+        console.warn('Backend sub-service price update notice:', err.message);
+      }
+    }
   };
 
   // ── Add Sub-Service to Category ──
-  const handleAddSubService = (serviceId) => {
+  const handleAddSubService = async (serviceId) => {
     if (!newSubLabel.trim()) {
       if (showToast) showToast('Please provide a sub-service title.');
       return;
     }
 
     const price = Number(newSubPrice) || 299;
+    const targetService = services.find(s => s.id === serviceId || s._id === serviceId);
+    const catId = targetService?._id || serviceId;
+
+    if (catId && /^[0-9a-fA-F]{24}$/.test(String(catId))) {
+      try {
+        const res = await updateSubServiceApi(
+          catId,
+          { title: newSubLabel.trim(), customerPrice: price },
+          adminToken
+        );
+        if (res.success && res.data) {
+          const updated = services.map(s => (s.id === serviceId || s._id === catId ? res.data : s));
+          handlePersistServices(updated);
+          setAddSubServiceTargetId(null);
+          setNewSubLabel('');
+          setNewSubPrice(299);
+          if (showToast) showToast(`Added "${newSubLabel.trim()}" (₹${price}) to MongoDB!`);
+          return;
+        }
+      } catch (err) {
+        console.warn('Backend sub-service creation notice:', err.message);
+      }
+    }
+
+    // Fallback for local catalog
     const newSubObj = {
       id: `sub_${Date.now()}`,
       label: newSubLabel.trim(),
+      title: newSubLabel.trim(),
       price: price,
+      customerPrice: price,
       isActive: true,
+      isVisible: true,
     };
 
     const updated = services.map(s => {
@@ -212,12 +371,17 @@ export default function AdminServicePricingTab({ showToast }) {
   };
 
   // ── Delete Sub-Service ──
-  const handleDeleteSubService = (serviceId, subId) => {
+  const handleDeleteSubService = async (serviceId, subId) => {
+    const targetService = services.find(s => s.id === serviceId || s._id === serviceId);
+    const catId = targetService?._id || serviceId;
+    const targetSub = targetService?.subServices?.find(sub => sub.id === subId || sub._id === subId);
+    const realSubId = targetSub?._id || subId;
+
     const updated = services.map(s => {
       if (s.id === serviceId) {
         return {
           ...s,
-          subServices: (s.subServices || []).filter(sub => sub.id !== subId)
+          subServices: (s.subServices || []).filter(sub => sub.id !== subId && sub._id !== subId)
         };
       }
       return s;
@@ -225,10 +389,23 @@ export default function AdminServicePricingTab({ showToast }) {
 
     handlePersistServices(updated);
     if (showToast) showToast('Sub-service removed');
+
+    if (
+      catId &&
+      realSubId &&
+      /^[0-9a-fA-F]{24}$/.test(String(catId)) &&
+      /^[0-9a-fA-F]{24}$/.test(String(realSubId))
+    ) {
+      try {
+        await deleteSubServiceApi(catId, realSubId, adminToken);
+      } catch (err) {
+        console.warn('Backend sub-service delete notice:', err.message);
+      }
+    }
   };
 
   // ── Add Entire New Service Category ──
-  const handleCreateNewCategory = (e) => {
+  const handleCreateNewCategory = async (e) => {
     e.preventDefault();
     if (!newServiceName.trim()) {
       if (showToast) showToast('Service name is required.');
@@ -236,22 +413,63 @@ export default function AdminServicePricingTab({ showToast }) {
     }
 
     const basePriceNum = Number(newServiceBasePrice) || 199;
+    const subServicesList = newServiceSubLabel.trim()
+      ? [
+          {
+            title: newServiceSubLabel.trim(),
+            customerPrice: Number(newServiceSubPrice) || basePriceNum,
+            isVisible: true,
+          }
+        ]
+      : [];
+
+    const payload = {
+      categoryName: newServiceName.trim(),
+      groupCategory: newServiceCategory || 'Appliance',
+      icon: newServiceIcon || '🔧',
+      description: newServiceDesc.trim() || 'Professional repair and servicing.',
+      baseDiagnosticAmount: basePriceNum,
+      subServices: subServicesList,
+    };
+
+    try {
+      const res = await createServiceCategoryApi(payload, adminToken);
+      if (res.success && res.data) {
+        const updated = [res.data, ...services];
+        handlePersistServices(updated);
+        setShowAddModal(false);
+        setNewServiceName('');
+        setNewServiceDesc('');
+        setNewServiceSubLabel('');
+        if (showToast) showToast(`Service category "${res.data.name}" created and saved to MongoDB!`);
+        return;
+      }
+    } catch (err) {
+      console.warn('Backend service category creation notice:', err.message);
+    }
+
+    // Optimistic fallback
     const newCatObj = {
       id: `cat_${Date.now()}`,
       name: newServiceName.trim(),
       category: newServiceCategory || 'Appliance',
       icon: newServiceIcon || '🔧',
       basePrice: basePriceNum,
+      baseDiagnosticAmount: basePriceNum,
       estimatedMax: basePriceNum * 4,
       isActive: true,
+      isVisible: true,
       description: newServiceDesc.trim() || 'Professional repair and servicing.',
       subServices: newServiceSubLabel.trim()
         ? [
             {
               id: `sub_${Date.now()}_1`,
               label: newServiceSubLabel.trim(),
+              title: newServiceSubLabel.trim(),
               price: Number(newServiceSubPrice) || basePriceNum,
+              customerPrice: Number(newServiceSubPrice) || basePriceNum,
               isActive: true,
+              isVisible: true,
             }
           ]
         : []
@@ -263,18 +481,29 @@ export default function AdminServicePricingTab({ showToast }) {
     setNewServiceName('');
     setNewServiceDesc('');
     setNewServiceSubLabel('');
-    if (showToast) showToast(`Service category "${newCatObj.name}" created at ₹${basePriceNum}!`);
+    if (showToast) showToast(`Service category "${newCatObj.name}" created!`);
   };
 
   // ── Delete Category ──
-  const handleDeleteCategory = (serviceId, serviceName) => {
+  const handleDeleteCategory = async (serviceId, serviceName) => {
     if (!window.confirm(`Are you sure you want to remove "${serviceName}" from the platform pricing catalog?`)) {
       return;
     }
 
-    const updated = services.filter(s => s.id !== serviceId);
+    const targetService = services.find(s => s.id === serviceId || s._id === serviceId);
+    const catId = targetService?._id || serviceId;
+
+    const updated = services.filter(s => s.id !== serviceId && s._id !== serviceId);
     handlePersistServices(updated);
     if (showToast) showToast(`Removed "${serviceName}"`);
+
+    if (catId && /^[0-9a-fA-F]{24}$/.test(String(catId))) {
+      try {
+        await deleteServiceCategoryApi(catId, adminToken);
+      } catch (err) {
+        console.warn('Backend service category deletion notice:', err.message);
+      }
+    }
   };
 
   // ── Reset to Defaults ──
@@ -306,7 +535,7 @@ export default function AdminServicePricingTab({ showToast }) {
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-orange-100 text-orange-700">
               Pricing Control
             </span>
-            <span className="text-xs font-bold text-slate-400">Live Config</span>
+            <span className="text-xs font-bold text-slate-400">Live Database Connected</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
             Services & Fuel Rate Management
@@ -316,10 +545,30 @@ export default function AdminServicePricingTab({ showToast }) {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => handleRefreshFromBackend(false)}
+            disabled={isSyncingWithBackend}
+            className="px-3.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+            title="Fetch latest from MongoDB"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-400 ${isSyncingWithBackend ? 'animate-spin text-orange-500' : ''}`} />
+            <span>{isSyncingWithBackend ? 'Syncing...' : 'Sync DB'}</span>
+          </button>
+
+          <button
+            onClick={handleSeedDefaultCatalog}
+            disabled={isSeedingDatabase}
+            className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+            title="Upload default service catalog into MongoDB"
+          >
+            <UploadCloud className={`w-3.5 h-3.5 text-blue-600 ${isSeedingDatabase ? 'animate-bounce' : ''}`} />
+            <span>{isSeedingDatabase ? 'Seeding...' : 'Seed Catalog to DB'}</span>
+          </button>
+
           <button
             onClick={handleResetToDefaults}
-            className="px-3.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="px-3.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
             title="Reset to factory defaults"
           >
             <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
@@ -337,7 +586,7 @@ export default function AdminServicePricingTab({ showToast }) {
       </div>
 
       {/* ── 1. FUEL REIMBURSEMENT CHARGES CONFIGURATION ── */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm space-y-6">
+      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-xs space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
@@ -376,7 +625,7 @@ export default function AdminServicePricingTab({ showToast }) {
                 step="0.5"
                 value={fuelRatePerKm}
                 onChange={(e) => setFuelRatePerKm(Number(e.target.value) || 0)}
-                className="w-full pl-9 pr-16 py-3.5 bg-white border-2 border-slate-200 rounded-2xl text-xl font-black text-slate-900 focus:outline-none focus:border-blue-500 shadow-sm"
+                className="w-full pl-9 pr-16 py-3.5 bg-white border-2 border-slate-200 rounded-2xl text-xl font-black text-slate-900 focus:outline-none focus:border-blue-500 shadow-xs"
               />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-extrabold text-slate-400">/ km</span>
             </div>
@@ -395,7 +644,7 @@ export default function AdminServicePricingTab({ showToast }) {
                     onClick={() => setFuelRatePerKm(rate)}
                     className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
                       isSelected
-                        ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 scale-105'
+                        ? 'bg-blue-600 text-white shadow-xs shadow-blue-500/25 scale-105'
                         : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
                     }`}
                   >
@@ -416,12 +665,18 @@ export default function AdminServicePricingTab({ showToast }) {
       </div>
 
       {/* ── 2. SERVICE CATEGORIES & AMOUNT CARD MANAGEMENT ── */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm space-y-6">
+      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-xs space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
           <div>
-            <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">
-              Service Categories & Base Amounts
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">
+                Service Categories & Base Amounts
+              </h2>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <Database className="w-2.5 h-2.5 text-emerald-600" />
+                Backend Synced
+              </span>
+            </div>
             <p className="text-xs text-slate-500 mt-0.5">
               Click any amount to edit live or expand categories to update itemized repair sub-services.
             </p>
@@ -483,7 +738,7 @@ export default function AdminServicePricingTab({ showToast }) {
         <div className="space-y-4">
           {filteredServices.length === 0 ? (
             <div className="py-12 text-center text-slate-400 text-sm">
-              No service categories match "{searchQuery}".
+              No service categories match &quot;{searchQuery}&quot;.
             </div>
           ) : (
             filteredServices.map((service) => {
@@ -682,7 +937,7 @@ export default function AdminServicePricingTab({ showToast }) {
                                   <span className={`text-xs font-bold ${
                                     sub.isActive === false ? 'text-slate-500 line-through' : 'text-slate-800'
                                   }`}>
-                                    {sub.label}
+                                    {sub.label || sub.title}
                                   </span>
                                   {sub.isActive === false && (
                                     <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-100 text-amber-800">
@@ -696,7 +951,7 @@ export default function AdminServicePricingTab({ showToast }) {
                                     <span className="text-xs font-bold text-slate-400">₹</span>
                                     <input
                                       type="number"
-                                      defaultValue={sub.price}
+                                      defaultValue={sub.price ?? sub.customerPrice}
                                       onBlur={(e) => handleUpdateSubServicePrice(service.id, sub.id, e.target.value)}
                                       className="w-20 px-2 py-1 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-orange-500 rounded-lg text-xs font-black text-slate-900 text-right focus:outline-none"
                                     />
@@ -735,7 +990,7 @@ export default function AdminServicePricingTab({ showToast }) {
                             ))
                           ) : (
                             <div className="p-4 text-center text-xs text-slate-400 font-semibold">
-                              No itemized sub-services added yet. Click "+ Add Repair Item" above to add rates.
+                              No itemized sub-services added yet. Click &quot;+ Add Repair Item&quot; above to add rates.
                             </div>
                           )}
                         </div>

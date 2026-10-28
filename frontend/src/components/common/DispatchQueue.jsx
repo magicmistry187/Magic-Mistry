@@ -90,8 +90,8 @@ export default function DispatchQueue({ title, data, itemsPerPage = 3 }) {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto flex-grow">
+      {/* Desktop Table */}
+      <div className="hidden md:block overflow-x-auto flex-grow">
         <table className="w-full text-sm text-left">
           <thead className="text-xs text-gray-500 uppercase font-semibold bg-slate-50 border-y border-gray-200">
             <tr>
@@ -173,9 +173,86 @@ export default function DispatchQueue({ title, data, itemsPerPage = 3 }) {
         </table>
       </div>
 
+      {/* Mobile Card-Based Row List */}
+      <div className="block md:hidden space-y-3 p-3 flex-grow">
+        <AnimatePresence mode="wait">
+          {paginatedData.length > 0 ? (
+            paginatedData.map((row) => (
+              <motion.div
+                key={row.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+                className="bg-white rounded-xl p-4 border border-gray-200/90 shadow-xs hover:border-gray-300 transition-all flex flex-col gap-3"
+              >
+                {/* Header: Req ID + Appliance Icon/Name + Status */}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-xs text-[#446084] font-mono bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-md">
+                    {row.id}
+                  </span>
+                  <div>
+                    {renderStatusBadge(row.status)}
+                  </div>
+                </div>
+
+                {/* Primary Title: Appliance */}
+                <div className="flex items-center gap-2 text-sm font-bold text-gray-800">
+                  <span className="text-gray-500 text-base">{row.appliance.icon}</span>
+                  <span>{row.appliance.name}</span>
+                </div>
+
+                {/* Body: 2-column micro-grid for Customer and Technician */}
+                <div className="grid grid-cols-2 gap-2 bg-slate-50/80 rounded-lg p-2.5 text-xs border border-slate-100">
+                  <div>
+                    <span className="text-gray-400 block text-[10px] font-bold uppercase tracking-wider">Customer</span>
+                    <span className="font-semibold text-gray-800 truncate block mt-0.5">{row.customer}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block text-[10px] font-bold uppercase tracking-wider">Technician</span>
+                    {row.technician ? (
+                      <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+                        {row.technician.avatar ? (
+                          <img
+                            src={row.technician.avatar}
+                            alt={row.technician.name}
+                            className="w-5 h-5 rounded-full object-cover bg-gray-200 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-5 h-5 rounded-full bg-[#1e3a5f] text-white flex items-center justify-center text-[9px] font-bold shrink-0">
+                            {row.technician.initials}
+                          </div>
+                        )}
+                        <span className="text-gray-700 font-medium truncate">{row.technician.name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-gray-500 font-medium block mt-0.5">Unassigned</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions: Touch-friendly action button */}
+                <div className="pt-1 border-t border-gray-100">
+                  <button
+                    type="button"
+                    className="w-full py-2 px-3 rounded-lg text-xs font-bold text-[#446084] bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors text-center cursor-pointer"
+                  >
+                    {row.action}
+                  </button>
+                </div>
+              </motion.div>
+            ))
+          ) : (
+            <div className="py-8 text-center text-gray-500 bg-slate-50/50 rounded-xl border border-dashed border-gray-200 p-6">
+              No requests found matching "{searchQuery}"
+            </div>
+          )}
+        </AnimatePresence>
+      </div>
+
       {/* Pagination Footer */}
       {totalPages > 1 && (
-        <div className="border-t border-gray-200 p-4 flex items-center justify-between bg-white rounded-b-xl">
+        <div className="border-t border-gray-200 p-4 flex flex-col sm:flex-row items-center justify-between bg-white rounded-b-xl gap-3">
           <p className="text-sm text-gray-500">
             Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
             <span className="font-medium">

@@ -10,6 +10,7 @@ import {
   deleteAddressApi,
 } from '../../services/operations/addressAPI';
 import { getMyBookingsApi, cancelBookingApi } from '../../services/operations/bookingAPI';
+import { createVendorReviewApi } from '../../services/api';
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
 import {
@@ -587,10 +588,48 @@ export default function UserDashboardPage() {
     }
   };
 
-  const handleSubmitRating = ({ bookingId, rating, review }) => {
-    setBookingsList((prev) =>
-      prev.map((b) => (b.id === bookingId ? { ...b, ratingSubmitted: rating, review } : b))
+  const handleSubmitRating = async ({ bookingId, rating, review }) => {
+    const targetBooking = bookingsList.find(
+      (b) => b.id === bookingId || b._id === bookingId || b.rawBooking?._id === bookingId
     );
+    const validBookingId =
+      targetBooking?.rawBooking?._id || targetBooking?._id || bookingId;
+
+    const authToken =
+      token ||
+      (typeof window !== 'undefined'
+        ? localStorage.getItem('mm_token') || localStorage.getItem('token')
+        : null);
+
+    try {
+      const res = await createVendorReviewApi(
+        { bookingId: validBookingId, rating, comment: review },
+        authToken
+      );
+
+      if (res.success) {
+        setBookingsList((prev) =>
+          prev.map((b) =>
+            b.id === bookingId || b._id === validBookingId || b.rawBooking?._id === validBookingId
+              ? { ...b, ratingSubmitted: rating, review }
+              : b
+          )
+        );
+        showToast(res.message || 'Review submitted successfully! Thank you for rating.');
+      } else {
+        showToast(res.message || 'Could not submit review.', res.isConflict ? 'info' : 'error');
+        setBookingsList((prev) =>
+          prev.map((b) =>
+            b.id === bookingId || b._id === validBookingId || b.rawBooking?._id === validBookingId
+              ? { ...b, ratingSubmitted: rating, review }
+              : b
+          )
+        );
+      }
+    } catch (err) {
+      console.error('Error submitting vendor review:', err);
+      showToast('Error submitting review.', 'error');
+    }
   };
 
   // Nav items definition
@@ -1069,7 +1108,7 @@ export default function UserDashboardPage() {
                       </button>
                     </div>
 
-                    <div className="overflow-x-auto">
+                    <div className="hidden md:block overflow-x-auto">
                       <table className="w-full text-left text-xs">
                         <thead>
                           <tr className="bg-slate-50 text-slate-400 uppercase font-bold text-[10px] tracking-wider border-b border-slate-100">
@@ -1136,6 +1175,70 @@ export default function UserDashboardPage() {
                           )}
                         </tbody>
                       </table>
+                 </div>
+                    <div className="block md:hidden space-y-3">
+                      {bookingsList.length > 0 ? (
+                        bookingsList.slice(0, 4).map((booking) => (
+                          <div
+                            key={booking.id}
+                            className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-3"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center p-1.5 shrink-0">
+                                  <ApplianceIcon name={booking.service} className="w-6 h-6" />
+                                </div>
+                                <div className="min-w-0">
+                                  <h4 className="font-extrabold text-slate-900 text-sm truncate">{booking.service}</h4>
+                                  <span className="text-[10px] text-slate-400 font-mono">#{booking.id}</span>
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="font-black text-slate-900 text-sm block">{booking.price}</span>
+                                <StatusBadge status={booking.status} />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-xs pt-2.5 border-t border-slate-100">
+                              <div>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Service Date</span>
+                                <span className="font-semibold text-slate-700">{booking.date}</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Time Slot</span>
+                                <span className="font-semibold text-slate-700">{booking.time}</span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 pt-2.5 border-t border-slate-100">
+                              {booking.status === 'Completed' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenInvoice(booking)}
+                                  className="flex-1 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                                >
+                                  <Download className="w-3.5 h-3.5 text-slate-600" />
+                                  <span>Tax Invoice</span>
+                                </button>
+                              )}
+                              {['Pending', 'Accepted', 'In Progress', 'On The Way'].includes(booking.status) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenMap(booking)}
+                                  className="flex-1 py-2 px-3 rounded-xl bg-[#02182e] hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                                >
+                                  <Navigation className="w-3.5 h-3.5 text-orange-400" />
+                                  <span>Track</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-6 text-center text-slate-400 text-xs bg-slate-50 rounded-2xl border border-slate-200">
+                          No service bookings yet. Click &quot;Book Service&quot; to get started.
+                        </div>
+                      )}
                     </div>
                   </div>
                 </motion.div>
@@ -1340,7 +1443,7 @@ export default function UserDashboardPage() {
                   </div>
 
                   <div className="bg-white rounded-3xl p-5 sm:p-7 border border-slate-200/80 shadow-xs">
-                    <div className="overflow-x-auto">
+                    <div className="hidden md:block overflow-x-auto">
                       <table className="w-full text-left text-xs">
                         <thead>
                           <tr className="bg-slate-50 text-slate-400 uppercase font-bold text-[10px] tracking-wider border-b border-slate-100">
@@ -1353,36 +1456,138 @@ export default function UserDashboardPage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-medium">
-                          {bookingsList.map((booking) => (
-                            <tr key={booking.id} className="hover:bg-slate-50/70 transition-colors">
-                              <td className="py-4 px-4 font-bold text-slate-800">#{booking.id}</td>
-                              <td className="py-4 px-4">
-                                <div className="flex items-center gap-2">
-                                  <ApplianceIcon name={booking.service} className="w-5 h-5 shrink-0" />
-                                  <span className="font-bold text-slate-900">{booking.service}</span>
-                                </div>
+                          {bookingsList.length > 0 ? (
+                            bookingsList.map((booking) => (
+                              <tr key={booking.id} className="hover:bg-slate-50/70 transition-colors">
+                                <td className="py-4 px-4 font-bold text-slate-800">#{booking.id}</td>
+                                <td className="py-4 px-4">
+                                  <div className="flex items-center gap-2">
+                                    <ApplianceIcon name={booking.service} className="w-5 h-5 shrink-0" />
+                                    <span className="font-bold text-slate-900">{booking.service}</span>
+                                  </div>
+                                </td>
+                                <td className="py-4 px-4 text-slate-500">{booking.date}</td>
+                                <td className="py-4 px-4 text-slate-600">{booking.technician}</td>
+                                <td className="py-4 px-4 font-bold text-slate-900">{booking.price}</td>
+                                <td className="py-4 px-4 text-center">
+                                  {booking.status === 'Completed' ? (
+                                    <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenInvoice(booking)}
+                                        className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                                      >
+                                        <Download className="w-3.5 h-3.5" />
+                                        <span>Receipt</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedBookingForRating(booking);
+                                          setIsRatingModalOpen(true);
+                                        }}
+                                        className={`px-2.5 py-1.5 rounded-lg font-bold text-xs inline-flex items-center gap-1 transition-colors cursor-pointer ${
+                                          booking.ratingSubmitted
+                                            ? 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+                                            : 'bg-amber-500 hover:bg-amber-600 text-white shadow-2xs'
+                                        }`}
+                                        title={booking.ratingSubmitted ? 'Edit Rating' : 'Rate Technician'}
+                                      >
+                                        <Star className={`w-3.5 h-3.5 ${booking.ratingSubmitted ? 'fill-amber-400 text-amber-500' : 'fill-white text-white'}`} />
+                                        <span>{booking.ratingSubmitted ? `${booking.ratingSubmitted}★` : 'Rate'}</span>
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <StatusBadge status={booking.status} />
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan="6" className="py-8 text-center text-slate-400 text-xs">
+                                No past service history found.
                               </td>
-                              <td className="py-4 px-4 text-slate-500">{booking.date}</td>
-                              <td className="py-4 px-4 text-slate-600">{booking.technician}</td>
-                              <td className="py-4 px-4 font-bold text-slate-900">{booking.price}</td>
-                              <td className="py-4 px-4 text-center">
-                                {booking.status === 'Completed' ? (
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="block md:hidden space-y-3">
+                      {bookingsList.length > 0 ? (
+                        bookingsList.map((booking) => (
+                          <div
+                            key={booking.id}
+                            className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-3"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center p-1.5 shrink-0">
+                                  <ApplianceIcon name={booking.service} className="w-6 h-6" />
+                                </div>
+                                <div className="min-w-0">
+                                  <h4 className="font-extrabold text-slate-900 text-sm truncate">{booking.service}</h4>
+                                  <span className="text-[10px] text-slate-400 font-mono">#{booking.id}</span>
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="font-black text-slate-900 text-sm block">{booking.price}</span>
+                                <StatusBadge status={booking.status} />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-xs pt-2.5 border-t border-slate-100">
+                              <div>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Date</span>
+                                <span className="font-semibold text-slate-700">{booking.date}</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Technician</span>
+                                <span className="font-semibold text-slate-700 truncate block">{booking.technician}</span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 pt-2.5 border-t border-slate-100">
+                              {booking.status === 'Completed' ? (
+                                <>
                                   <button
                                     type="button"
                                     onClick={() => handleOpenInvoice(booking)}
-                                    className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                                    className="flex-1 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                                   >
-                                    <Download className="w-3.5 h-3.5" />
+                                    <Download className="w-3.5 h-3.5 text-slate-600" />
                                     <span>Receipt</span>
                                   </button>
-                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedBookingForRating(booking);
+                                      setIsRatingModalOpen(true);
+                                    }}
+                                    className={`flex-1 py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                                      booking.ratingSubmitted
+                                        ? 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+                                        : 'bg-amber-500 hover:bg-amber-600 text-white shadow-2xs'
+                                    }`}
+                                  >
+                                    <Star className={`w-3.5 h-3.5 ${booking.ratingSubmitted ? 'fill-amber-400 text-amber-500' : 'fill-white text-white'}`} />
+                                    <span>{booking.ratingSubmitted ? `Rated ${booking.ratingSubmitted}★` : 'Rate'}</span>
+                                  </button>
+                                </>
+                              ) : (
+                                <div className="w-full flex justify-end">
                                   <StatusBadge status={booking.status} />
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-6 text-center text-slate-400 text-xs bg-slate-50 rounded-2xl border border-slate-200">
+                          No past service history found.
+                        </div>
+                      )}
                     </div>
                   </div>
                 </motion.div>
@@ -1459,7 +1664,7 @@ export default function UserDashboardPage() {
                       </span>
                     </div>
 
-                    <div className="overflow-x-auto">
+                    <div className="hidden md:block overflow-x-auto">
                       <table className="w-full text-left text-xs">
                         <thead>
                           <tr className="bg-slate-50 text-slate-400 uppercase font-bold text-[10px] tracking-wider border-b border-slate-100">
@@ -1503,6 +1708,50 @@ export default function UserDashboardPage() {
                           )}
                         </tbody>
                       </table>
+                    </div>
+                    <div className="block md:hidden space-y-3">
+                      {bookingsList.filter((b) => b.status === 'Completed').length > 0 ? (
+                        bookingsList
+                          .filter((b) => b.status === 'Completed')
+                          .map((b) => (
+                            <div
+                              key={b.id}
+                              className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-3"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100 uppercase tracking-wider block w-fit mb-1">
+                                    INV-{String(b.id).slice(-6).toUpperCase()}
+                                  </span>
+                                  <h4 className="font-extrabold text-slate-900 text-sm">{b.service}</h4>
+                                </div>
+                                <span className="font-black text-slate-900 text-base">{b.price}</span>
+                              </div>
+
+                              <div className="text-xs pt-2.5 border-t border-slate-100 flex items-center justify-between text-slate-500">
+                                <span className="text-[11px] font-medium">Billed on {b.date}</span>
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                  Paid in Full
+                                </span>
+                              </div>
+
+                              <div className="pt-2 border-t border-slate-100">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenInvoice(b)}
+                                  className="w-full py-2.5 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  <span>Download Tax Invoice</span>
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                      ) : (
+                        <div className="p-6 text-center text-slate-400 text-xs bg-slate-50 rounded-2xl border border-slate-200">
+                          Completed service invoices will automatically appear here for 1-click download.
+                        </div>
+                      )}
                     </div>
                   </div>
                 </motion.div>

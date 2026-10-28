@@ -65,7 +65,7 @@ const InventoryTable = ({
         {/* Filters */}
         <div className="flex gap-3 w-full sm:w-auto">
           {/* Category Dropdown (Styled to match design) */}
-          <div className="relative">
+          <div className="relative flex-1 sm:flex-initial">
             <select 
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
@@ -80,7 +80,7 @@ const InventoryTable = ({
           </div>
 
           {/* Status Dropdown (Styled to match design) */}
-          <div className="relative">
+          <div className="relative flex-1 sm:flex-initial">
             <select 
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
@@ -96,8 +96,8 @@ const InventoryTable = ({
         </div>
       </div>
 
-      {/* Table Content */}
-      <div className="overflow-x-auto">
+      {/* Desktop Table Content */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
@@ -141,6 +141,68 @@ const InventoryTable = ({
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile Card-Based Row List */}
+      <div className="block md:hidden space-y-3 p-3">
+        {isLoading ? (
+          <div className="py-10 text-center text-gray-500 bg-gray-50/50 rounded-xl border border-gray-100">Loading...</div>
+        ) : data.length === 0 ? (
+          <div className="py-10 text-center text-gray-500 bg-gray-50/50 rounded-xl border border-dashed border-gray-200">No items match your filters.</div>
+        ) : (
+          data.map((item, index) => (
+            <div key={item.id || index} className="bg-white rounded-xl p-4 border border-gray-200/90 shadow-xs hover:border-gray-300 transition-all flex flex-col gap-3">
+              {/* Header: Item ID + StockLevelBadge */}
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono text-xs font-bold text-gray-700 bg-slate-100 px-2.5 py-1 rounded-md">
+                  {item.id}
+                </span>
+                <div>
+                  {renderStockBadge(item.stockStatus, item.stockCount)}
+                </div>
+              </div>
+
+              {/* Primary Title */}
+              <div>
+                <h4 className="font-bold text-gray-900 text-sm leading-snug">{item.name}</h4>
+              </div>
+
+              {/* Micro-grid: Category, Unit Price, Last Updated */}
+              <div className="grid grid-cols-3 gap-2 bg-slate-50/80 rounded-lg p-2.5 text-xs border border-slate-100">
+                <div>
+                  <span className="text-gray-400 block text-[10px] font-bold uppercase tracking-wider">Category</span>
+                  <span className="font-semibold text-gray-700 truncate block mt-0.5">{item.category}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block text-[10px] font-bold uppercase tracking-wider">Unit Price</span>
+                  <span className="font-extrabold text-slate-900 text-xs sm:text-sm mt-0.5 block">${item.unitPrice.toFixed(2)}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block text-[10px] font-bold uppercase tracking-wider">Updated</span>
+                  <span className="font-medium text-gray-600 truncate block mt-0.5">{item.lastUpdated}</span>
+                </div>
+              </div>
+
+              {/* Actions: Touch-friendly buttons for edit and restock */}
+              <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
+                <button
+                  type="button"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                >
+                  <PencilLine size={15} />
+                  <span>Edit</span>
+                </button>
+                <button
+                  type="button"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
+                >
+                  <PlusSquare size={15} />
+                  <span>Restock</span>
+                </button>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       {/* Footer & Pagination */}

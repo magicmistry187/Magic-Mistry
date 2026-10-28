@@ -91,9 +91,10 @@ export default function WhyTrustUs() {
         </p>
       </div>
 
-      {/* Modern High-Contrast Comparison Table */}
+      {/* Modern High-Contrast Comparison Table — Responsive Hybrid (Desktop Table / Mobile Row Cards) */}
       <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden mb-12">
-        <div className="overflow-x-auto custom-scrollbar">
+        {/* Desktop View: Multi-Column Comparison Table */}
+        <div className="hidden md:block overflow-x-auto custom-scrollbar">
           <table className="w-full text-left border-collapse min-w-[620px]">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/70">
@@ -133,6 +134,48 @@ export default function WhyTrustUs() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile View: High-Fidelity Feature Comparison Cards (Zero Horizontal Scrolling) */}
+        <div className="block md:hidden p-4 space-y-4 divide-y divide-slate-100">
+          {comparisonRows.map((row, idx) => (
+            <div key={idx} className={idx > 0 ? "pt-4 space-y-3" : "space-y-3"}>
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="font-extrabold text-slate-900 text-sm">{row.feature}</h3>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100 shrink-0">
+                  Feature {idx + 1}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2.5">
+                {/* Magic Mistry Guarantee */}
+                <div className="bg-blue-50/50 border border-blue-200/80 rounded-2xl p-3.5 flex items-start gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-extrabold text-blue-800 uppercase tracking-wider block mb-0.5">
+                      Magic Mistry Verified
+                    </span>
+                    <p className="text-xs font-semibold text-slate-800 leading-relaxed">
+                      {row.magic}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Local Mechanic Alternative */}
+                <div className="bg-slate-50/90 border border-slate-200/80 rounded-2xl p-3.5 flex items-start gap-2.5">
+                  <XCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-0.5">
+                      Unorganized Local Mechanics
+                    </span>
+                    <p className="text-xs font-medium text-slate-600 leading-relaxed">
+                      {row.local}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

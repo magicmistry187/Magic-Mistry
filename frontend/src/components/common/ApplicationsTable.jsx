@@ -136,8 +136,8 @@ export default function ApplicationsTable({ title, data, onApprove, onReject, it
         </div>
       </div>
 
-      {/* Table Section */}
-      <div className="overflow-x-auto min-h-[400px] flex-grow">
+      {/* Desktop Table Section */}
+      <div className="hidden md:block overflow-x-auto min-h-[400px] flex-grow">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50 text-gray-500 text-xs uppercase tracking-wide border-b border-gray-200">
@@ -216,13 +216,114 @@ export default function ApplicationsTable({ title, data, onApprove, onReject, it
         </table>
       </div>
 
+      {/* Mobile Card-Based Row List */}
+      <div className="block md:hidden space-y-3 p-3 flex-grow">
+        {paginatedData.length > 0 && (
+          <div className="flex items-center justify-between px-1 py-1.5 border-b border-gray-100 text-xs text-gray-600">
+            <label className="flex items-center gap-2 cursor-pointer font-medium select-none">
+              <input 
+                type="checkbox" 
+                checked={isAllPageSelected}
+                onChange={handleSelectAll}
+                className="w-4 h-4 rounded border-gray-300 text-[#0a2540] focus:ring-[#0a2540] cursor-pointer"
+              />
+              <span>Select all on page ({paginatedData.length})</span>
+            </label>
+            {selectedIds.length > 0 && (
+              <span className="font-bold text-[#0a2540] bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full text-[11px]">
+                {selectedIds.length} selected
+              </span>
+            )}
+          </div>
+        )}
+
+        {paginatedData.length > 0 ? (
+          paginatedData.map((row) => (
+            <div 
+              key={row.id} 
+              className={`rounded-xl p-4 border transition-all flex flex-col gap-3 ${
+                selectedIds.includes(row.id) 
+                  ? 'bg-blue-50/40 border-blue-300 ring-1 ring-blue-300' 
+                  : 'bg-white border-gray-200/90 shadow-xs hover:border-gray-300'
+              }`}
+            >
+              {/* Header: Checkbox + Request ID + Status Badge */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <input 
+                    type="checkbox" 
+                    checked={selectedIds.includes(row.id)}
+                    onChange={() => handleSelectRow(row.id)}
+                    className="w-4 h-4 rounded border-gray-300 text-[#0a2540] focus:ring-[#0a2540] cursor-pointer"
+                  />
+                  <span className="font-bold text-xs text-[#1e3a5f] font-mono bg-slate-100 px-2.5 py-0.5 rounded-md">
+                    {row.id}
+                  </span>
+                </div>
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${getStatusStyle(row.status)}`}>
+                  {row.status}
+                </span>
+              </div>
+
+              {/* Vendor Profile: Avatar with Initials + Vendor Name + Subtext */}
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${row.vendor.avatarColor}`}>
+                  {row.vendor.initials}
+                </div>
+                <div className="min-w-0">
+                  <div className="font-bold text-gray-900 text-sm truncate">{row.vendor.name}</div>
+                  <div className="text-xs text-gray-500 font-medium truncate mt-0.5">{row.vendor.subtext}</div>
+                </div>
+              </div>
+
+              {/* Body: 3-column micro-grid for Business Type, Location, Application Date */}
+              <div className="grid grid-cols-3 gap-2 bg-slate-50/80 rounded-lg p-2.5 text-xs border border-slate-100">
+                <div>
+                  <span className="text-gray-400 block text-[10px] font-bold uppercase tracking-wider">Business</span>
+                  <span className="font-medium text-gray-700 truncate block mt-0.5">{row.businessType}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block text-[10px] font-bold uppercase tracking-wider">Location</span>
+                  <span className="font-medium text-gray-700 truncate block mt-0.5" title={row.location}>{row.location}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block text-[10px] font-bold uppercase tracking-wider">Applied</span>
+                  <span className="font-medium text-gray-700 truncate block mt-0.5">{row.date}</span>
+                </div>
+              </div>
+
+              {/* Actions: View Details and More button */}
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-100">
+                <button 
+                  type="button" 
+                  className="flex-1 py-2 px-3 border border-gray-300 rounded-lg text-xs font-semibold text-[#1e3a5f] hover:bg-gray-50 transition-colors text-center cursor-pointer"
+                >
+                  View Details
+                </button>
+                <button 
+                  type="button" 
+                  aria-label="More options"
+                  className="p-2 text-gray-400 hover:text-gray-700 bg-slate-50 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+                >
+                  <MoreVertical size={16} />
+                </button>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="py-12 text-center text-gray-400 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 p-6">
+            {searchTerm ? `No vendors found matching "${searchTerm}"` : 'No applications found.'}
+          </div>
+        )}
+      </div>
+
       {/* Footer / Pagination */}
-      <div className="flex flex-wrap items-center justify-between p-4 border-t border-gray-200 bg-white rounded-b-lg gap-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row flex-wrap items-center justify-between p-4 border-t border-gray-200 bg-white rounded-b-lg gap-4">
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-start">
           <button 
             onClick={handleApproveClick}
             disabled={!hasSelection}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-colors ${
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-colors ${
               hasSelection 
                 ? 'bg-[#0a2540] text-white hover:bg-[#0f3459] cursor-pointer' 
                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
@@ -235,7 +336,7 @@ export default function ApplicationsTable({ title, data, onApprove, onReject, it
           <button 
             onClick={handleRejectClick}
             disabled={!hasSelection}
-            className={`flex items-center gap-2 px-4 py-2 border text-sm font-semibold rounded-md transition-colors ${
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 border text-sm font-semibold rounded-md transition-colors ${
               hasSelection 
                 ? 'border-red-500 text-red-500 hover:bg-red-50 cursor-pointer' 
                 : 'border-gray-200 text-gray-400 cursor-not-allowed'
@@ -247,7 +348,7 @@ export default function ApplicationsTable({ title, data, onApprove, onReject, it
         </div>
 
         {totalPages > 0 && (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap justify-center w-full sm:w-auto">
             <button 
               onClick={handlePrevious}
               disabled={currentPage === 1}

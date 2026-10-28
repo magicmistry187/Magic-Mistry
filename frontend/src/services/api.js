@@ -6,6 +6,7 @@ export * from './operations/vendorAPI';
 export * from './operations/adminAPI';
 export * from './operations/inventoryAPI';
 export * from './operations/bannerAPI';
+export * from './operations/serviceCategoryAPI';
+export * from './operations/vendorReviewAPI';
 export * from './vendorEarningsService';
 export { apiConnector, axiosInstance, BASE_URL } from './apiConnector';
-

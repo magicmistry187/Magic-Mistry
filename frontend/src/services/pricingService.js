@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { apiConnector, BASE_URL } from './apiConnector';
 import { getAdminToken } from '../utils/adminAuth';
+import { getAllServiceCategoriesApi } from './operations/serviceCategoryAPI';
 
 // Master default catalog of appliances, categories, base prices, and sub-services
 // Each category and sub-service has an isActive flag (default: true).
@@ -411,7 +412,7 @@ export async function saveLiveFuelRate(rate, syncToBackend = true) {
 /**
  * Fetches the latest pricing configuration from backend MongoDB and updates client cache.
  */
-export async function fetchLivePricingFromBackend() {
+export async function fetchLivePricingFromBackend(token = null) {
   if (typeof window === 'undefined') return;
   try {
     // 1. Fetch fuel pricing from live backend
@@ -427,20 +428,17 @@ export async function fetchLivePricingFromBackend() {
       console.info('[PricingService] Live fuel pricing endpoint notice:', fuelErr.message);
     }
 
-    // 2. Fetch service catalog pricing if endpoint exists
+    // 2. Fetch service categories from backend MongoDB if authenticated as admin
     try {
-      const res = await apiConnector('GET', `${BASE_URL}/pricing?adminView=true`);
-      if (res.data?.success && res.data?.data) {
-        const { services, fuelRatePerKm } = res.data.data;
-        if (Array.isArray(services) && services.length > 0) {
-          saveLiveServicePricing(services, false);
-        }
-        if (fuelRatePerKm) {
-          saveLiveFuelRate(fuelRatePerKm, false);
+      const authToken = (typeof token === 'string' && token) || getAdminToken();
+      if (authToken) {
+        const catRes = await getAllServiceCategoriesApi(authToken);
+        if (catRes.success && Array.isArray(catRes.data) && catRes.data.length > 0) {
+          saveLiveServicePricing(catRes.data, false);
         }
       }
-    } catch {
-      // Offline fallback for service catalog
+    } catch (catErr) {
+      console.info('[PricingService] Service categories sync notice:', catErr.message);
     }
   } catch (err) {
     console.info('[PricingService] Using cached local pricing configuration.');
