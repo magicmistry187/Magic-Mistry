@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getLiveServicePricing } from '../../services/pricingService';
 import { createBookingApi } from '../../services/api';
-import { parseAddressString } from '../../utils/addressParser';
+import { parseAddressString, formatCleanAddress } from '../../utils/addressParser';
 
 const BookingContext = createContext();
 
@@ -117,7 +117,7 @@ export const BookingProvider = ({ children, initialAppliance = null }) => {
   const { user, isLoggedIn, token } = useAuth();
 
   const storedLoc = typeof window !== 'undefined' ? localStorage.getItem('mm_location') : null;
-  const savedLocation = storedLoc && storedLoc !== 'Set Your Location' ? storedLoc : '';
+  const savedLocation = storedLoc && storedLoc !== 'Set Your Location' ? formatCleanAddress(storedLoc) : '';
 
   const hasInitialAppliance = Boolean(initialAppliance && initialAppliance.id);
   const initialCatId = hasInitialAppliance ? initialAppliance.id : null;
@@ -214,7 +214,9 @@ export const BookingProvider = ({ children, initialAppliance = null }) => {
     setBookingState((prev) => {
       let next;
       if (typeof key === 'object' && key !== null) {
-        next = { ...prev, ...key };
+        const cleanedKey = { ...key };
+        if (cleanedKey.address) cleanedKey.address = formatCleanAddress(cleanedKey.address);
+        next = { ...prev, ...cleanedKey };
         if (key.serviceId !== undefined) {
           const liveSubs = buildLiveApplianceSubServices();
           const catSubs = liveSubs[key.serviceId]?.subServices || [];
@@ -233,7 +235,8 @@ export const BookingProvider = ({ children, initialAppliance = null }) => {
           next.priceInfo = { basePrice: total, visitCharge: 0, total: total };
         }
       } else {
-        next = { ...prev, [key]: value };
+        const cleanedVal = key === 'address' ? formatCleanAddress(value) : value;
+        next = { ...prev, [key]: cleanedVal };
 
         if (key === 'serviceId') {
           const liveSubs = buildLiveApplianceSubServices();

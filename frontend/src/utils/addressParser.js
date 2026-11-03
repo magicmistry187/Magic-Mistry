@@ -396,6 +396,12 @@ export function formatCleanAddress(input) {
     if (typeof input.address === 'string' && input.address.trim()) {
       return formatCleanAddress(input.address);
     }
+    if (input.address && typeof input.address === 'object') {
+      return formatCleanAddress(input.address);
+    }
+    if (input.serviceAddress && typeof input.serviceAddress === 'object') {
+      return formatCleanAddress(input.serviceAddress);
+    }
 
     // If it is an address object with addressLine1, street, house, etc.
     let flat = (input.flat || input.house || '').trim();
@@ -501,7 +507,7 @@ export function formatCleanAddress(input) {
   let changedWords = true;
   while (changedWords) {
     changedWords = false;
-    for (let len = Math.floor(words.length / 2); len >= 1; len--) {
+    for (let len = Math.floor(words.length / 2); len >= 2; len--) {
       for (let i = 0; i <= words.length - 2 * len; i++) {
         let match = true;
         for (let j = 0; j < len; j++) {
@@ -515,6 +521,11 @@ export function formatCleanAddress(input) {
         if (match) {
           const w1 = words[i].toLowerCase().replace(/[^a-z0-9]/g, '');
           if (len === 1 && (w1 === 'dum' || w1 === 'budge')) continue;
+          const lastRemovedWord = words[i + 2 * len - 1] || '';
+          const lastKeptWord = words[i + len - 1] || '';
+          if (/[,;]$/.test(lastRemovedWord) && !/[,;]$/.test(lastKeptWord)) {
+            words[i + len - 1] = lastKeptWord + ',';
+          }
           words.splice(i + len, len);
           changedWords = true;
           break;
@@ -535,6 +546,18 @@ export function formatCleanAddress(input) {
   tokens = tokens.filter((t, idx) => {
     if (idx === 0) return true;
     return t.toLowerCase().trim() !== tokens[idx - 1].toLowerCase().trim();
+  });
+
+  // 1b. Remove shorter token if immediately followed by longer token starting with it (e.g. ['Bolpur', 'Bolpur Bazar'] -> ['Bolpur Bazar'])
+  tokens = tokens.filter((tok, idx) => {
+    const cur = tok.toLowerCase().trim();
+    if (idx < tokens.length - 1) {
+      const next = tokens[idx + 1].toLowerCase().trim();
+      if (next.startsWith(cur + ' ') || next.endsWith(' ' + cur)) {
+        return false;
+      }
+    }
+    return true;
   });
 
   // 2. Remove repeated multi-token phrases (e.g. [A, B, A, B] -> [A, B])
@@ -582,6 +605,20 @@ export function formatCleanAddress(input) {
 
     seen.add(lower);
     unique.push(t.trim());
+  }
+
+  // Anchor 6-digit postal code cleanly at the end if present
+  let pin = '';
+  for (let i = unique.length - 1; i >= 0; i--) {
+    const match = unique[i].match(/^\d{6}$/);
+    if (match) {
+      pin = match[0];
+      unique.splice(i, 1);
+      break;
+    }
+  }
+  if (pin) {
+    unique.push(pin);
   }
 
   return unique.join(', ');

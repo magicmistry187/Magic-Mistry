@@ -206,12 +206,12 @@ export default function PaymentMethod() {
                       updateBooking('paymentMethod', method.id);
                     }
                   }}
-                  className={`w-full text-left p-4 sm:p-5 rounded-2xl border transition-all duration-150 flex items-center gap-4 active:scale-[0.99] ${
+                  className={`w-full text-left p-4 sm:p-5 rounded-2xl border transition-colors duration-150 flex items-center gap-4 ${
                     !method.enabled
-                      ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed'
+                      ? 'border-slate-200/60 bg-slate-50/70 text-slate-400 cursor-not-allowed select-none'
                       : isSelected
-                      ? 'bg-gradient-to-r from-indigo-50/90 to-blue-50/40 border-2 border-indigo-600 shadow-sm ring-2 ring-indigo-500/10 cursor-pointer'
-                      : 'bg-white border-slate-200/90 hover:border-slate-300 hover:shadow-2xs cursor-pointer'
+                      ? 'bg-indigo-50/80 border-2 border-indigo-600 shadow-xs ring-1 ring-indigo-500/20 cursor-pointer active:scale-[0.99]'
+                      : 'bg-white border-slate-200/90 hover:border-slate-300 hover:shadow-2xs cursor-pointer active:scale-[0.99]'
                   }`}
                 >
                   {/* Radio Icon */}

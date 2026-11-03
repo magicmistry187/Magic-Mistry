@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Printer, X, Wrench, Shield, Navigation, MapPin, Eye, Save, Check, Download } from 'lucide-react';
 import { saveInvoiceForBooking } from '../../../services/invoiceService';
+import { formatCleanAddress } from '../../../utils/addressParser';
 
 const safeText = (val, fallback = '') => {
   if (val === null || val === undefined) return fallback;
@@ -150,7 +151,7 @@ export default function VendorTaxInvoiceModal({
                 <div>
                   <p className="font-extrabold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Billed To (Customer)</p>
                   <p className="font-bold text-slate-900 text-sm">{safeText(generatedInvoiceData.customerName, 'Customer')}</p>
-                  <p className="text-slate-600 mt-0.5 leading-snug">{safeText(generatedInvoiceData.address, '—')}</p>
+                  <p className="text-slate-600 mt-0.5 leading-snug">{formatCleanAddress(generatedInvoiceData.address) || '—'}</p>
                   <p className="text-slate-500 mt-0.5">Phone: {safeText(generatedInvoiceData.customerPhone, '—')}</p>
                 </div>
                 <div className="border-t sm:border-t-0 sm:border-l border-slate-200 pt-3 sm:pt-0 sm:pl-4">

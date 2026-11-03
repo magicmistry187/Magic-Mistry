@@ -251,31 +251,6 @@ export default function AdminBannerTab({ adminToken, showToast }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Master 1-Click Kill Switch Button in Header */}
-          {isAnyBannerActive ? (
-            <button
-              type="button"
-              disabled={isToggling}
-              onClick={() => handleMasterKillSwitch(false)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-xl shadow-md shadow-rose-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
-              title="Instantly turn off all banners and popups website-wide in 1 click"
-            >
-              <PowerOff className="w-4 h-4" />
-              <span>Turn OFF All Banners</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled={isToggling}
-              onClick={() => handleMasterKillSwitch(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
-              title="Instantly turn on all banners website-wide in 1 click"
-            >
-              <Power className="w-4 h-4" />
-              <span>Turn ON All Banners</span>
-            </button>
-          )}
-
           <button
             type="button"
             onClick={() => setShowPopupPreview(true)}
@@ -313,31 +288,29 @@ export default function AdminBannerTab({ adminToken, showToast }) {
         {/* ── LEFT COLUMN: Form Controls (7 cols) ── */}
         <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 sm:p-6 space-y-6">
 
-          {/* ── MASTER 1-CLICK KILL SWITCH HERO BANNER ── */}
-          <div
-            className={`p-4 sm:p-5 rounded-2xl border transition-all duration-200 ${
-              isAnyBannerActive
-                ? 'bg-gradient-to-r from-rose-50/90 via-red-50/50 to-amber-50/30 border-rose-200 shadow-sm shadow-rose-500/5'
-                : 'bg-gradient-to-r from-emerald-50/90 via-teal-50/50 to-slate-50 border-emerald-200 shadow-sm shadow-emerald-500/5'
-            }`}
-          >
+          {/* ── UNIFIED ENTERPRISE MASTER BANNER CONTROL ── */}
+          <div className="bg-slate-50/80 rounded-2xl border border-slate-200/90 p-5 sm:p-6 transition-all shadow-xs">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-start gap-3.5">
+              <div className="flex items-start gap-4">
                 <div
-                  className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
+                  className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-colors shadow-2xs ${
                     isAnyBannerActive
-                      ? 'bg-gradient-to-tr from-rose-600 to-red-500 text-white shadow-rose-500/20'
-                      : 'bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shadow-emerald-500/20'
+                      ? 'bg-emerald-600 text-white shadow-emerald-600/20'
+                      : 'bg-slate-200 text-slate-500'
                   }`}
                 >
-                  {isAnyBannerActive ? <Power className="w-5 h-5" /> : <PowerOff className="w-5 h-5" />}
+                  {isAnyBannerActive ? <Power className="w-6 h-6" /> : <PowerOff className="w-6 h-6" />}
                 </div>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
+
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-extrabold text-[#0B1E40]">
+                      Website Banner System
+                    </span>
                     <span
                       className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                         isAnyBannerActive
-                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                           : 'bg-slate-200 text-slate-700 border border-slate-300'
                       }`}
                     >
@@ -346,35 +319,29 @@ export default function AdminBannerTab({ adminToken, showToast }) {
                           isAnyBannerActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
                         }`}
                       />
-                      {isAnyBannerActive ? 'Website Banners Live' : 'All Banners Turned OFF'}
+                      {isAnyBannerActive ? 'Active & Live' : 'Paused / Inactive'}
                     </span>
-                    <span className="text-[11px] font-bold text-slate-400">• Master Switch</span>
                   </div>
-                  <h3 className="text-sm sm:text-base font-extrabold text-[#0B1E40]">
-                    {isAnyBannerActive
-                      ? 'Turn OFF All Banners Website-Wide'
-                      : 'All Website Banners are Currently Disabled'}
-                  </h3>
-                  <p className="text-xs text-slate-600 mt-0.5 leading-relaxed font-medium max-w-md">
-                    {isAnyBannerActive
-                      ? 'Single 1-click kill switch. Instantly removes the top promotional banner, homepage discount popup, urgency countdown, and floating launcher pill across the entire website.'
-                      : 'No promotional banners or discount popups are shown to customers. Click to re-enable banners website-wide whenever you are ready.'}
+
+                  <p className="text-xs text-slate-600 leading-relaxed font-medium max-w-xl">
+                    Controls all promotional banners website-wide (top announcement bar, discount popup modal, urgency countdown, and floating launcher pill).
                   </p>
                 </div>
               </div>
 
-              <div className="shrink-0 flex sm:flex-col items-center sm:items-end gap-1.5">
+              <div className="shrink-0 flex items-center gap-3 self-start sm:self-center">
                 {isAnyBannerActive ? (
                   <button
                     type="button"
                     disabled={isToggling}
                     onClick={() => handleMasterKillSwitch(false)}
-                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    className="px-5 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm bg-rose-600 hover:bg-rose-700 text-white shadow-sm shadow-rose-600/20 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    title="Click to turn off all website banners immediately"
                   >
                     {isToggling ? (
                       <>
                         <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>Turning Off...</span>
+                        <span>Updating...</span>
                       </>
                     ) : (
                       <>
@@ -388,12 +355,13 @@ export default function AdminBannerTab({ adminToken, showToast }) {
                     type="button"
                     disabled={isToggling}
                     onClick={() => handleMasterKillSwitch(true)}
-                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    className="px-5 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-600/20 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    title="Click to activate and show banners on website"
                   >
                     {isToggling ? (
                       <>
                         <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>Turning On...</span>
+                        <span>Updating...</span>
                       </>
                     ) : (
                       <>
@@ -403,56 +371,8 @@ export default function AdminBannerTab({ adminToken, showToast }) {
                     )}
                   </button>
                 )}
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider hidden sm:block">
-                  1-Click Global Control
-                </span>
               </div>
             </div>
-          </div>
-          
-          {/* 1. Instant Status Toggle (Auto-saves on click!) */}
-          <div
-            className={`flex items-center justify-between p-4.5 rounded-2xl border transition-all ${
-              formData.isActive
-                ? 'bg-emerald-50/70 border-emerald-300/80 shadow-xs shadow-emerald-500/10'
-                : 'bg-slate-50 border-slate-200/90'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div
-                className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
-                  formData.isActive
-                    ? 'bg-emerald-500 text-white shadow-xs shadow-emerald-500/30'
-                    : 'bg-slate-200 text-slate-500'
-                }`}
-              >
-                <Power className="w-4 h-4" />
-              </div>
-              <div>
-                <span className="text-xs font-black text-slate-800 block">
-                  Banner Status:{' '}
-                  <span className={formData.isActive ? 'text-emerald-700' : 'text-slate-500'}>
-                    {formData.isActive ? 'LIVE ON' : 'PAUSED (OFF)'}
-                  </span>
-                </span>
-                <span className="text-[11px] text-slate-500">
-                  {formData.isActive
-                    ? 'Visible to all customers at the top of the website.'
-                    : 'Hidden from the website. Click toggle to turn it ON.'}
-                </span>
-              </div>
-            </div>
-
-            <label className="relative inline-flex items-center cursor-pointer shrink-0">
-              <input
-                type="checkbox"
-                checked={Boolean(formData.isActive)}
-                disabled={isToggling}
-                onChange={(e) => handleToggleActive(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-13 h-7 bg-slate-300 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[3px] after:left-[4px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5.5 after:w-5.5 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
-            </label>
           </div>
 
           {/* 2. Theme / Gradient Presets */}

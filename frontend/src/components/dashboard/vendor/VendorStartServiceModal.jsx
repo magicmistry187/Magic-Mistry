@@ -101,8 +101,8 @@ export default function VendorStartServiceModal({
     return String(val) || fallback;
   };
 
-  const vendorOrigin = safeText(vendorProfile?.address, 'Vendor Workshop / Current Location');
-  const customerDestination = safeText(job.serviceAddress || job.location, 'Customer Address');
+  const vendorOrigin = formatCleanAddress(vendorProfile?.address) || 'Vendor Workshop / Current Location';
+  const customerDestination = formatCleanAddress(job.serviceAddress || job.location) || 'Customer Address';
 
   // Safely extract { lat, lng } from any format (flat, nested, GeoJSON coordinates)
   const extractSafeCoords = (source) => {

@@ -2603,7 +2603,7 @@ export default function VendorDashboardPage() {
             date: new Date(inv.createdAt || Date.now()).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
             customerName: inv.customerSnapshot?.name || selectedJob.customerName,
             customerPhone: inv.customerSnapshot?.phone || selectedJob.customerPhone,
-            address: inv.customerSnapshot?.address || selectedJob.serviceAddress,
+            address: formatCleanAddress(inv.customerSnapshot?.address || selectedJob.serviceAddress),
             serviceTitle: inv.serviceSnapshot?.serviceCategory || inv.serviceSnapshot?.appliance || selectedJob.serviceTitle,
             technician: vendorProfile.name,
             parts: (inv.items && inv.items.length > 0)
@@ -3572,7 +3572,7 @@ export default function VendorDashboardPage() {
                           </span>
                         </div>
                         <p className="text-xs text-slate-600 mt-0.5">
-                          Origin: <strong>{safeString(vendorProfile?.address, 'Vendor Workshop')}</strong> ➔ Destination: <strong>{safeString(selectedJob.serviceAddress, 'Customer Location')}</strong>
+                          Origin: <strong>{formatCleanAddress(vendorProfile?.address) || 'Vendor Workshop'}</strong> ➔ Destination: <strong>{formatCleanAddress(selectedJob.serviceAddress) || 'Customer Location'}</strong>
                         </p>
                       </div>
                     </div>

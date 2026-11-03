@@ -503,7 +503,7 @@ export default function AddressForm() {
                 <MapPin className="w-4 h-4 text-indigo-600 mt-0.5 shrink-0" />
                 <div className="text-xs text-slate-700 leading-relaxed font-medium break-words flex-1 min-w-0">
                   <span className="font-bold text-[#0B1E40]">Destination: </span>
-                  {bookingState.address}
+                  {formatCleanAddress(bookingState.address)}
                 </div>
               </div>
             )}
