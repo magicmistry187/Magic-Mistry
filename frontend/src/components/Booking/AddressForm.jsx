@@ -511,11 +511,11 @@ export default function AddressForm() {
         )}
 
         {/* Step 3 Action Bar */}
-        <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-4">
+        <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
           <button
             type="button"
             onClick={prevStep}
-            className="h-11 px-5 rounded-xl font-bold text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+            className="w-full sm:w-auto h-11 px-5 rounded-xl font-bold text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer shrink-0 text-center"
           >
             ← Back to Schedule
           </button>
@@ -524,7 +524,7 @@ export default function AddressForm() {
             type="button"
             onClick={nextStep}
             disabled={!isStep3Valid}
-            className={`h-11 px-7 rounded-xl font-bold text-sm flex items-center gap-2 transition-all duration-200 cursor-pointer shadow-sm shrink-0 ${
+            className={`w-full sm:w-auto h-11 px-7 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer shadow-sm shrink-0 ${
               isStep3Valid
                 ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200 hover:shadow-md hover:-translate-y-0.5"
                 : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"

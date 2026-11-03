@@ -8,6 +8,7 @@ import ScheduleForm from '../../components/Booking/ScheduleForm';
 import AddressForm from '../../components/Booking/AddressForm';
 import PaymentMethod from '../../components/Booking/PaymentMethod';
 import BookingSummary from '../../components/Booking/BookingSummary';
+import LoginRequiredModal from '../../components/auth/LoginRequiredModal';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -44,7 +45,9 @@ function BookingFlowContent() {
     isStep4Valid,
     nextStep,
     submitBooking,
-    loading
+    loading,
+    showLoginModal,
+    setShowLoginModal
   } = useBooking();
 
   const formattedDate = bookingState.date
@@ -95,17 +98,17 @@ function BookingFlowContent() {
 
         {/* Milestone Stepper Bar */}
         <div className="mt-6 md:mt-8 bg-white p-3 sm:p-5 rounded-2xl md:rounded-3xl border border-slate-200/90 shadow-2xs">
-          {/* Progress bar line */}
-          <div className="relative mb-3 sm:mb-4 hidden sm:block">
-            <div className="h-1 bg-slate-100 rounded-full w-full">
+          {/* Progress bar line - always visible for clear mobile feedback */}
+          <div className="relative mb-3 sm:mb-4">
+            <div className="h-1 bg-slate-100 rounded-full w-full overflow-hidden">
               <div
-                className="h-1 bg-gradient-to-r from-[#0B1E40] to-indigo-600 rounded-full transition-all duration-500 ease-out"
+                className="h-full bg-gradient-to-r from-[#0B1E40] to-indigo-600 rounded-full transition-all duration-300 ease-out"
                 style={{ width: `${((currentStep - 1) / (STEPS.length - 1)) * 100}%` }}
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-2 sm:gap-4">
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-4">
             {STEPS.map((step) => {
               const isCurrent = currentStep === step.id;
               const isCompleted = step.id < currentStep || (step.id === 1 && isStep1Valid && currentStep > 1) || (step.id === 2 && isStep2Valid && currentStep > 2) || (step.id === 3 && isStep3Valid && currentStep > 3);
@@ -118,7 +121,7 @@ function BookingFlowContent() {
                   type="button"
                   disabled={!isUnlocked}
                   onClick={() => isUnlocked && goToStep(step.id)}
-                  className={`p-2 sm:p-3 rounded-xl sm:rounded-2xl text-left transition-all duration-200 flex flex-col sm:flex-row items-center sm:items-start gap-2 sm:gap-3 group ${
+                  className={`p-1.5 sm:p-3 rounded-xl sm:rounded-2xl text-left transition-all duration-200 flex flex-col sm:flex-row items-center sm:items-start gap-1 sm:gap-3 group active:scale-95 ${
                     isCurrent
                       ? 'bg-gradient-to-b from-indigo-50/80 to-blue-50/30 border-2 border-indigo-600 shadow-2xs ring-2 ring-indigo-500/10'
                       : isCompleted
@@ -127,7 +130,7 @@ function BookingFlowContent() {
                   }`}
                 >
                   <div
-                    className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors text-xs font-bold ${
+                    className={`w-7 h-7 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors text-xs font-bold ${
                       isCompleted
                         ? 'bg-emerald-600 text-white shadow-2xs'
                         : isCurrent
@@ -135,11 +138,11 @@ function BookingFlowContent() {
                         : 'bg-slate-100 text-slate-400'
                     }`}
                   >
-                    {isCompleted ? <Check className="w-4 h-4 stroke-[3]" /> : <Icon className="w-4 h-4" />}
+                    {isCompleted ? <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[3]" /> : <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
                   </div>
 
                   <div className="min-w-0 text-center sm:text-left flex-1">
-                    <span className={`text-[10px] sm:text-xs font-extrabold uppercase tracking-wider block truncate ${
+                    <span className={`text-[9px] sm:text-xs font-extrabold uppercase tracking-wider block truncate ${
                       isCurrent ? 'text-indigo-900 font-black' : isCompleted ? 'text-slate-800' : 'text-slate-400'
                     }`}>
                       {step.title}
@@ -283,14 +286,14 @@ function BookingFlowContent() {
           )}
         </div>
 
-        {/* Right 1 Column: Sticky Luxury Service Ticket */}
-        <div className="lg:col-span-1 lg:sticky lg:top-24">
+        {/* Right 1 Column: Sticky Luxury Service Ticket (Desktop only - avoids redundant vertical duplicate on mobile) */}
+        <div className="hidden lg:block lg:col-span-1 lg:sticky lg:top-24">
           <BookingSummary />
         </div>
       </div>
 
-      {/* Mobile Floating Bottom Summary Bar */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 p-3 sm:px-6 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+      {/* Mobile Floating Bottom Summary Bar (Touch-optimized, zero lag) */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200/90 px-4 py-3 sm:px-6 shadow-[0_-4px_25px_rgba(15,23,42,0.08)]">
         <div className="flex items-center justify-between gap-3 max-w-lg mx-auto">
           <div className="min-w-0">
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-1">Total Amount</div>
@@ -316,7 +319,7 @@ function BookingFlowContent() {
               (currentStep === 3 && !isStep3Valid) ||
               (currentStep === 4 && !isStep4Valid)
             }
-            className="h-11 px-6 rounded-xl text-xs sm:text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shrink-0"
+            className="h-11 px-5 sm:px-6 rounded-xl text-xs sm:text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shrink-0 active:scale-95 transition-transform"
           >
             {loading ? (
               <>
@@ -343,6 +346,13 @@ function BookingFlowContent() {
           </button>
         </div>
       </div>
+
+      {/* Global Login Required Modal (Rendered at top level so mobile & desktop both trigger it seamlessly) */}
+      <LoginRequiredModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        appliance={{ name: bookingState.serviceName || 'Appliance Repair' }}
+      />
     </div>
   );
 }
@@ -353,7 +363,7 @@ export default function BookingPage() {
 
   return (
     <BookingProvider initialAppliance={initialAppliance}>
-      <div className="min-h-screen flex flex-col bg-[#F8FAFC] font-sans text-slate-800 pt-20 sm:pt-24 pb-24 lg:pb-12">
+      <div className="min-h-screen flex flex-col bg-[#F8FAFC] font-sans text-slate-800 pt-20 sm:pt-24 pb-32 sm:pb-36 lg:pb-16">
         <Navbar />
         <main className="flex-1">
           <BookingFlowContent />

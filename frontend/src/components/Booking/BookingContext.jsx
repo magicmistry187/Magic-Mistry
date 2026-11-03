@@ -61,6 +61,13 @@ export const scrollToNextStep = (targetId, options = {}) => {
   const executeScroll = (element) => {
     if (!element) return;
 
+    const elementRect = element.getBoundingClientRect();
+    const currentScrollY = window.pageYOffset || document.documentElement.scrollTop;
+    const targetY = elementRect.top + currentScrollY + offset;
+
+    // Avoid jerky scroll fighting if already near target
+    if (Math.abs(currentScrollY - targetY) < 40) return;
+
     if (window.__lenis && typeof window.__lenis.scrollTo === 'function') {
       window.__lenis.scrollTo(element, {
         offset,
@@ -70,10 +77,6 @@ export const scrollToNextStep = (targetId, options = {}) => {
         force: true,
       });
     } else {
-      const elementRect = element.getBoundingClientRect();
-      const currentScrollY = window.pageYOffset || document.documentElement.scrollTop;
-      const targetY = elementRect.top + currentScrollY + offset;
-
       window.scrollTo({
         top: Math.max(0, targetY),
         behavior: 'smooth',
@@ -207,7 +210,7 @@ export const BookingProvider = ({ children, initialAppliance = null }) => {
     };
   }, [bookingState.serviceId, bookingState.selectedSubServices]);
 
-  const updateBooking = (key, value) => {
+  const updateBooking = useCallback((key, value) => {
     setBookingState((prev) => {
       let next;
       if (typeof key === 'object' && key !== null) {
@@ -254,11 +257,11 @@ export const BookingProvider = ({ children, initialAppliance = null }) => {
 
       return next;
     });
-  };
+  }, []);
 
-  const unlockApplianceSelection = () => {
+  const unlockApplianceSelection = useCallback(() => {
     setBookingState((prev) => ({ ...prev, isApplianceLocked: false }));
-  };
+  }, []);
 
   // Step validation rules
   const isStep1Valid = Boolean(
@@ -282,36 +285,42 @@ export const BookingProvider = ({ children, initialAppliance = null }) => {
     setMaxUnlockedStep(unlocked);
   }, [isStep1Valid, isStep2Valid, isStep3Valid]);
 
-  const goToStep = (stepNumber) => {
+  const goToStep = useCallback((stepNumber) => {
     const clamped = Math.max(1, Math.min(4, stepNumber));
     if (clamped <= maxUnlockedStep) {
       setCurrentStep(clamped);
       scrollToNextStep('booking-main-content', { offset: -110, delay: 50 });
     }
-  };
+  }, [maxUnlockedStep]);
 
-  const nextStep = () => {
-    if (currentStep === 1 && isStep1Valid) {
-      setCurrentStep(2);
-      setMaxUnlockedStep(prev => Math.max(prev, 2));
-      scrollToNextStep('booking-main-content', { offset: -110, delay: 50 });
-    } else if (currentStep === 2 && isStep2Valid) {
-      setCurrentStep(3);
-      setMaxUnlockedStep(prev => Math.max(prev, 3));
-      scrollToNextStep('booking-main-content', { offset: -110, delay: 50 });
-    } else if (currentStep === 3 && isStep3Valid) {
-      setCurrentStep(4);
-      setMaxUnlockedStep(prev => Math.max(prev, 4));
-      scrollToNextStep('booking-main-content', { offset: -110, delay: 50 });
-    }
-  };
+  const nextStep = useCallback(() => {
+    setCurrentStep((curr) => {
+      if (curr === 1 && isStep1Valid) {
+        setMaxUnlockedStep(prev => Math.max(prev, 2));
+        scrollToNextStep('booking-main-content', { offset: -110, delay: 50 });
+        return 2;
+      } else if (curr === 2 && isStep2Valid) {
+        setMaxUnlockedStep(prev => Math.max(prev, 3));
+        scrollToNextStep('booking-main-content', { offset: -110, delay: 50 });
+        return 3;
+      } else if (curr === 3 && isStep3Valid) {
+        setMaxUnlockedStep(prev => Math.max(prev, 4));
+        scrollToNextStep('booking-main-content', { offset: -110, delay: 50 });
+        return 4;
+      }
+      return curr;
+    });
+  }, [isStep1Valid, isStep2Valid, isStep3Valid]);
 
-  const prevStep = () => {
-    if (currentStep > 1) {
-      setCurrentStep(prev => prev - 1);
-      scrollToNextStep('booking-main-content', { offset: -110, delay: 50 });
-    }
-  };
+  const prevStep = useCallback(() => {
+    setCurrentStep((prev) => {
+      if (prev > 1) {
+        scrollToNextStep('booking-main-content', { offset: -110, delay: 50 });
+        return prev - 1;
+      }
+      return prev;
+    });
+  }, []);
 
   // Centralized Booking Submission Handler
   const submitBooking = useCallback(async () => {

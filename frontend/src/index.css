@@ -52,14 +52,9 @@
   }
 }
 
-/* Fast scroll performance mode: temporarily pauses hover reflows during fast flick/wheel */
-body.is-scrolling-fast * {
-  pointer-events: none !important;
-}
-
-body.is-scrolling-fast nav,
-body.is-scrolling-fast header {
-  pointer-events: auto !important;
+/* Smooth scrolling performance optimizations */
+.no-tap-delay {
+  touch-action: manipulation;
 }
 
 /* GPU hardware layer promotion for animated cards */

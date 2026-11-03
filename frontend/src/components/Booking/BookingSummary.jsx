@@ -11,7 +11,6 @@ import {
   ChevronRight,
   ReceiptText
 } from 'lucide-react';
-import LoginRequiredModal from '../auth/LoginRequiredModal';
 import ApplianceIcon from '../common/ApplianceIcon';
 import { formatCleanAddress } from '../../utils/addressParser';
 
@@ -27,9 +26,7 @@ export default function BookingSummary() {
     goToStep,
     submitBooking,
     loading,
-    errors,
-    showLoginModal,
-    setShowLoginModal
+    errors
   } = useBooking();
 
   const { basePrice, total } = bookingState.priceInfo;
@@ -268,12 +265,6 @@ export default function BookingSummary() {
         </div>
       </div>
 
-      {/* Login Required Modal */}
-      <LoginRequiredModal
-        isOpen={showLoginModal}
-        onClose={() => setShowLoginModal(false)}
-        appliance={{ name: bookingState.serviceName || 'Appliance Repair' }}
-      />
     </div>
   );
 }

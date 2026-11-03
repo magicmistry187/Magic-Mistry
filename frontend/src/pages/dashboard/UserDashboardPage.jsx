@@ -1885,21 +1885,20 @@ export default function UserDashboardPage() {
                                 </div>
                               </div>
 
-                              {addr.flat && (
-                                <p className="font-extrabold text-slate-900 text-sm">{addr.flat}</p>
-                              )}
-                              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                                {addr.street}
-                              </p>
-                              {addr.landmark && (
-                                <p className="text-[11px] text-slate-400 mt-0.5">
-                                  Near: {addr.landmark}
-                                </p>
-                              )}
-                              <p className="text-xs font-semibold text-slate-700 mt-1">
-                                {[addr.city, addr.state].filter(Boolean).join(', ')}{' '}
-                                {addr.pincode && `• ${addr.pincode}`}
-                              </p>
+                              {(() => {
+                                const cleanFull = formatCleanAddress(addr);
+                                const hasFlat = addr.flat && !cleanFull.startsWith(addr.flat);
+                                return (
+                                  <>
+                                    {hasFlat && (
+                                      <p className="font-extrabold text-slate-900 text-sm">{addr.flat}</p>
+                                    )}
+                                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                                      {cleanFull}
+                                    </p>
+                                  </>
+                                );
+                              })()}
                             </div>
 
                             {!addr.isDefault && (

@@ -59,7 +59,7 @@ const Navbar = () => {
   // Navbar dynamic states
   const [isVisible, setIsVisible] = useState(true);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [lastScrollY, setLastScrollY] = useState(0);
+  const lastScrollYRef = useRef(0);
   const [isPromoBannerVisible, setIsPromoBannerVisible] = useState(false);
 
   // Overlay states
@@ -83,38 +83,49 @@ const Navbar = () => {
   const searchInputRef = useRef(null);
   const mobileSearchRef = useRef(null);
 
-  // 1. Refined scroll handler: stays visible at top, hides only on confident scroll down
+  // 1. Refined scroll handler: RAF-throttled, zero re-renders during steady scroll
   useEffect(() => {
+    let ticking = false;
+
     const handleScroll = () => {
-      const currentScrollY = window.scrollY;
+      if (ticking) return;
+      ticking = true;
 
-      // Update background elevation
-      setIsScrolled(currentScrollY > 15);
+      requestAnimationFrame(() => {
+        const currentScrollY = window.scrollY;
+        const lastScrollY = lastScrollYRef.current;
 
-      // Keep navbar fixed visible if menu, dropdown, or search is open
-      if (isMobileMenuOpen || isDropdownOpen || isLocationPopupOpen || isSearchFocused) {
-        setIsVisible(true);
-        setLastScrollY(currentScrollY);
-        return;
-      }
+        // Update background elevation only if value changed
+        const shouldBeScrolled = currentScrollY > 15;
+        setIsScrolled((prev) => (prev !== shouldBeScrolled ? shouldBeScrolled : prev));
 
-      // Hide only after scrolling past top banner threshold (> 90px)
-      if (currentScrollY > 90) {
-        if (currentScrollY > lastScrollY && currentScrollY - lastScrollY > 10) {
-          setIsVisible(false); // scrolling down
-        } else if (lastScrollY - currentScrollY > 6) {
-          setIsVisible(true); // scrolling up
+        // Keep navbar fixed visible if menu, dropdown, or search is open
+        if (isMobileMenuOpen || isDropdownOpen || isLocationPopupOpen || isSearchFocused) {
+          setIsVisible(true);
+          lastScrollYRef.current = currentScrollY;
+          ticking = false;
+          return;
         }
-      } else {
-        setIsVisible(true);
-      }
 
-      setLastScrollY(currentScrollY);
+        // Hide only after scrolling past top banner threshold (> 90px)
+        if (currentScrollY > 90) {
+          if (currentScrollY > lastScrollY && currentScrollY - lastScrollY > 10) {
+            setIsVisible(false); // scrolling down
+          } else if (lastScrollY - currentScrollY > 6) {
+            setIsVisible(true); // scrolling up
+          }
+        } else {
+          setIsVisible(true);
+        }
+
+        lastScrollYRef.current = currentScrollY;
+        ticking = false;
+      });
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY, isMobileMenuOpen, isDropdownOpen, isLocationPopupOpen, isSearchFocused]);
+  }, [isMobileMenuOpen, isDropdownOpen, isLocationPopupOpen, isSearchFocused]);
 
   // 2. Click outside listeners for all overlays
   useEffect(() => {
@@ -417,7 +428,7 @@ const Navbar = () => {
           isVisible ? 'translate-y-0' : '-translate-y-full'
         } ${
           isScrolled
-            ? 'bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.06)]'
+            ? 'bg-white md:bg-white/95 md:backdrop-blur-md border-b border-slate-200/80 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.06)]'
             : 'bg-white border-b border-slate-100/90'
         }`}
       >

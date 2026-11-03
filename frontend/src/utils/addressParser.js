@@ -386,6 +386,17 @@ export function formatCleanAddress(input) {
   if (!input) return '';
 
   if (typeof input === 'object' && input !== null) {
+    // If direct string exists and contains content, clean it
+    if (typeof input.formattedAddress === 'string' && input.formattedAddress.trim()) {
+      return formatCleanAddress(input.formattedAddress);
+    }
+    if (typeof input.fullAddress === 'string' && input.fullAddress.trim()) {
+      return formatCleanAddress(input.fullAddress);
+    }
+    if (typeof input.address === 'string' && input.address.trim()) {
+      return formatCleanAddress(input.address);
+    }
+
     // If it is an address object with addressLine1, street, house, etc.
     let flat = (input.flat || input.house || '').trim();
     let street = (input.street || '').trim();
@@ -394,6 +405,11 @@ export function formatCleanAddress(input) {
     let city = (input.city || '').trim();
     let state = (input.state || '').trim();
     let pincode = (input.pincode === '000000' ? '' : (input.pincode || '')).trim();
+
+    // Prevent house/flat from duplicating the full address line
+    if (flat && (flat.includes(',') || flat.length > 30)) {
+      flat = '';
+    }
 
     // If flat and street are identical, avoid duplicate
     if (flat.toLowerCase() === street.toLowerCase()) {
@@ -407,6 +423,16 @@ export function formatCleanAddress(input) {
     if (addressLine1 && street && addressLine1.toLowerCase().includes(street.toLowerCase())) {
       street = '';
     }
+    // If street already includes addressLine1
+    if (street && addressLine1 && street.toLowerCase().includes(addressLine1.toLowerCase())) {
+      addressLine1 = '';
+    }
+    if (flat && street && street.toLowerCase().includes(flat.toLowerCase())) {
+      flat = '';
+    }
+    if (flat && addressLine1 && addressLine1.toLowerCase().includes(flat.toLowerCase())) {
+      flat = '';
+    }
 
     const rawParts = [
       flat,
@@ -418,18 +444,33 @@ export function formatCleanAddress(input) {
       pincode
     ].filter(Boolean);
 
-    // If direct string exists, clean it
-    if (typeof input.formattedAddress === 'string' && input.formattedAddress.trim()) {
-      return formatCleanAddress(input.formattedAddress);
-    }
-    if (typeof input.fullAddress === 'string' && input.fullAddress.trim()) {
-      return formatCleanAddress(input.fullAddress);
-    }
-    if (typeof input.address === 'string' && input.address.trim()) {
-      return formatCleanAddress(input.address);
+    // Extract individual tokens from all parts and deduplicate preserving order
+    const seenTokenSet = new Set();
+    const uniqueTokens = [];
+    for (const part of rawParts) {
+      const tokens = String(part)
+        .split(',')
+        .map((t) => cleanPostalParentheses(t.trim()))
+        .filter(Boolean);
+      for (const tok of tokens) {
+        const lower = tok.toLowerCase();
+        if (
+          lower === 'current location' ||
+          lower === '000000' ||
+          lower === 'area' ||
+          lower === 'home' ||
+          lower === 'other'
+        ) {
+          continue;
+        }
+        if (!seenTokenSet.has(lower)) {
+          seenTokenSet.add(lower);
+          uniqueTokens.push(tok);
+        }
+      }
     }
 
-    return formatCleanAddress(rawParts.join(', '));
+    return formatCleanAddress(uniqueTokens.join(', '));
   }
 
   let str = String(input).trim();

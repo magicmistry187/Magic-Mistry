@@ -2888,7 +2888,7 @@ export default function VendorDashboardPage() {
                 )}
                 <span className="flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5 text-orange-500" />
-                  {job.location || job.serviceAddress || 'Customer Address'}
+                  {formatCleanAddress(job.location || job.serviceAddress) || 'Customer Address'}
                 </span>
                 <span className="text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md font-bold">
                   🚘 {job.distance || 'Near you'}
@@ -5050,8 +5050,8 @@ export default function VendorDashboardPage() {
                                 </td>
                                 <td className="p-3">
                                   <span className="font-extrabold text-slate-800 block">{job.customerName || 'Customer'}</span>
-                                  <span className="text-[11px] text-slate-500 truncate block max-w-[200px]" title={job.location || job.serviceAddress}>
-                                    {job.location || job.serviceAddress}
+                                  <span className="text-[11px] text-slate-500 truncate block max-w-[200px]" title={formatCleanAddress(job.location || job.serviceAddress)}>
+                                    {formatCleanAddress(job.location || job.serviceAddress)}
                                   </span>
                                 </td>
                                 <td className="p-3">
@@ -5164,8 +5164,8 @@ export default function VendorDashboardPage() {
                             {/* Customer & Location */}
                             <div className="text-xs">
                               <span className="font-extrabold text-slate-800 block text-sm">{job.customerName || 'Customer'}</span>
-                              <span className="text-[11px] text-slate-500 block mt-0.5 truncate" title={job.location || job.serviceAddress}>
-                                {job.location || job.serviceAddress}
+                              <span className="text-[11px] text-slate-500 block mt-0.5 truncate" title={formatCleanAddress(job.location || job.serviceAddress)}>
+                                {formatCleanAddress(job.location || job.serviceAddress)}
                               </span>
                             </div>
 

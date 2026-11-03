@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import Lenis from 'lenis';
 import 'lenis/dist/lenis.css';
 
@@ -11,8 +11,6 @@ export const useSmoothScroll = () => useContext(SmoothScrollContext);
 
 export default function SmoothScrollProvider({ children }) {
   const [lenisInstance, setLenisInstance] = useState(null);
-  const [isFastScrolling, setIsFastScrolling] = useState(false);
-  const fastScrollTimerRef = useRef(null);
 
   useEffect(() => {
     // Respect user's accessibility reduced motion preferences
@@ -21,15 +19,23 @@ export default function SmoothScrollProvider({ children }) {
       return;
     }
 
+    // Touch devices (smartphones, tablets) have native 120Hz/60Hz GPU-accelerated momentum scrolling.
+    // Intercepting touch via JS scroll libraries causes stutter, dropped touch events, and input lag.
+    const isTouchDevice =
+      typeof window !== 'undefined' &&
+      ('ontouchstart' in window || navigator.maxTouchPoints > 0 || window.matchMedia('(pointer: coarse)').matches);
+
+    if (isTouchDevice) {
+      return;
+    }
+
     const lenis = new Lenis({
-      duration: 1.1,
+      duration: 1.0,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       orientation: 'vertical',
       gestureOrientation: 'vertical',
       smoothWheel: true,
       wheelMultiplier: 0.95,
-      // Keep mobile touch native for zero-latency 120Hz/60Hz touch displays
-      touchMultiplier: 1,
       infinite: false,
       autoResize: true,
       prevent: (node) => Boolean(node?.closest?.('[data-lenis-prevent]')),
@@ -37,30 +43,6 @@ export default function SmoothScrollProvider({ children }) {
 
     setLenisInstance(lenis);
     window.__lenis = lenis;
-
-    // Track scroll velocity to detect fast scrolling and optimize animations
-    const handleScroll = (e) => {
-      const velocity = Math.abs(e.velocity || 0);
-
-      // High velocity threshold (fast mouse wheel flick or fast swipe)
-      if (velocity > 4) {
-        if (!document.body.classList.contains('is-scrolling-fast')) {
-          document.body.classList.add('is-scrolling-fast');
-          setIsFastScrolling(true);
-        }
-
-        if (fastScrollTimerRef.current) {
-          clearTimeout(fastScrollTimerRef.current);
-        }
-
-        fastScrollTimerRef.current = setTimeout(() => {
-          document.body.classList.remove('is-scrolling-fast');
-          setIsFastScrolling(false);
-        }, 150);
-      }
-    };
-
-    lenis.on('scroll', handleScroll);
 
     // Synchronize with the browser's requestAnimationFrame cycle
     let rafId;
@@ -72,17 +54,13 @@ export default function SmoothScrollProvider({ children }) {
 
     return () => {
       cancelAnimationFrame(rafId);
-      if (fastScrollTimerRef.current) {
-        clearTimeout(fastScrollTimerRef.current);
-      }
-      document.body.classList.remove('is-scrolling-fast');
       lenis.destroy();
       window.__lenis = null;
     };
   }, []);
 
   return (
-    <SmoothScrollContext.Provider value={{ lenis: lenisInstance, isFastScrolling }}>
+    <SmoothScrollContext.Provider value={{ lenis: lenisInstance, isFastScrolling: false }}>
       {children}
     </SmoothScrollContext.Provider>
   );
