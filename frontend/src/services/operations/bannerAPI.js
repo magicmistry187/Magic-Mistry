@@ -96,14 +96,22 @@ export async function updateAdminBannerApi(bannerData, token) {
 
 /**
  * Quick 1-Tap Toggle: Instantly toggle banner ON or OFF
+ * Supports boolean or full payload object (e.g. { isActive, isPopupEnabled, popupFloatingTrigger, disableAll })
  */
-export async function toggleBannerApi(isActive, token) {
+export async function toggleBannerApi(payloadOrActive, token) {
   try {
     const authToken = getAuthToken(token);
+    const body =
+      typeof payloadOrActive === 'boolean'
+        ? { isActive: payloadOrActive }
+        : typeof payloadOrActive === 'object' && payloadOrActive !== null
+        ? payloadOrActive
+        : { isActive: Boolean(payloadOrActive) };
+
     const res = await apiConnector(
       'PATCH',
       `${BANNER_API}/toggle`,
-      { isActive },
+      body,
       authToken ? { Authorization: `Bearer ${authToken}` } : {}
     );
     if (res?.data?.success) {
@@ -114,4 +122,20 @@ export async function toggleBannerApi(isActive, token) {
     console.error('Error toggling banner:', err);
     throw err;
   }
+}
+
+/**
+ * Master Switch: Turn OFF or ON all banners website-wide in a single click
+ */
+export async function toggleAllBannersApi(turnOn, token) {
+  return toggleBannerApi(
+    {
+      isActive: Boolean(turnOn),
+      isPopupEnabled: Boolean(turnOn),
+      popupFloatingTrigger: Boolean(turnOn),
+      disableAll: !turnOn,
+      enableAll: Boolean(turnOn),
+    },
+    token
+  );
 }

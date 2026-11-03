@@ -56,7 +56,7 @@ export default function DiscountPopupBanner({
   const { socket } = useSocket();
 
   // Banner data state - initialized with fallback so it displays without waiting for network roundtrip
-  const [banner, setBanner] = useState(previewBanner || DEFAULT_FRONTEND_BANNER);
+  const [banner, setBanner] = useState(previewBanner || null);
   const [isOpen, setIsOpen] = useState(forceOpen);
   const [isDismissed, setIsDismissed] = useState(false);
   const [isFloatingPillDismissed, setIsFloatingPillDismissed] = useState(false);
@@ -100,16 +100,16 @@ export default function DiscountPopupBanner({
     }
     try {
       const data = await getActiveBannerApi();
-      if (data) {
-        if (data.isActive !== false) {
-          setBanner(data);
-        } else {
-          setBanner(null);
-          setIsOpen(false);
-        }
+      if (data && data.isActive !== false && data.isPopupEnabled !== false) {
+        setBanner(data);
+      } else {
+        setBanner(null);
+        setIsOpen(false);
       }
     } catch (err) {
       console.warn('Discount popup fetch error:', err);
+      setBanner(null);
+      setIsOpen(false);
     }
   }, [previewBanner]);
 
@@ -122,18 +122,15 @@ export default function DiscountPopupBanner({
     if (previewBanner) return;
 
     const handleBannerUpdate = (updated) => {
-      if (updated && updated.isActive) {
+      if (updated && updated.isActive && updated.isPopupEnabled !== false) {
         setBanner(updated);
-        // If re-activated, reset dismissal in session
-        if (updated.isPopupEnabled !== false) {
-          try {
-            sessionStorage.removeItem('mm_discount_popup_dismissed');
-            sessionStorage.removeItem('mm_discount_popup_dismissed_at');
-          } catch {
-            // ignore
-          }
-          setIsDismissed(false);
+        try {
+          sessionStorage.removeItem('mm_discount_popup_dismissed');
+          sessionStorage.removeItem('mm_discount_popup_dismissed_at');
+        } catch {
+          // ignore
         }
+        setIsDismissed(false);
       } else {
         setBanner(null);
         setIsOpen(false);

@@ -118,6 +118,7 @@ exports.updateAdminBanner = async (req, res) => {
 
 /**
  * Admin: Toggle banner active state directly with instant broadcast.
+ * Supports single-switch global disable/enable of all website banner modalities.
  */
 exports.toggleBannerActive = async (req, res) => {
   try {
@@ -127,12 +128,31 @@ exports.toggleBannerActive = async (req, res) => {
       banner = await Banner.create(DEFAULT_BANNER);
     }
 
-    const newActiveState =
-      typeof req.body.isActive === 'boolean'
-        ? req.body.isActive
-        : !banner.isActive;
+    const isDisableAll = req.body.disableAll === true || req.body.isActive === false;
+    const isEnableAll = req.body.enableAll === true;
 
-    banner.isActive = newActiveState;
+    if (isDisableAll) {
+      banner.isActive = false;
+      banner.isPopupEnabled = false;
+      banner.popupFloatingTrigger = false;
+    } else if (isEnableAll) {
+      banner.isActive = true;
+      banner.isPopupEnabled = true;
+      banner.popupFloatingTrigger = true;
+    } else {
+      if (typeof req.body.isActive === 'boolean') {
+        banner.isActive = req.body.isActive;
+      } else {
+        banner.isActive = !banner.isActive;
+      }
+      if (typeof req.body.isPopupEnabled === 'boolean') {
+        banner.isPopupEnabled = req.body.isPopupEnabled;
+      }
+      if (typeof req.body.popupFloatingTrigger === 'boolean') {
+        banner.popupFloatingTrigger = req.body.popupFloatingTrigger;
+      }
+    }
+
     await banner.save();
 
     // Broadcast live to all connected clients
@@ -140,7 +160,7 @@ exports.toggleBannerActive = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: `Banner turned ${banner.isActive ? 'ON' : 'OFF'}`,
+      message: `All banners turned ${banner.isActive ? 'ON' : 'OFF'}`,
       banner,
     });
   } catch (err) {

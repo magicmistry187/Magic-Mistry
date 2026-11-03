@@ -19,6 +19,9 @@ import {
   ArrowRight,
   X,
   Power,
+  PowerOff,
+  ShieldAlert,
+  CheckCircle2,
 } from 'lucide-react';
 import { BANNER_THEMES } from '../../common/TopPromoBanner';
 import DiscountPopupBanner from '../../home/DiscountPopupBanner';
@@ -26,6 +29,7 @@ import {
   getAdminBannerApi,
   updateAdminBannerApi,
   toggleBannerApi,
+  toggleAllBannersApi,
   DEFAULT_FRONTEND_BANNER,
 } from '../../../services/operations/bannerAPI';
 
@@ -90,6 +94,62 @@ export default function AdminBannerTab({ adminToken, showToast }) {
       ...prev,
       [field]: value,
     }));
+  };
+
+  // Computed flag: is any banner component currently live?
+  const isAnyBannerActive = Boolean(formData.isActive || formData.isPopupEnabled || formData.popupFloatingTrigger);
+
+  // Single Master Kill Switch: 1-click turn OFF or ON all website banner modalities
+  const handleMasterKillSwitch = async (turnOn) => {
+    if (isToggling) return;
+    setIsToggling(true);
+
+    const updated = {
+      ...formData,
+      isActive: Boolean(turnOn),
+      isPopupEnabled: Boolean(turnOn),
+      popupFloatingTrigger: Boolean(turnOn),
+    };
+
+    // 1. Optimistic UI update
+    setFormData(updated);
+
+    // 2. Dispatch local real-time event for instant same-window navbar & homepage update
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('mm_banner_updated', {
+          detail: updated,
+        })
+      );
+    }
+
+    // 3. Persist to backend and broadcast via WebSocket to all connected clients
+    try {
+      const res = await toggleAllBannersApi(turnOn, adminToken);
+      if (res?.success) {
+        if (typeof showToast === 'function') {
+          showToast(
+            turnOn
+              ? 'All website banners turned ON and live! 🟢'
+              : 'All website banners turned OFF completely! ⚪'
+          );
+        }
+      }
+    } catch (err) {
+      console.error('Master banner toggle failed:', err);
+      // Revert if error
+      setFormData((prev) => ({
+        ...prev,
+        isActive: !turnOn,
+        isPopupEnabled: !turnOn,
+        popupFloatingTrigger: !turnOn,
+      }));
+      if (typeof showToast === 'function') {
+        showToast('Failed to toggle all banners. Check backend connection.');
+      }
+    } finally {
+      setIsToggling(false);
+    }
   };
 
   // 2. Instant 1-Tap Toggle: Saves to backend immediately and updates website live!
@@ -191,6 +251,31 @@ export default function AdminBannerTab({ adminToken, showToast }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Master 1-Click Kill Switch Button in Header */}
+          {isAnyBannerActive ? (
+            <button
+              type="button"
+              disabled={isToggling}
+              onClick={() => handleMasterKillSwitch(false)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-xl shadow-md shadow-rose-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+              title="Instantly turn off all banners and popups website-wide in 1 click"
+            >
+              <PowerOff className="w-4 h-4" />
+              <span>Turn OFF All Banners</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={isToggling}
+              onClick={() => handleMasterKillSwitch(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+              title="Instantly turn on all banners website-wide in 1 click"
+            >
+              <Power className="w-4 h-4" />
+              <span>Turn ON All Banners</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setShowPopupPreview(true)}
@@ -227,6 +312,103 @@ export default function AdminBannerTab({ adminToken, showToast }) {
         
         {/* ── LEFT COLUMN: Form Controls (7 cols) ── */}
         <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 sm:p-6 space-y-6">
+
+          {/* ── MASTER 1-CLICK KILL SWITCH HERO BANNER ── */}
+          <div
+            className={`p-4 sm:p-5 rounded-2xl border transition-all duration-200 ${
+              isAnyBannerActive
+                ? 'bg-gradient-to-r from-rose-50/90 via-red-50/50 to-amber-50/30 border-rose-200 shadow-sm shadow-rose-500/5'
+                : 'bg-gradient-to-r from-emerald-50/90 via-teal-50/50 to-slate-50 border-emerald-200 shadow-sm shadow-emerald-500/5'
+            }`}
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div
+                  className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
+                    isAnyBannerActive
+                      ? 'bg-gradient-to-tr from-rose-600 to-red-500 text-white shadow-rose-500/20'
+                      : 'bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shadow-emerald-500/20'
+                  }`}
+                >
+                  {isAnyBannerActive ? <Power className="w-5 h-5" /> : <PowerOff className="w-5 h-5" />}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                        isAnyBannerActive
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : 'bg-slate-200 text-slate-700 border border-slate-300'
+                      }`}
+                    >
+                      <span
+                        className={`w-2 h-2 rounded-full ${
+                          isAnyBannerActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+                        }`}
+                      />
+                      {isAnyBannerActive ? 'Website Banners Live' : 'All Banners Turned OFF'}
+                    </span>
+                    <span className="text-[11px] font-bold text-slate-400">• Master Switch</span>
+                  </div>
+                  <h3 className="text-sm sm:text-base font-extrabold text-[#0B1E40]">
+                    {isAnyBannerActive
+                      ? 'Turn OFF All Banners Website-Wide'
+                      : 'All Website Banners are Currently Disabled'}
+                  </h3>
+                  <p className="text-xs text-slate-600 mt-0.5 leading-relaxed font-medium max-w-md">
+                    {isAnyBannerActive
+                      ? 'Single 1-click kill switch. Instantly removes the top promotional banner, homepage discount popup, urgency countdown, and floating launcher pill across the entire website.'
+                      : 'No promotional banners or discount popups are shown to customers. Click to re-enable banners website-wide whenever you are ready.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="shrink-0 flex sm:flex-col items-center sm:items-end gap-1.5">
+                {isAnyBannerActive ? (
+                  <button
+                    type="button"
+                    disabled={isToggling}
+                    onClick={() => handleMasterKillSwitch(false)}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isToggling ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Turning Off...</span>
+                      </>
+                    ) : (
+                      <>
+                        <PowerOff className="w-4 h-4" />
+                        <span>Turn OFF All Banners</span>
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={isToggling}
+                    onClick={() => handleMasterKillSwitch(true)}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isToggling ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Turning On...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Power className="w-4 h-4" />
+                        <span>Turn ON All Banners</span>
+                      </>
+                    )}
+                  </button>
+                )}
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider hidden sm:block">
+                  1-Click Global Control
+                </span>
+              </div>
+            </div>
+          </div>
           
           {/* 1. Instant Status Toggle (Auto-saves on click!) */}
           <div
