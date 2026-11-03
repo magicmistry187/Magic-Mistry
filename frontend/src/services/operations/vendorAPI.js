@@ -337,6 +337,12 @@ export async function updateVendorProfileApi(formData, token) {
  */
 export async function updateVendorProfileImageApi(imageFile, token) {
   try {
+    if (imageFile && imageFile.size > 4 * 1024 * 1024) {
+      return {
+        success: false,
+        message: 'Profile image exceeds 4MB limit. Please choose a smaller image under 4MB.',
+      };
+    }
     const authToken = token || (typeof window !== 'undefined' && (localStorage.getItem('mm_token') || localStorage.getItem('token')));
     const formData = new FormData();
     formData.append('profileImage', imageFile);

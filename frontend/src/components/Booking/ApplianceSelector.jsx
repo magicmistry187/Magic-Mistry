@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useBooking } from './BookingContext';
 import { useLivePricing } from '../../services/pricingService';
 import ApplianceIcon from '../common/ApplianceIcon';
+import { MAX_FILE_SIZE_BYTES } from '../../utils/fileValidation';
 import {
   Search,
   Check,
@@ -19,7 +20,9 @@ import {
   Award,
   Layers,
   Clock,
-  RotateCcw
+  RotateCcw,
+  AlertCircle,
+  Plus
 } from 'lucide-react';
 
 const CATEGORY_TABS = [
@@ -37,7 +40,6 @@ export default function ApplianceSelector() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTab, setSelectedTab] = useState('all');
   const [isChangingService, setIsChangingService] = useState(false);
-  const [allowMultiplePackages, setAllowMultiplePackages] = useState(false);
   const [showOptionalDetails, setShowOptionalDetails] = useState(
     Boolean(bookingState.problemDescription || bookingState.imageFile)
   );
@@ -108,31 +110,44 @@ export default function ApplianceSelector() {
     setSearchQuery('');
   };
 
-  // Toggle or select sub-service package
+  // Toggle or select sub-service package (Full multi-selection support)
   const handleSelectPackage = (sub) => {
-    if (allowMultiplePackages) {
-      const isSelected = bookingState.selectedSubServices.some(s => s.label === sub.label || s.id === sub.id);
-      let newServices;
-      if (isSelected) {
-        newServices = bookingState.selectedSubServices.filter(s => s.label !== sub.label && s.id !== sub.id);
-      } else {
-        newServices = [...bookingState.selectedSubServices, sub];
-      }
-      updateBooking('selectedSubServices', newServices);
+    const current = bookingState.selectedSubServices || [];
+    const isSelected = current.some(s => s.label === sub.label || s.id === sub.id);
+    let newServices;
+    if (isSelected) {
+      // Deselect this package
+      newServices = current.filter(s => s.label !== sub.label && s.id !== sub.id);
     } else {
-      // Single selection: clicking selects this package directly
-      updateBooking('selectedSubServices', [sub]);
+      // Add this package to selected packages
+      newServices = [...current, sub];
     }
+    updateBooking('selectedSubServices', newServices);
   };
+
+  const [fileError, setFileError] = useState(null);
 
   // Image handling
   const handleFileChange = (file) => {
-    if (!file || !file.type.startsWith('image/')) return;
+    setFileError(null);
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setFileError('Please upload a valid image file (PNG, JPG, or WEBP).');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setFileError('File size exceeds the 4MB limit. Please choose an image under 4MB.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
     updateBooking('imageFile', file);
   };
 
   const removeFile = () => {
+    setFileError(null);
     updateBooking('imageFile', null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const previewUrl = useMemo(() => {
@@ -281,30 +296,48 @@ export default function ApplianceSelector() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200/70 gap-3">
                   <div>
                     <div className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-indigo-600">
-                      <Layers className="w-3.5 h-3.5" /> Select Service Package
+                      <Layers className="w-3.5 h-3.5" /> Select Service Packages
                     </div>
                     <h3 className="font-extrabold text-[#0B1E40] text-base sm:text-xl">
                       {currentCatData.name} Packages
                     </h3>
                     <p className="text-xs text-slate-500 font-medium mt-0.5">
-                      Choose the specific repair or maintenance package you need. Zero surprise charges.
+                      Select one or more repair or maintenance packages for your appliance. Transparent fixed pricing.
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-3 self-start sm:self-auto shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setAllowMultiplePackages(p => !p)}
-                      className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer ${
-                        allowMultiplePackages
-                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
-                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                      }`}
-                      title="Toggle multi-package selection"
-                    >
-                      <span className="w-2 h-2 rounded-full bg-current opacity-70" />
-                      {allowMultiplePackages ? 'Multiple Packages: ON' : 'Multiple Packages: OFF'}
-                    </button>
+                  <div className="flex items-center gap-2.5 self-start sm:self-auto shrink-0 flex-wrap">
+                    {bookingState.selectedSubServices.length > 0 && (
+                      <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-3 py-1.5 rounded-xl shadow-2xs">
+                        {bookingState.selectedSubServices.length} {bookingState.selectedSubServices.length === 1 ? 'package' : 'packages'} selected • ₹{bookingState.priceInfo?.total || 0}
+                      </span>
+                    )}
+
+                    {bookingState.selectedSubServices.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (subServicesList.length > 0) {
+                            updateBooking('selectedSubServices', [subServicesList[0]]);
+                          }
+                        }}
+                        className="text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 cursor-pointer transition-all"
+                        title="Reset to only the primary package"
+                      >
+                        Reset to 1
+                      </button>
+                    )}
+
+                    {bookingState.selectedSubServices.length < subServicesList.length && (
+                      <button
+                        type="button"
+                        onClick={() => updateBooking('selectedSubServices', subServicesList)}
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-white px-3 py-1.5 rounded-xl border border-indigo-200 hover:bg-indigo-50/50 cursor-pointer transition-all"
+                        title="Select all packages"
+                      >
+                        Select All
+                      </button>
+                    )}
 
                     <div className="text-xs font-semibold text-slate-500 bg-white px-3 py-1.5 rounded-xl border border-slate-200">
                       {subServicesList.length} options
@@ -326,7 +359,7 @@ export default function ApplianceSelector() {
                         onClick={() => handleSelectPackage(sub)}
                         className={`p-4 sm:p-5 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between h-full group relative ${
                           isSubSelected
-                            ? 'bg-gradient-to-br from-indigo-50/60 via-white to-white border-indigo-600 shadow-md ring-2 ring-indigo-500/15'
+                            ? 'bg-gradient-to-br from-indigo-50/70 via-white to-white border-indigo-600 shadow-md ring-2 ring-indigo-500/15'
                             : 'bg-white border-slate-200/90 hover:border-indigo-300 hover:shadow-xs hover:-translate-y-0.5'
                         }`}
                       >
@@ -338,9 +371,9 @@ export default function ApplianceSelector() {
                         )}
 
                         <div className="flex items-start gap-3 flex-1 min-w-0">
-                          {/* Radio / Check indicator */}
+                          {/* Multi-select Checkbox indicator */}
                           <div
-                            className={`w-5 h-5 rounded-full border flex items-center justify-center text-xs font-bold mt-0.5 shrink-0 transition-colors ${
+                            className={`w-5 h-5 rounded-md border flex items-center justify-center text-xs font-bold mt-0.5 shrink-0 transition-colors ${
                               isSubSelected
                                 ? 'border-indigo-600 bg-indigo-600 text-white shadow-2xs'
                                 : 'border-slate-300 text-transparent group-hover:border-indigo-400 bg-white'
@@ -376,19 +409,28 @@ export default function ApplianceSelector() {
                             <span className="text-lg font-black text-[#0B1E40]">₹{sub.price}</span>
                           </div>
 
-                          <div className={`text-xs font-bold px-3 py-1 rounded-lg transition-colors flex items-center gap-1 ${
-                            isSubSelected
-                              ? 'bg-indigo-50 text-indigo-700 font-extrabold border border-indigo-100'
-                              : 'text-slate-500 group-hover:text-indigo-600 group-hover:bg-slate-50'
-                          }`}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSelectPackage(sub);
+                            }}
+                            className={`text-xs font-bold px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
+                              isSubSelected
+                                ? 'bg-indigo-600 text-white shadow-2xs hover:bg-indigo-700'
+                                : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200/80'
+                            }`}
+                          >
                             {isSubSelected ? (
                               <>
-                                <Check className="w-3 h-3 stroke-[3]" /> Selected
+                                <Check className="w-3.5 h-3.5 stroke-[3]" /> Added
                               </>
                             ) : (
-                              'Select Package'
+                              <>
+                                <Plus className="w-3.5 h-3.5 stroke-[3]" /> Add Package
+                              </>
                             )}
-                          </div>
+                          </button>
                         </div>
                       </div>
                     );
@@ -631,6 +673,12 @@ export default function ApplianceSelector() {
                   <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">
                     Upload Photo of Appliance or Issue
                   </label>
+                  {fileError && (
+                    <div className="mb-2 flex items-center gap-2 p-2.5 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-xl">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-500" />
+                      <span>{fileError}</span>
+                    </div>
+                  )}
 
                   {!bookingState.imageFile ? (
                     <div
@@ -653,7 +701,7 @@ export default function ApplianceSelector() {
                       <p className="text-xs font-bold text-slate-700">
                         Drag &amp; drop photo, or <span className="text-indigo-600 hover:underline">browse files</span>
                       </p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">PNG, JPG, WEBP • Up to 5MB</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">PNG, JPG, WEBP • Up to 4MB</p>
                       <input
                         ref={fileInputRef}
                         type="file"
@@ -722,7 +770,7 @@ export default function ApplianceSelector() {
             {isStep1Valid ? (
               <span className="flex items-center gap-1.5 text-emerald-700 font-semibold">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                Service ready: {bookingState.serviceName} ({bookingState.selectedSubServices.length} package selected)
+                Service ready: {bookingState.serviceName} ({bookingState.selectedSubServices.length} {bookingState.selectedSubServices.length === 1 ? 'package' : 'packages'} selected)
               </span>
             ) : (
               <span>Please select an appliance and package to continue.</span>

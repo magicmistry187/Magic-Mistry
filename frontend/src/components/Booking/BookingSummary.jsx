@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import LoginRequiredModal from '../auth/LoginRequiredModal';
 import ApplianceIcon from '../common/ApplianceIcon';
+import { formatCleanAddress } from '../../utils/addressParser';
 
 export default function BookingSummary() {
   const {
@@ -93,8 +94,16 @@ export default function BookingSummary() {
               {bookingState.serviceName || <span className="text-slate-400 italic font-normal">Not selected yet</span>}
             </h4>
             {bookingState.selectedSubServices.length > 0 && (
-              <div className="text-[11px] text-indigo-700 font-semibold mt-0.5 truncate">
-                {bookingState.selectedSubServices.map(s => s.label).join(', ')}
+              <div className="mt-1.5 space-y-1">
+                {bookingState.selectedSubServices.map((sub, idx) => (
+                  <div
+                    key={sub.id || idx}
+                    className="flex items-center justify-between text-[11px] bg-slate-50/80 px-2.5 py-1 rounded-lg border border-slate-100"
+                  >
+                    <span className="text-slate-700 font-semibold truncate pr-2">• {sub.label}</span>
+                    <span className="text-indigo-950 font-bold shrink-0">₹{sub.price}</span>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -136,8 +145,8 @@ export default function BookingSummary() {
             </div>
             <div className="text-right min-w-0 flex-1 truncate">
               {bookingState.address?.trim() ? (
-                <span className="font-bold text-slate-800 truncate block" title={bookingState.address}>
-                  {bookingState.address}
+                <span className="font-bold text-slate-800 truncate block" title={formatCleanAddress(bookingState.address)}>
+                  {formatCleanAddress(bookingState.address)}
                 </span>
               ) : (
                 <span className="text-slate-400 italic">Enter in Step 3</span>
@@ -162,7 +171,9 @@ export default function BookingSummary() {
         {/* Price Breakdown */}
         <div className="pt-4 border-t border-slate-100 space-y-2 text-xs">
           <div className="flex items-center justify-between text-slate-600 font-medium">
-            <span>Service Package Subtotal</span>
+            <span>
+              Service Packages ({bookingState.selectedSubServices.length || 1} {bookingState.selectedSubServices.length === 1 ? 'item' : 'items'})
+            </span>
             <span className="font-bold text-slate-900">₹{Number(basePrice).toFixed(0)}</span>
           </div>
 

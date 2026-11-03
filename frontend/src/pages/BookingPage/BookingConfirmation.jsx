@@ -10,6 +10,7 @@ import {
   UserCheck, AlertCircle, Loader2, Sparkles, LayoutDashboard
 } from 'lucide-react';
 import { getLiveBasePriceForAppliance } from '../../services/pricingService';
+import { formatCleanAddress } from '../../utils/addressParser';
 
 export default function BookingConfirmation() {
   const location = useLocation();
@@ -82,35 +83,8 @@ export default function BookingConfirmation() {
 
   const formattedAddress = React.useMemo(() => {
     if (!activeBooking?.address) return '—';
-    if (typeof activeBooking.address === 'string') {
-      try {
-        const parsed = JSON.parse(activeBooking.address);
-        if (typeof parsed === 'object' && parsed !== null) {
-          const parts = [
-            parsed.house || parsed.flat || parsed.addressLine1,
-            parsed.street,
-            parsed.landmark,
-            parsed.city,
-            parsed.state,
-            parsed.pincode,
-          ].filter(Boolean);
-          return parts.length > 0 ? parts.join(', ') : (parsed.fullAddress || activeBooking.address.trim() || '—');
-        }
-      } catch (_) {}
-      return activeBooking.address.trim() || '—';
-    }
-    if (typeof activeBooking.address === 'object') {
-      const parts = [
-        activeBooking.address.house || activeBooking.address.flat || activeBooking.address.addressLine1,
-        activeBooking.address.street,
-        activeBooking.address.landmark,
-        activeBooking.address.city,
-        activeBooking.address.state,
-        activeBooking.address.pincode,
-      ].filter(Boolean);
-      return parts.length > 0 ? parts.join(', ') : (activeBooking.address.fullAddress || '—');
-    }
-    return '—';
+    const clean = formatCleanAddress(activeBooking.address);
+    return clean || (typeof activeBooking.address === 'string' ? activeBooking.address.trim() : '—');
   }, [activeBooking?.address]);
 
   if (!activeBooking) return null;

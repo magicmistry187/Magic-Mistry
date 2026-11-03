@@ -9,6 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Printer, FileText, Wrench, Shield, Navigation, RefreshCw, Save, Check } from 'lucide-react';
 import { getInvoiceForBooking, normalizeInvoiceForUI, fetchRealtimeInvoice, saveInvoiceForBooking } from '../../../services/invoiceService';
+import { formatCleanAddress } from '../../../utils/addressParser';
 
 export default function UserInvoiceModal({ isOpen, onClose, booking }) {
   const rawId = booking?.id || booking?._id || booking?.rawBooking?._id || booking?.rawBooking?.bookingId;
@@ -195,9 +196,7 @@ export default function UserInvoiceModal({ isOpen, onClose, booking }) {
                 <p className="font-extrabold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Billed To (Customer)</p>
                 <p className="font-bold text-slate-900 text-sm">{inv.customerName || booking.customerName || 'Customer'}</p>
                 <p className="text-slate-600 mt-0.5 leading-snug">
-                  {inv.address || (typeof booking.address === 'object' && booking.address !== null
-                    ? [booking.address.house || booking.address.flat || booking.address.addressLine1, booking.address.street, booking.address.landmark, booking.address.city, booking.address.state, booking.address.pincode].filter(Boolean).join(', ')
-                    : (booking.address || 'Address on File'))}
+                  {formatCleanAddress(inv.address || booking.address) || 'Address on File'}
                 </p>
                 {inv.customerPhone && inv.customerPhone !== '—' && (
                   <p className="text-slate-500 mt-0.5">Phone: {inv.customerPhone}</p>

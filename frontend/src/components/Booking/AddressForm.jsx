@@ -18,7 +18,7 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { getAddressesApi } from "../../services/operations/addressAPI";
 import { getCurrentCoordinates, reverseGeocode } from "../../utils/reverseGeocode";
-import { cleanPostalParentheses } from "../../utils/addressParser";
+import { cleanPostalParentheses, formatCleanAddress } from "../../utils/addressParser";
 import InteractiveMapPicker from "../common/InteractiveMapPicker";
 
 const ADDR_TABS = {
@@ -89,15 +89,7 @@ export default function AddressForm() {
   };
 
   const applySavedAddressToBooking = (addr) => {
-    const parts = [
-      addr.house || addr.flat || addr.addressLine1,
-      addr.street,
-      addr.landmark,
-      addr.city,
-      addr.state,
-      addr.pincode,
-    ].filter(Boolean);
-    const fullStr = parts.join(", ");
+    const fullStr = formatCleanAddress(addr);
     updateBooking("address", fullStr);
 
     if (addr.location?.coordinates?.length === 2) {
@@ -118,7 +110,7 @@ export default function AddressForm() {
   useEffect(() => {
     if (activeTab === ADDR_TABS.SAVED) return;
 
-    const full = [flat, street, landmark, city, state, pincode].filter(Boolean).join(", ");
+    const full = formatCleanAddress([flat, street, landmark, city, state, pincode].filter(Boolean).join(", "));
     if (full.trim()) {
       updateBooking("address", full);
     }
@@ -150,11 +142,12 @@ export default function AddressForm() {
       setLandmark(address.landmark || "");
       setPincode(cleanPincode);
 
-      const fullAddress =
+      const fullAddress = formatCleanAddress(
         address.fullAddress ||
         [safeFlat, cleanStreet, address.landmark, cleanCity, cleanState, cleanPincode]
           .filter(Boolean)
-          .join(", ");
+          .join(", ")
+      );
 
       updateBooking("address", fullAddress);
       updateBooking("latitude", coords.latitude);
@@ -205,11 +198,12 @@ export default function AddressForm() {
       setLandmark(address.landmark || "");
       setPincode(cleanPincode);
 
-      const fullAddress =
+      const fullAddress = formatCleanAddress(
         address.fullAddress ||
         [safeFlat, cleanStreet, address.landmark, cleanCity, cleanState, cleanPincode]
           .filter(Boolean)
-          .join(", ");
+          .join(", ")
+      );
 
       updateBooking("address", fullAddress);
     }
@@ -339,8 +333,7 @@ export default function AddressForm() {
                 {savedAddressesList.map((addr) => {
                   const id = addr._id || addr.id;
                   const isSelected = selectedSavedId === id;
-                  const line1 = addr.house || addr.flat || addr.addressLine1;
-                  const full = [line1, addr.street, addr.city, addr.pincode].filter(Boolean).join(", ");
+                  const full = formatCleanAddress(addr);
 
                   return (
                     <div

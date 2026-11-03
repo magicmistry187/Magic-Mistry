@@ -5,6 +5,7 @@ import {
   X, Check, FileText, CheckCircle2, ShieldCheck, Sparkles
 } from 'lucide-react';
 import { useLivePricing } from '../../../services/pricingService';
+import { MAX_FILE_SIZE_BYTES } from '../../../utils/fileValidation';
 
 // Default sample petrol receipt svg for testing
 const SAMPLE_FUEL_BILL_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="500" height="300" viewBox="0 0 500 300">
@@ -103,6 +104,12 @@ export default function VendorFuelClaimModal({
     if (file) {
       if (!file.type.startsWith('image/')) {
         setErrorMsg('Please upload a valid image file (PNG, JPG, or WEBP).');
+        e.target.value = '';
+        return;
+      }
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        setErrorMsg('File size exceeds the 4MB limit. Please choose a smaller image (Max 4MB).');
+        e.target.value = '';
         return;
       }
       setReceiptFile(file);
@@ -353,7 +360,7 @@ export default function VendorFuelClaimModal({
                   <p className="text-xs font-extrabold text-slate-800">
                     Upload petrol pump receipt, odometer photo, or route screenshot
                   </p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">PNG, JPG, or WEBP</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">PNG, JPG, or WEBP • Max 4MB</p>
                   <input
                     type="file"
                     accept="image/*"

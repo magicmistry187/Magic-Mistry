@@ -23,6 +23,7 @@ import {
   Edit2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { formatCleanAddress } from '../../utils/addressParser';
 
 const STEPS = [
   { id: 1, title: 'Service', subtitle: 'Appliance & Package', Icon: Wrench },
@@ -255,8 +256,8 @@ function BookingFlowContent() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-0.5">Step 3 Completed</div>
-                  <div className="text-sm font-extrabold text-[#0B1E40] truncate" title={bookingState.address}>
-                    {bookingState.address}
+                  <div className="text-sm font-extrabold text-[#0B1E40] truncate" title={formatCleanAddress(bookingState.address)}>
+                    {formatCleanAddress(bookingState.address)}
                   </div>
                 </div>
               </div>

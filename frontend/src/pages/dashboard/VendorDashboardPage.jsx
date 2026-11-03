@@ -23,6 +23,8 @@ import VendorStartServiceModal from '../../components/dashboard/vendor/VendorSta
 import VendorFuelClaimModal from '../../components/dashboard/vendor/VendorFuelClaimModal';
 import ChatModal from '../../components/common/ChatModal';
 import { useAuth } from '../../context/AuthContext';
+import { formatCleanAddress } from '../../utils/addressParser';
+import { MAX_FILE_SIZE_BYTES } from '../../utils/fileValidation';
 import { useSocket, useSocketEvent } from '../../context/SocketContext';
 import {
   getVendorBookingsApi,
@@ -112,28 +114,8 @@ const getApplianceIcon = (applianceName) => {
 
 const formatBookingAddress = (addr) => {
   if (!addr) return '—';
-  if (typeof addr === 'string') return addr.trim();
-  if (typeof addr === 'object') {
-    if (addr[''] && typeof addr[''] === 'string' && addr[''].trim()) {
-      return addr[''].trim();
-    }
-    if (addr.formattedAddress && typeof addr.formattedAddress === 'string' && addr.formattedAddress.trim()) {
-      return addr.formattedAddress.trim();
-    }
-    if (addr.fullAddress && typeof addr.fullAddress === 'string' && addr.fullAddress.trim()) {
-      return addr.fullAddress.trim();
-    }
-    const parts = [
-      addr.house || addr.flat || addr.addressLine1,
-      addr.street,
-      addr.landmark,
-      addr.city,
-      addr.state,
-      addr.pincode,
-    ].filter(Boolean);
-    if (parts.length > 0) return parts.join(', ');
-  }
-  return '—';
+  const clean = formatCleanAddress(addr);
+  return clean || (typeof addr === 'string' ? addr.trim() : '—');
 };
 
 // Haversine formula to compute great-circle distance between two GPS coordinates in meters
@@ -1256,7 +1238,7 @@ export default function VendorDashboardPage() {
             phone: u.phoneNumber || (user?.phoneNumber || ''),
             email: u.email || (user?.email || ''),
             upiId: vp.vendorUpiId || '',
-            address: serviceLoc,
+            address: formatCleanAddress(serviceLoc),
             serviceRadius: rawRadius,
             nablId: vp.certification?.certificationId || 'NABL-VERIFIED',
             bankName: vp.bankDetails?.bankName || '',
@@ -1314,7 +1296,7 @@ export default function VendorDashboardPage() {
         name: u.fullName || prev.name,
         email: u.email || prev.email,
         phone: u.phoneNumber || prev.phone,
-        address: actualLocation,
+        address: formatCleanAddress(actualLocation),
         title: user.professionalTitle || prev.title,
         upiId: user.vendorUpiId || prev.upiId,
         appliancesServed: user.appliancesServed?.length ? user.appliancesServed : prev.appliancesServed,
@@ -1331,7 +1313,7 @@ export default function VendorDashboardPage() {
   }, [user]);
 
   const handleSaveVendorAddress = async (addressData) => {
-    const displayAddress = formatBookingAddress(addressData);
+    const displayAddress = formatCleanAddress(addressData);
     const existingId = addressData._id || addressData.id || vendorAddressObj?._id || vendorAddressObj?.id;
 
     setVendorAddressObj((prev) => ({
@@ -2097,6 +2079,11 @@ export default function VendorDashboardPage() {
   const handleBeforePhotoChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        showToast('Before service photo exceeds 4MB limit. Please choose an image under 4MB.', 'error');
+        if (beforeFileInputRef.current) beforeFileInputRef.current.value = '';
+        return;
+      }
       setBeforePhotoFile(file);
       setBeforePhotoPreview(URL.createObjectURL(file));
       showToast('Before service photo attached successfully!', 'success');
@@ -2106,6 +2093,11 @@ export default function VendorDashboardPage() {
   const handleAfterPhotoChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        showToast('After service photo exceeds 4MB limit. Please choose an image under 4MB.', 'error');
+        if (afterFileInputRef.current) afterFileInputRef.current.value = '';
+        return;
+      }
       setAfterPhotoFile(file);
       setAfterPhotoPreview(URL.createObjectURL(file));
       showToast('After service photo attached successfully!', 'success');
@@ -3685,7 +3677,7 @@ export default function VendorDashboardPage() {
                       <h3 className="text-base font-extrabold text-slate-900">Documentation</h3>
                     </div>
                     <span className="text-[11px] font-bold text-slate-400">
-                      {(beforePhotoPreview ? 1 : 0) + (afterPhotoPreview ? 1 : 0)} Attached
+                      {(beforePhotoPreview ? 1 : 0) + (afterPhotoPreview ? 1 : 0)} Attached (Max 4MB each)
                     </span>
                   </div>
 
@@ -4573,7 +4565,7 @@ export default function VendorDashboardPage() {
                     </div>
 
                     <div className="text-xs text-slate-600 space-y-1.5 leading-relaxed">
-                      <p className="truncate"><strong>Origin:</strong> {vendorProfile.address || 'Vendor Hub'}</p>
+                      <p className="truncate"><strong>Origin:</strong> {formatCleanAddress(vendorProfile.address) || 'Vendor Hub'}</p>
                       <p className="truncate"><strong>Customer:</strong> {selectedJob.serviceAddress}</p>
                       <div className="p-2.5 bg-emerald-50/80 border border-emerald-200 rounded-xl text-emerald-950 font-semibold text-[11px] space-y-1">
                         <div className="flex items-center justify-between">
@@ -5501,6 +5493,11 @@ export default function VendorDashboardPage() {
                           onChange={(e) => {
                             if (e.target.files && e.target.files[0]) {
                               const file = e.target.files[0];
+                              if (file.size > MAX_FILE_SIZE_BYTES) {
+                                showToast('Profile image exceeds 4MB limit. Please choose an image under 4MB.', 'error');
+                                e.target.value = '';
+                                return;
+                              }
                               const reader = new FileReader();
                               reader.onload = (event) => {
                                 setEditProfileForm((prev) => ({
@@ -5551,7 +5548,7 @@ export default function VendorDashboardPage() {
                       title="Click to update address via popup"
                     >
                       <MapPin className="w-3.5 h-3.5 text-orange-500" />
-                      <span>{vendorProfile.address && vendorProfile.address !== 'Set Your Location' ? vendorProfile.address : 'Set Service Location'}</span>
+                      <span>{vendorProfile.address && vendorProfile.address !== 'Set Your Location' ? formatCleanAddress(vendorProfile.address) : 'Set Service Location'}</span>
                       <span className="text-[10px] text-orange-600 font-extrabold bg-orange-100 px-1.5 py-0.5 rounded ml-0.5">
                         {vendorProfile.address && vendorProfile.address !== 'Set Your Location' ? 'Change' : 'Set Location'}
                       </span>
@@ -5678,7 +5675,7 @@ export default function VendorDashboardPage() {
                       </p>
                       <p className="text-xs sm:text-sm font-semibold text-slate-800 flex items-center gap-1.5 break-words">
                         <MapPin className="w-4 h-4 text-orange-500 shrink-0" />
-                        {vendorProfile.address && vendorProfile.address !== 'Set Your Location' ? vendorProfile.address : 'No address set. Set your location.'}
+                        {vendorProfile.address && vendorProfile.address !== 'Set Your Location' ? formatCleanAddress(vendorProfile.address) : 'No address set. Set your location.'}
                       </p>
                     </div>
                     <button

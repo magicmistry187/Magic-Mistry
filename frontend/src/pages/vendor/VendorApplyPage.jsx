@@ -10,6 +10,7 @@ import {
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
 import { submitVendorApplication } from '../../services/api';
+import { MAX_FILE_SIZE_BYTES } from '../../utils/fileValidation';
 
 /* ─── Animation Variants ─────────────────────────────────────────── */
 const fadeUp = {
@@ -470,7 +471,7 @@ const FileInputField = ({ label, id, onChange, error, required, accept, file, he
               {file ? file.name : `Upload ${label}`}
             </p>
             <p className="text-xs text-slate-400">
-              {file ? `${(file.size / 1024).toFixed(1)} KB` : helperText || 'Image (JPG, PNG) or PDF'}
+              {file ? `${(file.size / 1024).toFixed(1)} KB` : helperText || 'Image (JPG, PNG) or PDF (Max 4MB)'}
             </p>
           </div>
         </div>
@@ -596,7 +597,27 @@ export default function VendorApplyPage() {
   });
 
   const set = (key) => (e) => setForm(prev => ({ ...prev, [key]: e.target.value }));
-  const setFile = (key) => (e) => setForm(prev => ({ ...prev, [key]: e.target.files[0] }));
+  const setFile = (key) => (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setErrors(prev => ({
+        ...prev,
+        [key]: 'File size exceeds 4MB limit. Please choose a file under 4MB.'
+      }));
+      e.target.value = '';
+      return;
+    }
+
+    setErrors(prev => {
+      const nextErr = { ...prev };
+      delete nextErr[key];
+      return nextErr;
+    });
+
+    setForm(prev => ({ ...prev, [key]: file }));
+  };
 
   /* ── Validation ── */
   const validateStep = (s) => {
@@ -620,12 +641,15 @@ export default function VendorApplyPage() {
 
       if (!form.photo) e.photo = 'Photo is required.';
       else if (!isPdfOrImage(form.photo)) e.photo = 'Upload a valid image (JPG, PNG) or PDF.';
+      else if (form.photo.size > MAX_FILE_SIZE_BYTES) e.photo = 'Photo file size exceeds 4MB limit.';
 
       if (!form.aadhar) e.aadhar = 'Aadhar upload is required.';
       else if (!isPdfOrImage(form.aadhar)) e.aadhar = 'Only PDF or image files are allowed.';
+      else if (form.aadhar.size > MAX_FILE_SIZE_BYTES) e.aadhar = 'Aadhar file size exceeds 4MB limit.';
 
       if (!form.resume) e.resume = 'Resume is required.';
       else if (!isPdfOrImage(form.resume)) e.resume = 'Only PDF or image files are allowed.';
+      else if (form.resume.size > MAX_FILE_SIZE_BYTES) e.resume = 'Resume file size exceeds 4MB limit.';
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -926,17 +950,17 @@ export default function VendorApplyPage() {
                       <FileInputField
                         label="Photo Upload" id="photo" accept=".jpg,.jpeg,.png,.webp,.pdf,image/*,application/pdf"
                         onChange={setFile('photo')} error={errors.photo} required file={form.photo}
-                        helperText="Upload image (JPG, PNG) or PDF"
+                        helperText="Upload image (JPG, PNG) or PDF (Max 4MB)"
                       />
                       <FileInputField
                         label="Aadhar Upload" id="aadhar" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
                         onChange={setFile('aadhar')} error={errors.aadhar} required file={form.aadhar}
-                        helperText="Upload PDF or image of Aadhar card"
+                        helperText="Upload PDF or image of Aadhar card (Max 4MB)"
                       />
                       <FileInputField
                         label="Resume Upload" id="resume" accept=".pdf,.doc,.docx,application/pdf"
                         onChange={setFile('resume')} error={errors.resume} required file={form.resume}
-                        helperText="Upload resume (PDF or DOC)"
+                        helperText="Upload resume (PDF or DOC, Max 4MB)"
                       />
                     </div>
 

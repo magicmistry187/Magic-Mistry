@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { formatCleanAddress } from '../../../utils/addressParser';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -46,10 +47,7 @@ export default function AdminWorkReportModal({ isOpen, onClose, reportItem }) {
   const customerPhone = reportItem.customerPhone || raw.customer?.phoneNumber || '—';
   const customerEmail = reportItem.customerEmail || raw.customer?.email || '—';
   const customerAddress =
-    reportItem.customerAddress ||
-    (typeof raw.address === 'string'
-      ? raw.address
-      : raw.address?.fullAddress || raw.address?.formattedAddress || 'Doorstep Service Address');
+    formatCleanAddress(reportItem.customerAddress || raw.address) || 'Doorstep Service Address';
 
   const technicianName = reportItem.technician || raw.vendor?.fullName || 'Assigned Technician';
   const technicianPhone = reportItem.technicianPhone || raw.vendor?.phoneNumber || '—';

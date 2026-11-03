@@ -411,6 +411,9 @@ export const BookingProvider = ({ children, initialAppliance = null }) => {
       }
 
       if (bookingState.imageFile) {
+        if (bookingState.imageFile.size > 4 * 1024 * 1024) {
+          throw new Error('Attached appliance photo exceeds 4MB limit. Please upload an image under 4MB.');
+        }
         formData.append('image', bookingState.imageFile);
       }
 

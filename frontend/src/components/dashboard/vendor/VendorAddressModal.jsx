@@ -12,7 +12,7 @@ import {
   CheckCircle2,
   Map,
 } from 'lucide-react';
-import { parseAddressString, INDIAN_STATES, cleanPostalParentheses } from '../../../utils/addressParser';
+import { parseAddressString, INDIAN_STATES, cleanPostalParentheses, formatCleanAddress } from '../../../utils/addressParser';
 import { getCurrentCoordinates, reverseGeocode } from '../../../utils/reverseGeocode';
 import InteractiveMapPicker from '../../common/InteractiveMapPicker';
 import { useModalSmoothScroll } from '../../common/useModalSmoothScroll';
@@ -159,9 +159,10 @@ export default function VendorAddressModal({ isOpen, onClose, onSave, initialAdd
     const cleanState = state.trim();
     const cleanPincode = pincode.trim();
 
-    const formattedAddress = [cleanFlat, cleanStreet, cleanLandmark, cleanCity, cleanState, cleanPincode]
+    const rawFull = [cleanFlat, cleanStreet, cleanLandmark, cleanCity, cleanState, cleanPincode]
       .filter(Boolean)
       .join(', ');
+    const formattedAddress = formatCleanAddress(rawFull);
 
     const addressId = typeof initialAddress === 'object' ? (initialAddress?._id || initialAddress?.id || initialAddress?.addressId) : null;
 

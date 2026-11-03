@@ -1,20 +1,35 @@
 import React, { useRef, useState, useMemo, useEffect } from 'react';
 import { useBooking } from './BookingContext';
-import { UploadCloud, X, CheckCircle2, ChevronRight } from 'lucide-react';
+import { UploadCloud, X, CheckCircle2, ChevronRight, AlertCircle } from 'lucide-react';
+import { MAX_FILE_SIZE_BYTES } from '../../utils/fileValidation';
 
 export default function ApplianceImageUploader() {
   const { bookingState, updateBooking, scrollToNextStep } = useBooking();
   const fileInputRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
+  const [fileError, setFileError] = useState(null);
 
   const handleFileChange = (file) => {
-    if (!file || !file.type.startsWith('image/')) return;
+    setFileError(null);
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setFileError('Please upload a valid image file (PNG, JPG, or WEBP).');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setFileError('File size exceeds the 4MB limit. Please upload an image under 4MB.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
     updateBooking('imageFile', file);
     if (scrollToNextStep) scrollToNextStep('step-payment-method', { offset: -90, delay: 200 });
   };
 
   const removeFile = () => {
+    setFileError(null);
     updateBooking('imageFile', null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   // Memoize the object URL to avoid creating a new one on every render
@@ -62,6 +77,14 @@ export default function ApplianceImageUploader() {
         </div>
       </div>
 
+      {/* File Error Alert */}
+      {fileError && (
+        <div className="flex items-center gap-2 p-3 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-xl">
+          <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+          <span>{fileError}</span>
+        </div>
+      )}
+
       {/* Upload Zone */}
       {!bookingState.imageFile ? (
         <div
@@ -82,7 +105,7 @@ export default function ApplianceImageUploader() {
           <p className="text-sm font-medium text-slate-700">
             Drag &amp; drop photo here, or <span className="text-blue-600 font-bold">click to browse</span>
           </p>
-          <p className="text-xs text-slate-400 mt-1">PNG, JPG, WEBP • Max file size 5MB</p>
+          <p className="text-xs text-slate-400 mt-1">PNG, JPG, WEBP • Max file size 4MB</p>
           <input
             ref={fileInputRef}
             type="file"

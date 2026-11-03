@@ -51,6 +51,7 @@ import {
 import { getAdminBookingsApi } from '../../services/operations/bookingAPI';
 import { getLiveServicePricing } from '../../services/pricingService';
 import { CANONICAL_ADMIN_TOKEN, activateAdminSession } from '../../utils/adminAuth';
+import { formatCleanAddress } from '../../utils/addressParser';
 
 // ─── Service Specializations (Exact match to Vendor Application Categories) ──
 export const SERVICE_SPECIALIZATIONS = [
@@ -876,21 +877,8 @@ export const StockLevelBadge = ({ level, count }) => {
 
 const formatBookingAddress = (addr) => {
   if (!addr) return 'Address not provided';
-  if (typeof addr === 'string') return addr;
-  if (typeof addr === 'object') {
-    const directStr = addr[''] || addr.fullAddress || addr.formattedAddress;
-    if (directStr && typeof directStr === 'string' && directStr.trim()) return directStr.trim();
-    const parts = [
-      addr.house || addr.flat,
-      addr.addressLine1 || addr.street,
-      addr.landmark,
-      addr.city,
-      addr.state,
-      addr.pincode,
-    ].filter(Boolean);
-    return parts.join(', ') || 'Address not provided';
-  }
-  return 'Address not provided';
+  const clean = formatCleanAddress(addr);
+  return clean || (typeof addr === 'string' ? addr.trim() : 'Address not provided');
 };
 
 const getApplianceIcon = (applianceName) => {

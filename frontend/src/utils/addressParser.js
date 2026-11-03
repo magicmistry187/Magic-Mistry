@@ -385,81 +385,162 @@ export function parseAddressString(input) {
 export function formatCleanAddress(input) {
   if (!input) return '';
 
-  if (typeof input === 'string') {
-    let str = input.trim();
-    if (
-      /^(set your location|set service location|no address set|no saved address yet|no address set\..*|current location|select location)$/i.test(
-        str
-      )
-    ) {
-      return '';
+  if (typeof input === 'object' && input !== null) {
+    // If it is an address object with addressLine1, street, house, etc.
+    let flat = (input.flat || input.house || '').trim();
+    let street = (input.street || '').trim();
+    let addressLine1 = (input.addressLine1 || '').trim();
+    let landmark = (input.landmark || '').trim();
+    let city = (input.city || '').trim();
+    let state = (input.state || '').trim();
+    let pincode = (input.pincode === '000000' ? '' : (input.pincode || '')).trim();
+
+    // If flat and street are identical, avoid duplicate
+    if (flat.toLowerCase() === street.toLowerCase()) {
+      flat = '';
+    }
+    // If addressLine1 and street are identical, avoid duplicate
+    if (addressLine1.toLowerCase() === street.toLowerCase()) {
+      addressLine1 = '';
+    }
+    // If addressLine1 already includes street
+    if (addressLine1 && street && addressLine1.toLowerCase().includes(street.toLowerCase())) {
+      street = '';
     }
 
-    str = str
-      .replace(/,?\s*\bCurrent Location\b/gi, '')
-      .replace(/,?\s*\b000000\b/g, '')
-      .replace(/,\s*,+/g, ',')
-      .replace(/^[\s,]+|[\s,]+$/g, '');
+    const rawParts = [
+      flat,
+      addressLine1,
+      street,
+      landmark,
+      city,
+      state,
+      pincode
+    ].filter(Boolean);
 
-    const tokens = str.split(',').map((t) => t.trim()).filter(Boolean);
-    const seen = new Set();
-    const unique = [];
-
-    for (let t of tokens) {
-      if (t.includes('(')) {
-        t = cleanPostalParentheses(t);
-      }
-      const lower = t.toLowerCase();
-      if (!seen.has(lower) && lower !== 'current location' && lower !== '000000' && lower !== 'area' && lower !== 'home') {
-        const alreadyContained = unique.some((u) => {
-          const uParts = u.toLowerCase().split(',').map((s) => s.trim());
-          return uParts.includes(lower);
-        });
-        if (!alreadyContained) {
-          seen.add(lower);
-          unique.push(t);
-        }
-      }
+    // If direct string exists, clean it
+    if (typeof input.formattedAddress === 'string' && input.formattedAddress.trim()) {
+      return formatCleanAddress(input.formattedAddress);
     }
-    return unique.join(', ');
+    if (typeof input.fullAddress === 'string' && input.fullAddress.trim()) {
+      return formatCleanAddress(input.fullAddress);
+    }
+    if (typeof input.address === 'string' && input.address.trim()) {
+      return formatCleanAddress(input.address);
+    }
+
+    return formatCleanAddress(rawParts.join(', '));
   }
 
-  const parsed = parseAddressString(input);
-  const parts = [
-    parsed.flat,
-    parsed.street,
-    parsed.landmark,
-    parsed.city,
-    parsed.state,
-    parsed.pincode,
-  ].filter(Boolean);
+  let str = String(input).trim();
+  if (
+    /^(set your location|set service location|no address set|no saved address yet|no address set\..*|current location|select location)$/i.test(
+      str
+    )
+  ) {
+    return '';
+  }
 
+  // Remove dummy keywords
+  str = str
+    .replace(/,?\s*\bCurrent Location\b/gi, '')
+    .replace(/,?\s*\b000000\b/g, '')
+    .replace(/,\s*,+/g, ',')
+    .replace(/^[\s,]+|[\s,]+$/g, '');
+
+  // Remove consecutive identical words: "Bolpur Bolpur" -> "Bolpur" (except genuine double names like Dum Dum, Budge Budge)
+  str = str.replace(/\b([a-zA-Z]{3,})\s+\1\b/gi, (match, word) => {
+    const lower = word.toLowerCase();
+    if (lower === 'dum' || lower === 'budge') return match;
+    return word;
+  });
+
+  // Deduplicate consecutive multi-word phrases (e.g. "Sripur Bazar, Sripur Bazar" -> "Sripur Bazar")
+  let words = str.split(/\s+/);
+  let changedWords = true;
+  while (changedWords) {
+    changedWords = false;
+    for (let len = Math.floor(words.length / 2); len >= 1; len--) {
+      for (let i = 0; i <= words.length - 2 * len; i++) {
+        let match = true;
+        for (let j = 0; j < len; j++) {
+          const w1 = words[i + j].toLowerCase().replace(/[^a-z0-9]/g, '');
+          const w2 = words[i + len + j].toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (!w1 || w1 !== w2) {
+            match = false;
+            break;
+          }
+        }
+        if (match) {
+          const w1 = words[i].toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (len === 1 && (w1 === 'dum' || w1 === 'budge')) continue;
+          words.splice(i + len, len);
+          changedWords = true;
+          break;
+        }
+      }
+      if (changedWords) break;
+    }
+  }
+  str = words.join(' ');
+
+  // Split into tokens
+  let tokens = str
+    .split(',')
+    .map((t) => cleanPostalParentheses(t.trim()))
+    .filter(Boolean);
+
+  // 1. Remove consecutive identical tokens
+  tokens = tokens.filter((t, idx) => {
+    if (idx === 0) return true;
+    return t.toLowerCase().trim() !== tokens[idx - 1].toLowerCase().trim();
+  });
+
+  // 2. Remove repeated multi-token phrases (e.g. [A, B, A, B] -> [A, B])
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let len = Math.floor(tokens.length / 2); len >= 1; len--) {
+      for (let i = 0; i <= tokens.length - 2 * len; i++) {
+        let match = true;
+        for (let j = 0; j < len; j++) {
+          if (tokens[i + j].toLowerCase().trim() !== tokens[i + len + j].toLowerCase().trim()) {
+            match = false;
+            break;
+          }
+        }
+        if (match) {
+          tokens.splice(i + len, len);
+          changed = true;
+          break;
+        }
+      }
+      if (changed) break;
+    }
+  }
+
+  // 3. Deduplicate tokens preserving order
   const seen = new Set();
   const unique = [];
 
-  for (const p of parts) {
-    const cleanP = String(p).replace(/\s*\(.*?\)\s*/g, ' ').trim();
-    const lower = cleanP.toLowerCase();
+  for (let t of tokens) {
+    const lower = t.toLowerCase().trim();
     if (
-      cleanP &&
-      !seen.has(lower) &&
-      lower !== 'current location' &&
-      lower !== '000000' &&
-      lower !== 'area' &&
-      lower !== 'home'
+      lower === 'current location' ||
+      lower === '000000' ||
+      lower === 'area' ||
+      lower === 'home' ||
+      lower === 'other'
     ) {
-      const alreadyContained = unique.some((u) =>
-        u
-          .toLowerCase()
-          .split(',')
-          .map((s) => s.trim())
-          .includes(lower)
-      );
-      if (!alreadyContained) {
-        seen.add(lower);
-        unique.push(cleanP);
-      }
+      continue;
     }
+
+    if (seen.has(lower)) {
+      continue;
+    }
+
+    seen.add(lower);
+    unique.push(t.trim());
   }
 
   return unique.join(', ');

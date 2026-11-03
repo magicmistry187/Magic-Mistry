@@ -6,6 +6,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { getBookingDetailsApi } from './operations/bookingAPI';
+import { formatCleanAddress } from '../utils/addressParser';
 
 const STORAGE_KEY = 'mm_stored_invoices';
 
@@ -14,17 +15,7 @@ const STORAGE_KEY = 'mm_stored_invoices';
  */
 export function formatAddress(addr) {
   if (!addr) return 'Address on File';
-  if (typeof addr === 'string') return addr;
-  return [
-    addr.house || addr.flat || addr.addressLine1,
-    addr.street,
-    addr.landmark,
-    addr.city,
-    addr.state,
-    addr.pincode,
-  ]
-    .filter(Boolean)
-    .join(', ');
+  return formatCleanAddress(addr) || 'Address on File';
 }
 
 /**

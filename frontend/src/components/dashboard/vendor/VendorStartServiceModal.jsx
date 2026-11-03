@@ -5,6 +5,7 @@ import {
   X, ExternalLink, IndianRupee, ShieldCheck, Image as ImageIcon
 } from 'lucide-react';
 import { useLivePricing } from '../../../services/pricingService';
+import { MAX_FILE_SIZE_BYTES } from '../../../utils/fileValidation';
 
 // Default mock map route screenshot for instant testing without manual file selection
 const SAMPLE_MAP_ROUTE_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="340" viewBox="0 0 600 340">
@@ -157,6 +158,12 @@ export default function VendorStartServiceModal({
     if (file) {
       if (!file.type.startsWith('image/')) {
         setValidationError('Please upload a valid image file (PNG, JPG, or WEBP).');
+        e.target.value = '';
+        return;
+      }
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        setValidationError('File size exceeds the 4MB limit. Please choose a smaller image (Max 4MB).');
+        e.target.value = '';
         return;
       }
       setMapFileName(file.name);
@@ -400,7 +407,7 @@ export default function VendorStartServiceModal({
                     Click to upload navigation map screenshot
                   </p>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    Supports PNG, JPG, or WEBP from Google Maps / navigation app
+                    Supports PNG, JPG, or WEBP from Google Maps / navigation app • Max 4MB
                   </p>
                   <input
                     type="file"
