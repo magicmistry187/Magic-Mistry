@@ -4,7 +4,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   Wrench, ShieldCheck, Star, Clock, MapPin, Phone, Navigation,
   CheckCircle2, XCircle, AlertCircle, IndianRupee, TrendingUp,
-  User, CreditCard, Award, Calendar, ChevronRight, Power,
+  User, CreditCard, Award, Calendar, ChevronRight, ChevronLeft, Power,
   FileText, Check, Plus, Search, Filter, RefreshCw, Bell,
   Tv, Zap, Thermometer, ArrowUpRight, ChevronDown, Building,
   Sliders, Shield, MessageSquare, ExternalLink, AlertTriangle,
@@ -965,6 +965,89 @@ export default function VendorDashboardPage() {
       return true;
     });
   }, [jobs, jobStatusFilter]);
+
+  // ── Pagination State for Active Jobs Queue ──
+  const [jobCurrentPage, setJobCurrentPage] = useState(1);
+  const [jobItemsPerPage, setJobItemsPerPage] = useState(5);
+  const totalJobPages = Math.max(1, Math.ceil((filteredJobs.length || 0) / jobItemsPerPage));
+
+  // Reset to page 1 when filter or items-per-page changes
+  useEffect(() => {
+    setJobCurrentPage(1);
+  }, [jobStatusFilter, jobItemsPerPage]);
+
+  // Guard against out-of-range page number when jobs list shrinks
+  useEffect(() => {
+    if (jobCurrentPage > totalJobPages) {
+      setJobCurrentPage(Math.max(1, totalJobPages));
+    }
+  }, [jobCurrentPage, totalJobPages]);
+
+  // Paginated active jobs slice
+  const paginatedJobs = useMemo(() => {
+    const startIndex = (jobCurrentPage - 1) * jobItemsPerPage;
+    return filteredJobs.slice(startIndex, startIndex + jobItemsPerPage);
+  }, [filteredJobs, jobCurrentPage, jobItemsPerPage]);
+
+  const handleJobPageChange = (page) => {
+    if (page >= 1 && page <= totalJobPages) {
+      setJobCurrentPage(page);
+    }
+  };
+
+  const getJobPageNumbers = () => {
+    const pages = [];
+    if (totalJobPages <= 5) {
+      for (let i = 1; i <= totalJobPages; i++) pages.push(i);
+      return pages;
+    }
+    pages.push(1);
+    if (jobCurrentPage > 3) pages.push('...');
+    const start = Math.max(2, jobCurrentPage - 1);
+    const end = Math.min(totalJobPages - 1, jobCurrentPage + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (jobCurrentPage < totalJobPages - 2) pages.push('...');
+    pages.push(totalJobPages);
+    return pages;
+  };
+
+  // ── Pagination State for Completed Jobs History ──
+  const [historyCurrentPage, setHistoryCurrentPage] = useState(1);
+  const [historyItemsPerPage, setHistoryItemsPerPage] = useState(5);
+  const totalHistoryPages = Math.max(1, Math.ceil(((history || []).length || 0) / historyItemsPerPage));
+
+  useEffect(() => {
+    if (historyCurrentPage > totalHistoryPages) {
+      setHistoryCurrentPage(Math.max(1, totalHistoryPages));
+    }
+  }, [historyCurrentPage, totalHistoryPages]);
+
+  const paginatedHistory = useMemo(() => {
+    const startIndex = (historyCurrentPage - 1) * historyItemsPerPage;
+    return (history || []).slice(startIndex, startIndex + historyItemsPerPage);
+  }, [history, historyCurrentPage, historyItemsPerPage]);
+
+  const handleHistoryPageChange = (page) => {
+    if (page >= 1 && page <= totalHistoryPages) {
+      setHistoryCurrentPage(page);
+    }
+  };
+
+  const getHistoryPageNumbers = () => {
+    const pages = [];
+    if (totalHistoryPages <= 5) {
+      for (let i = 1; i <= totalHistoryPages; i++) pages.push(i);
+      return pages;
+    }
+    pages.push(1);
+    if (historyCurrentPage > 3) pages.push('...');
+    const start = Math.max(2, historyCurrentPage - 1);
+    const end = Math.min(totalHistoryPages - 1, historyCurrentPage + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (historyCurrentPage < totalHistoryPages - 2) pages.push('...');
+    pages.push(totalHistoryPages);
+    return pages;
+  };
 
   // Grouped jobs by category for the grouped view mode
   const groupedJobs = useMemo(() => {
@@ -3420,7 +3503,88 @@ export default function VendorDashboardPage() {
                       )}
                     </div>
                   ) : (
-                    filteredJobs.map(job => renderJobCard(job))
+                    <>
+                      {paginatedJobs.map(job => renderJobCard(job))}
+
+                      {/* Pagination Bar for Active Bookings */}
+                      {filteredJobs.length > 0 && (
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-100">
+                          {/* Showing counter & per-page dropdown */}
+                          <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap justify-center sm:justify-start">
+                            <div>
+                              Showing <span className="font-extrabold text-slate-900">{(jobCurrentPage - 1) * jobItemsPerPage + 1}</span> to{' '}
+                              <span className="font-extrabold text-slate-900">{Math.min(jobCurrentPage * jobItemsPerPage, filteredJobs.length)}</span> of{' '}
+                              <span className="font-extrabold text-slate-900">{filteredJobs.length}</span> bookings
+                            </div>
+                            <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">
+                              <span className="text-[11px] text-slate-400 font-semibold">Per page:</span>
+                              <select
+                                value={jobItemsPerPage}
+                                onChange={(e) => setJobItemsPerPage(Number(e.target.value))}
+                                className="bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-slate-400 cursor-pointer shadow-2xs"
+                              >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={15}>15</option>
+                                <option value={20}>20</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Pagination controls */}
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleJobPageChange(jobCurrentPage - 1)}
+                              disabled={jobCurrentPage === 1}
+                              className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                              aria-label="Previous Page"
+                            >
+                              <ChevronLeft className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Prev</span>
+                            </button>
+
+                            <div className="flex items-center gap-1">
+                              {getJobPageNumbers().map((page, idx) => {
+                                if (page === '...') {
+                                  return (
+                                    <span key={`job-ellipsis-${idx}`} className="px-1.5 text-slate-400 text-xs font-bold select-none">
+                                      ...
+                                    </span>
+                                  );
+                                }
+                                const isCurrent = page === jobCurrentPage;
+                                return (
+                                  <button
+                                    key={`job-page-${page}`}
+                                    type="button"
+                                    onClick={() => handleJobPageChange(page)}
+                                    className={`min-w-[30px] h-7 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
+                                      isCurrent
+                                        ? 'bg-[#061e38] text-white shadow-xs font-extrabold'
+                                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                                    }`}
+                                  >
+                                    {page}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleJobPageChange(jobCurrentPage + 1)}
+                              disabled={jobCurrentPage === totalJobPages}
+                              className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                              aria-label="Next Page"
+                            >
+                              <span className="hidden sm:inline">Next</span>
+                              <ChevronRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
 
@@ -4683,8 +4847,9 @@ export default function VendorDashboardPage() {
                   <p className="text-xs text-slate-500 mt-1">Completed repair assignments, invoices, and customer feedback will appear here.</p>
                 </div>
               ) : (
-                history.map((item) => {
-                  const itemFin = calculateJobFinancials(item);
+                <>
+                  {paginatedHistory.map((item) => {
+                    const itemFin = calculateJobFinancials(item);
                   return (
                     <div key={item.id} className="rounded-2xl border border-slate-200 p-4 sm:p-5 flex flex-col gap-3 bg-white hover:border-blue-300 transition-all shadow-xs">
                       <div className="space-y-2 flex-1">
@@ -4764,7 +4929,90 @@ export default function VendorDashboardPage() {
                       </div>
                     </div>
                   );
-                })
+                })}
+
+                  {/* Pagination Bar for Completed History */}
+                  {history.length > 0 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-100">
+                      {/* Showing counter & per-page dropdown */}
+                      <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap justify-center sm:justify-start">
+                        <div>
+                          Showing <span className="font-extrabold text-slate-900">{(historyCurrentPage - 1) * historyItemsPerPage + 1}</span> to{' '}
+                          <span className="font-extrabold text-slate-900">{Math.min(historyCurrentPage * historyItemsPerPage, history.length)}</span> of{' '}
+                          <span className="font-extrabold text-slate-900">{history.length}</span> completed bookings
+                        </div>
+                        <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">
+                          <span className="text-[11px] text-slate-400 font-semibold">Per page:</span>
+                          <select
+                            value={historyItemsPerPage}
+                            onChange={(e) => {
+                              setHistoryItemsPerPage(Number(e.target.value));
+                              setHistoryCurrentPage(1);
+                            }}
+                            className="bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-slate-400 cursor-pointer shadow-2xs"
+                          >
+                            <option value={5}>5</option>
+                            <option value={10}>10</option>
+                            <option value={15}>15</option>
+                            <option value={20}>20</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Pagination controls */}
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleHistoryPageChange(historyCurrentPage - 1)}
+                          disabled={historyCurrentPage === 1}
+                          className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                          aria-label="Previous Page"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Prev</span>
+                        </button>
+
+                        <div className="flex items-center gap-1">
+                          {getHistoryPageNumbers().map((page, idx) => {
+                            if (page === '...') {
+                              return (
+                                <span key={`hist-ellipsis-${idx}`} className="px-1.5 text-slate-400 text-xs font-bold select-none">
+                                  ...
+                                </span>
+                              );
+                            }
+                            const isCurrent = page === historyCurrentPage;
+                            return (
+                              <button
+                                key={`hist-page-${page}`}
+                                type="button"
+                                onClick={() => handleHistoryPageChange(page)}
+                                className={`min-w-[30px] h-7 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
+                                  isCurrent
+                                    ? 'bg-[#061e38] text-white shadow-xs font-extrabold'
+                                    : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                                }`}
+                              >
+                                {page}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleHistoryPageChange(historyCurrentPage + 1)}
+                          disabled={historyCurrentPage === totalHistoryPages}
+                          className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                          aria-label="Next Page"
+                        >
+                          <span className="hidden sm:inline">Next</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

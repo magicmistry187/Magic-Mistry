@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { formatCleanAddress } from '../../../utils/addressParser';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -25,7 +25,13 @@ import {
   ArrowRight,
   Receipt,
   ExternalLink,
+  Star,
+  MessageSquare,
+  Quote,
+  ThumbsUp,
+  Edit3,
 } from 'lucide-react';
+import { getBookingReview, saveBookingReview, getRatingSentiment } from '../../../utils/bookingReviews';
 
 export default function AdminWorkReportModal({ isOpen, onClose, reportItem }) {
   const [copied, setCopied] = useState(false);
@@ -99,6 +105,40 @@ export default function AdminWorkReportModal({ isOpen, onClose, reportItem }) {
 
   const jobImage = reportItem.image || raw.image || null;
 
+  // ── Customer Rating & Review Resolution ────────────────────────────────────
+  const [reviewInfo, setReviewInfo] = useState(() =>
+    getBookingReview(reportItem, applianceName, status)
+  );
+  const [isEditingReview, setIsEditingReview] = useState(false);
+  const [editRating, setEditRating] = useState(() => reviewInfo?.rating || 5);
+  const [editComment, setEditComment] = useState(() => reviewInfo?.review || '');
+  const [editHoverRating, setEditHoverRating] = useState(0);
+
+  useEffect(() => {
+    if (reportItem) {
+      const rev = getBookingReview(reportItem, applianceName, status);
+      setReviewInfo(rev);
+      setEditRating(rev?.rating || 5);
+      setEditComment(rev?.review || '');
+      setIsEditingReview(false);
+    }
+  }, [reportItem, applianceName, status]);
+
+  const handleSaveReview = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const targetId = reportItem.rawId || raw._id || reportItem.id || displayId;
+    const saved = saveBookingReview(targetId, {
+      rating: editRating,
+      review: editComment,
+      customer: customerName,
+      appliance: applianceName,
+    });
+    if (saved) {
+      setReviewInfo(saved);
+      setIsEditingReview(false);
+    }
+  };
+
   // ── SOP & Service Checklist ────────────────────────────────────────────────
   const checklist = [
     {
@@ -137,6 +177,8 @@ Address: ${customerAddress}
 Technician: ${technicianName} (${technicianPhone})
 Total Billed: ₹${grandTotal} (${paymentStatus} via ${paymentMethod})
 Reported Issue: ${reportedIssue}
+Customer Rating: ${reviewInfo.rating ? `${Number(reviewInfo.rating).toFixed(1)} / 5.0 (${reviewInfo.sentiment || 'Verified'})` : 'Unrated'}
+Customer Feedback: "${reviewInfo.review || 'No review recorded'}"
 ----------------------------------
 Generated from Magic Mistry Admin Dashboard
 `.trim();
@@ -154,93 +196,87 @@ Generated from Magic Mistry Admin Dashboard
   return (
     <div
       data-lenis-prevent
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 md:p-6 bg-slate-900/65 backdrop-blur-md overflow-y-auto overscroll-contain print:p-0 print:bg-white"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-slate-900/75 backdrop-blur-xs overflow-y-auto overscroll-contain"
     >
       <motion.div
         data-lenis-prevent
-        initial={{ opacity: 0, scale: 0.94, y: 16 }}
+        initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.94, y: 16 }}
-        transition={{ type: 'spring', damping: 26, stiffness: 320 }}
-        className="bg-slate-50 w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden flex flex-col border border-slate-200/80 max-h-[92vh] print:max-h-none print:shadow-none print:border-none print:rounded-none print:bg-white"
+        exit={{ opacity: 0, scale: 0.95, y: 15 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
+        className="bg-slate-50 w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden border border-slate-200/90 flex flex-col max-h-[92vh] my-auto"
       >
         {/* ── 1. MODAL COMMAND HEADER ────────────────────────────────────────── */}
-        <div className="px-5 sm:px-7 py-4 sm:py-5 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-20 shadow-2xs">
-          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-            <div className="w-11 h-11 rounded-2xl bg-[#02182e] text-white flex items-center justify-center shadow-md shadow-slate-900/10 shrink-0">
-              <FileText className="w-5 h-5 text-orange-400" />
+        <div className="bg-[#02182e] text-white px-5 sm:px-7 py-4.5 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 shrink-0 sticky top-0 z-20">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-400 shrink-0">
+              <FileText className="w-5 h-5" />
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-0.5">
-                <span>Work Order</span>
-                <span>•</span>
-                <span className="font-mono text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs font-bold text-orange-400 bg-orange-950/60 px-2 py-0.5 rounded border border-orange-500/20">
                   {displayId}
                 </span>
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider ${
+                    isCompleted
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      : isCancelled
+                      ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  }`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      isCompleted ? 'bg-emerald-400' : isCancelled ? 'bg-red-400' : 'bg-amber-400'
+                    }`}
+                  />
+                  {status}
+                </span>
               </div>
-              <h2 className="text-lg sm:text-xl font-extrabold text-[#02182e] truncate tracking-tight">
-                {applianceName} Service & Repair Report
+              <h2 className="text-base sm:text-lg font-black text-white tracking-tight mt-0.5 flex items-center gap-2">
+                <span>{applianceName}</span>
+                <span className="text-slate-400 font-normal text-xs hidden sm:inline">
+                  &bull; Complete Service &amp; Inspection Audit
+                </span>
               </h2>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0 print:hidden">
-            {/* Status Badge */}
-            <span
-              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-extrabold tracking-wide border shadow-2xs ${
-                isCompleted
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                  : isCancelled
-                  ? 'bg-rose-50 text-rose-800 border-rose-200'
-                  : 'bg-amber-50 text-amber-800 border-amber-200'
-              }`}
-            >
-              {isCompleted ? (
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              ) : isCancelled ? (
-                <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
-              ) : (
-                <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
-              )}
-              {status.toUpperCase()}
-            </span>
-
-            {/* Copy Button */}
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleCopySummary}
-              className="p-2 sm:px-3 sm:py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              title="Copy report summary"
+              className="p-2 text-slate-300 hover:text-white rounded-xl hover:bg-white/10 transition-colors flex items-center gap-1.5 text-xs font-bold border border-slate-700/60 bg-slate-800/40 cursor-pointer"
+              title="Copy Summary"
             >
               {copied ? (
                 <>
-                  <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="hidden sm:inline text-emerald-600">Copied!</span>
+                  <Check className="w-4 h-4 text-emerald-400" />
+                  <span className="text-emerald-400 hidden sm:inline">Copied</span>
                 </>
               ) : (
                 <>
-                  <Copy className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="hidden sm:inline">Copy</span>
+                  <Copy className="w-4 h-4" />
+                  <span className="hidden sm:inline">Copy Text</span>
                 </>
               )}
             </button>
 
-            {/* Print Button */}
             <button
               type="button"
               onClick={handlePrint}
-              className="p-2 sm:px-3 sm:py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              title="Print or Save as PDF"
+              className="p-2 text-slate-300 hover:text-white rounded-xl hover:bg-white/10 transition-colors flex items-center gap-1.5 text-xs font-bold border border-slate-700/60 bg-slate-800/40 cursor-pointer"
+              title="Print Order Report"
             >
-              <Printer className="w-3.5 h-3.5 text-slate-500" />
-              <span className="hidden sm:inline">Print / PDF</span>
+              <Printer className="w-4 h-4" />
+              <span className="hidden sm:inline">Print</span>
             </button>
 
-            {/* Close Button */}
             <button
               type="button"
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer ml-1"
               title="Close modal"
             >
               <X className="w-5 h-5" />
@@ -253,8 +289,8 @@ Generated from Magic Mistry Admin Dashboard
           data-lenis-prevent
           className="p-5 sm:p-7 space-y-6 overflow-y-auto flex-1 overscroll-contain text-slate-800"
         >
-          {/* Key Metrics Executive Ribbon */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+          {/* Key Metrics Executive Ribbon (5 columns) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
             {/* Metric 1: Total Amount */}
             <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
               <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1">
@@ -319,141 +355,172 @@ Generated from Magic Mistry Admin Dashboard
                 </div>
               </div>
             </div>
+
+            {/* Metric 5: Customer Rating & Satisfaction */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col justify-between col-span-2 sm:col-span-1">
+              <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                <Star className="w-3 h-3 text-amber-500 fill-amber-400" /> Customer Rating
+              </span>
+              <div className="mt-2 flex items-baseline justify-between gap-1 flex-wrap">
+                <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-1">
+                  {reviewInfo.rating ? (
+                    <>
+                      {Number(reviewInfo.rating).toFixed(1)}
+                      <Star className="w-4 h-4 text-amber-400 fill-amber-400 inline" />
+                    </>
+                  ) : (
+                    <span className="text-sm font-bold text-slate-400">Unrated</span>
+                  )}
+                </span>
+                <span
+                  className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md tracking-wider ${
+                    reviewInfo.rating >= 4.5
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : reviewInfo.rating
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {reviewInfo.rating ? (reviewInfo.sentiment || 'Verified') : 'Pending'}
+                </span>
+              </div>
+            </div>
           </div>
 
           {/* Main 2-Column Orientation */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* ── LEFT COLUMN (7 Cols): Technical & Service Breakdown ───────── */}
             <div className="lg:col-span-7 space-y-6">
-              {/* Card 1: Diagnostic Scope & Root Cause */}
+              {/* Card 1: Service Specifications */}
               <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 sm:p-6 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2">
                     <Wrench className="w-4 h-4 text-orange-500" />
                     <h3 className="text-sm sm:text-base font-extrabold text-[#02182e] tracking-tight">
-                      Service Scope & Diagnostic Findings
+                      Service Scope &amp; Categorization
                     </h3>
                   </div>
-                  <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-md">
-                    Verified
+                  <span className="text-[11px] font-bold text-slate-500 font-mono">
+                    ID: {displayId}
                   </span>
                 </div>
 
-                {/* Customer Reported Problem */}
-                <div>
-                  <p className="text-[10px] sm:text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3 text-amber-500" /> Customer Reported Complaint
-                  </p>
-                  <div className="bg-amber-50/70 border border-amber-200/70 rounded-xl p-3.5 text-xs sm:text-sm font-semibold text-amber-950 leading-relaxed">
-                    “{reportedIssue}”
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs sm:text-sm">
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">
+                      Target Appliance
+                    </span>
+                    <p className="font-extrabold text-slate-900">{applianceName}</p>
                   </div>
-                </div>
 
-                {/* Technician Action & Resolution */}
-                <div>
-                  <p className="text-[10px] sm:text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Technician Field Resolution
-                  </p>
-                  <div className="bg-slate-50 border border-slate-200/70 rounded-xl p-3.5 text-xs sm:text-sm font-medium text-slate-700 leading-relaxed">
-                    Performed multi-point diagnostic on <strong>{applianceName}</strong>. Addressed internal wear and validated circuit health. Device tested under normal load and confirmed functioning safely to standard parameters.
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">
+                      Service Category
+                    </span>
+                    <p className="font-semibold text-slate-800">{serviceCategory}</p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">
+                      Time Slot Booked
+                    </span>
+                    <p className="font-semibold text-slate-800 flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                      {timeSlot}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">
+                      Scheduled Date
+                    </span>
+                    <p className="font-semibold text-slate-800 flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                      {serviceDate}
+                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* Card 2: SOP Standard Operating Checklist */}
+              {/* Card 2: Reported Issue & Fault Diagnostics */}
+              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 sm:p-6 space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <AlertCircle className="w-4 h-4 text-amber-500" />
+                  <h3 className="text-sm sm:text-base font-extrabold text-[#02182e] tracking-tight">
+                    Customer Reported Symptoms &amp; Faults
+                  </h3>
+                </div>
+
+                <div className="bg-amber-50/60 border border-amber-200/60 rounded-2xl p-4 text-xs sm:text-sm text-slate-700 leading-relaxed font-medium">
+                  <p className="text-[11px] font-bold text-amber-800 uppercase tracking-wider mb-1 flex items-center gap-1">
+                    <span>Reported Description:</span>
+                  </p>
+                  <p className="text-slate-800 italic">&ldquo;{reportedIssue}&rdquo;</p>
+                </div>
+
+                {jobImage && (
+                  <div className="pt-2">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-2 flex items-center gap-1.5">
+                      <Camera className="w-3.5 h-3.5 text-slate-500" /> Customer Uploaded Evidence
+                    </span>
+                    <div
+                      onClick={() => setActivePhoto(jobImage)}
+                      className="relative w-36 h-24 rounded-2xl overflow-hidden border border-slate-200 shadow-2xs group cursor-pointer"
+                    >
+                      <img
+                        src={jobImage}
+                        alt="Customer diagnostic proof"
+                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>Enlarge</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Card 3: Standard Operating Procedure (SOP) Checklist */}
               <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 sm:p-6 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
                     <h3 className="text-sm sm:text-base font-extrabold text-[#02182e] tracking-tight">
-                      Service Quality & Safety Checklist
+                      Technician Execution SOP Checklist
                     </h3>
                   </div>
-                  <span className="text-[11px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                    {checklist.filter((c) => c.done).length} / {checklist.length} Passed
+                  <span className="text-[10px] font-extrabold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-200">
+                    4-Point Quality Guarantee
                   </span>
                 </div>
 
-                <div className="space-y-2.5">
-                  {checklist.map((item, idx) => (
+                <div className="space-y-3">
+                  {checklist.map((step, idx) => (
                     <div
                       key={idx}
-                      className={`p-3.5 rounded-xl border flex items-start gap-3 transition-colors ${
-                        item.done
-                          ? 'bg-emerald-50/40 border-emerald-200/80'
-                          : 'bg-slate-50 border-slate-200 opacity-60'
-                      }`}
+                      className="p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/60 flex items-start gap-3 transition-colors hover:bg-slate-50"
                     >
-                      <div
-                        className={`w-5 h-5 rounded-md flex items-center justify-center text-xs font-black mt-0.5 shrink-0 ${
-                          item.done
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-slate-300 text-slate-600'
-                        }`}
-                      >
-                        ✓
+                      <div className="mt-0.5">
+                        {step.done ? (
+                          <div className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs">
+                            <Check className="w-3 h-3 stroke-[3]" />
+                          </div>
+                        ) : (
+                          <div className="w-5 h-5 rounded-full border-2 border-slate-300 bg-white" />
+                        )}
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
-                          {item.title}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs sm:text-sm font-extrabold text-slate-900">
+                          {step.title}
                         </p>
-                        <p className="text-[11px] sm:text-xs text-slate-600 mt-0.5 leading-relaxed">
-                          {item.desc}
+                        <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">
+                          {step.desc}
                         </p>
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
-
-              {/* Card 3: Photo Documentation / Evidence */}
-              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 sm:p-6 space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Camera className="w-4 h-4 text-slate-600" />
-                    <h3 className="text-sm sm:text-base font-extrabold text-[#02182e] tracking-tight">
-                      Job Documentation & Evidence
-                    </h3>
-                  </div>
-                  <span className="text-[11px] font-semibold text-slate-500">
-                    {jobImage ? '1 File Attached' : 'Digital Sign-off'}
-                  </span>
-                </div>
-
-                {jobImage ? (
-                  <div className="space-y-2">
-                    <div
-                      onClick={() => setActivePhoto(jobImage)}
-                      className="group relative w-full h-48 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 cursor-pointer shadow-xs"
-                    >
-                      <img
-                        src={jobImage}
-                        alt="Service Job Evidence"
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                      <div className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1.5">
-                        <ExternalLink className="w-4 h-4" /> Click to view full image
-                      </div>
-                    </div>
-                    <p className="text-[11px] text-slate-500 text-center font-medium">
-                      Doorstep photo submitted during technician job completion
-                    </p>
-                  </div>
-                ) : (
-                  <div className="p-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/70 flex items-center gap-3.5">
-                    <div className="w-10 h-10 rounded-xl bg-slate-200/80 text-slate-500 flex items-center justify-center shrink-0">
-                      <ShieldCheck className="w-5 h-5 text-emerald-600" />
-                    </div>
-                    <div>
-                      <p className="text-xs sm:text-sm font-bold text-slate-800">
-                        Doorstep Service OTP & GPS Verified
-                      </p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        Service closed with authenticated customer OTP handshake and technician geolocation check-in.
-                      </p>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -554,7 +621,166 @@ Generated from Magic Mistry Admin Dashboard
                 </div>
               </div>
 
-              {/* Card 3: Financial & Invoice Statement */}
+              {/* Card 3: Dedicated Customer Rating & Feedback */}
+              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 sm:p-6 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
+                    <h3 className="text-sm sm:text-base font-extrabold text-[#02182e] tracking-tight">
+                      Customer Rating &amp; Feedback
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-[10px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider ${
+                        reviewInfo.rating
+                          ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                          : 'bg-slate-100 text-slate-500'
+                      }`}
+                    >
+                      {reviewInfo.rating ? `${reviewInfo.sentiment || 'Verified'}` : 'Pending Review'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingReview(!isEditingReview)}
+                      className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                      title={isEditingReview ? 'Cancel edit' : 'Edit rating & note'}
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {isEditingReview ? (
+                  <form onSubmit={handleSaveReview} className="space-y-3.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+                    <div>
+                      <label className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">
+                        Set Customer Rating (1 - 5 Stars)
+                      </label>
+                      <div className="flex items-center gap-1.5 py-1">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            type="button"
+                            onMouseEnter={() => setEditHoverRating(star)}
+                            onMouseLeave={() => setEditHoverRating(0)}
+                            onClick={() => setEditRating(star)}
+                            className="p-1 transition-transform hover:scale-125 focus:outline-none cursor-pointer"
+                          >
+                            <Star
+                              className={`w-6 h-6 ${
+                                (editHoverRating || editRating) >= star
+                                  ? 'text-amber-400 fill-amber-400'
+                                  : 'text-slate-200'
+                              }`}
+                            />
+                          </button>
+                        ))}
+                        <span className="text-sm font-black text-slate-800 ml-2">
+                          {editRating}.0 Stars
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">
+                        Customer Feedback Comment
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={editComment}
+                        onChange={(e) => setEditComment(e.target.value)}
+                        placeholder="Customer review statement (e.g. prompt arrival, professional service)..."
+                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2 justify-end pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingReview(false)}
+                        className="px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-lg cursor-pointer transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveReview}
+                        className="px-3.5 py-1.5 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-lg cursor-pointer shadow-2xs transition-colors flex items-center gap-1.5"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Save Rating</span>
+                      </button>
+                    </div>
+                  </form>
+                ) : reviewInfo.rating ? (
+                  <div className="space-y-3.5">
+                    {/* Visual Star Rating and Score */}
+                    <div className="flex items-center justify-between bg-amber-50/60 p-3 rounded-2xl border border-amber-200/60">
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-0.5">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              className={`w-4 h-4 sm:w-5 sm:h-5 ${
+                                star <= Math.round(reviewInfo.rating)
+                                  ? 'text-amber-400 fill-amber-400'
+                                  : 'text-slate-200'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-base sm:text-lg font-black text-slate-900 ml-1">
+                          {Number(reviewInfo.rating).toFixed(1)}
+                        </span>
+                        <span className="text-xs font-bold text-slate-400">/ 5.0</span>
+                      </div>
+                      <span className="text-[10px] sm:text-[11px] font-extrabold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
+                        <span className="truncate">Verified Customer</span>
+                      </span>
+                    </div>
+
+                    {/* Customer Review Quote */}
+                    <div className="relative bg-slate-50 rounded-2xl p-4 border border-slate-200/80">
+                      <Quote className="w-5 h-5 text-slate-300 absolute top-3 left-3 -scale-x-100 opacity-60" />
+                      <p className="text-xs sm:text-sm text-slate-700 font-medium italic pl-6 leading-relaxed">
+                        &ldquo;{reviewInfo.review}&rdquo;
+                      </p>
+                      <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
+                        <span className="font-semibold text-slate-600">Feedback by {customerName}</span>
+                        <span className="text-slate-400">
+                          {dateCompleted !== '—' ? dateCompleted : serviceDate}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-4 space-y-2">
+                    <div className="w-9 h-9 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                      <Star className="w-4 h-4" />
+                    </div>
+                    <p className="text-xs font-bold text-slate-700">No Customer Review Recorded Yet</p>
+                    <p className="text-[11px] text-slate-400">
+                      {isCompleted
+                        ? 'Customer has completed service. You can log an offline satisfaction rating below.'
+                        : 'Customer feedback will be collected automatically upon service completion.'}
+                    </p>
+                    {isCompleted && (
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingReview(true)}
+                        className="mt-1 px-3 py-1.5 text-xs font-bold bg-[#02182e] text-white rounded-xl hover:bg-[#032447] cursor-pointer inline-flex items-center gap-1.5 transition-colors"
+                      >
+                        <Edit3 className="w-3 h-3 text-orange-400" />
+                        <span>Log Satisfaction Score</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Card 4: Financial & Invoice Statement */}
               <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 sm:p-6 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2">
@@ -575,20 +801,20 @@ Generated from Magic Mistry Admin Dashboard
                 </div>
 
                 <div className="space-y-2.5 text-xs sm:text-sm">
-                  <div className="flex justify-between items-center text-slate-600 font-medium">
-                    <span>Labor & Diagnostic Fee</span>
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span>Base Labor &amp; Diagnostic</span>
                     <span className="font-bold text-slate-800">₹{baseAmount}</span>
                   </div>
 
                   {partsTotal > 0 && (
-                    <div className="flex justify-between items-center text-slate-600 font-medium">
-                      <span>Parts & Spares Consumed</span>
+                    <div className="flex justify-between items-center text-slate-600">
+                      <span>Parts &amp; Spares Consumed</span>
                       <span className="font-bold text-slate-800">₹{partsTotal}</span>
                     </div>
                   )}
 
                   <div className="flex justify-between items-center text-slate-600 font-medium">
-                    <span>Platform Safety & GST</span>
+                    <span>Platform Safety &amp; GST</span>
                     <span className="font-semibold text-emerald-600">Included</span>
                   </div>
 

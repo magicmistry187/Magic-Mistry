@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from 'recharts';
@@ -17,6 +17,16 @@ import AdminExportModal from '../../components/dashboard/admin/AdminExportModal'
 import AdminEditUserModal from '../../components/dashboard/admin/AdminEditUserModal';
 import AdminServicePricingTab from '../../components/dashboard/admin/AdminServicePricingTab';
 import AdminBannerTab from '../../components/dashboard/admin/AdminBannerTab';
+import AdminAddExpenseModal from '../../components/dashboard/admin/AdminAddExpenseModal';
+import {
+  exportRealWorkHistoryExcel,
+  exportRealInventoryExcel,
+  exportRealPaymentRequestsExcel,
+  exportRealFinancialLedgerExcel,
+  exportRealUsersExcel,
+  exportRealApplicationsExcel,
+} from '../../utils/adminExports';
+import { getStoredAdminExpenses, saveAdminExpense, deleteAdminExpense, consolidatePlatformExpenses } from '../../utils/adminExpenses';
 import {
   LayoutDashboard, Users, FileText, UserPlus, TrendingUp,
   Package, AlertTriangle, Truck, DollarSign, Search, ChevronDown,
@@ -24,7 +34,8 @@ import {
   Copy, Download, Filter, RefreshCw, LogOut, ChevronRight, ChevronLeft, Eye,
   CheckCircle2, AlertCircle, Wrench, IndianRupee, ArrowUpRight,
   FileCheck, UserCheck, UserX, ExternalLink, Briefcase, MapPin, Phone, User,
-  Snowflake, Droplets, Store, Star, BadgeCheck, BadgeIcon, Contact, Ban, UserMinus, Tag
+  Snowflake, Droplets, Store, Star, BadgeCheck, BadgeIcon, Contact, Ban, UserMinus, Tag,
+  TrendingDown, Receipt, FileSpreadsheet, Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket, useSocketEvent } from '../../context/SocketContext';
@@ -52,6 +63,7 @@ import { getAdminBookingsApi } from '../../services/operations/bookingAPI';
 import { getLiveServicePricing } from '../../services/pricingService';
 import { CANONICAL_ADMIN_TOKEN, activateAdminSession } from '../../utils/adminAuth';
 import { formatCleanAddress } from '../../utils/addressParser';
+import { getBookingReview, saveBookingReview, getRatingSentiment } from '../../utils/bookingReviews';
 
 // ─── Service Specializations (Exact match to Vendor Application Categories) ──
 export const SERVICE_SPECIALIZATIONS = [
@@ -826,14 +838,14 @@ const INITIAL_DISPATCH_QUEUE = [
 
 // ─── Initial Work History Data ───────────────────────────────────────────────
 const INITIAL_WORK_HISTORY = [
-  { id: '#FX-8002', appliance: 'LG Split AC', customer: 'Amit Kumar', technician: 'Raju M.', dateCompleted: '2026-08-12', status: 'Completed' },
-  { id: '#FX-8001', appliance: 'Samsung TV', customer: 'Priya Das', technician: 'Mohan S.', dateCompleted: '2026-08-10', status: 'Completed' },
-  { id: '#FX-8000', appliance: 'Whirlpool Fridge', customer: 'Rohan Sharma', technician: 'Vijay T.', dateCompleted: '2026-08-09', status: 'Completed' },
-  { id: '#FX-7999', appliance: 'Bosch Washer', customer: 'Sneha Gupta', technician: 'Amit R.', dateCompleted: '2026-08-08', status: 'Completed' },
-  { id: '#FX-7998', appliance: 'Dyson Vacuum', customer: 'Karan Patel', technician: 'Rahul K.', dateCompleted: '2026-08-08', status: 'Cancelled' },
-  { id: '#FX-7997', appliance: 'Sony TV', customer: 'Neha Singh', technician: 'Raju M.', dateCompleted: '2026-08-07', status: 'Completed' },
-  { id: '#FX-7996', appliance: 'LG AC', customer: 'Vikas Jain', technician: 'Mohan S.', dateCompleted: '2026-08-07', status: 'Completed' },
-  { id: '#FX-7995', appliance: 'Samsung Microwave', customer: 'Anjali Desai', technician: 'Vijay T.', dateCompleted: '2026-08-06', status: 'Completed' },
+  { id: '#FX-8002', appliance: 'LG Split AC', customer: 'Amit Kumar', technician: 'Raju M.', dateCompleted: '2026-08-12', status: 'Completed', rating: 5.0, review: 'AC cooling restored completely. Punctual technician and clean gas pressure check.' },
+  { id: '#FX-8001', appliance: 'Samsung TV', customer: 'Priya Das', technician: 'Mohan S.', dateCompleted: '2026-08-10', status: 'Completed', rating: 5.0, review: 'Motherboard and display backlight fixed on the spot. Colors look crisp again.' },
+  { id: '#FX-8000', appliance: 'Whirlpool Fridge', customer: 'Rohan Sharma', technician: 'Vijay T.', dateCompleted: '2026-08-09', status: 'Completed', rating: 4.8, review: 'Defrost sensor replaced and fridge freezer cooling is balanced perfectly.' },
+  { id: '#FX-7999', appliance: 'Bosch Washer', customer: 'Sneha Gupta', technician: 'Amit R.', dateCompleted: '2026-08-08', status: 'Completed', rating: 5.0, review: 'Drum vibration during spin cycle resolved. Machine runs quietly now.' },
+  { id: '#FX-7998', appliance: 'Dyson Vacuum', customer: 'Karan Patel', technician: 'Rahul K.', dateCompleted: '2026-08-08', status: 'Cancelled', rating: null, review: 'Service cancelled by customer.' },
+  { id: '#FX-7997', appliance: 'Sony TV', customer: 'Neha Singh', technician: 'Raju M.', dateCompleted: '2026-08-07', status: 'Completed', rating: 5.0, review: 'Prompt service for LED TV screen flickering. Smooth picture restored.' },
+  { id: '#FX-7996', appliance: 'LG AC', customer: 'Vikas Jain', technician: 'Mohan S.', dateCompleted: '2026-08-07', status: 'Completed', rating: 4.9, review: 'Punctual arrival, deep jet coil wash done, no mess left behind.' },
+  { id: '#FX-7995', appliance: 'Samsung Microwave', customer: 'Anjali Desai', technician: 'Vijay T.', dateCompleted: '2026-08-06', status: 'Completed', rating: 5.0, review: 'Magnetron issue resolved safely. Tested with water before leaving.' },
 ];
 
 // ─── Initial Vendor Approvals Summary ────────────────────────────────────────
@@ -957,6 +969,56 @@ const renderBookingStatusBadge = (status) => {
   );
 };
 
+const renderBookingRatingBadge = (item) => {
+  if (!item) return null;
+  const rev = getBookingReview(item, item.appliance, item.status);
+  const r = rev.rating;
+  const statusStr = String(item.status || '').trim().toLowerCase();
+  const isCompleted = statusStr === 'completed' || statusStr === 'closed';
+  const isCancelled = statusStr === 'cancelled';
+
+  if (r) {
+    return (
+      <div
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-amber-50 text-amber-900 border border-amber-200/90 shadow-2xs group relative cursor-help"
+        title={rev.review ? `"${rev.review}"` : `Customer Rating: ${Number(r).toFixed(1)} / 5`}
+      >
+        <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 shrink-0" />
+        <span>{Number(r).toFixed(1)}</span>
+        {rev.sentiment && (
+          <span className="text-[10px] text-amber-700/80 font-bold hidden xl:inline">
+            • {rev.sentiment}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  if (isCancelled) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-400">
+        —
+      </span>
+    );
+  }
+
+  if (!isCompleted) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-600 border border-blue-100">
+        <Clock className="w-3 h-3 text-blue-500" />
+        <span>In Service</span>
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-50 text-slate-400 border border-slate-200">
+      <Star className="w-3 h-3 text-slate-300" />
+      <span>Unrated</span>
+    </span>
+  );
+};
+
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
   const { token, logout } = useAuth();
@@ -979,8 +1041,45 @@ export default function AdminDashboardPage() {
     }
   }, []);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const resolveTab = (t) => {
+    if (!t) return null;
+    const lower = String(t).toLowerCase().trim();
+    if (lower === 'finance' || lower === 'analytics' || lower === 'financial-analytics' || lower === 'finance-analytics' || lower === 'finance-payouts') {
+      return 'analytics';
+    }
+    if (lower === 'price-config' || lower === 'service-pricing' || lower === 'pricing') {
+      return 'service-pricing';
+    }
+    if (lower === 'payouts' || lower === 'payment-requests') {
+      return 'payment-requests';
+    }
+    if (['overview', 'users', 'applications', 'id-creation', 'inventory', 'banners', 'work-history'].includes(lower)) {
+      return lower;
+    }
+    return null;
+  };
+
   // Navigation tab state: 'overview', 'users', 'applications', 'id-creation', 'analytics'
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(() => {
+    return resolveTab(searchParams.get('tab')) || 'overview';
+  });
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    const matched = resolveTab(tabParam);
+    if (matched && matched !== activeTab) {
+      setActiveTab(matched);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    try {
+      setSearchParams({ tab: tabId }, { replace: true });
+    } catch (_) {}
+  };
 
   // Data states
   const [inventoryList, setInventoryList] = useState(() => {
@@ -1054,6 +1153,34 @@ export default function AdminDashboardPage() {
   const [currentWorkFilter, setCurrentWorkFilter] = useState('All');
   const [workHistoryFilter, setWorkHistoryFilter] = useState('All Records');
 
+  // Real-time reactive listener for client-side customer review updates
+  useEffect(() => {
+    const handleReviewUpdated = (e) => {
+      const updated = e.detail;
+      if (!updated || !updated.bookingId) return;
+
+      const enrichItem = (item) => {
+        const idMatches = [item.id, item.rawId, item.displayId, item.rawBooking?._id].map(String);
+        if (idMatches.includes(String(updated.bookingId))) {
+          return {
+            ...item,
+            rating: updated.rating,
+            review: updated.review,
+            sentiment: updated.sentiment,
+          };
+        }
+        return item;
+      };
+
+      setAllBookings(prev => prev.map(enrichItem));
+      setWorkHistory(prev => prev.map(enrichItem));
+      setSelectedReportItem(prev => (prev ? enrichItem(prev) : prev));
+    };
+
+    window.addEventListener('mm_booking_review_updated', handleReviewUpdated);
+    return () => window.removeEventListener('mm_booking_review_updated', handleReviewUpdated);
+  }, []);
+
   // Stable refs to prevent circular fetch/re-render loops and eliminate UI flickering
   const allBookingsRef = useRef(allBookings);
   const dispatchQueueRef = useRef(dispatchQueue);
@@ -1121,6 +1248,7 @@ export default function AdminDashboardPage() {
           const formattedAddr = formatBookingAddress(b.address);
           const ApplianceIcon = getApplianceIcon(b.appliance);
           const pay = b.serviceCharge || b.serviceCategoryCharge || 0;
+          const rev = getBookingReview({ ...b, id: displayId, rawId: b._id, status: b.bookingStatus }, b.appliance, b.bookingStatus);
 
           return {
             id: displayId,
@@ -1149,6 +1277,9 @@ export default function AdminDashboardPage() {
             paymentStatus: b.paymentStatus || 'Pending',
             paymentMethod: b.paymentMethod || 'Cash After Service',
             issue: b.issue || b.serviceCategory || 'Standard Service Required',
+            rating: rev.rating,
+            review: rev.review,
+            sentiment: rev.sentiment,
             rawBooking: b,
           };
         });
@@ -1447,6 +1578,9 @@ export default function AdminDashboardPage() {
     } else if (activeTab === 'inventory') {
       fetchInventory();
     } else if (activeTab === 'finance-payouts' || activeTab === 'analytics' || activeTab === 'payment-requests') {
+      fetchPaymentRequests();
+      fetchInventory();
+      fetchBookings();
       fetchAdminEarnings();
     } else if (activeTab === 'users') {
       fetchUsers();
@@ -1821,6 +1955,130 @@ export default function AdminDashboardPage() {
       }).length,
     };
   }, [dispatchQueue]);
+
+  // ── Financial Analytics & Expense Management State ──
+  const [customExpenses, setCustomExpenses] = useState(() => getStoredAdminExpenses());
+  const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false);
+  const [expenseSearchTerm, setExpenseSearchTerm] = useState('');
+  const [expenseCategoryFilter, setExpenseCategoryFilter] = useState('All Expenses');
+  const [expenseCurrentPage, setExpenseCurrentPage] = useState(1);
+  const [expenseItemsPerPage, setExpenseItemsPerPage] = useState(10);
+  const [isPnlExpanded, setIsPnlExpanded] = useState(true);
+
+  // Sync with real-time operational expense updates
+  useEffect(() => {
+    const handleExpenseUpdate = () => {
+      setCustomExpenses(getStoredAdminExpenses());
+    };
+    window.addEventListener('mm_admin_expense_updated', handleExpenseUpdate);
+    return () => window.removeEventListener('mm_admin_expense_updated', handleExpenseUpdate);
+  }, []);
+
+  // Consolidated Platform Expenditure & Revenue Metrics
+  const consolidatedFinance = useMemo(() => {
+    return consolidatePlatformExpenses({
+      allBookings,
+      adminEarningsRaw,
+      paymentRequests,
+      inventoryList,
+      customExpenses,
+    });
+  }, [allBookings, adminEarningsRaw, paymentRequests, inventoryList, customExpenses]);
+
+  const finSummary = useMemo(() => {
+    const s = consolidatedFinance?.summary;
+    return {
+      grossRevenue: Number(s?.grossRevenue) || 0,
+      totalExpenses: Number(s?.totalExpenses) || 0,
+      netProfit: Number(s?.netProfit) || 0,
+      netMarginPct: String(s?.netMarginPct || '0.0'),
+      vendorLaborTotal: Number(s?.vendorLaborTotal) || 0,
+      fuelTotal: Number(s?.fuelTotal) || 0,
+      partsTotal: Number(s?.partsTotal) || 0,
+      gatewayTotal: Number(s?.gatewayTotal) || 0,
+      overheadTotal: Number(s?.overheadTotal) || 0,
+    };
+  }, [consolidatedFinance]);
+
+  // Filtered Expense Records for Ledger
+  const filteredExpenses = useMemo(() => {
+    let list = consolidatedFinance.allExpenses || [];
+    if (expenseCategoryFilter !== 'All Expenses') {
+      list = list.filter((e) => {
+        if (expenseCategoryFilter === 'Vendor Labor') return e.categoryKey === 'vendor_labor';
+        if (expenseCategoryFilter === 'Fuel Claims') return e.categoryKey === 'fuel';
+        if (expenseCategoryFilter === 'Parts Procurement') return e.categoryKey === 'inventory';
+        if (expenseCategoryFilter === 'Platform Overhead') return e.categoryKey === 'overhead';
+        if (expenseCategoryFilter === 'Gateway & Banking') return e.categoryKey === 'gateway';
+        return true;
+      });
+    }
+    if (expenseSearchTerm.trim()) {
+      const term = expenseSearchTerm.toLowerCase();
+      list = list.filter((e) =>
+        (e.id || '').toLowerCase().includes(term) ||
+        (e.title || '').toLowerCase().includes(term) ||
+        (e.beneficiary || '').toLowerCase().includes(term) ||
+        (e.category || '').toLowerCase().includes(term) ||
+        (e.paymentMode || '').toLowerCase().includes(term)
+      );
+    }
+    return list;
+  }, [consolidatedFinance.allExpenses, expenseCategoryFilter, expenseSearchTerm]);
+
+  const totalExpensePages = Math.max(1, Math.ceil(filteredExpenses.length / expenseItemsPerPage));
+  const paginatedExpenses = useMemo(() => {
+    const start = (expenseCurrentPage - 1) * expenseItemsPerPage;
+    return filteredExpenses.slice(start, start + expenseItemsPerPage);
+  }, [filteredExpenses, expenseCurrentPage, expenseItemsPerPage]);
+
+  const expenseCounts = useMemo(() => {
+    const all = consolidatedFinance.allExpenses || [];
+    return {
+      all: all.length,
+      labor: all.filter((e) => e.categoryKey === 'vendor_labor').length,
+      fuel: all.filter((e) => e.categoryKey === 'fuel').length,
+      parts: all.filter((e) => e.categoryKey === 'inventory').length,
+      overhead: all.filter((e) => e.categoryKey === 'overhead').length,
+      gateway: all.filter((e) => e.categoryKey === 'gateway').length,
+    };
+  }, [consolidatedFinance.allExpenses]);
+
+  const handleExportExpensesCSV = () => {
+    const list = consolidatedFinance.allExpenses;
+    if (!list || list.length === 0) {
+      showToast('No expense records available to export.');
+      return;
+    }
+    const headers = ['Expense ID', 'Date', 'Category', 'Description', 'Beneficiary', 'Payment Mode', 'Amount (INR)', 'Status', 'Notes'];
+    const rows = list.map((e) => [
+      `"${e.id}"`,
+      `"${e.date}"`,
+      `"${e.category}"`,
+      `"${(e.title || '').replace(/"/g, '""')}"`,
+      `"${(e.beneficiary || '').replace(/"/g, '""')}"`,
+      `"${e.paymentMode || ''}"`,
+      Number(e.amount) || 0,
+      `"${e.status || ''}"`,
+      `"${(e.notes || '').replace(/"/g, '""')}"`,
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `Magic_Mistry_Expense_Ledger_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Expense Ledger CSV exported successfully!');
+  };
+
+  const handleDeleteCustomExpense = (expenseId) => {
+    if (window.confirm('Are you sure you want to remove this operational expense?')) {
+      deleteAdminExpense(expenseId);
+      showToast('Operational expense deleted.');
+    }
+  };
 
   // Work History Pagination, Search & Filters
   const [historyPage, setHistoryPage] = useState(1);
@@ -2891,144 +3149,70 @@ export default function AdminDashboardPage() {
   };
 
   const handleExportExcel = (exportFrom, exportTo) => {
-    const dataToExport = workHistory.filter(item => {
-      const dateVal = item.dateCompleted !== '—' ? item.dateCompleted : (item.serviceDate !== '—' ? item.serviceDate : null);
-      const itemDate = dateVal ? new Date(dateVal) : new Date();
-      const start = exportFrom ? new Date(exportFrom) : new Date('2000-01-01');
-      const end = exportTo ? new Date(exportTo) : new Date('2100-01-01');
-      return itemDate >= start && itemDate <= end;
+    const sourceList = allBookings && allBookings.length > 0 ? allBookings : dispatchQueue.concat(workHistory);
+    const count = exportRealWorkHistoryExcel({
+      bookingsList: sourceList,
+      fromDate: exportFrom,
+      toDate: exportTo,
+      statusFilter: workHistoryFilter,
     });
-
-    const htmlString = `
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-      <head>
-        <meta charset="utf-8" />
-        <style>
-          table { border-collapse: collapse; font-family: 'Segoe UI', Arial, sans-serif; }
-          th { background-color: #02182e; color: #ffffff; font-weight: bold; text-align: left; padding: 12px; border: 1px solid #cbd5e1; font-size: 14px; }
-          td { padding: 10px; border: 1px solid #cbd5e1; color: #334155; font-size: 13px; }
-          .title { font-size: 20px; font-weight: bold; color: #02182e; padding-bottom: 5px; border: none; }
-          .subtitle { font-size: 12px; color: #64748b; padding-bottom: 15px; border: none; }
-          .status-completed { color: #059669; font-weight: bold; }
-          .status-other { color: #dc2626; font-weight: bold; }
-        </style>
-      </head>
-      <body>
-        <table>
-          <tr>
-            <td colspan="6" class="title">Magic Mistry - Work History Report</td>
-          </tr>
-          <tr>
-            <td colspan="6" class="subtitle">Generated on: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</td>
-          </tr>
-          <tr>
-            <th>REQ ID</th>
-            <th>APPLIANCE</th>
-            <th>CUSTOMER</th>
-            <th>TECHNICIAN</th>
-            <th>DATE COMPLETED</th>
-            <th>STATUS</th>
-          </tr>
-          ${dataToExport.map(item => `
-            <tr>
-              <td style="font-weight: bold;">${item.id}</td>
-              <td>${item.appliance}</td>
-              <td>${item.customer}</td>
-              <td>${item.technician}</td>
-              <td>${item.dateCompleted}</td>
-              <td class="${item.status === 'Completed' ? 'status-completed' : 'status-other'}">${item.status}</td>
-            </tr>
-          `).join('')}
-        </table>
-      </body>
-      </html>
-    `;
-
-    const blob = new Blob([htmlString], { type: 'application/vnd.ms-excel' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `MagicMistry_WorkHistory_${new Date().toISOString().split('T')[0]}.xls`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    showToast('Work history Excel file downloaded!');
+    showToast(`Exported ${count} real work history records to Excel!`);
   };
 
   const handleExportInventoryExcel = (exportFrom, exportTo) => {
-    // We can filter inventoryList by lastRestocked
-    const dataToExport = inventoryList.filter(item => {
-      if (!item.lastRestocked) return true; // if no date, include it or not based on requirements
-      const itemDate = new Date(item.lastRestocked);
-      const start = exportFrom ? new Date(exportFrom) : new Date('2000-01-01');
-      const end = exportTo ? new Date(exportTo) : new Date('2100-01-01');
-      return itemDate >= start && itemDate <= end;
+    const count = exportRealInventoryExcel({
+      inventoryList,
+      fromDate: exportFrom,
+      toDate: exportTo,
     });
+    showToast(`Exported ${count} real inventory items to Excel!`);
+  };
 
-    const htmlString = `
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-      <head>
-        <meta charset="utf-8" />
-        <style>
-          table { border-collapse: collapse; font-family: 'Segoe UI', Arial, sans-serif; }
-          th { background-color: #02182e; color: #ffffff; font-weight: bold; text-align: left; padding: 12px; border: 1px solid #cbd5e1; font-size: 14px; }
-          td { padding: 10px; border: 1px solid #cbd5e1; color: #334155; font-size: 13px; }
-          .title { font-size: 20px; font-weight: bold; color: #02182e; padding-bottom: 5px; border: none; }
-          .subtitle { font-size: 12px; color: #64748b; padding-bottom: 15px; border: none; }
-          .status-out { color: #dc2626; font-weight: bold; }
-          .status-low { color: #d97706; font-weight: bold; }
-          .status-healthy { color: #059669; font-weight: bold; }
-        </style>
-      </head>
-      <body>
-        <table>
-          <tr>
-            <td colspan="7" class="title">Magic Mistry - Inventory Status Report</td>
-          </tr>
-          <tr>
-            <td colspan="7" class="subtitle">Generated on: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</td>
-          </tr>
-          <tr>
-            <th>SKU ID</th>
-            <th>ITEM NAME</th>
-            <th>CATEGORY</th>
-            <th>STOCK LEVEL</th>
-            <th>CURRENT STOCK</th>
-            <th>UNIT PRICE</th>
-            <th>LAST RESTOCKED</th>
-          </tr>
-          ${dataToExport.map(item => {
-            let statusClass = 'status-healthy';
-            if (item.stockLevel === 'Out of Stock') statusClass = 'status-out';
-            else if (item.stockLevel === 'Low Stock') statusClass = 'status-low';
-            
-            return `
-            <tr>
-              <td style="font-weight: bold;">${item.id}</td>
-              <td>${item.name}</td>
-              <td>${item.category}</td>
-              <td class="${statusClass}">${item.stockLevel}</td>
-              <td>${item.stockCount}</td>
-              <td>₹${(Number(item?.unitPrice) || 0).toFixed(2)}</td>
-              <td>${item.lastUpdated}</td>
-            </tr>
-          `}).join('')}
-        </table>
-      </body>
-      </html>
-    `;
+  const handleExportPaymentExcel = (exportFrom, exportTo) => {
+    const count = exportRealPaymentRequestsExcel({
+      paymentRequests,
+      fromDate: exportFrom,
+      toDate: exportTo,
+    });
+    showToast(`Exported ${count} real payment request records to Excel!`);
+  };
 
-    const blob = new Blob([htmlString], { type: 'application/vnd.ms-excel' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `MagicMistry_Inventory_${new Date().toISOString().split('T')[0]}.xls`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    showToast('Inventory Excel file downloaded!');
+  const handleExportFinanceExcel = (exportFrom, exportTo) => {
+    const count = exportRealFinancialLedgerExcel({
+      allExpenses: consolidatedFinance.allExpenses,
+      fromDate: exportFrom,
+      toDate: exportTo,
+    });
+    showToast(`Exported ${count} real financial expense records to Excel!`);
+  };
+
+  const handleExportUsersExcel = (exportFrom, exportTo, role) => {
+    const activeRole = role || userRoleFilter || "All";
+    const count = exportRealUsersExcel({
+      usersList,
+      fromDate: exportFrom,
+      toDate: exportTo,
+      roleFilter: activeRole,
+    });
+    const rf = String(activeRole).toLowerCase();
+    const roleName =
+      (rf === "customer" || rf === "users" || rf === "user" || rf === "customers")
+        ? "customer"
+        : (rf === "technician" || rf === "vendor" || rf === "vendors" || rf === "technicians")
+        ? "vendor"
+        : (rf === "admin" || rf === "admins")
+        ? "admin"
+        : "user & partner";
+    showToast(`Exported ${count} real ${roleName} records to Excel!`);
+  };
+
+  const handleExportApplicationsExcel = (exportFrom, exportTo) => {
+    const count = exportRealApplicationsExcel({
+      applicationsList: applicationsList,
+      fromDate: exportFrom,
+      toDate: exportTo,
+    });
+    showToast(`Exported ${count} real vendor applications to Excel!`);
   };
 
   // Generate Credentials Submit — saves per-vendor, marks app Approved
@@ -3257,7 +3441,7 @@ export default function AdminDashboardPage() {
                           return (
                             <motion.button
                               key={item.id}
-                              onClick={() => setActiveTab(item.id)}
+                              onClick={() => handleTabChange(item.id)}
                               whileHover={{ x: 3 }}
                               whileTap={{ scale: 0.98 }}
                               className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm font-extrabold transition-all duration-200 cursor-pointer ${
@@ -3335,10 +3519,18 @@ export default function AdminDashboardPage() {
                     {/* Metric Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                       {/* Revenue */}
-                      <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between">
-                        <IndianRupee className="w-16 h-16 text-slate-100 absolute top-4 right-4 pointer-events-none" />
+                      <div 
+                        onClick={() => handleTabChange('analytics')}
+                        className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between cursor-pointer hover:border-orange-300 hover:shadow-md transition-all group"
+                      >
+                        <IndianRupee className="w-16 h-16 text-slate-100 group-hover:text-orange-50 transition-colors absolute top-4 right-4 pointer-events-none" />
                         <div>
-                          <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider block mb-2">Total Revenue (MTD)</span>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider block">Total Revenue (MTD)</span>
+                            <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full flex items-center gap-0.5 group-hover:bg-orange-100 transition-colors">
+                              View Finance <ArrowUpRight className="w-2.5 h-2.5" />
+                            </span>
+                          </div>
                           <span className="text-3xl font-black text-[#02182e] tracking-tight">
                             ₹{(Number(adminFinancialMetrics?.grossRevenueMTD) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </span>
@@ -4095,6 +4287,18 @@ export default function AdminDashboardPage() {
                         <span className="px-3 py-1 bg-rose-100 text-rose-700 text-xs font-black rounded-full border border-rose-200">
                           {pendingApplicationsCount} Pending Review
                         </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExportType('applications');
+                            setIsExportModalOpen(true);
+                          }}
+                          className="px-3.5 py-1.5 bg-white border border-slate-200 text-slate-700 font-extrabold text-xs rounded-xl shadow-2xs hover:bg-slate-50 transition-colors flex items-center gap-1.5 cursor-pointer"
+                          title="Export real vendor applications to Excel"
+                        >
+                          <Download className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Export Applications</span>
+                        </button>
                       </div>
                     </div>
 
@@ -5097,16 +5301,38 @@ export default function AdminDashboardPage() {
                         <h1 className="text-3xl font-extrabold text-slate-900">User & Partner Management</h1>
                         <p className="text-slate-500 text-sm mt-1">Manage active customers, technician partners, status (Active, Blocked, Suspended), and profile access.</p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={fetchUsers}
-                        disabled={isRefreshingUsers}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 shadow-sm transition-all cursor-pointer self-start sm:self-auto disabled:opacity-60"
-                        title="Refresh live user roster from database"
-                      >
+                      <div className="flex items-center gap-2.5 flex-wrap self-start sm:self-auto">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExportType('users');
+                            setIsExportModalOpen(true);
+                          }}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-xl border border-emerald-200 shadow-2xs transition-all cursor-pointer"
+                          title="Export real users and partners to Excel"
+                        >
+                          <Download className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>
+                            {userRoleFilter === "Customer"
+                              ? "Export Only Users"
+                              : userRoleFilter === "Technician"
+                              ? "Export Only Vendors"
+                              : userRoleFilter === "Admin"
+                              ? "Export Only Admins"
+                              : "Export Users & Vendors"}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={fetchUsers}
+                          disabled={isRefreshingUsers}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 shadow-sm transition-all cursor-pointer disabled:opacity-60"
+                          title="Refresh live user roster from database"
+                        >
                         <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isRefreshingUsers ? 'animate-spin text-orange-500' : ''}`} />
                         <span>{isRefreshingUsers ? 'Syncing...' : 'Refresh Users'}</span>
-                      </button>
+                        </button>
+                      </div>
                     </div>
 
                     {/* KPI Quick Counter Cards */}
@@ -5594,137 +5820,556 @@ export default function AdminDashboardPage() {
                     transition={{ duration: 0.3 }}
                     className="space-y-6"
                   >
+                    {/* Header Command Bar */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div>
-                        <h1 className="text-3xl font-extrabold text-[#02182e]">Financial Analytics</h1>
-                        <p className="text-slate-500 text-sm mt-1">Comprehensive platform revenue metrics, service charges, and payouts.</p>
+                        <div className="flex items-center gap-2.5">
+                          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#02182e]">
+                            Financial Analytics &amp; Expense Intelligence
+                          </h1>
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            Live Real-Time Sync
+                          </span>
+                        </div>
+                        <p className="text-slate-500 text-xs sm:text-sm mt-1">
+                          Comprehensive platform revenues, technician labor payouts, fuel claims, spare parts procurement, and operational costs.
+                        </p>
                       </div>
-                      <button 
-                        onClick={() => showToast('Financial Report Downloaded!')}
-                        className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
-                      >
-                        <Download className="w-4 h-4" />
-                        Export Full Report
-                      </button>
+
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <button 
+                          type="button"
+                          onClick={() => setIsAddExpenseModalOpen(true)}
+                          className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm hover:shadow-md transition-all cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>Record Operational Expense</span>
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            setExportType('finance');
+                            setIsExportModalOpen(true);
+                          }}
+                          className="px-4 py-2.5 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                          title="Export formatted Excel report"
+                        >
+                          <Download className="w-4 h-4 text-emerald-600" />
+                          <span>Export Excel Ledger</span>
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={handleExportExpensesCSV}
+                          className="px-3.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                          title="Export plain CSV"
+                        >
+                          <span>CSV</span>
+                        </button>
+                      </div>
                     </div>
 
-                    {/* KPI Cards */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between">
-                        <IndianRupee className="w-12 h-12 text-slate-50 absolute top-4 right-4 pointer-events-none" />
-                        <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Gross Revenue (YTD)</span>
-                        <div className="text-2xl font-black text-[#02182e] mt-2 tracking-tight">
-                          ₹{(Number(adminFinancialMetrics?.grossRevenueYTD) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    {/* Executive KPI Ribbon (6 Cards) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5 sm:gap-4">
+                      {/* Card 1: Gross Collections */}
+                      <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs relative overflow-hidden flex flex-col justify-between">
+                        <IndianRupee className="w-10 h-10 text-slate-100 absolute top-3 right-3 pointer-events-none" />
+                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Gross Billings (YTD)</span>
+                        <div className="text-xl sm:text-2xl font-black text-[#02182e] mt-1.5 tracking-tight">
+                          ₹{finSummary.grossRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </div>
-                        <p className="text-xs font-bold text-emerald-600 mt-2 flex items-center gap-1">
-                          <TrendingUp className="w-3.5 h-3.5"/> Verified customer billings
+                        <p className="text-[11px] font-bold text-emerald-600 mt-2 flex items-center gap-1">
+                          <TrendingUp className="w-3 h-3" /> Invoiced doorsteps
                         </p>
                       </div>
 
-                      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between">
-                        <IndianRupee className="w-12 h-12 text-slate-50 absolute top-4 right-4 pointer-events-none" />
-                        <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Net Platform Margin</span>
-                        <div className="text-2xl font-black text-[#02182e] mt-2 tracking-tight">
-                          ₹{(Number(adminFinancialMetrics?.netProfitYTD) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      {/* Card 2: Total Operating Expenses */}
+                      <div className="bg-white p-5 rounded-2xl border border-rose-100/90 bg-gradient-to-br from-white to-rose-50/20 shadow-2xs relative overflow-hidden flex flex-col justify-between">
+                        <Receipt className="w-10 h-10 text-rose-100/60 absolute top-3 right-3 pointer-events-none" />
+                        <span className="text-[10px] font-extrabold text-rose-500 uppercase tracking-wider">Total Expenses</span>
+                        <div className="text-xl sm:text-2xl font-black text-rose-700 mt-1.5 tracking-tight">
+                          ₹{finSummary.totalExpenses.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </div>
-                        <p className="text-xs font-bold text-emerald-600 mt-2">
-                          {adminFinancialMetrics?.netMarginPct || '0.0'}% Net Platform Share
+                        <p className="text-[11px] font-bold text-rose-600 mt-2 flex items-center gap-1">
+                          <TrendingDown className="w-3 h-3" /> All 5 cost centers
                         </p>
                       </div>
 
-                      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between">
-                        <Users className="w-12 h-12 text-slate-50 absolute top-4 right-4 pointer-events-none" />
-                        <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Vendor Payouts</span>
-                        <div className="text-2xl font-black text-[#02182e] mt-2 tracking-tight">
-                          ₹{(Number(adminFinancialMetrics?.vendorPayoutsYTD) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      {/* Card 3: Net Platform Profit */}
+                      <div className="bg-white p-5 rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-white to-emerald-50/20 shadow-2xs relative overflow-hidden flex flex-col justify-between">
+                        <IndianRupee className="w-10 h-10 text-emerald-100/60 absolute top-3 right-3 pointer-events-none" />
+                        <span className="text-[10px] font-extrabold text-emerald-700 uppercase tracking-wider">Net Operating Margin</span>
+                        <div className="text-xl sm:text-2xl font-black text-emerald-800 mt-1.5 tracking-tight">
+                          ₹{finSummary.netProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </div>
-                        <p className="text-xs font-medium text-slate-500 mt-2 flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500"/> 50% Service + 100% Fuel
+                        <p className="text-[11px] font-bold text-emerald-700 mt-2">
+                          {finSummary.netMarginPct}% Net EBITDA
                         </p>
                       </div>
 
-                      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between">
-                        <TrendingUp className="w-12 h-12 text-slate-50 absolute top-4 right-4 pointer-events-none" />
-                        <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Avg. Ticket Size</span>
-                        <div className="text-2xl font-black text-[#02182e] mt-2 tracking-tight">
-                          ₹{(Number(adminFinancialMetrics?.avgTicketSize) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      {/* Card 4: Vendor Labor Disbursals */}
+                      <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs relative overflow-hidden flex flex-col justify-between">
+                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Partner Labor (50%)</span>
+                        <div className="text-xl sm:text-2xl font-black text-orange-600 mt-1.5 tracking-tight">
+                          ₹{finSummary.vendorLaborTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </div>
-                        <p className="text-xs font-bold text-emerald-600 mt-2 flex items-center gap-1">
-                          <TrendingUp className="w-3.5 h-3.5"/> Per completed service order
+                        <p className="text-[11px] font-medium text-slate-500 mt-2 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-orange-500" /> Technician share
+                        </p>
+                      </div>
+
+                      {/* Card 5: Fuel & Travel Mileage */}
+                      <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs relative overflow-hidden flex flex-col justify-between">
+                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Fuel Reimbursements</span>
+                        <div className="text-xl sm:text-2xl font-black text-blue-600 mt-1.5 tracking-tight">
+                          ₹{finSummary.fuelTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </div>
+                        <p className="text-[11px] font-medium text-slate-500 mt-2 flex items-center gap-1">
+                          <Truck className="w-3 h-3 text-blue-500" /> Verified travel claims
+                        </p>
+                      </div>
+
+                      {/* Card 6: Parts & Inventory Procurement */}
+                      <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs relative overflow-hidden flex flex-col justify-between">
+                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Parts &amp; Procurement</span>
+                        <div className="text-xl sm:text-2xl font-black text-purple-600 mt-1.5 tracking-tight">
+                          ₹{finSummary.partsTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </div>
+                        <p className="text-[11px] font-medium text-slate-500 mt-2 flex items-center gap-1">
+                          <Package className="w-3 h-3 text-purple-500" /> Stock procurement
                         </p>
                       </div>
                     </div>
 
                     {/* Charts Section */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                      {/* Revenue Over Time Line Chart */}
-                      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm lg:col-span-2 flex flex-col h-[400px]">
-                        <h2 className="text-sm font-extrabold text-[#02182e] mb-6">Revenue & Platform Profit Trends ({new Date().getFullYear()})</h2>
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                      {/* Chart 1: Revenue vs. Expenses vs. Profit Timeline (8 cols) */}
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm lg:col-span-8 flex flex-col h-[420px]">
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <h2 className="text-sm font-extrabold text-[#02182e]">Financial Timeline: Revenue vs. Expenses vs. Profit</h2>
+                            <p className="text-xs text-slate-400">Monthly operational performance ({new Date().getFullYear()})</p>
+                          </div>
+                          <span className="text-[11px] font-bold text-slate-500 font-mono bg-slate-100 px-2 py-0.5 rounded">
+                            EBITDA: {finSummary.netMarginPct}%
+                          </span>
+                        </div>
+
                         <div className="flex-1 min-h-0 w-full">
                           <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={adminMonthlyRevenueData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <AreaChart data={consolidatedFinance.monthlyTimeline} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                               <defs>
-                                <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                                <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
                                   <stop offset="5%" stopColor="#02182e" stopOpacity={0.8}/>
-                                  <stop offset="95%" stopColor="#02182e" stopOpacity={0}/>
+                                  <stop offset="95%" stopColor="#02182e" stopOpacity={0.05}/>
                                 </linearGradient>
-                                <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="5%" stopColor="#FF6B00" stopOpacity={0.8}/>
-                                  <stop offset="95%" stopColor="#FF6B00" stopOpacity={0}/>
+                                <linearGradient id="colorExp" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#e11d48" stopOpacity={0.7}/>
+                                  <stop offset="95%" stopColor="#e11d48" stopOpacity={0.05}/>
                                 </linearGradient>
                               </defs>
                               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dy={10} />
-                              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} tickFormatter={(value) => `₹${((Number(value) || 0) / 1000).toFixed(0)}k`} domain={[0, 'auto']} />
+                              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} tickFormatter={(val) => `₹${((Number(val) || 0) / 1000).toFixed(0)}k`} domain={[0, 'auto']} />
                               <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="4 4" />
                               <RechartsTooltip 
-                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' }}
+                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                 formatter={(value) => [`₹${(Number(value) || 0).toLocaleString('en-IN')}`, '']}
                               />
-                              <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 'bold', paddingTop: '20px' }} />
-                              <Area type="monotone" dataKey="revenue" name="Gross Revenue" stroke="#02182e" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
-                              <Area type="monotone" dataKey="profit" name="Net Platform Profit" stroke="#FF6B00" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" />
+                              <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 'bold', paddingTop: '15px' }} />
+                              <Area type="monotone" dataKey="revenue" name="Gross Revenue" stroke="#02182e" strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" />
+                              <Area type="monotone" dataKey="expenses" name="Total Expenses" stroke="#e11d48" strokeWidth={2.5} fillOpacity={1} fill="url(#colorExp)" />
+                              <Area type="monotone" dataKey="profit" name="Net Margin" stroke="#10b981" strokeWidth={2.5} fill="#10b981" fillOpacity={0.08} />
                             </AreaChart>
                           </ResponsiveContainer>
                         </div>
                       </div>
 
-                      {/* Revenue By Category Pie Chart */}
-                      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col h-[400px]">
-                        <h2 className="text-sm font-extrabold text-[#02182e] mb-6">Revenue by Category (%)</h2>
-                        <div className="flex-1 min-h-0 w-full flex items-center justify-center">
+                      {/* Chart 2: Expense Breakdown Donut Chart (4 cols) */}
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm lg:col-span-4 flex flex-col h-[420px]">
+                        <h2 className="text-sm font-extrabold text-[#02182e] mb-1">Expense Breakdown by Cost Center</h2>
+                        <p className="text-xs text-slate-400 mb-2">Distribution across 5 categories</p>
+
+                        <div className="flex-1 min-h-0 w-full flex items-center justify-center relative">
+                          {consolidatedFinance?.categoryBreakdown && consolidatedFinance.categoryBreakdown.length > 0 ? (
                           <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                               <Pie
-                                data={adminCategoryRevenueData}
+                                data={consolidatedFinance.categoryBreakdown}
                                 cx="50%"
-                                cy="50%"
+                                cy="45%"
                                 innerRadius={60}
-                                outerRadius={100}
-                                paddingAngle={5}
+                                outerRadius={95}
+                                paddingAngle={4}
                                 dataKey="value"
                                 stroke="none"
                               >
-                                {adminCategoryRevenueData.map((entry, index) => (
-                                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                {consolidatedFinance.categoryBreakdown.map((entry, index) => (
+                                  <Cell key={`cell-exp-${index}`} fill={entry.color} />
                                 ))}
                               </Pie>
                               <RechartsTooltip 
                                 contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                formatter={(value) => [`${Number(value) || 0}%`, 'Share']}
+                                formatter={(val) => [`₹${(Number(val) || 0).toLocaleString('en-IN')}`, 'Expenditure']}
                               />
-                              <Legend layout="horizontal" verticalAlign="bottom" align="center" iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: '600' }} />
+                              <Legend layout="horizontal" verticalAlign="bottom" align="center" iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: '600', lineHeight: '18px' }} />
                             </PieChart>
                           </ResponsiveContainer>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-slate-400 py-10">
+                              <Receipt className="w-8 h-8 opacity-30 mb-2" />
+                              <p className="text-xs font-bold text-slate-500">No categorized expenses recorded yet</p>
+                              <p className="text-[11px] text-slate-400 mt-0.5">Expenses will appear as services complete.</p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
 
-                    {/* Recent Transactions Table */}
+                    {/* ── PROFIT & LOSS (P&L) STATEMENT BREAKDOWN CARD ── */}
+                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                      <div 
+                        onClick={() => setIsPnlExpanded(!isPnlExpanded)}
+                        className="p-5 border-b border-slate-100 flex items-center justify-between cursor-pointer hover:bg-slate-50/60 transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                            <FileSpreadsheet className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h2 className="text-sm font-extrabold text-[#02182e]">Profit &amp; Loss (P&amp;L) Accounting Statement</h2>
+                            <p className="text-xs text-slate-400">Formal revenue, direct cost of sales (COGS), operating overhead, and net margin</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                            EBITDA: ₹{finSummary.netProfit.toLocaleString('en-IN')} ({finSummary.netMarginPct}%)
+                          </span>
+                          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isPnlExpanded ? 'rotate-180' : ''}`} />
+                        </div>
+                      </div>
+
+                      {isPnlExpanded && (
+                        <div className="p-6 space-y-4 text-xs sm:text-sm bg-slate-50/40">
+                          {/* 1. Gross Revenue */}
+                          <div className="flex justify-between items-center py-2 border-b border-slate-200 font-extrabold text-slate-900">
+                            <span>1. Invoiced Customer Revenue (Gross GMV)</span>
+                            <span className="text-base text-emerald-700 font-black">
+                              ₹{finSummary.grossRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+
+                          {/* 2. Direct Cost of Services (COGS) */}
+                          <div className="pl-4 space-y-2 border-l-2 border-orange-200">
+                            <span className="text-[11px] font-extrabold uppercase tracking-wider text-orange-600 block">
+                              2. Direct Cost of Services (COGS)
+                            </span>
+                            <div className="flex justify-between text-slate-600">
+                              <span>• Field Partner Labor Commission (50% Service Share)</span>
+                              <span className="font-semibold text-rose-600">- ₹{finSummary.vendorLaborTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex justify-between text-slate-600">
+                              <span>• Technician Travel Mileage Claims (100% Fuel Reimbursements)</span>
+                              <span className="font-semibold text-rose-600">- ₹{finSummary.fuelTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex justify-between text-slate-600">
+                              <span>• Spare Components &amp; Inventory Restock Costs</span>
+                              <span className="font-semibold text-rose-600">- ₹{finSummary.partsTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          </div>
+
+                          {/* 3. Gross Margin Subtotal */}
+                          <div className="flex justify-between items-center py-2 px-3 rounded-xl bg-orange-50/70 border border-orange-200/80 font-black text-orange-950">
+                            <span>= Gross Operating Margin</span>
+                            <span className="text-sm font-black">
+                              ₹{Math.max(0, finSummary.grossRevenue - (finSummary.vendorLaborTotal + finSummary.fuelTotal + finSummary.partsTotal)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+
+                          {/* 4. Operating Expenses (OpEx) */}
+                          <div className="pl-4 space-y-2 border-l-2 border-rose-200">
+                            <span className="text-[11px] font-extrabold uppercase tracking-wider text-rose-600 block">
+                              3. Operating Expenses &amp; Administrative Overhead (OpEx)
+                            </span>
+                            <div className="flex justify-between text-slate-600">
+                              <span>• Payment Gateway Transaction Fees (~2% on Digital/UPI Collections)</span>
+                              <span className="font-semibold text-rose-600">- ₹{finSummary.gatewayTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex justify-between text-slate-600">
+                              <span>• Platform Cloud Infrastructure, Database &amp; Hosting</span>
+                              <span className="font-semibold text-rose-600">- ₹{(finSummary.overheadTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          </div>
+
+                          {/* 5. Net Profit EBITDA */}
+                          <div className="flex justify-between items-center py-3 px-4 rounded-xl bg-[#02182e] text-white font-black text-sm sm:text-base shadow-sm">
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="w-4 h-4 text-orange-400" />
+                              <span>= Net Platform EBITDA (Retained Operating Profit)</span>
+                            </div>
+                            <span className="text-emerald-400 text-lg font-black">
+                              ₹{finSummary.netProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ── EXPENSES & DISBURSALS LEDGER TABLE ── */}
+                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                      <div className="p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                          <div className="flex items-center gap-2.5">
+                            <h2 className="text-base font-extrabold text-[#02182e]">Expenses &amp; Disbursals Ledger</h2>
+                            <span className="text-xs font-bold bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-full">
+                              {filteredExpenses.length} Records
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 mt-0.5">Itemized accounting journal of all outgoing vendor payouts, claims, and bills</p>
+                        </div>
+
+                        {/* Search and Filters */}
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <div className="relative">
+                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                            <input
+                              type="text"
+                              value={expenseSearchTerm}
+                              onChange={(e) => { setExpenseSearchTerm(e.target.value); setExpenseCurrentPage(1); }}
+                              placeholder="Search by ID, beneficiary, title..."
+                              className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 text-xs font-bold rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400 w-52 sm:w-64"
+                            />
+                            {expenseSearchTerm && (
+                              <button
+                                type="button"
+                                onClick={() => setExpenseSearchTerm('')}
+                                className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Category Filter Tabs */}
+                      <div className="px-5 py-3 bg-slate-50/70 border-b border-slate-100 flex items-center gap-2 overflow-x-auto">
+                        {[
+                          { id: 'All Expenses', label: `All Expenses (${expenseCounts.all})` },
+                          { id: 'Vendor Labor', label: `Vendor Labor (${expenseCounts.labor})` },
+                          { id: 'Fuel Claims', label: `Fuel Claims (${expenseCounts.fuel})` },
+                          { id: 'Parts Procurement', label: `Parts Procurement (${expenseCounts.parts})` },
+                          { id: 'Platform Overhead', label: `Overhead Bills (${expenseCounts.overhead})` },
+                          { id: 'Gateway & Banking', label: `Gateway Fees (${expenseCounts.gateway})` },
+                        ].map((tab) => (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => { setExpenseCategoryFilter(tab.id); setExpenseCurrentPage(1); }}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                              expenseCategoryFilter === tab.id
+                                ? 'bg-[#02182e] text-white shadow-2xs'
+                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            {tab.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Desktop Ledger Table */}
+                      <div className="overflow-x-auto hidden md:block">
+                        <table className="w-full text-left text-xs border-collapse min-w-[750px]">
+                          <thead>
+                            <tr className="bg-slate-50/80 text-slate-500 uppercase font-extrabold tracking-wider border-b border-slate-100">
+                              <th className="py-3 px-5">EXP ID</th>
+                              <th className="py-3 px-4">DATE</th>
+                              <th className="py-3 px-4">CATEGORY</th>
+                              <th className="py-3 px-4">DESCRIPTION &amp; BENEFICIARY</th>
+                              <th className="py-3 px-4">PAYMENT MODE</th>
+                              <th className="py-3 px-4 text-right">AMOUNT</th>
+                              <th className="py-3 px-4 text-center">STATUS</th>
+                              <th className="py-3 px-5 text-right">ACTION</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {paginatedExpenses.length === 0 ? (
+                              <tr>
+                                <td colSpan="8" className="py-12 text-center text-slate-400">
+                                  <Receipt className="w-8 h-8 text-slate-300 mx-auto mb-2 opacity-60" />
+                                  <p className="font-bold text-slate-700">No expense records found matching criteria</p>
+                                  <p className="text-[11px] text-slate-400 mt-0.5">
+                                    {expenseSearchTerm ? 'Try adjusting your search keywords.' : 'All platform disbursals will appear here automatically.'}
+                                  </p>
+                                </td>
+                              </tr>
+                            ) : (
+                              paginatedExpenses.map((exp) => (
+                                <tr key={exp.id} className="hover:bg-slate-50/80 transition-colors">
+                                  <td className="py-3.5 px-5 font-bold font-mono text-slate-600">{exp.id}</td>
+                                  <td className="py-3.5 px-4 text-slate-500 font-medium whitespace-nowrap">{exp.date}</td>
+                                  <td className="py-3.5 px-4">
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                                      exp.categoryKey === 'vendor_labor'
+                                        ? 'bg-orange-100 text-orange-800'
+                                        : exp.categoryKey === 'fuel'
+                                        ? 'bg-blue-100 text-blue-800'
+                                        : exp.categoryKey === 'inventory'
+                                        ? 'bg-purple-100 text-purple-800'
+                                        : exp.categoryKey === 'gateway'
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : 'bg-rose-100 text-rose-800'
+                                    }`}>
+                                      {exp.category}
+                                    </span>
+                                  </td>
+                                  <td className="py-3.5 px-4">
+                                    <div className="flex flex-col">
+                                      <span className="font-bold text-slate-900">{exp.title}</span>
+                                      <span className="text-[11px] text-slate-500 font-medium">{exp.beneficiary}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-3.5 px-4 text-slate-600 font-semibold">{exp.paymentMode}</td>
+                                  <td className="py-3.5 px-4 text-right font-black text-rose-600">
+                                    - ₹{Number(exp.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                  </td>
+                                  <td className="py-3.5 px-4 text-center">
+                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
+                                      exp.status === 'Settled' || exp.status === 'Paid'
+                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                        : exp.status === 'Approved'
+                                        ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                        : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                    }`}>
+                                      {exp.status}
+                                    </span>
+                                  </td>
+                                  <td className="py-3.5 px-5 text-right">
+                                    {exp.isCustom ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteCustomExpense(exp.id)}
+                                        className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                                        title="Delete custom expense"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    ) : (
+                                      <span className="text-[11px] text-slate-300 font-semibold select-none">Auto</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Mobile Row Cards */}
+                      <div className="block md:hidden p-4 space-y-3 bg-slate-50/50">
+                        {paginatedExpenses.length === 0 ? (
+                          <div className="py-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 p-6">
+                            <Receipt className="w-8 h-8 text-slate-300 mx-auto mb-2 opacity-60" />
+                            <p className="font-bold text-slate-700">No expense records found</p>
+                          </div>
+                        ) : (
+                          paginatedExpenses.map((exp) => (
+                            <div key={exp.id} className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-2.5">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <span className="text-[10px] font-mono text-slate-400 font-bold block">{exp.id}</span>
+                                  <h4 className="text-xs font-black text-slate-900">{exp.title}</h4>
+                                  <p className="text-[11px] text-slate-500 font-medium">{exp.beneficiary}</p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <span className="text-sm font-black text-rose-600 block">
+                                    - ₹{Number(exp.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                  </span>
+                                  <span className="text-[10px] font-bold text-slate-400">{exp.date}</span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase ${
+                                  exp.categoryKey === 'vendor_labor' ? 'bg-orange-100 text-orange-800' : 'bg-slate-100 text-slate-700'
+                                }`}>
+                                  {exp.category}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-bold text-slate-500">{exp.paymentMode}</span>
+                                  {exp.isCustom && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteCustomExpense(exp.id)}
+                                      className="text-red-500 p-1"
+                                      title="Delete"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      {/* Pagination Bar */}
+                      {filteredExpenses.length > 0 && (
+                        <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+                          <div className="flex items-center gap-3">
+                            <span>
+                              Showing <span className="font-extrabold text-slate-900">{(expenseCurrentPage - 1) * expenseItemsPerPage + 1}</span> to <span className="font-extrabold text-slate-900">{Math.min(expenseCurrentPage * expenseItemsPerPage, filteredExpenses.length)}</span> of <span className="font-extrabold text-slate-900">{filteredExpenses.length}</span> expenses
+                            </span>
+                            <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">
+                              <span className="text-[11px] text-slate-400 font-semibold">Per page:</span>
+                              <select
+                                value={expenseItemsPerPage}
+                                onChange={(e) => { setExpenseItemsPerPage(Number(e.target.value)); setExpenseCurrentPage(1); }}
+                                className="bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-lg px-2 py-1 cursor-pointer"
+                              >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={20}>20</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setExpenseCurrentPage((p) => Math.max(1, p - 1))}
+                              disabled={expenseCurrentPage === 1}
+                              className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1"
+                            >
+                              <ChevronLeft className="w-3.5 h-3.5" />
+                              <span>Prev</span>
+                            </button>
+                            <span className="px-2 text-xs font-bold text-slate-700">
+                              {expenseCurrentPage} / {totalExpensePages}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setExpenseCurrentPage((p) => Math.min(totalExpensePages, p + 1))}
+                              disabled={expenseCurrentPage === totalExpensePages}
+                              className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1"
+                            >
+                              <span>Next</span>
+                              <ChevronRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ── RECENT TRANSACTIONS TABLE ── */}
                     <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
                       <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-                        <h2 className="text-sm font-extrabold text-[#02182e]">Recent Transactions</h2>
-                        <span className="text-xs font-bold text-slate-400">
-                          {adminTransactions.length} {adminTransactions.length === 1 ? 'Record' : 'Records'} Recorded
+                        <div>
+                          <h2 className="text-sm font-extrabold text-[#02182e]">Recent Ledger Inward Transactions</h2>
+                          <p className="text-xs text-slate-400 mt-0.5">Recorded customer payments and job completions</p>
+                        </div>
+                        <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                          {adminTransactions.length} {adminTransactions.length === 1 ? 'Record' : 'Records'}
                         </span>
                       </div>
                       <div className="overflow-x-auto hidden md:block">
@@ -5776,55 +6421,9 @@ export default function AdminDashboardPage() {
                           </tbody>
                         </table>
                       </div>
-
-                      {/* Mobile Row Cards */}
-                      <div className="block md:hidden p-4 space-y-3 bg-slate-50/50">
-                        {adminTransactions.length === 0 ? (
-                          <div className="py-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 p-6">
-                            <IndianRupee className="w-8 h-8 text-slate-300 mx-auto mb-2 opacity-60" />
-                            <p className="font-bold text-slate-600">No transactions recorded yet in database</p>
-                            <p className="text-[11px] text-slate-400 mt-0.5">When vendors complete service orders, ledger transactions will appear here automatically.</p>
-                          </div>
-                        ) : (
-                          adminTransactions.map((trx) => (
-                            <div key={trx.id} className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-3">
-                              <div className="flex items-start justify-between gap-2">
-                                <div>
-                                  <div className="flex items-center gap-1.5 mb-1">
-                                    <span className="font-bold text-slate-600 text-xs">{trx.id}</span>
-                                    <span className="text-[10px] text-slate-400 font-medium">• {trx.date}</span>
-                                  </div>
-                                  <h4 className="text-xs font-black text-slate-900">{trx.type}</h4>
-                                </div>
-                                <div className="text-right">
-                                  <span className={`text-sm font-black ${(Number(trx?.amount) || 0) > 0 ? 'text-emerald-600' : 'text-slate-900'}`}>
-                                    {(Number(trx?.amount) || 0) > 0 ? '+' : ''}₹{Math.abs(Number(trx?.amount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                  </span>
-                                  <div className="mt-1">
-                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
-                                      trx.status === 'Completed' ? 'bg-emerald-100/80 text-emerald-800' : 'bg-amber-100/80 text-amber-800'
-                                    }`}>
-                                      {trx.status}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {(trx.customer !== '-' || trx.vendor !== '-') && (
-                                <div className="pt-2 border-t border-slate-100 text-xs flex flex-col gap-0.5">
-                                  {trx.customer !== '-' && <span className="font-semibold text-slate-800">Customer: {trx.customer}</span>}
-                                  {trx.vendor !== '-' && <span className="text-slate-500 font-medium">Vendor: {trx.vendor}</span>}
-                                </div>
-                              )}
-                            </div>
-                          ))
-                        )}
-                      </div>
                     </div>
                   </motion.div>
                 )}
-
-
                 {/* ── SERVICES & FUEL PRICING TAB ── */}
                 {activeTab === 'service-pricing' && (
                   <AdminServicePricingTab showToast={showToast} />
@@ -6131,13 +6730,14 @@ export default function AdminDashboardPage() {
                                 <th className="py-3 px-4">TECHNICIAN</th>
                                 <th className="py-3 px-4">DATE</th>
                                 <th className="py-3 px-4">STATUS</th>
+                                <th className="py-3 px-4">RATING</th>
                                 <th className="py-3 px-5 text-right">ACTION</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                               {isBookingsLoading ? (
                                 <tr>
-                                  <td colSpan="7" className="py-12 text-center text-slate-500 font-medium">
+                                  <td colSpan="8" className="py-12 text-center text-slate-500 font-medium">
                                     <div className="flex flex-col items-center justify-center gap-2">
                                       <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
                                       <span className="text-sm font-extrabold text-slate-700">Loading live work history from database...</span>
@@ -6155,6 +6755,9 @@ export default function AdminDashboardPage() {
                                     <td className="py-4 px-4">
                                       {renderBookingStatusBadge(item.status)}
                                     </td>
+                                    <td className="py-4 px-4">
+                                      {renderBookingRatingBadge(item)}
+                                    </td>
                                     <td className="py-4 px-5 text-right">
                                       <button 
                                         onClick={() => { setSelectedReportItem(item); setIsReportModalOpen(true); }}
@@ -6167,7 +6770,7 @@ export default function AdminDashboardPage() {
                                 ))
                               ) : (
                                 <tr>
-                                  <td colSpan="7" className="py-12 text-center text-slate-400">
+                                  <td colSpan="8" className="py-12 text-center text-slate-400">
                                     <div className="max-w-md mx-auto space-y-2 flex flex-col items-center justify-center">
                                       <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-1">
                                         <CheckCircle2 className="w-6 h-6 text-slate-400" />
@@ -6234,11 +6837,15 @@ export default function AdminDashboardPage() {
                                     <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">Technician</span>
                                     <span className="font-semibold text-slate-800">{item.technician}</span>
                                   </div>
-                                  <div className="col-span-2 pt-1 border-t border-slate-50">
+                                  <div>
                                     <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">Completed Date</span>
                                     <span className="font-medium text-slate-700">
                                       {item.dateCompleted !== '—' ? item.dateCompleted : (item.serviceDate || '—')}
                                     </span>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">Customer Rating</span>
+                                    <div>{renderBookingRatingBadge(item)}</div>
                                   </div>
                                 </div>
 
@@ -6460,6 +7067,13 @@ export default function AdminDashboardPage() {
         dispatchItem={selectedDispatchItem}
       />
 
+      {/* Operational Expense Recording Modal */}
+      <AdminAddExpenseModal
+        isOpen={isAddExpenseModalOpen}
+        onClose={() => setIsAddExpenseModalOpen(false)}
+        onExpenseAdded={() => showToast('Operational expense recorded successfully!')}
+      />
+
       {/* 6. Work Report Modal */}
       <AdminWorkReportModal
         isOpen={isReportModalOpen}
@@ -6485,14 +7099,55 @@ export default function AdminDashboardPage() {
       <AdminExportModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
-        title={exportType === 'inventory' ? 'Export Inventory Report' : exportType === 'payment' ? 'Export Payment Records' : 'Export Work History'}
-        onExport={(fromDate, toDate) => {
+        exportType={exportType}
+        initialRole={userRoleFilter}
+        usersCountByRole={{
+          all: usersList.length,
+          customer: usersList.filter(
+            (u) => u.role?.toLowerCase() === "customer" || u.role?.toLowerCase() === "user"
+          ).length,
+          vendor: usersList.filter(
+            (u) => u.role?.toLowerCase() === "technician" || u.role?.toLowerCase() === "vendor"
+          ).length,
+          admin: usersList.filter((u) => u.role?.toLowerCase() === "admin").length,
+        }}
+        title={
+          exportType === 'inventory' ? 'Export Real Inventory Catalog'
+          : exportType === 'payment' ? 'Export Real Payment Requests'
+          : exportType === 'users' ? 'Export Real Users & Technicians'
+          : exportType === 'applications' ? 'Export Real Vendor Applications'
+          : exportType === 'finance' ? 'Export Real Financial Ledger'
+          : 'Export Real Work History & Bookings'
+        }
+        description={
+          exportType === 'inventory' ? 'Export genuine spare parts catalog with real stock levels, purchase costs, and catalog valuation.'
+          : exportType === 'payment' ? 'Export real technician commission payouts and fuel mileage claims with account/UPI details.'
+          : exportType === 'users' ? 'Export registered customers, verified partners, and admin account profiles. You can choose to export only users, only vendors, only admins, or all accounts.'
+          : exportType === 'applications' ? 'Export technician partner registration submissions with specializations and cities.'
+          : exportType === 'finance' ? 'Export consolidated platform expenses, labor payouts, fuel claims, and operating bills.'
+          : 'Export real customer doorstep repair bookings with technician assignments, ratings, and revenue.'
+        }
+        totalRecords={
+          exportType === 'inventory' ? inventoryList.length
+          : exportType === 'payment' ? paymentRequests.length
+          : exportType === 'users' ? usersList.length
+          : exportType === 'applications' ? applicationsList.length
+          : exportType === 'finance' ? (consolidatedFinance.allExpenses || []).length
+          : (allBookings.length > 0 ? allBookings.length : dispatchQueue.concat(workHistory).length)
+        }
+        onExport={(fromDate, toDate, role) => {
           if (exportType === 'inventory') {
             handleExportInventoryExcel(fromDate, toDate);
           } else if (exportType === 'history') {
             handleExportExcel(fromDate, toDate);
           } else if (exportType === 'payment') {
-            showToast('Payment records exported successfully!');
+            handleExportPaymentExcel(fromDate, toDate);
+          } else if (exportType === 'users') {
+            handleExportUsersExcel(fromDate, toDate, role);
+          } else if (exportType === 'applications') {
+            handleExportApplicationsExcel(fromDate, toDate);
+          } else if (exportType === 'finance') {
+            handleExportFinanceExcel(fromDate, toDate);
           }
           setIsExportModalOpen(false);
         }}

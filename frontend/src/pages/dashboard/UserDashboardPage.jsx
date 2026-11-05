@@ -11,6 +11,7 @@ import {
 } from '../../services/operations/addressAPI';
 import { getMyBookingsApi, cancelBookingApi } from '../../services/operations/bookingAPI';
 import { createVendorReviewApi } from '../../services/api';
+import { saveBookingReview } from '../../utils/bookingReviews';
 import Navbar from '../../components/common/Navbar';
 import Footer from '../../components/common/Footer';
 import {
@@ -551,7 +552,23 @@ export default function UserDashboardPage() {
     if (authToken && targetId) {
       try {
         const res = await deleteAddressApi(targetId, authToken);
-        if (res.success) {
+        // Save to client-side review cache for immediate admin & cross-dashboard sync
+      saveBookingReview(validBookingId, {
+        rating,
+        review,
+        customer: user?.fullName || 'Verified Customer',
+        appliance: targetBooking?.appliance || targetBooking?.service,
+      });
+      if (bookingId && String(bookingId) !== String(validBookingId)) {
+        saveBookingReview(bookingId, {
+          rating,
+          review,
+          customer: user?.fullName || 'Verified Customer',
+          appliance: targetBooking?.appliance || targetBooking?.service,
+        });
+      }
+
+      if (res.success) {
           showToast('Address removed.');
           const resAddrs = await getAddressesApi(authToken);
           if (resAddrs.success && Array.isArray(resAddrs.addresses)) {
