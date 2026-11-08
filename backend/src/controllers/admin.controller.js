@@ -6,6 +6,7 @@ const Payout = require('../models/payout.model');
 const FuelClaim = require('../models/fuelClaim.model');
 const VendorProfile = require('../models/vendorProfile.model');
 const VendorEarning = require('../models/vendorEarning.model');
+const VendorReview = require("../models/vendorReview.model");
 const mongoose = require('mongoose');
 
 //Update User Account Status
@@ -582,6 +583,45 @@ exports.updateFuelClaimStatus = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to update fuel claim status',
+    });
+  }
+};
+
+
+exports.getAllVendorReviews = async (req, res) => {
+  try {
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 10));
+    const skip = (page - 1) * limit;
+
+    const [reviews, totalReviews] = await Promise.all([
+      VendorReview.find()
+        .populate("vendor", "fullName email vendorId")
+        .populate("customer", "fullName email")
+        .populate("booking", "appliance bookingStatus serviceDate")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+
+      VendorReview.countDocuments(),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      reviews,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(totalReviews / limit),
+        totalReviews,
+        limit,
+      },
+    });
+  } catch (error) {
+    console.error("Get all vendor reviews error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch vendor reviews",
     });
   }
 };

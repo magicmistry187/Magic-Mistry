@@ -9,6 +9,7 @@ const {
   getAllPaymentRequests,
   updatePayoutStatus,
   updateFuelClaimStatus,
+  getAllVendorReviews
 } = require('../controllers/admin.controller');
 
 router.patch('/:userId/status', auth, isAdmin, updateUserStatus);
@@ -22,5 +23,7 @@ router.get('/payment-requests', auth, isAdmin, getAllPaymentRequests);
 router.patch('/payout/:payoutId/status', auth, isAdmin, updatePayoutStatus);
 
 router.patch('/fuelclaim/:claimId/status', auth, isAdmin, updateFuelClaimStatus);
+
+router.get('/reviews', auth, isAdmin, getAllVendorReviews);
 
 module.exports = router;
