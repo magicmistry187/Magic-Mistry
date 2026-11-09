@@ -1,12 +1,24 @@
-const nodemailer = require("nodemailer");
+const nodemailer = require('nodemailer');
 
-const mailSender = async (email, title, body) => {
-  const mailUser = (process.env.Mail_User || process.env.MAIL_USER || "").trim();
-  const mailPass = (process.env.Mail_Pass || process.env.MAIL_PASS || "").trim();
-  const mailHost = (process.env.Mail_Host || process.env.MAIL_HOST || "smtp.gmail.com").trim();
+const mailSender = async (email, title, body,replyTo) => {
+  const mailUser = (
+    process.env.Mail_User ||
+    process.env.MAIL_USER ||
+    ''
+  ).trim();
+  const mailPass = (
+    process.env.Mail_Pass ||
+    process.env.MAIL_PASS ||
+    ''
+  ).trim();
+  const mailHost = (
+    process.env.Mail_Host ||
+    process.env.MAIL_HOST ||
+    'smtp.gmail.com'
+  ).trim();
 
   if (!mailUser || !mailPass) {
-    throw new Error("Mail_User or Mail_Pass not configured in .env");
+    throw new Error('Mail_User or Mail_Pass not configured in .env');
   }
 
   const transporter = nodemailer.createTransport({
@@ -22,10 +34,10 @@ const mailSender = async (email, title, body) => {
   const info = await transporter.sendMail({
     from: `"Magic Mistry" <${mailUser}>`,
     to: email,
+    replyTo: replyTo || undefined,
     subject: title,
     html: body,
   });
-;
   return info;
 };
 

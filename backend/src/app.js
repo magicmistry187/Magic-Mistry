@@ -70,6 +70,8 @@ const vendorReviewRoutes = require('./routes/vendorReview.routes');
 
 const bannerRoutes = require('./routes/banner.routes');
 
+const contactRoutes = require('./routes/contact.routes');
+
 app.use('/api/auth', authRoutes);
 app.use('/api/booking', bookingRoutes);
 app.use('/api/address', addressRoutes);
@@ -85,5 +87,7 @@ app.use('/api/price-config', priceConfigRoutes);
 app.use('/api/service-categories', serviceCategoryRoutes);
 app.use('/api/vendor-reviews', vendorReviewRoutes);
 app.use('/api/banners', bannerRoutes);
+
+app.use('/api/contact', contactRoutes);
 
 module.exports = app;
